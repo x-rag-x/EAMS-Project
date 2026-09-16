@@ -3,12 +3,6 @@
 .tab-btn.act{ background:var(--gD); border-color:var(--gD); color:#fff; }
 
 .form-actions{ display:flex; justify-content:flex-end; gap:8px; margin-top:16px; }
-.btn-form-pri{ background:var(--gD); color:#fff; border:none; border-radius:9px; padding:9px 18px; font-size:12.5px; font-weight:600; cursor:pointer; font-family:'Poppins',sans-serif; }
-.btn-form-pri:hover{ background:var(--gM); }
-.btn-form-ghost{ background:var(--gP); color:var(--tmu); border:1px solid var(--br); border-radius:9px; padding:9px 16px; font-size:12.5px; font-weight:600; cursor:pointer; font-family:'Poppins',sans-serif; }
-.btn-form-ghost:hover{ background:#fff0f0; color:#d32f2f; border-color:#f5c2c2; }
-.btn-form-del{ background:rgba(239,68,68,.07); color:#dc2626; border:1px solid rgba(239,68,68,.2); border-radius:9px; padding:9px 16px; font-size:12.5px; font-weight:600; cursor:pointer; font-family:'Poppins',sans-serif; margin-right:auto; }
-.btn-form-del:hover{ background:rgba(239,68,68,.14); }
 
 .bgp{ background:rgba(139,92,246,.1); color:#7c3aed; }.bggy{ background:#f3f4f6; color:#374151; }
 
@@ -132,6 +126,4 @@
 /* ── FORM GRID (page-specific) ──────────────────────────────────────── */
 .fgrid{ display:grid; gap:12px; margin-bottom:12px; }
 .fg2{ grid-template-columns:1fr 1fr; }
-.fg3{ grid-template-columns:1fr 1fr 1fr; }
-
-.btn-xs{ padding:4px 10px; font-size:11px; border-radius:10px; }
+.fg3{ grid-template-columns:1fr 1fr 1fr; }

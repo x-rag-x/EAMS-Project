@@ -9,7 +9,7 @@ const escapeRegex = s => String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const { sanitizeToString } = require('../utils/sanitizeQuery');
 const { validatePassword } = require('../utils/passwordValidator');
 
-// ── GET /api/users — List & search users with enriched profile and login status ──
+// GET /api/users - List and search users with enriched profile and login status
 router.get('/', authMiddleware, adminOnly, async (req, res) => {
   try {
     const filter = {};
@@ -20,10 +20,10 @@ router.get('/', authMiddleware, adminOnly, async (req, res) => {
       filter.status = sanitizeToString(req.query.status);
     }
 
-    // Fetch all matched shadow users
+    // Fetch all matching shadow users
     const users = await M.User.find(filter).sort({ role: 1, username: 1 }).lean();
 
-    // Group trackIds by role to batch enrich
+    // Group track IDs by role for batch enrichment
     const adminTrackIds = users.filter(u => u.role === 'admin').map(u => u.trackId).filter(Boolean);
     const teacherTrackIds = users.filter(u => u.role === 'teacher').map(u => u.trackId).filter(Boolean);
     const studentTrackIds = users.filter(u => u.role === 'student').map(u => u.trackId).filter(Boolean);
@@ -210,15 +210,14 @@ router.get('/', authMiddleware, adminOnly, async (req, res) => {
   }
 });
 
-// ── PUT /api/users/:id — Full user update across shadow User and role document ──
+// PUT /api/users/:id - Update user across shadow User and role document
 router.put('/:id', authMiddleware, async (req, res) => {
   try {
     const isSelf = String(req.user._id) === String(req.params.id);
     const isAdmin = req.user.role === 'admin';
     
-    const reqUser = await M.User.findById(req.user._id).lean();
-    const rights = reqUser?.adminRights;
-    const hasManageUser = rights === 'all' || (Array.isArray(rights) && (rights.includes('managePage') || rights.includes('controlPage')));
+    const rights = req.user.adminRights;
+    const hasManageUser = rights === 'all' || (Array.isArray(rights) && (rights.includes('all') || rights.includes('managePage') || rights.includes('controlPage')));
     const canEditOthers = isAdmin || hasManageUser;
 
     if (!isSelf && !canEditOthers) {
@@ -240,27 +239,17 @@ router.put('/:id', authMiddleware, async (req, res) => {
     if (username && username.trim().toLowerCase() !== user.username) {
       const newUsername = username.trim().toLowerCase();
       const existingUser = await M.User.findOne({ username: newUsername, _id: { $ne: user._id } });
-      if (existingUser) return res.status(400).json({ error: 'Username already taken' });
+      if (existingUser) {
+        return res.status(400).json({ error: 'Username already taken' });
+      }
       user.username = newUsername;
     }
 
     // Update shadow user status
-    if (status) {
+    if (status !== undefined) {
       user.status = status;
-      if (status === 'active') {
-        await M.LoginHistory.updateOne(
-          { trackId: user.trackId },
-          { $set: { failedLogins: 0, lockedUntil: null } }
-        );
-      }
     } else if (active !== undefined) {
       user.status = active ? 'active' : 'inactive';
-      if (active) {
-        await M.LoginHistory.updateOne(
-          { trackId: user.trackId },
-          { $set: { failedLogins: 0, lockedUntil: null } }
-        );
-      }
     }
 
     await user.save();
@@ -270,22 +259,27 @@ router.put('/:id', authMiddleware, async (req, res) => {
     if (model && user.trackId) {
       const roleDoc = await model.findOne({ trackId: user.trackId }).select('+password +passwordHistory');
       if (roleDoc) {
-        if (username) roleDoc.username = user.username;
-        if (fullName || name) roleDoc.fullName = (fullName || name).trim();
-        if (firstName !== undefined) roleDoc.firstName = String(firstName).trim();
-        if (lastName !== undefined) roleDoc.lastName = String(lastName).trim();
-        if (email !== undefined) roleDoc.email = String(email).trim().toLowerCase();
+        if (fullName !== undefined) roleDoc.fullName = fullName.trim();
+        if (firstName !== undefined) roleDoc.firstName = firstName.trim();
+        if (lastName !== undefined) roleDoc.lastName = lastName.trim();
+        if (email !== undefined) roleDoc.email = email.trim().toLowerCase();
+        if (username && username.trim().toLowerCase() !== roleDoc.username) {
+          roleDoc.username = username.trim().toLowerCase();
+        }
+        if (department !== undefined) roleDoc.department = department.trim();
+        if (deptId !== undefined) roleDoc.deptId = deptId || null;
+        if (deptCode !== undefined) roleDoc.deptCode = deptCode.trim().toUpperCase();
         if (mustChangePassword !== undefined) roleDoc.mustChangePassword = !!mustChangePassword;
 
-        // Role-specific fields
-        if (user.role === 'teacher') {
-          if (department !== undefined) roleDoc.department = department;
-          if (deptId !== undefined) roleDoc.deptId = deptId || null;
-          if (deptCode !== undefined) roleDoc.deptCode = deptCode;
-          if (designation !== undefined) roleDoc.designation = designation;
-          if (employeeNo !== undefined) roleDoc.employeeNo = employeeNo;
-          if (userIsAdmin !== undefined && isAdmin) roleDoc.isAdmin = !!userIsAdmin;
-          if (adminRights !== undefined && isAdmin) roleDoc.adminRights = adminRights;
+        // Update role-specific fields
+        if (user.role === 'admin') {
+          if (employeeNo !== undefined) roleDoc.employeeNo = employeeNo.trim();
+          if (adminRights !== undefined) roleDoc.adminRights = adminRights;
+        } else if (user.role === 'teacher') {
+          if (designation !== undefined) roleDoc.designation = designation.trim();
+          if (employeeNo !== undefined) roleDoc.employeeNo = employeeNo.trim();
+          if (userIsAdmin !== undefined) roleDoc.isAdmin = !!userIsAdmin;
+          if (adminRights !== undefined) roleDoc.adminRights = adminRights;
           if (defaultAttendanceStatus !== undefined) {
             if (!roleDoc.preferences) roleDoc.preferences = {};
             roleDoc.preferences.defaultAttendanceStatus = defaultAttendanceStatus;
@@ -294,29 +288,25 @@ router.put('/:id', authMiddleware, async (req, res) => {
             roleDoc.specials = specials;
           }
         } else if (user.role === 'student') {
-          if (registerNo !== undefined) roleDoc.registerNo = registerNo;
-          if (userClass !== undefined || className !== undefined) roleDoc.class = userClass || className;
+          if (registerNo !== undefined) roleDoc.registerNo = registerNo.trim();
+          if (className !== undefined || userClass !== undefined) roleDoc.class = (className || userClass || '').trim();
           if (classId !== undefined) roleDoc.classId = classId || null;
-          if (section !== undefined) roleDoc.section = section;
+          if (section !== undefined) roleDoc.section = section.trim();
           if (courseType !== undefined) roleDoc.courseType = courseType;
           if (branch !== undefined) roleDoc.branch = branch;
-          if (department !== undefined) roleDoc.department = department;
-          if (deptId !== undefined) roleDoc.deptId = deptId || null;
-          if (admissionYear !== undefined || academicYear !== undefined) roleDoc.admissionYear = admissionYear || academicYear;
-          if (batchTrackId !== undefined || batch !== undefined) roleDoc.batchTrackId = batchTrackId || batch;
+          if (admissionYear !== undefined) roleDoc.admissionYear = admissionYear.trim();
+          if (batchTrackId !== undefined || batch !== undefined) roleDoc.batchTrackId = (batchTrackId || batch || '').trim();
           if (isRep !== undefined) roleDoc.isRep = !!isRep;
-        } else if (user.role === 'admin') {
-          if (department !== undefined) roleDoc.department = department;
-          if (employeeNo !== undefined) roleDoc.employeeNo = employeeNo;
-          if (adminRights !== undefined && isAdmin) roleDoc.adminRights = adminRights;
         }
 
-        // Handle password update if supplied
-        if (password) {
+        // Process password update if supplied
+        if (password && password.trim()) {
           if (isSelf) {
-            if (!currentPassword) return res.status(400).json({ error: 'Current password is required' });
-            const validCurrent = await bcrypt.compare(currentPassword, roleDoc.password);
-            if (!validCurrent) return res.status(401).json({ error: 'Current password is incorrect' });
+            if (!currentPassword) {
+              return res.status(400).json({ error: 'Current password is required to change password' });
+            }
+            const match = await bcrypt.compare(currentPassword, roleDoc.password);
+            if (!match) return res.status(401).json({ error: 'Current password incorrect' });
           }
 
           const secSettings = await M.Settings.findOne({ key: 'security' });
@@ -352,38 +342,22 @@ router.put('/:id', authMiddleware, async (req, res) => {
       req.user.trackId || req.user._id,
       req.user.name,
       req.user.role,
-      isSelf ? 'Profile Updated' : 'User Updated',
+      'User Updated',
       `Updated user: ${user.username} (${user.role})`,
       'data',
       'info',
       req.ip,
       req.user.sessionId,
-      {
-        module: 'admin',
-        subType: 'field-edit',
-        trackId: req.user.trackId,
-        actingWithAdminRights: req.user.actingWithAdminRights
-      }
+      { module: 'admin', subType: 'entry-update', trackId: req.user.trackId }
     );
 
-    res.json({
-      success: true,
-      message: 'User updated successfully',
-      user: {
-        _id: user._id,
-        username: user.username,
-        role: user.role,
-        trackId: user.trackId,
-        status: user.status,
-        name: (fullName || name) || user.username
-      }
-    });
+    res.json({ success: true, message: 'User updated successfully' });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// ── POST /api/users/:id/reset-password — Admin Password Reset for User ──
+// POST /api/users/:id/reset-password - Admin reset user password
 router.post('/:id/reset-password', authMiddleware, adminOnly, async (req, res) => {
   try {
     const { newPassword, requireChangeOnLogin } = req.body;
@@ -460,7 +434,7 @@ router.post('/:id/reset-password', authMiddleware, adminOnly, async (req, res) =
   }
 });
 
-// ── POST /api/users/:id/unlock — Unlock Locked User Account ──
+// POST /api/users/:id/unlock - Unlock locked user account
 router.post('/:id/unlock', authMiddleware, adminOnly, async (req, res) => {
   try {
     const user = await M.User.findById(req.params.id);
@@ -496,7 +470,7 @@ router.post('/:id/unlock', authMiddleware, adminOnly, async (req, res) => {
   }
 });
 
-// ── POST /api/users/bulk-action — Batch action on multiple users ──
+// POST /api/users/bulk-action - Batch action on multiple users
 router.post('/bulk-action', authMiddleware, adminOnly, async (req, res) => {
   try {
     const { userIds, action } = req.body;
@@ -570,7 +544,7 @@ router.post('/bulk-action', authMiddleware, adminOnly, async (req, res) => {
   }
 });
 
-// ── DELETE /api/users/:id — Safe Deactivate / Delete with UndoLog ──
+// DELETE /api/users/:id - Safe deactivate or delete user with undo log
 router.delete('/:id', authMiddleware, adminOnly, requireRight('deletings'), async (req, res) => {
   try {
     const user = await M.User.findById(req.params.id);
@@ -579,7 +553,7 @@ router.delete('/:id', authMiddleware, adminOnly, requireRight('deletings'), asyn
     const model = getRoleModel(user.role);
     const roleDoc = (model && user.trackId) ? await model.findOne({ trackId: user.trackId }).lean() : null;
 
-    // Capture UndoLog for 10-day recovery
+    // Capture snapshot for undo log recovery
     await M.UndoLog.create({
       collectionName: 'users',
       action: 'delete',
@@ -613,7 +587,7 @@ router.delete('/:id', authMiddleware, adminOnly, requireRight('deletings'), asyn
   }
 });
 
-// ── EXECUTIVE ROLES MANAGEMENT (Principal, HOD, Sub-Admin) ─────────
+// Executive roles management endpoints
 router.get('/executive/roles', authMiddleware, adminOnly, async (req, res) => {
   try {
     const [principals, depts, teachers, subadminAdmins] = await Promise.all([
@@ -647,7 +621,7 @@ router.get('/executive/roles', authMiddleware, adminOnly, async (req, res) => {
       };
     });
 
-    // Format Sub-Admins (Teachers with admin rights + Sub-Admin Admins)
+    // Format sub-admin accounts combining faculty and administrative users
     const teacherSubAdmins = teachers
       .filter(t => t.isAdmin === true || (Array.isArray(t.adminRights) && t.adminRights.length && !t.adminRights.every(r => r === 'none')))
       .map(t => ({
@@ -683,7 +657,7 @@ router.get('/executive/roles', authMiddleware, adminOnly, async (req, res) => {
   }
 });
 
-// POST /api/users/executive/assign-principal — Create or update Principal
+// POST /api/users/executive/assign-principal - Create or update Principal account
 router.post('/executive/assign-principal', authMiddleware, adminOnly, async (req, res) => {
   try {
     const { fullName, username, password, email, employeeNo } = req.body;
@@ -699,7 +673,7 @@ router.post('/executive/assign-principal', authMiddleware, adminOnly, async (req
     let adminDoc = await M.Admin.findOne({ username: cleanUsername });
 
     if (adminDoc) {
-      // Update existing admin
+      // Update existing principal admin record
       adminDoc.adminFlag = 'principal';
       adminDoc.fullName = fullName.trim();
       if (email) adminDoc.email = email.trim();
@@ -709,7 +683,7 @@ router.post('/executive/assign-principal', authMiddleware, adminOnly, async (req
       }
       await adminDoc.save();
     } else {
-      // Create new principal admin
+      // Create new principal admin record
       if (!password || !password.trim()) {
         return res.status(400).json({ error: 'Password is required when creating a new Principal account' });
       }
@@ -757,7 +731,7 @@ router.post('/executive/assign-principal', authMiddleware, adminOnly, async (req
   }
 });
 
-// POST /api/users/executive/assign-hod — Designate Department HOD
+// POST /api/users/executive/assign-hod - Designate Department HOD
 router.post('/executive/assign-hod', authMiddleware, adminOnly, async (req, res) => {
   try {
     const { deptId, teacherId } = req.body;
@@ -771,7 +745,7 @@ router.post('/executive/assign-hod', authMiddleware, adminOnly, async (req, res)
     const newHodTeacher = await M.Teacher.findById(teacherId);
     if (!newHodTeacher) return res.status(404).json({ error: 'Faculty member not found' });
 
-    // 1. Remove HOD designation from previous HOD of this department
+    // Remove previous HOD designation for this department
     if (dept.hodId) {
       const prevTeacher = await M.Teacher.findById(dept.hodId);
       if (prevTeacher) {
@@ -780,12 +754,12 @@ router.post('/executive/assign-hod', authMiddleware, adminOnly, async (req, res)
       }
     }
 
-    // 2. Set HOD on Department
+    // Update department record with new HOD reference
     dept.hodId = newHodTeacher._id;
     dept.hodName = newHodTeacher.fullName;
     await dept.save();
 
-    // 3. Add HOD specials to new Teacher
+    // Assign HOD special privileges to new teacher
     const specials = (newHodTeacher.specials || []).filter(s => s.option !== 'isHod' && s.option !== 'HodDeptTrackId');
     specials.push({ option: 'isHod', value: true, key: dept.name });
     if (dept.trackId) {
@@ -813,7 +787,7 @@ router.post('/executive/assign-hod', authMiddleware, adminOnly, async (req, res)
   }
 });
 
-// POST /api/users/executive/grant-subadmin — Grant/Update Sub-Admin Privileges
+// POST /api/users/executive/grant-subadmin - Grant or update Sub-Admin privileges
 router.post('/executive/grant-subadmin', authMiddleware, adminOnly, async (req, res) => {
   try {
     const { teacherId, adminRights } = req.body;

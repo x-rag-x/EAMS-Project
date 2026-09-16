@@ -48,6 +48,13 @@
     <button class="sb-item" id="nav-attendance" onclick="showView('attendance')">
       <span class="sbi-ic">📅</span>Attendance
     </button>
+    <button class="sb-item" id="nav-mark-att" onclick="window.location.href='attendance.html'">
+      <span class="sbi-ic">⚡</span>Mark Attendance
+    </button>
+    <button class="sb-item" id="nav-rep-att" onclick="showView('rep-att')" style="display:none;">
+      <span class="sbi-ic">📋</span>Rep Attendance
+      <span id="rep-badge" style="display:none;margin-left:auto;background:#ef4444;color:#fff;font-size:9px;font-weight:800;padding:2px 7px;border-radius:10px;">1</span>
+    </button>
     <button class="sb-item" id="nav-leave" onclick="showView('leave')">
       <span class="sbi-ic">📝</span>Apply Leave
     </button>
@@ -104,6 +111,20 @@
 
   <!-- ── DASHBOARD VIEW ── -->
   <div class="pg act" id="view-dashboard">
+    <!-- Active Quick Pass / Live Attendance Alert Banner -->
+    <div id="st-active-session-banner" style="display:none;margin:18px 24px 0 24px;background:linear-gradient(135deg, #fef3c7 0%, #fffbeb 100%);border:1.5px solid #fde68a;border-radius:14px;padding:14px 18px;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;box-shadow:0 4px 14px rgba(245,158,11,0.12);">
+      <div style="display:flex;align-items:center;gap:12px;">
+        <span style="font-size:24px;">🔢</span>
+        <div>
+          <div style="font-size:14px;font-weight:800;color:#92400e;" id="st-banner-title">Quick Pass Attendance Active!</div>
+          <div style="font-size:12px;color:#b45309;margin-top:2px;" id="st-banner-desc">Live attendance session is ongoing. Click to mark your presence.</div>
+        </div>
+      </div>
+      <button class="btn-pri" onclick="window.location.href='attendance.html'" style="background:#d97706;padding:8px 18px;font-size:12.5px;">
+        ⚡ Mark Attendance →
+      </button>
+    </div>
+
     <div class="main" id="main-content">
       <div class="loading-screen" id="loading-screen">
         <div class="spinner"></div>
@@ -281,6 +302,121 @@
     </div>
   </div>
 
+  <!-- ── CLASS REP ATTENDANCE VIEW ── -->
+  <div class="pg" id="view-rep-att">
+    <div class="rep-page" id="rep-content" style="max-width:1100px;margin:0 auto;padding:24px 20px;">
+      
+      <!-- Top Banner -->
+      <div style="background:linear-gradient(135deg, rgba(46,125,50,0.08), rgba(27,94,32,0.03));border:1.5px solid rgba(46,125,50,0.22);border-radius:16px;padding:20px 24px;margin-bottom:22px;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;">
+        <div style="display:flex;align-items:center;gap:14px;">
+          <div style="width:48px;height:48px;border-radius:12px;background:var(--gD);color:#fff;display:flex;align-items:center;justify-content:center;font-size:24px;box-shadow:0 4px 12px rgba(46,125,50,0.25);">
+            📋
+          </div>
+          <div>
+            <h2 style="font-size:18px;font-weight:800;color:var(--td);margin:0;">Class Rep Attendance Delegation</h2>
+            <div style="font-size:12.5px;color:var(--tmu);margin-top:3px;">Mark physical presence for delegated sessions and verify classroom headcount.</div>
+          </div>
+        </div>
+        <button class="btn-out" onclick="loadRepPendingSession()" style="font-size:12px;display:flex;align-items:center;gap:6px;padding:8px 14px;">
+          🔄 Refresh Session
+        </button>
+      </div>
+
+      <!-- No Pending Session State -->
+      <div id="rep-empty-state" style="text-align:center;padding:60px 20px;background:#fff;border:1.5px dashed var(--br);border-radius:16px;">
+        <div style="font-size:48px;margin-bottom:12px;">🏖️</div>
+        <h3 style="font-size:16px;font-weight:700;color:var(--td);margin-bottom:6px;">No Pending Delegations</h3>
+        <p style="font-size:13px;color:var(--tmu);max-width:440px;margin:0 auto 18px;">
+          When your teacher delegates attendance marking to you, the live session sheet will appear here instantly.
+        </p>
+        <button class="btn-pri" onclick="loadRepPendingSession()" style="font-size:12.5px;padding:8px 18px;">Check for Delegations</button>
+      </div>
+
+      <!-- Active Delegated Session Area (hidden by default) -->
+      <div id="rep-session-area" style="display:none;">
+        <!-- Session Info Card -->
+        <div style="background:#fff;border:1.5px solid var(--br);border-radius:14px;padding:18px 22px;margin-bottom:18px;box-shadow:0 2px 8px rgba(0,0,0,0.03);">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
+            <span style="font-size:11.5px;font-weight:800;background:var(--gLt);color:var(--gD);padding:4px 10px;border-radius:20px;text-transform:uppercase;" id="rep-session-badge">Active Delegation</span>
+            <span style="font-size:12px;color:var(--tmu);" id="rep-session-time">—</span>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));gap:14px;">
+            <div>
+              <div style="font-size:11px;font-weight:700;color:var(--tdi);text-transform:uppercase;">Class &amp; Section</div>
+              <div style="font-size:13.5px;font-weight:700;color:var(--td);" id="rep-session-class">—</div>
+            </div>
+            <div>
+              <div style="font-size:11px;font-weight:700;color:var(--tdi);text-transform:uppercase;">Subject</div>
+              <div style="font-size:13.5px;font-weight:700;color:var(--td);" id="rep-session-subject">—</div>
+            </div>
+            <div>
+              <div style="font-size:11px;font-weight:700;color:var(--tdi);text-transform:uppercase;">Teacher</div>
+              <div style="font-size:13.5px;font-weight:700;color:var(--td);" id="rep-session-teacher">—</div>
+            </div>
+            <div>
+              <div style="font-size:11px;font-weight:700;color:var(--tdi);text-transform:uppercase;">Period / Hour</div>
+              <div style="font-size:13.5px;font-weight:700;color:var(--td);" id="rep-session-hour">—</div>
+            </div>
+          </div>
+          <div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--brl);font-size:12px;color:var(--td);">
+            <strong>Topic:</strong> <span id="rep-session-topic" style="color:var(--tmu);">—</span>
+          </div>
+        </div>
+
+        <!-- Toolbar & Stats -->
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px;flex-wrap:wrap;">
+          <div style="display:flex;gap:8px;">
+            <button class="btn-pri" onclick="markAllRep('Present')" style="font-size:12px;padding:6px 14px;background:#16a34a;">
+              ✓ All Present
+            </button>
+            <button class="btn-out" onclick="markAllRep('Absent')" style="font-size:12px;padding:6px 14px;color:#dc2626;border-color:#fca5a5;">
+              ✕ All Absent
+            </button>
+          </div>
+          <div style="display:flex;gap:16px;align-items:center;font-size:13px;font-weight:700;">
+            <span style="color:var(--tmu);">Total: <span id="rep-cnt-total" style="color:var(--td);">0</span></span>
+            <span style="color:#16a34a;">Present: <span id="rep-cnt-present">0</span></span>
+            <span style="color:#dc2626;">Absent: <span id="rep-cnt-absent">0</span></span>
+          </div>
+        </div>
+
+        <!-- Student Attendance Table -->
+        <div style="background:#fff;border:1.5px solid var(--br);border-radius:14px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.03);margin-bottom:24px;">
+          <div style="overflow-x:auto;">
+            <table class="tbl" style="margin:0;">
+              <thead>
+                <tr>
+                  <th style="width:40px;text-align:center;">#</th>
+                  <th>Roll / Reg No</th>
+                  <th>Student Name</th>
+                  <th style="width:180px;text-align:center;">Attendance</th>
+                  <th>Remarks (Optional)</th>
+                </tr>
+              </thead>
+              <tbody id="rep-student-tbody">
+                <!-- Populated via JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Bottom Action Card -->
+        <div style="position:sticky;bottom:16px;background:#fff;border:1.5px solid var(--br);border-radius:14px;padding:16px 20px;box-shadow:0 6px 24px rgba(0,0,0,0.1);display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;z-index:90;">
+          <div>
+            <div style="font-size:11px;font-weight:700;color:var(--tdi);text-transform:uppercase;">Attendance Summary</div>
+            <div style="font-size:15px;font-weight:800;color:var(--td);margin-top:2px;">
+              <span id="rep-summary-text">0 of 0 Students Marked Present</span>
+            </div>
+          </div>
+          <button class="btn-pri" id="btn-rep-proceed" onclick="openRepConfirmModal()" style="font-size:13.5px;padding:10px 24px;font-weight:700;">
+            🛡️ Verify Physical Headcount &amp; Submit →
+          </button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
 </div><!-- end content-shell -->
 </div><!-- end app-shell -->
 
@@ -372,6 +508,50 @@
     <div style="display:flex;gap:10px;">
       <button class="btn-out" onclick="closeModal('m-unknown')" style="flex:1;">Cancel</button>
       <button class="btn-danger" onclick="submitUnknownReport()" style="flex:2;">Report &amp; Secure Account</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ REP ANTI-FRAUD HEADCOUNT VERIFICATION MODAL ══ -->
+<div class="modal-bg" id="modal-rep-confirm">
+  <div class="modal" style="max-width:460px;padding:26px;">
+    <div style="text-align:center;margin-bottom:18px;">
+      <div style="width:56px;height:56px;border-radius:16px;background:#fef3c7;color:#d97706;display:inline-flex;align-items:center;justify-content:center;font-size:28px;margin-bottom:10px;">
+        🛡️
+      </div>
+      <div class="modal-title" style="font-size:18px;">Verify Physical Headcount</div>
+      <div style="font-size:12.5px;color:var(--tmu);line-height:1.5;margin-top:6px;">
+        Anti-fraud protocol: Enter the exact physical count of students seated in the classroom right now to confirm your submission.
+      </div>
+    </div>
+
+    <!-- Alert / Notice Box -->
+    <div style="background:#fffbeb;border:1.5px solid #fde68a;border-radius:12px;padding:14px 16px;margin-bottom:18px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <span style="font-size:12.5px;font-weight:700;color:#92400e;">Marked Present Count:</span>
+        <span id="rep-verify-marked-display" style="font-size:22px;font-weight:900;color:#16a34a;">0</span>
+      </div>
+      <div style="font-size:11.5px;color:#b45309;line-height:1.4;">
+        ⚠️ The physical count of students in class must exactly match your marked present count.
+      </div>
+    </div>
+
+    <div class="fg" style="margin-bottom:16px;">
+      <label class="fl" style="font-size:12px;font-weight:700;">Physical Headcount in Classroom:</label>
+      <input type="number" min="0" class="fc2" id="input-rep-headcount" placeholder="e.g. 42" 
+        oninput="validateRepHeadcount()" style="font-size:18px;font-weight:800;text-align:center;padding:10px;border-color:var(--br);">
+      <div id="rep-headcount-err" style="display:none;color:#dc2626;font-size:11.5px;font-weight:700;margin-top:6px;text-align:center;"></div>
+    </div>
+
+    <div style="margin-top:18px;">
+      <button type="button" id="btn-rep-final-submit" class="btn-pri" onclick="submitRepConfirmedAttendance()" 
+        style="width:100%;padding:12px;font-size:14px;font-weight:700;background:var(--gD);box-shadow:0 4px 14px rgba(46,125,50,0.3);" disabled>
+        Confirm Headcount &amp; Submit Attendance
+      </button>
+    </div>
+
+    <div style="text-align:center;margin-top:12px;font-size:11px;color:var(--tdi);">
+      Note: To fix a marking mistake, close this window by reloading the page.
     </div>
   </div>
 </div>

@@ -22,7 +22,7 @@ function getDeptFilter(req, requestedDeptId) {
   return null;
 }
 
-// ── 1. GET /api/controller/init — Bootstrap context, profile and badge counts ──
+// 1. GET /api/controller/init — Bootstrap context, profile and badge counts
 router.get('/init', async (req, res) => {
   try {
     const ctx = req.controllerContext;
@@ -63,7 +63,7 @@ router.get('/init', async (req, res) => {
   }
 });
 
-// ── 2. GET /api/controller/dashboard — Aggregated dashboard statistics & trends ──
+// 2. GET /api/controller/dashboard — Aggregated dashboard statistics & trends
 router.get('/dashboard', async (req, res) => {
   try {
     const ctx = req.controllerContext;
@@ -243,7 +243,7 @@ router.get('/dashboard', async (req, res) => {
   }
 });
 
-// ── 3. GET /api/controller/attendance/daily — Detailed attendance by date & class ──
+// 3. GET /api/controller/attendance/daily — Detailed attendance by date & class
 router.get('/attendance/daily', async (req, res) => {
   try {
     const ctx = req.controllerContext;
@@ -348,7 +348,7 @@ router.get('/attendance/daily', async (req, res) => {
   }
 });
 
-// ── 4. GET /api/controller/leaves/student — Student leave requests ──
+// 4. GET /api/controller/leaves/student — Student leave requests
 router.get('/leaves/student', async (req, res) => {
   try {
     const ctx = req.controllerContext;
@@ -382,7 +382,7 @@ router.get('/leaves/student', async (req, res) => {
   }
 });
 
-// ── 5. GET /api/controller/leaves/teacher — Faculty leave requests ──
+// 5. GET /api/controller/leaves/teacher — Faculty leave requests
 router.get('/leaves/teacher', async (req, res) => {
   try {
     const ctx = req.controllerContext;
@@ -420,7 +420,7 @@ router.get('/leaves/teacher', async (req, res) => {
   }
 });
 
-// ── 6. POST /api/controller/leaves/approve — Single or Bulk Leave Approval ──
+// 6. POST /api/controller/leaves/approve — Single or Bulk Leave Approval
 router.post('/leaves/approve', async (req, res) => {
   try {
     const ctx = req.controllerContext;
@@ -507,6 +507,76 @@ router.post('/leaves/approve', async (req, res) => {
           updatedCount++;
         }
 
+        if (tLeave.status === 'Approved' && Array.isArray(tLeave.substitutions) && tLeave.substitutions.length > 0) {
+          for (const sub of tLeave.substitutions) {
+            if (!sub.classId || !sub.date || !sub.periodNumber) continue;
+            try {
+              let dayOverride = await M.TimetableDayOverride.findOne({
+                classId: sub.classId,
+                date: sub.date
+              });
+              const dObj = new Date(sub.date + 'T00:00:00.000Z');
+              const dayAbbr = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][dObj.getUTCDay()];
+
+              if (!dayOverride) {
+                dayOverride = new M.TimetableDayOverride({
+                  classId: sub.classId,
+                  className: sub.className,
+                  deptId: tLeave.deptId,
+                  date: sub.date,
+                  day: dayAbbr,
+                  overrides: [],
+                  status: 'active',
+                  updatedBy: ctx.name
+                });
+              }
+
+              const existingOvIdx = dayOverride.overrides.findIndex(ov => ov.periodNumber === sub.periodNumber);
+              const overrideEntry = {
+                periodNumber: sub.periodNumber,
+                span: 1,
+                action: 'substitute',
+                substituteTeacherId: sub.substituteTeacherTrackId,
+                substituteTeacherName: sub.substituteTeacherName,
+                originalSlot: {
+                  teacherName: tLeave.teacherName,
+                  teacherTrackId: tLeave.teacherTrackId,
+                  subjectName: sub.subjectName,
+                  hallNo: sub.hallNo
+                },
+                newSlot: {
+                  teacherName: sub.substituteTeacherName,
+                  teacherTrackId: sub.substituteTeacherTrackId,
+                  subjectName: sub.subjectName,
+                  hallNo: sub.hallNo
+                },
+                reason: `Leave substitution for ${tLeave.teacherName}`
+              };
+
+              if (existingOvIdx >= 0) {
+                dayOverride.overrides[existingOvIdx] = overrideEntry;
+              } else {
+                dayOverride.overrides.push(overrideEntry);
+              }
+              await dayOverride.save();
+
+              // Notify the substitute teacher
+              await M.Notification.create({
+                type: 'leave-approval',
+                from: ctx.name,
+                fromRole: ctx.role,
+                message: `You have been assigned as SUBSTITUTE for ${tLeave.teacherName} in ${sub.className} (Period ${sub.periodNumber}) on ${sub.date}.`,
+                priority: 'High',
+                toTeacherTrackId: sub.substituteTeacherTrackId,
+                toTeacherName: sub.substituteTeacherName,
+                time: new Date()
+              }).catch(() => {});
+            } catch (ovErr) {
+              console.error('[Substitution DayOverride Error]:', ovErr);
+            }
+          }
+        }
+
         // Notify Teacher
         await M.Notification.create({
           type: 'leave-approval',
@@ -542,7 +612,7 @@ router.post('/leaves/approve', async (req, res) => {
   }
 });
 
-// ── 7. POST /api/controller/leaves/reject — Single or Bulk Leave Rejection ──
+// 7. POST /api/controller/leaves/reject — Single or Bulk Leave Rejection
 router.post('/leaves/reject', async (req, res) => {
   try {
     const ctx = req.controllerContext;
@@ -629,7 +699,7 @@ router.post('/leaves/reject', async (req, res) => {
   }
 });
 
-// ── 8. GET /api/controller/faculty — Faculty directory with today's marking status ──
+// 8. GET /api/controller/faculty — Faculty directory with today's marking status
 router.get('/faculty', async (req, res) => {
   try {
     const ctx = req.controllerContext;
@@ -695,7 +765,7 @@ router.get('/faculty', async (req, res) => {
   }
 });
 
-// ── 9. GET /api/controller/students — Student directory with cumulative attendance % ──
+// 9. GET /api/controller/students — Student directory with cumulative attendance %
 router.get('/students', async (req, res) => {
   try {
     const ctx = req.controllerContext;
@@ -759,7 +829,7 @@ router.get('/students', async (req, res) => {
   }
 });
 
-// ── 10. GET /api/controller/records — Period-wise teaching notes and topics covered ──
+// 10. GET /api/controller/records — Period-wise teaching notes and topics covered
 router.get('/records', async (req, res) => {
   try {
     const ctx = req.controllerContext;
@@ -830,7 +900,7 @@ router.get('/records', async (req, res) => {
   }
 });
 
-// ── 11. GET /api/controller/defaulters — Defaulters list below policy threshold ──
+// 11. GET /api/controller/defaulters — Defaulters list below policy threshold
 router.get('/defaulters', async (req, res) => {
   try {
     const ctx = req.controllerContext;
@@ -894,7 +964,7 @@ router.get('/defaulters', async (req, res) => {
   }
 });
 
-// ── 12. POST /api/controller/defaulters/meet — Bulk "Meet Me" Notice Action ──
+// 12. POST /api/controller/defaulters/meet — Bulk "Meet Me" Notice Action
 router.post('/defaulters/meet', async (req, res) => {
   try {
     const ctx = req.controllerContext;
@@ -993,7 +1063,7 @@ router.post('/defaulters/meet', async (req, res) => {
   }
 });
 
-// ── 13. GET /api/controller/reports/monthly — Aggregated monthly class attendance ──
+// 13. GET /api/controller/reports/monthly — Aggregated monthly class attendance
 router.get('/reports/monthly', async (req, res) => {
   try {
     const ctx = req.controllerContext;
@@ -1059,7 +1129,7 @@ router.get('/reports/monthly', async (req, res) => {
   }
 });
 
-// ── 14. GET /api/controller/reports/semester — Subject-wise semester summary ──
+// 14. GET /api/controller/reports/semester — Subject-wise semester summary
 router.get('/reports/semester', async (req, res) => {
   try {
     const ctx = req.controllerContext;
@@ -1113,7 +1183,7 @@ router.get('/reports/semester', async (req, res) => {
   }
 });
 
-// ── 15. POST /api/controller/broadcast — Dispatch tagged announcement ──
+// 15. POST /api/controller/broadcast — Dispatch tagged announcement
 router.post('/broadcast', async (req, res) => {
   try {
     const ctx = req.controllerContext;
@@ -1168,7 +1238,7 @@ router.post('/broadcast', async (req, res) => {
   }
 });
 
-// ── 16. GET /api/controller/broadcast/history — Broadcast dispatch logs ──
+// 16. GET /api/controller/broadcast/history — Broadcast dispatch logs
 router.get('/broadcast/history', async (req, res) => {
   try {
     const ctx = req.controllerContext;
@@ -1194,12 +1264,38 @@ router.get('/broadcast/history', async (req, res) => {
   }
 });
 
-// ── 17. GET /api/controller/calendar — Academic calendar viewer (read-only) ──
+// 17. GET /api/controller/calendar — Academic calendar viewer (read-only)
 router.get('/calendar', async (req, res) => {
   try {
-    const calendarEvents = await M.AcademicCalendar.find({})
+    const CalendarModel = M.CalendarDay || M.AcademicCalendar;
+    const calendarDays = await CalendarModel.find({})
       .sort({ date: 1 })
       .lean();
+
+    const calendarEvents = calendarDays.map(d => {
+      const details = Array.isArray(d.details) ? d.details : [];
+      const hasLeave = details.length > 0 && details.every(item => item.dayType === 'leave');
+      const hasExam = details.some(item => item.dayType === 'exam');
+      const isWorkingDay = details.length > 0 ? !hasLeave : (d.day !== 'Sunday');
+
+      let type = 'Academic';
+      if (hasExam) type = 'Exam';
+      else if (hasLeave) type = 'Holiday';
+      else if (details.some(item => item.dayType === 'half-day')) type = 'Half Day';
+      else if (isWorkingDay) type = 'Working Day';
+
+      const comments = details.map(item => item.comments).filter(Boolean).join('; ');
+      const description = comments || (isWorkingDay ? 'Regular Schedule' : 'Institutional Holiday / Off');
+
+      return {
+        ...d,
+        isWorkingDay,
+        type,
+        description,
+        dayOrder: d.dayOrder || '—'
+      };
+    });
+
     res.json(calendarEvents);
   } catch (err) {
     console.error('[Controller Calendar Error]:', err);
@@ -1207,7 +1303,7 @@ router.get('/calendar', async (req, res) => {
   }
 });
 
-// ── 18. GET /api/controller/timetable — Class timetable master viewer (read-only) ──
+// 18. GET /api/controller/timetable — Class timetable master viewer (read-only)
 router.get('/timetable', async (req, res) => {
   try {
     const ctx = req.controllerContext;
@@ -1216,10 +1312,69 @@ router.get('/timetable', async (req, res) => {
     const classId = sanitizeToString(req.query.classId) || null;
 
     const query = {};
-    if (deptId) query.deptId = deptId;
-    if (classId) query.classId = classId;
+    if (deptId && mongoose.isValidObjectId(deptId)) query.deptId = deptId;
+    if (classId && mongoose.isValidObjectId(classId)) query.classId = classId;
 
-    const timetables = await M.Timetable.find(query).lean();
+    let timetables = await M.SectionTimetable.find(query).lean();
+
+    if (!timetables || timetables.length === 0) {
+      let tQuery = {};
+      if (classId) {
+        tQuery.classId = classId;
+      } else if (deptId) {
+        const clsList = await M.Class.find({ deptId }).select('_id').lean();
+        tQuery.classId = { $in: clsList.map(c => c._id) };
+      }
+      const rawSlots = await M.Timetable.find(tQuery).lean();
+      const groupedByClass = {};
+      rawSlots.forEach(s => {
+        const cId = s.classId ? s.classId.toString() : 'unknown';
+        if (!groupedByClass[cId]) {
+          groupedByClass[cId] = {
+            classId: s.classId,
+            className: s.className || 'Class',
+            schedule: { monday: [], tuesday: [], wednesday: [], thursday: [], friday: [], saturday: [] }
+          };
+        }
+        const dayMap = { mon: 'monday', tue: 'tuesday', wed: 'wednesday', thu: 'thursday', fri: 'friday', sat: 'saturday' };
+        const dayKey = dayMap[(s.day || '').toLowerCase().slice(0, 3)] || (s.day || '').toLowerCase();
+        if (groupedByClass[cId].schedule[dayKey]) {
+          groupedByClass[cId].schedule[dayKey].push({
+            subject: s.subjectName,
+            subjectCode: s.subjectName,
+            teacherName: s.teacherName
+          });
+        }
+      });
+      timetables = Object.values(groupedByClass);
+    } else {
+      timetables = timetables.map(st => {
+        const schedule = { monday: [], tuesday: [], wednesday: [], thursday: [], friday: [], saturday: [] };
+        const slots = st.slots || {};
+        const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+
+        days.forEach(day => {
+          for (let p = 1; p <= 7; p++) {
+            const capitalizedDay = day.charAt(0).toUpperCase() + day.slice(1);
+            const slotData = slots[`${capitalizedDay}-${p}`] || slots[`${day}-${p}`] || slots[`${day.slice(0, 3)}-${p}`];
+            if (slotData) {
+              schedule[day].push({
+                periodNumber: p,
+                subject: slotData.subject || slotData.subjectName || slotData.code || slotData.subjectCode,
+                subjectCode: slotData.subjectCode || slotData.code || slotData.subject,
+                teacherName: slotData.staff || slotData.teacherName || slotData.faculty
+              });
+            }
+          }
+        });
+
+        return {
+          ...st,
+          schedule
+        };
+      });
+    }
+
     res.json(timetables);
   } catch (err) {
     console.error('[Controller Timetable Error]:', err);

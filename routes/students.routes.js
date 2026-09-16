@@ -20,15 +20,20 @@ router.get('/', authMiddleware, async (req, res) => {
     if (req.query.classId)      filter.classId      = sanitizeToString(req.query.classId);
     if (req.query.section)      filter.section      = sanitizeToString(req.query.section);
     if (req.query.academicYear) {
-      var yr = String(req.query.academicYear).replace(/-(\d{4})$/, function(_, y) { return '-' + y.slice(-2); });
-      filter.admissionYear = sanitizeToString(yr);
+      const yr = sanitizeToString(req.query.academicYear);
+      const altYr = yr.includes('-') && yr.length === 9
+        ? yr.replace(/-(\d{4})$/, function (_, y) { return '-' + y.slice(-2); })
+        : (yr.includes('-') && yr.length === 7
+          ? yr.replace(/^(\d{4})-(\d{2})$/, function (_, y1, y2) { return y1 + '-' + y1.slice(0, 2) + y2; })
+          : yr);
+      filter.admissionYear = { $in: [yr, altYr] };
     }
     if (req.query.batch)        filter.batchTrackId = sanitizeToString(req.query.batch);
     if (req.query.courseType)   filter.courseType   = sanitizeToString(req.query.courseType);
 
     // Lightweight roster mode — only name + regNo, no shadow user join
     if (req.query.roster === '1') {
-      const roster = await M.Student.find(filter).sort({ fullName: 1 })
+      const roster = await M.Student.find(filter).sort({ registerNo: 1 })
         .select('fullName registerNo').lean();
       return res.json(roster.map(function (s) {
         return { name: s.fullName, regNo: s.registerNo };
@@ -38,7 +43,7 @@ router.get('/', authMiddleware, async (req, res) => {
     // Parse pagination & sorting
     var page    = Math.max(1, parseInt(req.query.page, 10) || 1);
     var limit   = Math.min(500, Math.max(1, parseInt(req.query.limit, 10) || 60));
-    var sortBy  = req.query.sortBy === 'regNo' ? 'registerNo' : 'fullName';
+    var sortBy  = req.query.sortBy === 'fullName' ? 'fullName' : 'registerNo';
     var sortDir = req.query.sortDir === 'desc' ? -1 : 1;
 
     var total = await M.Student.countDocuments(filter);
@@ -299,7 +304,7 @@ router.delete('/:id', authMiddleware, adminOnly, requireRight('deletings'), asyn
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// ── Bulk Upload Students ─────────────────────────────
+// Bulk Upload Students
 router.post('/bulk-upload', authMiddleware, adminOnly, requireRight('bulkPage'), upload.single('file'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'No file uploaded' });

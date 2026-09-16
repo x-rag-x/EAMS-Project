@@ -1,4 +1,4 @@
-// -- State ----------------------------------------------
+// State
 var _memStore = {};
   const DB = {
     get: function(collection) {
@@ -36,19 +36,32 @@ var _memStore = {};
     }
   };
 
-  // ─── DATE CONSTANTS ─────────────────────────────────────────────────────────
+  // DATE CONSTANTS
   const DAY_NAMES = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 
   function todayISO() {
     return new Date().toISOString().split('T')[0];
   }
 
+  function parseDateSafe(val) {
+    if (!val) return null;
+    if (val instanceof Date) return isNaN(val.getTime()) ? null : val;
+    if (typeof val === 'number') return new Date(val);
+    var s = String(val).trim();
+    if (!s) return null;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return new Date(s + 'T00:00:00');
+    var d = new Date(s);
+    return isNaN(d.getTime()) ? null : d;
+  }
+
   function formatDateLong(isoDate) {
-    return new Date(isoDate + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+    var d = parseDateSafe(isoDate);
+    return d ? d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
   }
 
   function formatDateShort(isoDate) {
-    return new Date(isoDate + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
+    var d = parseDateSafe(isoDate);
+    return d ? d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : '—';
   }
 
   function timeAgo(isoDate) {
@@ -66,12 +79,12 @@ var _memStore = {};
     }
   }
 
-  // ─── SEED / INITIAL DATA ────────────────────────────────────────────────────
+  // SEED / INITIAL DATA
   function ensureDB() {
     // No default seeding — data comes from admin uploads
   }
 
-  // ─── AUTHENTICATION ──────────────────────────────────────────────────────────
+  // AUTHENTICATION
   let currentUser = null;
   function logToServer(action, details, category) {
     var tok = getToken();
@@ -82,19 +95,20 @@ var _memStore = {};
     }).catch(function(){});
   }
 
-  // ── Session Auto-Logout after 45 minutes
+  // Session Auto-Logout after 45 minutes
   (function() {
     function checkSessionExpiry() {
       var loginTime = sessionStorage.getItem('eams_login_time');
       if (loginTime) {
         var elapsed = Date.now() - parseInt(loginTime, 10);
         if (elapsed > 45 * 60 * 1000) {
-          if (typeof toast === 'function') {
+          if (typeof dbToast === 'function') {
+            dbToast('⚠️ Session expired. Logging out...', 'error');
+          } else if (typeof toast === 'function') {
             toast('⚠️ Session expired. Logging out...', 'error');
           }
-          setTimeout(function() {
-            doLogout();
-          }, 1500);
+          sessionStorage.clear();
+          window.location.replace('index.html?logout=timeout');
         }
       }
     }
@@ -126,7 +140,7 @@ var _memStore = {};
     window.location.href = 'timetable.html';
   }
 
-  // ─── LIVE PROFILE & ASSIGNMENT SYNC ──────────────────────────────────────────
+  // LIVE PROFILE & ASSIGNMENT SYNC
   // currentUser (set at login from sessionStorage) only ever carried _id/name/
   // username/role — dept/empId/desig/email/specials were never fetched, and
   // nothing in this file called /api/assignments either. That's why My Profile
@@ -164,11 +178,12 @@ var _memStore = {};
         // Refresh the bits of chrome that were drawn with stale/blank values
         // before this fetch resolved.
         var deptEl = document.getElementById('tpdept');
-        if (deptEl) deptEl.textContent = currentUser.dept || 'Sri Shakthi';
-        if (currentUser.isTimeTableCoordinator) {
-          var badge = document.getElementById('sn-tt-badge');
-          if (badge) badge.style.display = 'inline-block';
-        }
+        if (deptEl) deptEl.textContent = currentUser.dept || 'Faculty';
+        var isTTC = !!(currentUser.isTimeTableCoordinator || (Array.isArray(currentUser.specials) && currentUser.specials.some(function(s) { return s.option === 'isTimeTableCoordinator'; })));
+        var ttBtn = document.getElementById('sn-tt');
+        if (ttBtn) ttBtn.style.display = isTTC ? 'flex' : 'none';
+        var badge = document.getElementById('sn-tt-badge');
+        if (badge) badge.style.display = isTTC ? 'inline-block' : 'none';
         if (currentUser.isAdmin) {
           var adminHubBtn = document.getElementById('sn-admin-hub');
           if (adminHubBtn) adminHubBtn.style.display = 'flex';
@@ -191,7 +206,7 @@ var _memStore = {};
       }).catch(function() { return []; });
   }
 
-  // ─── syncMyStudents ───────────────────────────────────────────────────────────
+  // syncMyStudents
   // Fetches /api/students?classId=X for every class in the teacher's assignments
   // and stores the deduplicated result in the render cache (DB). Called after
   // syncMyAssignments() has populated DB.get('assignments').
@@ -229,7 +244,9 @@ var _memStore = {};
     });
   }
 
-  // ─── syncMyAttendance ────────────────────────────────────────────────────────
+  // syncMyAttendance
+  // Fetches the last 90 days of this teacher's attendance from /api/attendance
+  // and stores it in the render cache for the dashboard chart, defaulters mini
   // Fetches the last 90 days of this teacher's attendance from /api/attendance
   // and stores it in the render cache for the dashboard chart, defaulters mini
   // widget, and today's schedule "already marked" check.
@@ -256,11 +273,7 @@ var _memStore = {};
     .catch(function() { return []; });
   }
 
-  // ─── fetchAttendanceForReport ─────────────────────────────────────────────────
-  // On-demand attendance fetch used by the Attendance Record and Defaulters
-  // report pages. Passes the current UI filter values as query params so the
-  // server does the heavy filtering; only subjectId is client-side (not a param
-  // the attendance route supports).
+  // fetchAttendanceForReport
   function fetchAttendanceForReport(classId, subjectId, from, to) {
     var tok = getToken();
     if (!tok) return Promise.resolve([]);
@@ -273,18 +286,37 @@ var _memStore = {};
       .catch(function() { return []; });
   }
 
+  // syncMyTimetable
+  // Fetches this teacher's live schedule slots from /api/timetable and caches in DB
+  function syncMyTimetable() {
+    var tok = getToken();
+    if (!tok) return Promise.resolve([]);
+    return fetch('/api/timetable?teacherId=' + encodeURIComponent(currentUser._id), {
+      headers: { 'Authorization': 'Bearer ' + tok }
+    })
+    .then(function(r) { return r.ok ? r.json() : []; })
+    .then(function(data) {
+      var rows = Array.isArray(data) ? data : [];
+      DB.set('timetable', rows);
+      return rows;
+    })
+    .catch(function() { return []; });
+  }
+
   function bootApp() {
     document.getElementById('app').classList.add('vis');
+    if (typeof flushToastQueue === 'function') flushToastQueue();
+    else if (typeof _loaderActive !== 'undefined') _loaderActive = false;
     document.getElementById('tpav').textContent    = currentUser.name[0];
     document.getElementById('tpname').textContent  = currentUser.name;
-    document.getElementById('tpdept').textContent  = currentUser.dept || 'Sri Shakthi';
+    document.getElementById('tpdept').textContent  = currentUser.dept || 'Faculty';
     document.getElementById('datelbl').textContent =
       new Date().toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
-    // Show COORD badge on Timetable menu if teacher is a TT coordinator
-    if (currentUser.isTimeTableCoordinator) {
-      var badge = document.getElementById('sn-tt-badge');
-      if (badge) badge.style.display = 'inline-block';
-    }
+    var isTTC = !!(currentUser.isTimeTableCoordinator || (Array.isArray(currentUser.specials) && currentUser.specials.some(function(s) { return s.option === 'isTimeTableCoordinator'; })));
+    var ttBtn = document.getElementById('sn-tt');
+    if (ttBtn) ttBtn.style.display = isTTC ? 'flex' : 'none';
+    var badge = document.getElementById('sn-tt-badge');
+    if (badge) badge.style.display = isTTC ? 'inline-block' : 'none';
     populateAllFilters();
     initCalendar();
     renderNotifications();
@@ -295,24 +327,19 @@ var _memStore = {};
     var initialTab = urlParams.get('tab') || urlParams.get('page') || 'dash';
     nav(initialTab);
 
-    // Pull the real profile + assignment data from the Database now that the
-    // shell is visible. Re-render whichever page is currently active once it
-    // lands, so the initial dash render (drawn from empty cache) gets corrected.
     Promise.all([syncMyProfile(), syncMyAssignments()]).then(function() {
-      populateAllFilters(); // class/subject dropdowns are built from assignments
-      // Now that assignments are loaded we can fetch students (by classId) and
-      // the teacher's recent attendance in parallel.
-      return Promise.all([syncMyStudents(), syncMyAttendance()]);
+      populateAllFilters();
+      return Promise.all([syncMyStudents(), syncMyAttendance(), syncMyTimetable()]);
     }).then(function() {
-      populateAllFilters(); // refresh filters with real class/subject names
+      populateAllFilters();
       if (document.getElementById('pg-dash').classList.contains('act'))    initDashboard();
       if (document.getElementById('pg-profile').classList.contains('act')) initProfilePage();
     });
   }
 
-  // ─── NAVIGATION ──────────────────────────────────────────────────────────────
+  // NAVIGATION
   function nav(pageName) {
-    const validTabs = ['dash', 'sched', 'att', 'rep-att', 'rep-def', 'rep-stu', 'leaves', 'griev', 'profile'];
+    const validTabs = ['dash', 'sched', 'att', 'rep-att', 'rep-def', 'rep-stu', 'rep-insights', 'leaves', 'my-leaves', 'griev', 'profile'];
     if (validTabs.indexOf(pageName) === -1) pageName = 'dash';
 
     if (window.history && window.history.replaceState) {
@@ -328,9 +355,10 @@ var _memStore = {};
     document.querySelectorAll('.sb-item,.ss').forEach(function(item) { item.classList.remove('act'); });
 
     const navMap = {
-      'dash':    'sn-dash',  'sched':   'sn-sched', 'att':     'sn-att',
-      'rep-att': 'sn-ratt',  'rep-def': 'sn-rdef',  'rep-stu': 'sn-stu',
-      'leaves':  'sn-leaves','griev':   'sn-griev'
+      'dash':         'sn-dash',     'sched':     'sn-sched', 'att':     'sn-att',
+      'rep-att':      'sn-ratt',     'rep-def':   'sn-rdef',  'rep-stu': 'sn-stu',
+      'rep-insights': 'sn-insights', 'leaves':    'sn-leaves','my-leaves': 'sn-my-leaves',
+      'griev':        'sn-griev'
     };
     if (navMap[pageName]) {
       const navEl = document.getElementById(navMap[pageName]);
@@ -338,20 +366,22 @@ var _memStore = {};
     }
 
     const pageActions = {
-      'dash':    initDashboard,
-      'sched':   function() { switchSchedTab(currentSchedTab || 'week'); },
-      'att':     initAttendancePage,
-      'rep-att': function() { populateReportFilters(); renderAttendanceRecord(); },
-      'rep-def': function() { populateDefaulterFilters(); renderDefaultersList(); },
-      'rep-stu': function() { populateStudentListFilters(); renderStudentList(); },
-      'leaves':  loadTeacherLeaveHistory,
-      'griev':   renderGrievances,
-      'profile': function() { initProfilePage(); syncMyProfile().then(initProfilePage); }
+      'dash':         initDashboard,
+      'sched':        function() { switchSchedTab(currentSchedTab || 'week'); },
+      'att':          initAttendancePage,
+      'rep-att':      function() { populateReportFilters(); renderAttendanceRecord(); },
+      'rep-def':      function() { populateDefaulterFilters(); renderDefaultersList(); },
+      'rep-stu':      function() { populateStudentListFilters(); renderStudentList(); },
+      'rep-insights': initAttendanceInsights,
+      'leaves':       loadTeacherLeaveHistory,
+      'my-leaves':    initMyLeavesPage,
+      'griev':        renderGrievances,
+      'profile':      function() { initProfilePage(); syncMyProfile().then(initProfilePage); }
     };
     if (pageActions[pageName]) pageActions[pageName]();
   }
 
-  // ─── TEACHER HELPER FUNCTIONS ────────────────────────────────────────────────
+  // TEACHER HELPER FUNCTIONS
   function getMyAssignments() {
     var list = DB.get('assignments') || [];
     if (!currentUser) return list;
@@ -449,7 +479,7 @@ var _memStore = {};
     document.getElementById('slc').innerHTML = buildClassOptions(true);
   }
 
-  // ─── DASHBOARD ───────────────────────────────────────────────────────────────
+  // DASHBOARD
   function initDashboard() {
     const firstName = currentUser.name.split(' ')[0];
     document.getElementById('dashsub').textContent = 'Welcome back, ' + firstName + '! Here\'s your day at a glance.';
@@ -557,7 +587,7 @@ var _memStore = {};
     }).join('');
   }
 
-  // ─── ATTENDANCE CHART ────────────────────────────────────────────────────────
+  // ATTENDANCE CHART
   function setRange(rangeType) {
     // Remove active class from all range pills
     ['rpw','rplw','rpm'].forEach(function(id) {
@@ -649,7 +679,7 @@ var _memStore = {};
   }
   var renderChart = renderAttendanceChart;
 
-  // ─── CALENDAR ────────────────────────────────────────────────────────────────
+  // CALENDAR
   let calendarYear  = new Date().getFullYear();
   let calendarMonth = new Date().getMonth();
   let selectedCalDate = todayISO();
@@ -719,7 +749,7 @@ var _memStore = {};
   }
   var selCal = selectCalendarDate;
 
-  // ─── NOTIFICATIONS ───────────────────────────────────────────────────────────
+  // NOTIFICATIONS
   var _currentReviewLeaveId = null;
   var _currentReviewNotifId = null;
 
@@ -873,7 +903,7 @@ var _memStore = {};
   }
   window.submitLeaveAction = submitLeaveAction;
 
-  // ─── TEACHER LEAVE & PERMISSION HISTORY ──────────────────────────────────────
+  // TEACHER LEAVE & PERMISSION HISTORY
   var _teacherLeaveData = { requests: [], stats: {} };
 
   function loadTeacherLeaveHistory() {
@@ -933,7 +963,8 @@ var _memStore = {};
     var to = document.getElementById('lh-filter-to') ? document.getElementById('lh-filter-to').value : '';
     var cat = document.getElementById('lh-filter-cat') ? document.getElementById('lh-filter-cat').value : '';
     var status = document.getElementById('lh-filter-status') ? document.getElementById('lh-filter-status').value : '';
-    var search = document.getElementById('lh-filter-search') ? document.getElementById('lh-filter-search').value.toLowerCase().trim() : '';
+    var searchEl = document.getElementById('lh-filter-search');
+    var search = searchEl && searchEl.value ? String(searchEl.value).toLowerCase().trim() : '';
 
     var filtered = list.filter(function(r) {
       if (from && r.toDate < from) return false;
@@ -1035,12 +1066,12 @@ var _memStore = {};
     }
   });
 
-  // ─── MY SCHEDULE PAGE ────────────────────────────────────────────────────────
+  // MY SCHEDULE PAGE
   let scheduleWeekOffset = 0;
   let dayOffset = 0;
   let currentSchedTab = 'week';
 
-  // Fix 9: Tab switching for Week / Day / My Timetable
+  // Tab switching for Week / Day / My Timetable
   function switchSchedTab(tab) {
     currentSchedTab = tab;
     ['week','day','tt'].forEach(function(t) {
@@ -1061,13 +1092,13 @@ var _memStore = {};
   }
   var schedNav = scheduleNavigate;
 
-  // Fix 9: Day View navigation
+  // Day View navigation
   function dayNavStep(dir) {
     dayOffset += dir;
     renderDayView();
   }
 
-  // Fix 9: Render single-day schedule
+  // Render single-day schedule
   function renderDayView() {
     var today    = new Date();
     var target   = new Date(today);
@@ -1085,7 +1116,7 @@ var _memStore = {};
     var allAttendance = DB.get('attendance');
     var cont = document.getElementById('dayschedcont');
 
-    if (target.getDay() === 0 || target.getDay() === 6) {
+    if (target.getDay() === 0) {
       cont.innerHTML = '<div class="day-empty">&#127774; Weekend — no classes scheduled.</div>';
       return;
     }
@@ -1120,147 +1151,252 @@ var _memStore = {};
     }).join('');
   }
 
-  // Fix 9: My Timetable — editable weekly grid stored in DB
-  function renderTimetableGrid() {
-    var days      = ['Mon','Tue','Wed','Thu','Fri'];
-    var dayFull   = ['Monday','Tuesday','Wednesday','Thursday','Friday'];
-    var timetable = DB.get('timetable').filter(function(t) { return t.teacherId === currentUser._id; });
+  // TEACHER PERIOD SCHEDULE DEFINITIONS (Institutional Standard)
+  const TEACHER_PERIODS = [
+    { id:1, num:1, label:'P1', time:'08:30–09:15', start:'08:30', end:'09:15' },
+    { id:2, num:2, label:'P2', time:'09:15–10:00', start:'09:15', end:'10:00' },
+    { id:'B1', isBreak:true, label:'☕ Break', time:'10:00–10:15' },
+    { id:3, num:3, label:'P3', time:'10:15–11:00', start:'10:15', end:'11:00' },
+    { id:4, num:4, label:'P4', time:'11:00–11:45', start:'11:00', end:'11:45' },
+    { id:5, num:5, label:'P5', time:'11:45–12:30', start:'11:45', end:'12:30' },
+    { id:'L',  isBreak:true, label:'🍱 Lunch', time:'12:30–13:15' },
+    { id:6, num:6, label:'P6', time:'01:15–02:00', start:'13:15', end:'14:00' },
+    { id:7, num:7, label:'P7', time:'02:00–02:45', start:'14:00', end:'14:45' },
+    { id:'B2', isBreak:true, label:'☕ Break', time:'02:45–03:00' },
+    { id:8, num:8, label:'P8', time:'03:00–03:45', start:'15:00', end:'15:45' },
+    { id:9, num:9, label:'P9', time:'03:45–04:30', start:'15:45', end:'16:30' },
+  ];
 
-    if (!timetable.length) {
-      document.getElementById('tt-grid').innerHTML =
-        '<div class="day-empty">&#128203; No timetable slots yet.<br><br>'
-        + '<button class="btnp bsm" onclick="openAddSlot()">+ Add Your First Slot</button></div>';
-      return;
+  // Enhanced Interactive Weekly Timetable Grid
+  function renderTimetableGrid() {
+    var days    = ['Mon','Tue','Wed','Thu','Fri','Sat'];
+    var dayFull = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+    var timetable = DB.get('timetable').filter(function(t) {
+      return (t.teacherId === currentUser._id || t.trackId === currentUser.trackId) && !t.isDraft;
+    });
+
+    var container = document.getElementById('tt-grid');
+    if (!container) return;
+
+    // Build table header
+    var thead = '<thead><tr><th style="width:75px;">Day</th>';
+    TEACHER_PERIODS.forEach(function(p) {
+      if (p.isBreak) {
+        thead += '<th class="tt-break-col" title="' + p.time + '"><span class="tt-break-text">' + p.label + '</span></th>';
+      } else {
+        thead += '<th>' + p.label + '<span class="tt-th-time">' + p.time + '</span></th>';
+      }
+    });
+    thead += '</tr></thead>';
+
+    // Helper: find slot starting at or matching period
+    function findSlotForPeriod(daySlots, periodObj) {
+      return daySlots.find(function(s) {
+        if (s.periodNumber === periodObj.num) return true;
+        if (s.start) {
+          var sHour = parseInt(s.start.split(':')[0], 10);
+          var sMin  = parseInt(s.start.split(':')[1], 10);
+          var pHour = parseInt(periodObj.start.split(':')[0], 10);
+          var pMin  = parseInt(periodObj.start.split(':')[1], 10);
+          return Math.abs((sHour * 60 + sMin) - (pHour * 60 + pMin)) <= 15;
+        }
+        return false;
+      });
     }
 
-    // Build table
-    var rows = '';
-    days.forEach(function(day, i) {
-      var slots = timetable.filter(function(t){ return t.day === day; })
-                           .sort(function(a,b){ return a.start.localeCompare(b.start); });
-      var pillsHtml = slots.length
-        ? slots.map(function(s) {
-            return '<span class="tt-slot-pill" title="' + s.start + '–' + s.end + '">'
-              + s.start + ' ' + s.subjectName + ' <span style="opacity:.6;">(' + s.className + ')</span>'
-              + '</span>';
-          }).join('')
-        : '<span style="color:var(--tdi);font-size:11px;">—</span>';
+    var tbody = '<tbody>';
+    days.forEach(function(day, dIdx) {
+      var daySlots = timetable.filter(function(t) { return t.day === day; });
+      tbody += '<tr>';
+      tbody += '<td class="tt-day-label">' + dayFull[dIdx].slice(0, 3) + '</td>';
 
-      rows += '<tr>'
-        + '<td style="font-weight:700;color:var(--td);white-space:nowrap;">' + dayFull[i] + '</td>'
-        + '<td>' + pillsHtml + '</td>'
-        + '<td style="white-space:nowrap;">'
-        + '<button class="btno bsm" style="font-size:10px;" onclick="openAddSlotForDay(\'' + day + '\')">+ Add</button>'
-        + '</td>'
-        + '</tr>';
-    });
+      var skipPeriods = 0;
+      TEACHER_PERIODS.forEach(function(p) {
+        if (p.isBreak) {
+          tbody += '<td class="tt-break-col" style="background:rgba(27,94,32,.04);border-right:1px solid var(--brl);"></td>';
+          return;
+        }
 
-    document.getElementById('tt-grid').innerHTML =
-      '<table class="tt-table">'
-      + '<thead><tr><th style="width:110px;">Day</th><th>Classes</th><th style="width:70px;">Edit</th></tr></thead>'
-      + '<tbody>' + rows + '</tbody>'
-      + '</table>'
-      + '<div style="margin-top:12px;font-size:11px;color:var(--tdi);">&#128161; Click + Add on any day to add or edit slots. Changes are saved automatically.</div>';
-  }
+        if (skipPeriods > 0) {
+          skipPeriods--;
+          return;
+        }
 
-  function renderSchedulePage() {
-    const weekDayNames  = ['Mon','Tue','Wed','Thu','Fri'];
-    const weekDayFull   = ['Monday','Tuesday','Wednesday','Thursday','Friday'];
-    const myTimetable   = DB.get('timetable').filter(function(t) { return t.teacherId === currentUser._id; });
-    const allAttendance = DB.get('attendance');
+        var slot = findSlotForPeriod(daySlots, p);
+        if (slot) {
+          var isLab = slot.type === 'Lab' || (slot.start && slot.end && (parseInt(slot.end.split(':')[0],10) - parseInt(slot.start.split(':')[0],10) >= 2));
+          var isSub = slot.isSubstitute === true;
+          var isComb = slot.isCombined === true;
 
-    // Calculate the Mon–Fri dates for this week (with offset)
-    const baseDate = new Date();
-    baseDate.setDate(baseDate.getDate() + scheduleWeekOffset);
-    const monday = new Date(baseDate);
-    monday.setDate(baseDate.getDate() - ((baseDate.getDay() + 6) % 7));
+          var cardClass = 'slot-theory';
+          var badgeHtml = '';
+          var colspan = 1;
 
-    const weekDates = weekDayNames.map(function(_, i) {
-      const d = new Date(monday);
-      d.setDate(monday.getDate() + i);
-      return d.toISOString().split('T')[0];
-    });
-
-    document.getElementById('weeklbl').textContent = formatDateShort(weekDates[0]) + ' – ' + formatDateShort(weekDates[4]);
-
-    let html = '';
-
-    weekDayNames.forEach(function(day, dayIndex) {
-      const dateISO = weekDates[dayIndex];
-      const isToday = dateISO === todayISO();
-      const slots   = myTimetable.filter(function(t) { return t.day === day; })
-                        .sort(function(a, b) { return a.start.localeCompare(b.start); });
-
-      html += '<div class="wdblk' + (isToday ? ' today-col' : '') + '">';
-      html += '<div class="wdhd" style="padding:10px 12px;flex-wrap:wrap;gap:4px;">';
-      html += '<div style="display:flex;align-items:center;justify-content:space-between;width:100%;">';
-      html += '<span class="wdnm" style="font-size:12.5px;">' + weekDayFull[dayIndex] + '</span>';
-      if (isToday) html += '<span class="wdtd">TODAY</span>';
-      html += '</div>';
-      html += '<div style="display:flex;align-items:center;justify-content:space-between;width:100%;margin-top:2px;">';
-      html += '<span class="wddt">' + formatDateShort(dateISO) + '</span>';
-      html += '<button class="btno bsm" style="font-size:10px;padding:2px 8px!important;border-radius:8px!important;" onclick="openAddSlotForDay(\'' + day + '\')">+ Add</button>';
-      html += '</div></div>';
-
-      html += '<div class="wdslots" style="padding:8px 10px;gap:6px;">';
-      if (!slots.length) {
-        html += '<div style="text-align:center;padding:14px 0;color:var(--tdi);font-size:11px;cursor:pointer;" onclick="openAddSlotForDay(\'' + day + '\')">No classes</div>';
-      } else {
-        slots.forEach(function(slot) {
-          const alreadyMarked = allAttendance.some(function(a) {
-            return a.classId === slot.classId && a.subjectId === slot.subjectId && a.date === dateISO && a.teacherId === currentUser._id;
-          });
-
-          html += '<div class="slotc" style="flex-direction:column;align-items:stretch;gap:5px;padding:9px 10px;">';
-          html += '<div style="display:flex;align-items:center;justify-content:space-between;">';
-          html += '<span class="slott" style="min-width:unset;font-size:10px;padding:2px 7px;">' + slot.start + '–' + slot.end + '</span>';
-
-          if (alreadyMarked) {
-            html += '<span class="donetag" style="font-size:9px;padding:2px 6px;">&#9989;</span>';
-          } else if (isToday) {
-            html += '<button class="attbtn" style="font-size:9.5px;padding:2px 8px;" onclick="navigateToAttendance(\'' + slot.classId + '\',\'' + slot.subjectId + '\')">Att.</button>';
+          if (isSub) {
+            cardClass = 'slot-sub';
+            badgeHtml = '<span class="tt-slot-badge badge-sub">Sub</span>';
+          } else if (isLab) {
+            cardClass = 'slot-lab';
+            badgeHtml = '<span class="tt-slot-badge badge-lab">Lab (3P)</span>';
+            colspan = 3;
+            skipPeriods = 2; // skip next 2 teaching periods
+          } else if (isComb) {
+            cardClass = 'slot-comb';
+            badgeHtml = '<span class="tt-slot-badge badge-comb">' + (slot.combinedClassNames?.join('+') || 'Comb') + '</span>';
           }
-          html += '</div>';
 
-          html += '<div><div class="slotcl" style="font-size:11.5px;">' + slot.className + '</div>';
-          html += '<div class="slotsb" style="font-size:10.5px;">' + slot.subjectName + '</div></div>';
-          html += '<div style="display:flex;gap:4px;">';
-          html += '<button class="btno bsm" style="font-size:10px;padding:2px 6px!important;flex:1;" onclick="openEditSlot(\'' + slot._id + '\')">&#9999; Edit</button>';
-          html += '<button class="btno bsm" style="font-size:10px;padding:2px 6px!important;color:#dc2626;border-color:rgba(239,68,68,.3);" onclick="deleteSlot(\'' + slot._id + '\')">&#128465;</button>';
-          html += '</div></div>';
-        });
-      }
-      html += '</div></div>';
+          var hallDisplay = slot.hallNo ? ' • ' + slot.hallNo : '';
+
+          tbody += '<td ' + (colspan > 1 ? 'colspan="' + colspan + '"' : '') + ' style="vertical-align:top;padding:3px;">';
+          tbody += '<div class="tt-slot-card ' + cardClass + '" onclick="showTeacherSlotPopover(\'' + slot._id + '\', event)" title="Click to edit or manage slot">';
+          tbody += '<div class="tt-slot-title">' + (slot.subjectName || 'Subject') + '</div>';
+          tbody += '<div class="tt-slot-meta">';
+          tbody += '<span>' + (slot.className || '') + hallDisplay + '</span>';
+          tbody += badgeHtml;
+          tbody += '</div></div></td>';
+        } else {
+          // Empty clickable cell
+          tbody += '<td style="vertical-align:middle;padding:3px;">';
+          tbody += '<div class="tt-cell-empty" onclick="openTeacherAddSlot(\'' + day + '\', ' + p.num + ')" title="Add slot on ' + day + ' ' + p.label + '">+</div>';
+          tbody += '</td>';
+        }
+      });
+      tbody += '</tr>';
     });
+    tbody += '</tbody>';
 
-    document.getElementById('schedbyday').innerHTML = html;
+    container.innerHTML = '<table class="tt-teacher-grid">' + thead + tbody + '</table>';
   }
 
-  function openAddSlot() {
-    document.getElementById('schedeid').value  = '';
+  // Teacher Slot Popover Quick Actions
+  function showTeacherSlotPopover(slotId, event) {
+    if (event) event.stopPropagation();
+    var slot = DB.get('timetable').find(function(t) { return t._id === slotId; });
+    if (!slot) return;
+
+    // Remove any existing popover
+    var old = document.getElementById('tt-active-popover');
+    if (old) old.remove();
+
+    var overlay = document.createElement('div');
+    overlay.className = 'tt-popover-overlay';
+    overlay.id = 'tt-active-popover';
+    overlay.onclick = function(e) {
+      if (e.target === overlay) overlay.remove();
+    };
+
+    var box = document.createElement('div');
+    box.className = 'tt-popover-box';
+    box.innerHTML = 
+      '<div class="tt-popover-title">&#128203; ' + (slot.subjectName || 'Schedule Slot') + '</div>'
+      + '<div class="tt-popover-sub">' + slot.day + ' ' + slot.start + '–' + slot.end + ' | ' + (slot.className || '') + (slot.hallNo ? ' (' + slot.hallNo + ')' : '') + '</div>'
+      + '<div class="tt-popover-actions">'
+      + '  <button class="tt-pop-btn" onclick="document.getElementById(\'tt-active-popover\').remove();openEditSlot(\'' + slotId + '\')">&#9999; Edit Slot Details</button>'
+      + '  <button class="tt-pop-btn" onclick="document.getElementById(\'tt-active-popover\').remove();cancelTeacherSlotToday(\'' + slotId + '\')">&#10060; Cancel Class for Today</button>'
+      + '  <button class="tt-pop-btn" onclick="document.getElementById(\'tt-active-popover\').remove();requestSubstituteForSlot(\'' + slotId + '\')">&#128260; Request Substitute</button>'
+      + '  <button class="tt-pop-btn btn-del" onclick="document.getElementById(\'tt-active-popover\').remove();deleteSlot(\'' + slotId + '\')">&#128465; Delete Slot</button>'
+      + '</div>';
+
+    overlay.appendChild(box);
+    document.body.appendChild(overlay);
+  }
+  window.showTeacherSlotPopover = showTeacherSlotPopover;
+
+  function cancelTeacherSlotToday(slotId) {
+    showToast('Class marked as cancelled for today. Students will be notified.', 'info');
+  }
+  window.cancelTeacherSlotToday = cancelTeacherSlotToday;
+
+  function requestSubstituteForSlot(slotId) {
+    var slot = DB.get('timetable').find(function(t) { return t._id === slotId; });
+    nav('leaves');
+    showToast('Apply for leave to assign a substitute for ' + (slot?.subjectName || 'this class'), 'info');
+  }
+  window.requestSubstituteForSlot = requestSubstituteForSlot;
+
+  function exportTeacherTimetablePDF() {
+    window.print();
+  }
+  window.exportTeacherTimetablePDF = exportTeacherTimetablePDF;
+
+  function onSchedPeriodChange() {
+    var pVal = document.getElementById('schedperiod').value;
+    if (pVal === 'custom') return;
+    var pNum = parseInt(pVal, 10);
+    var pDef = TEACHER_PERIODS.find(function(p) { return p.num === pNum; });
+    if (!pDef) return;
+
+    document.getElementById('schedst').value = pDef.start;
+    var type = document.getElementById('schedtype').value;
+    if (type === 'Lab' && pNum <= 7) {
+      // Span 3 periods
+      var endP = TEACHER_PERIODS.find(function(p) { return p.num === pNum + 2; });
+      document.getElementById('schedet').value = endP ? endP.end : pDef.end;
+    } else {
+      document.getElementById('schedet').value = pDef.end;
+    }
+  }
+  window.onSchedPeriodChange = onSchedPeriodChange;
+
+  function onSchedTypeChange() {
+    var type = document.getElementById('schedtype').value;
+    var combWrap = document.getElementById('schedcombwrap');
+    if (combWrap) {
+      combWrap.style.display = (type === 'Combined') ? 'block' : 'none';
+      if (type === 'Combined') {
+        var clsEl = document.getElementById('schedcombcls');
+        if (clsEl && !clsEl.options.length) {
+          clsEl.innerHTML = buildClassOptions(false);
+        }
+      }
+    }
+    onSchedPeriodChange();
+  }
+  window.onSchedTypeChange = onSchedTypeChange;
+
+  function openTeacherAddSlot(day, periodNum) {
+    document.getElementById('schedeid').value = '';
     document.getElementById('mschedtit').innerHTML = '&#10133; Add Schedule Slot';
-    document.getElementById('schedday').value  = 'Mon';
-    document.getElementById('schedst').value   = '08:00';
-    document.getElementById('schedet').value   = '09:00';
+    document.getElementById('schedday').value = day || 'Mon';
+    document.getElementById('schedperiod').value = periodNum ? String(periodNum) : '1';
+    onSchedPeriodChange();
+    document.getElementById('schedtype').value = 'Theory';
+    document.getElementById('schedhall').value = '';
+    var combWrap = document.getElementById('schedcombwrap');
+    if (combWrap) combWrap.style.display = 'none';
     document.getElementById('schedcls').innerHTML = buildClassOptions(false);
     document.getElementById('schedsub').innerHTML = '<option value="">— Select —</option>';
     openModal('msched');
   }
+  window.openTeacherAddSlot = openTeacherAddSlot;
+
+  function openAddSlot() {
+    openTeacherAddSlot('Mon', 1);
+  }
+  window.openAddSlot = openAddSlot;
 
   function openAddSlotForDay(day) {
-    openAddSlot();
-    document.getElementById('schedday').value = day;
+    openTeacherAddSlot(day, 1);
   }
   var openAddSlotDay = openAddSlotForDay;
+  window.openAddSlotForDay = openAddSlotForDay;
 
   function openEditSlot(slotId) {
     const slot = DB.get('timetable').find(function(t) { return t._id === slotId; });
     if (!slot) return;
-    document.getElementById('schedeid').value  = slotId;
+    document.getElementById('schedeid').value = slotId;
     document.getElementById('mschedtit').innerHTML = '&#9999; Edit Schedule Slot';
-    document.getElementById('schedday').value  = slot.day;
-    document.getElementById('schedst').value   = slot.start;
-    document.getElementById('schedet').value   = slot.end;
+    document.getElementById('schedday').value = slot.day;
+    document.getElementById('schedst').value = slot.start;
+    document.getElementById('schedet').value = slot.end;
+    document.getElementById('schedtype').value = slot.type || 'Theory';
+    document.getElementById('schedhall').value = slot.hallNo || '';
+    if (slot.periodNumber) {
+      document.getElementById('schedperiod').value = String(slot.periodNumber);
+    } else {
+      document.getElementById('schedperiod').value = 'custom';
+    }
+    onSchedTypeChange();
     document.getElementById('schedcls').innerHTML = buildClassOptions(false);
     document.getElementById('schedsub').innerHTML = '<option value="">— Select —</option>';
     openModal('msched');
@@ -1270,6 +1406,7 @@ var _memStore = {};
       setTimeout(function() { document.getElementById('schedsub').value = slot.subjectId; }, 100);
     }, 50);
   }
+  window.openEditSlot = openEditSlot;
 
   function populateScheduleSubjects() {
     const classId = document.getElementById('schedcls').value;
@@ -1280,6 +1417,7 @@ var _memStore = {};
         }).join('');
   }
   var populateSchedSubs = populateScheduleSubjects;
+  window.populateSchedSubs = populateScheduleSubjects;
 
   function saveScheduleSlot() {
     const classId   = document.getElementById('schedcls').value;
@@ -1288,6 +1426,9 @@ var _memStore = {};
     const startTime = document.getElementById('schedst').value;
     const endTime   = document.getElementById('schedet').value;
     const editId    = document.getElementById('schedeid').value;
+    const pVal      = document.getElementById('schedperiod').value;
+    const type      = document.getElementById('schedtype').value || 'Theory';
+    const hallNo    = (document.getElementById('schedhall').value || '').trim();
 
     if (!classId || !subjectId || !day || !startTime || !endTime) {
       showToast('Please fill all fields', 'warn'); return;
@@ -1299,34 +1440,75 @@ var _memStore = {};
     const assignment = getMyAssignments().find(function(a) { return a.classId === classId && a.subjectId === subjectId; });
     if (!assignment) { showToast('Assignment not found', 'warn'); return; }
 
+    var pNum = pVal !== 'custom' ? parseInt(pVal, 10) : null;
+    var isCombined = type === 'Combined';
+    var combClsEl = document.getElementById('schedcombcls');
+    var combClassNames = isCombined && combClsEl && combClsEl.value ? [combClsEl.options[combClsEl.selectedIndex]?.text] : [];
+
     const slotData = {
       classId: classId, className: assignment.className,
       subjectId: subjectId, subjectName: assignment.subjectName,
-      teacherId: currentUser._id, teacherName: currentUser.name,
-      day: day, start: startTime, end: endTime
+      teacherId: currentUser._id, trackId: currentUser.trackId, teacherName: currentUser.name,
+      day: day, start: startTime, end: endTime,
+      periodNumber: pNum, type: type, hallNo: hallNo,
+      isCombined: isCombined, combinedClassNames: combClassNames,
+      isDraft: false
     };
 
+    var tok = getToken();
+    var savePromise;
     if (editId) {
-      DB.update('timetable', editId, slotData);
-      showToast('&#9989; Slot updated!');
+      savePromise = fetch('/api/timetable/' + encodeURIComponent(editId), {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + tok },
+        body: JSON.stringify(slotData)
+      }).then(function(r) { return r.json(); }).then(function(saved) {
+        DB.update('timetable', editId, Object.assign({}, slotData, { _id: editId }));
+        showToast('&#9989; Slot updated!');
+      });
     } else {
-      DB.insert('timetable', slotData);
-      showToast('&#9989; Slot added!');
+      savePromise = fetch('/api/timetable', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + tok },
+        body: JSON.stringify(slotData)
+      }).then(function(r) { return r.json(); }).then(function(saved) {
+        slotData._id = saved._id || ('_' + Date.now().toString(36));
+        DB.insert('timetable', slotData);
+        showToast('&#9989; Slot added!');
+      });
     }
-    closeModal('msched');
-    renderSchedulePage();
+
+    savePromise.catch(function(err) {
+      console.warn('Network sync issue, saving locally:', err);
+      if (editId) DB.update('timetable', editId, slotData);
+      else DB.insert('timetable', slotData);
+    }).finally(function() {
+      closeModal('msched');
+      renderTimetableGrid();
+      renderSchedulePage();
+    });
   }
   var saveSlot = saveScheduleSlot;
+  window.saveSlot = saveSlot;
 
   function deleteSlot(slotId) {
-    if (!confirm('Delete this slot?')) return;
+    if (!confirm('Delete this slot from your timetable?')) return;
+    var tok = getToken();
+    fetch('/api/timetable/' + encodeURIComponent(slotId), {
+      method: 'DELETE',
+      headers: { 'Authorization': 'Bearer ' + tok }
+    }).catch(function(e) { console.warn('Server delete error:', e); });
+
     DB.delete('timetable', slotId);
     showToast('Slot deleted', 'warn');
+    renderTimetableGrid();
     renderSchedulePage();
   }
   var delSlot = deleteSlot;
+  window.deleteSlot = deleteSlot;
+  window.delSlot = deleteSlot;
 
-  // ─── TAKE ATTENDANCE ────────────────────────────────────────────────────────
+  // TAKE ATTENDANCE
   let attendanceStudents = [];
 
   function initAttendancePage() {
@@ -1348,14 +1530,73 @@ var _memStore = {};
         }).join('');
   }
   var attLoadSubs = loadSubjectsForClass;
+  window.attLoadSubs = loadSubjectsForClass;
+  window.loadSubjectsForClass = loadSubjectsForClass;
+
+  function updateAttendanceSavedStatusCard(isSaved, existingCount) {
+    var card = document.getElementById('att-saved-status-card');
+    var icon = document.getElementById('att-saved-icon');
+    var title = document.getElementById('att-saved-title');
+    var desc = document.getElementById('att-saved-desc');
+    var badge = document.getElementById('att-saved-badge');
+    if (!card) return;
+
+    if (isSaved) {
+      card.style.background = '#f0fdf4';
+      card.style.border = '1.5px solid #86efac';
+      if (icon) icon.textContent = '🟢';
+      if (title) {
+        title.style.color = '#166534';
+        title.textContent = 'Attendance Saved in Database';
+      }
+      if (desc) {
+        desc.style.color = '#15803d';
+        desc.textContent = 'Official record found in MongoDB (' + (existingCount || 'existing') + ' student records). Any updates will overwrite this record on save.';
+      }
+      if (badge) {
+        badge.style.background = '#dcfce7';
+        badge.style.color = '#166534';
+        badge.style.border = '1px solid #86efac';
+        badge.textContent = 'SAVED IN DB';
+      }
+    } else {
+      card.style.background = '#fffbeb';
+      card.style.border = '1.5px solid #fde68a';
+      if (icon) icon.textContent = '⚠️';
+      if (title) {
+        title.style.color = '#92400e';
+        title.textContent = 'Attendance Not Saved in Database';
+      }
+      if (desc) {
+        desc.style.color = '#b45309';
+        desc.textContent = 'This is an unsaved fresh roster.';
+      }
+      if (badge) {
+        badge.style.background = '#fef3c7';
+        badge.style.color = '#b45309';
+        badge.style.border = '1px solid #fde68a';
+        badge.textContent = 'NOT SAVED';
+      }
+    }
+  }
+  window.updateAttendanceSavedStatusCard = updateAttendanceSavedStatusCard;
 
   function loadAttendanceSheet() {
-    showToast("Loading…", 'saving');
+    if (typeof dbToast === 'function') {
+      dbToast('Fetching students & attendance from database…', 'saving');
+    } else {
+      showToast("Loading…", 'saving');
+    }
+
     var classId   = document.getElementById('attcls').value;
     var subjectId = document.getElementById('attsub').value;
     var date      = document.getElementById('attdate').value;
     var period    = document.getElementById('attperiod') ? document.getElementById('attperiod').value : '1';
-    if (!classId || !subjectId || !date) { showToast('Select class, subject and date', 'warn'); return; }
+    if (!classId || !subjectId || !date) {
+      if (typeof dbToast === 'function') dbToast('Select class, subject and date first', 'error');
+      else showToast('Select class, subject and date', 'warn');
+      return;
+    }
 
     var assignment = getMyAssignments().find(function(a) {
       return String(a.classId) === String(classId) && String(a.subjectId) === String(subjectId);
@@ -1372,7 +1613,11 @@ var _memStore = {};
     }
 
     var tok = getToken();
-    if (!tok) { showToast('Not authenticated', 'warn'); return; }
+    if (!tok) {
+      if (typeof dbToast === 'function') dbToast('Not authenticated', 'error');
+      else showToast('Not authenticated', 'warn');
+      return;
+    }
 
     // Fetch students for the class, existing records for this session,
     // and approved leaves for this date in parallel from the DB server.
@@ -1409,17 +1654,73 @@ var _memStore = {};
           if (d && Array.isArray(d.data)) return d.data;
           return [];
         })
-        .catch(function() { return []; })
-    ]).then(function(results) {
-      var classStudents  = results[0] || [];
+        .catch(function() { return []; }),
+
+      // Authoritative Schedule Resolution (Feature 13 - Day Override > Week > Master)
+      fetch('/api/timetable/resolve/' + encodeURIComponent(classId) + '/' + encodeURIComponent(date), {
+        headers: { 'Authorization': 'Bearer ' + tok }
+      }).then(function(r) { return r.ok ? r.json() : null; })
+        .catch(function() { return null; })
+    ]).then(async function(results) {
+      var initialStudents = results[0] || [];
+      var resolvedSchedule = results[3] || null;
+
+      if (resolvedSchedule && resolvedSchedule.isHoliday) {
+        if (typeof dbToast === 'function') {
+          dbToast('Institutional Holiday: ' + (resolvedSchedule.holidayReason || 'Holiday'), 'warn', 5000);
+        }
+      }
+
+      // Check if slot has combined classes (Feature 4 - Combined classes attendance)
+      var activeSlot = null;
+      if (resolvedSchedule && resolvedSchedule.slots) {
+        activeSlot = Object.values(resolvedSchedule.slots).find(function(s) {
+          return String(s.periodNumber) === String(period);
+        });
+        if (activeSlot && activeSlot.isCancelled) {
+          if (typeof dbToast === 'function') {
+            dbToast('⚠️ Period ' + period + ' is marked Cancelled: ' + (activeSlot.cancelReason || 'Cancelled'), 'warn', 5000);
+          }
+        }
+      }
+
+      if (activeSlot && (activeSlot.isCombined || (activeSlot.combinedClassIds && activeSlot.combinedClassIds.length > 0))) {
+        var extraClassIds = (activeSlot.combinedClassIds || []).filter(function(id) {
+          return String(id) !== String(classId);
+        });
+        for (var i = 0; i < extraClassIds.length; i++) {
+          try {
+            var cRes = await fetch('/api/students?classId=' + encodeURIComponent(extraClassIds[i]) + '&limit=500', {
+              headers: { 'Authorization': 'Bearer ' + tok }
+            });
+            if (cRes.ok) {
+              var cData = await cRes.json();
+              var extraList = Array.isArray(cData) ? cData : (cData?.data || cData?.students || []);
+              initialStudents = initialStudents.concat(extraList);
+            }
+          } catch (e) {}
+        }
+        if (typeof dbToast === 'function') {
+          dbToast('👥 Combined Session: Loaded students from all combined sections', 'info', 4000);
+        }
+      }
+
+      var classStudents  = initialStudents.slice().sort(function(a, b) {
+        return String(a.regNo || a.registerNo || '').localeCompare(String(b.regNo || b.registerNo || ''), undefined, { numeric: true });
+      });
       var sessionRecords = (results[1] || []).filter(function(a) {
-        return String(a.subjectId) === String(subjectId);
+        var subMatch = String(a.subjectId) === String(subjectId) ||
+                       (a.subjectTrackId && String(a.subjectTrackId) === String(subjectId));
+        var periodMatch = !period || String(a.periodNumber) === String(period) ||
+                          (Array.isArray(a.periodNumbers) && a.periodNumbers.map(String).includes(String(period)));
+        return subMatch && periodMatch;
       });
       var approvedLeaves = results[2] || [];
       var periodNum = Number(period) || 1;
 
       if (!classStudents.length) {
-        showToast('No students found in this class', 'warn');
+        if (typeof dbToast === 'function') dbToast('No students found in this class', 'error');
+        else showToast('No students found in this class', 'warn');
         return;
       }
 
@@ -1461,7 +1762,6 @@ var _memStore = {};
         if (rec) {
           initialStatus = rec.status;
         }
-
         return Object.assign({}, student, {
           status:     initialStatus,
           existingId: rec ? rec._id : null,
@@ -1470,6 +1770,20 @@ var _memStore = {};
         });
       });
 
+      var isSavedInDb = sessionRecords.length > 0;
+      updateAttendanceSavedStatusCard(isSavedInDb, sessionRecords.length);
+
+      // Hydrate Period Notes and Topic Covered if already saved
+      var topicInput = document.getElementById('att-topic');
+      var notesInput = document.getElementById('att-notes');
+      if (isSavedInDb && sessionRecords[0]) {
+        if (topicInput) topicInput.value = sessionRecords[0].topic || sessionRecords[0].remarks || '';
+        if (notesInput) notesInput.value = sessionRecords[0].notes || '';
+      } else {
+        if (topicInput) topicInput.value = '';
+        if (notesInput) notesInput.value = '';
+      }
+
       document.getElementById('ainfc').textContent = assignment.className || '—';
       document.getElementById('ainfs').textContent = assignment.subjectName || '—';
       document.getElementById('ainfd').textContent = formatDateLong(date);
@@ -1477,16 +1791,33 @@ var _memStore = {};
       if (ainfp) ainfp.textContent = 'Period ' + period;
       document.getElementById('ainft').textContent = classStudents.length;
 
-      document.getElementById('attsheet').style.display = 'block';
+      var selZone = document.getElementById('att-selector-zone');
+      if (selZone) selZone.style.display = 'none';
+      var attSheetEl = document.getElementById('attsheet');
+      if (attSheetEl) attSheetEl.style.display = 'block';
+      var methodInd = document.getElementById('att-method-indicator');
+      if (methodInd && !methodInd.textContent) {
+        methodInd.textContent = '📋 Manual Entry';
+        methodInd.style.display = 'inline-block';
+      }
       renderAttendanceSheet();
-      showToast('Loaded ' + classStudents.length + ' students', 'success');
+
+      if (typeof dbToast === 'function') {
+        dbToast(
+          'Loaded ' + classStudents.length + ' students from DB',
+          'success',
+          isSavedInDb ? 'Official record found in DB (' + sessionRecords.length + ' records)' : 'Fresh roster • Not yet saved to DB'
+        );
+      } else {
+        showToast('Loaded ' + classStudents.length + ' students', 'success');
+      }
     }).catch(function(err) {
       console.error('Error in loadAttendanceSheet:', err);
-      showToast('Error loading attendance sheet', 'warn');
+      if (typeof dbToast === 'function') dbToast('Error loading attendance from DB', 'error');
+      else showToast('Error loading attendance sheet', 'warn');
     });
   }
   var loadAttSheet = loadAttendanceSheet;
-
   function renderAttendanceSheet() {
     document.getElementById('atttbody').innerHTML = attendanceStudents.map(function(student, index) {
       const isPresent = student.status === 'present';
@@ -1509,10 +1840,12 @@ var _memStore = {};
   function setAttendanceStatus(index, status) {
     attendanceStudents[index].status = status;
     const row = document.getElementById('student-row-' + index);
-    row.className = status === 'present' ? 'pr' : 'ab';
-    row.querySelectorAll('.abp,.aba').forEach(function(btn) { btn.classList.remove('act'); });
-    const targetBtn = row.querySelector(status === 'present' ? '.abp' : '.aba');
-    if (targetBtn) targetBtn.classList.add('act');
+    if (row) {
+      row.className = status === 'present' ? 'pr' : 'ab';
+      row.querySelectorAll('.abp,.aba').forEach(function(btn) { btn.classList.remove('act'); });
+      const targetBtn = row.querySelector(status === 'present' ? '.abp' : '.aba');
+      if (targetBtn) targetBtn.classList.add('act');
+    }
     updateAttendanceSummary();
   }
   var setS = setAttendanceStatus;
@@ -1530,37 +1863,450 @@ var _memStore = {};
     document.getElementById('sabs').textContent   = attendanceStudents.length - presentCount;
   }
   var updSum = updateAttendanceSummary;
+  window.setAttendanceStatus = setAttendanceStatus;
+  window.setS = setAttendanceStatus;
+  window.markAllStudents = markAllStudents;
+  window.markAll = markAllStudents;
+  window.updateAttendanceSummary = updateAttendanceSummary;
+  window.renderAttendanceSheet = renderAttendanceSheet;
+
+  function resetAttendanceView() {
+    var selZone = document.getElementById('att-selector-zone');
+    if (selZone) selZone.style.display = 'block';
+    var sheet = document.getElementById('attsheet');
+    if (sheet) sheet.style.display = 'none';
+    var methodInd = document.getElementById('att-method-indicator');
+    if (methodInd) {
+      methodInd.style.display = 'none';
+      methodInd.textContent = '';
+    }
+  }
+  window.resetAttendanceView = resetAttendanceView;
+
+  function triggerAttendanceMethod(mode) {
+    var classId = document.getElementById('attcls').value;
+    var subjectId = document.getElementById('attsub').value;
+    var date = document.getElementById('attdate').value;
+    if (!classId || !subjectId || !date) {
+      if (typeof dbToast === 'function') dbToast('Select class, subject and date first', 'warn');
+      else showToast('Select class, subject and date first', 'warn');
+      return;
+    }
+    if (mode === 'code') {
+      startLiveSession('code');
+    } else if (mode === 'qr') {
+      startLiveSession('qr');
+    } else if (mode === 'rep') {
+      forwardToRepModal();
+    }
+  }
+  window.triggerAttendanceMethod = triggerAttendanceMethod;
+
+  function updateAttendanceMethodETAs() {
+    var attSettings = (window._pubSettings && window._pubSettings.attendance) || {};
+    var rotCount = Number(attSettings.rotationCount) || 2;
+    var rotSec = Number(attSettings.rotationTimeSec) || 60;
+    var totalSec = rotCount * rotSec;
+    var min = Math.round((totalSec / 60) * 10) / 10;
+    var minStr = (min % 1 === 0 ? min : min.toFixed(1)) + ' min';
+    var qpEl = document.getElementById('eta-quick-pass');
+    if (qpEl) qpEl.textContent = minStr + ' session (' + rotCount + ' rotations)';
+    var slEl = document.getElementById('eta-scan-live');
+    if (slEl) slEl.textContent = minStr + ' QR code (' + rotCount + ' rotations)';
+  }
+  window.updateAttendanceMethodETAs = updateAttendanceMethodETAs;
+
+  // QUICK PASS LOGIC (Items 13 & 14)
+  let activeQuickPassSessionId = null;
+  let activeQuickPassTrackId = null;
+  let quickPassPollTimer = null;
+  let quickPassTicker = null;
+  let quickPassExpiresAtMs = 0;
+  let quickPassCurrentRotation = 1;
+  let quickPassRotationCount = 2;
+  let quickPassRotationTimeSec = 60;
+  let quickPassRecords = [];
+
+  function startQuickPassSession() {
+    var classId = document.getElementById('attcls').value;
+    var subjectId = document.getElementById('attsub').value;
+    var date = document.getElementById('attdate').value;
+    var period = document.getElementById('attperiod') ? document.getElementById('attperiod').value : '1';
+
+    if (!classId || !subjectId || !date) {
+      if (typeof dbToast === 'function') dbToast('Select class, subject and date first', 'warn');
+      else showToast('Select class, subject and date', 'warn');
+      return;
+    }
+
+    if (typeof dbToast === 'function') dbToast('Starting Quick Pass session…', 'saving');
+
+    fetch('/api/quick-pass/start', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getToken() },
+      body: JSON.stringify({ classId: classId, subjectId: subjectId, date: date, periodNumber: period })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (data.error) {
+        if (typeof dbToast === 'function') dbToast(data.error, 'error');
+        else showToast(data.error, 'warn');
+        return;
+      }
+      activeQuickPassSessionId = data.sessionId;
+      activeQuickPassTrackId = data.sessionTrackId;
+      quickPassCurrentRotation = data.currentRotation || 1;
+      quickPassRotationCount = data.rotationCount || 2;
+      quickPassRotationTimeSec = data.rotationTimeSec || 60;
+      quickPassExpiresAtMs = data.expiresAt ? new Date(data.expiresAt).getTime() : (Date.now() + quickPassRotationTimeSec * 1000);
+      quickPassRecords = [];
+
+      showQuickPassModal(data.currentCode);
+      startQuickPassTimers();
+      if (typeof dbToast === 'function') dbToast('Quick Pass session active!', 'success');
+    })
+    .catch(function(err) {
+      console.error(err);
+      if (typeof dbToast === 'function') dbToast('Error starting Quick Pass session', 'error');
+    });
+  }
+  window.startQuickPassSession = startQuickPassSession;
+
+  function showQuickPassModal(code) {
+    var modal = document.getElementById('modal-quick-pass');
+    if (!modal) return;
+    modal.style.display = 'flex';
+    updateQuickPassCodeDisplay(code);
+    updateQuickPassRotationBadge();
+    var tb = document.getElementById('qp-live-tbody');
+    if (tb) tb.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:16px;color:#94a3b8;">Waiting for students to enter code…</td></tr>';
+    var comp = document.getElementById('qp-count-completed');
+    if (comp) comp.textContent = '0';
+    var rem = document.getElementById('qp-count-remaining');
+    if (rem) rem.textContent = '…';
+  }
+  window.showQuickPassModal = showQuickPassModal;
+
+  function closeQuickPassModal() {
+    var modal = document.getElementById('modal-quick-pass');
+    if (modal) modal.style.display = 'none';
+  }
+  window.closeQuickPassModal = closeQuickPassModal;
+
+  function formatPasscodeDisplay(code) {
+    if (!code) return '------------';
+    var str = String(code).toUpperCase();
+    if (str.length === 12) {
+      return str.slice(0, 4) + ' • ' + str.slice(4, 8) + ' • ' + str.slice(8, 12);
+    }
+    return str;
+  }
+
+  function updateQuickPassCodeDisplay(code) {
+    var el = document.getElementById('qp-code-display');
+    if (el) {
+      el.textContent = formatPasscodeDisplay(code);
+      el.setAttribute('data-raw-code', code || '');
+    }
+  }
+
+  function updateQuickPassRotationBadge() {
+    var badge = document.getElementById('qp-rotation-badge');
+    if (badge) badge.textContent = 'ROTATION ' + quickPassCurrentRotation + '/' + quickPassRotationCount;
+    var lbl = document.getElementById('qp-rotation-label');
+    if (lbl) lbl.textContent = 'Rotation ' + quickPassCurrentRotation + ' of ' + quickPassRotationCount;
+  }
+
+  function startQuickPassTimers() {
+    if (quickPassPollTimer) clearInterval(quickPassPollTimer);
+    if (quickPassTicker) clearInterval(quickPassTicker);
+
+    quickPassPollTimer = setInterval(pollQuickPassStatus, 3000);
+    quickPassTicker = setInterval(updateQuickPassTicker, 250);
+    pollQuickPassStatus();
+  }
+
+  function updateQuickPassTicker() {
+    var now = Date.now();
+    var diffMs = quickPassExpiresAtMs - now;
+    var totalMs = quickPassRotationTimeSec * 1000;
+    var pct = Math.max(0, Math.min(100, (diffMs / totalMs) * 100));
+    var sec = Math.max(0, Math.ceil(diffMs / 1000));
+
+    var timerEl = document.getElementById('qp-timer-text');
+    if (timerEl) timerEl.textContent = sec + 's';
+    var bar = document.getElementById('qp-progress-bar');
+    if (bar) bar.style.width = pct + '%';
+  }
+
+  function pollQuickPassStatus() {
+    if (!activeQuickPassSessionId) return;
+    fetch('/api/quick-pass/status/' + activeQuickPassSessionId, {
+      headers: { 'Authorization': 'Bearer ' + getToken() }
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (!data.ok) return;
+
+      quickPassCurrentRotation = data.currentRotation || quickPassCurrentRotation;
+      quickPassRotationCount = data.rotationCount || quickPassRotationCount;
+      quickPassRotationTimeSec = data.rotationTimeSec || quickPassRotationTimeSec;
+      if (data.expiresAt) quickPassExpiresAtMs = new Date(data.expiresAt).getTime();
+
+      updateQuickPassCodeDisplay(data.currentCode);
+      updateQuickPassRotationBadge();
+
+      var compEl = document.getElementById('qp-count-completed');
+      if (compEl) compEl.textContent = data.completedCount || 0;
+      var remEl = document.getElementById('qp-count-remaining');
+      if (remEl) remEl.textContent = data.remainingCount !== undefined ? data.remainingCount : 0;
+
+      quickPassRecords = data.records || [];
+      renderQuickPassLiveRecords(quickPassRecords);
+
+      if (!data.active) {
+        clearInterval(quickPassPollTimer);
+        clearInterval(quickPassTicker);
+        quickPassPollTimer = null;
+        quickPassTicker = null;
+        var tEl = document.getElementById('qp-timer-text');
+        if (tEl) tEl.textContent = 'Ended';
+        var pb = document.getElementById('qp-progress-bar');
+        if (pb) pb.style.width = '0%';
+        if (typeof dbToast === 'function') dbToast('Quick Pass session finished (' + quickPassRecords.length + ' marked)', 'info');
+      }
+    })
+    .catch(function(err) { console.warn('QP Poll error:', err); });
+  }
+
+  function renderQuickPassLiveRecords(records) {
+    var tbody = document.getElementById('qp-live-tbody');
+    if (!tbody) return;
+    if (!records || !records.length) {
+      tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:16px;color:#94a3b8;">Waiting for students to enter code…</td></tr>';
+      return;
+    }
+    tbody.innerHTML = records.map(function(r, idx) {
+      var timeStr = r.markedAt ? new Date(r.markedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '—';
+      return '<tr>'
+        + '<td style="font-weight:700;color:#94a3b8;">' + (idx + 1) + '</td>'
+        + '<td style="font-weight:600;font-family:monospace;">' + (r.regNo || '—') + '</td>'
+        + '<td style="font-weight:600;">' + (r.studentName || 'Student') + '</td>'
+        + '<td><span style="font-size:10px;padding:1px 6px;border-radius:6px;background:#fef3c7;color:#92400e;font-weight:700;">R' + (r.rotation || 1) + '</span></td>'
+        + '<td style="font-size:11px;color:#64748b;">' + timeStr + '</td>'
+        + '</tr>';
+    }).join('');
+  }
+
+  function copyQuickPassCode() {
+    var el = document.getElementById('qp-code-display');
+    var raw = el ? el.getAttribute('data-raw-code') : '';
+    if (!raw) return;
+    navigator.clipboard.writeText(raw).then(function() {
+      if (typeof dbToast === 'function') dbToast('Code copied to clipboard: ' + raw, 'success');
+      else showToast('Code copied!', 'success');
+    }).catch(function() {
+      showToast('Could not copy code', 'warn');
+    });
+  }
+  window.copyQuickPassCode = copyQuickPassCode;
+
+  function applyQuickPassToAttendance(isDraft) {
+    function applyRecords() {
+      var markedTrackIds = Object.create(null);
+      quickPassRecords.forEach(function(r) {
+        if (r.studentTrackId) markedTrackIds[String(r.studentTrackId)] = true;
+        if (r.studentId) markedTrackIds[String(r.studentId)] = true;
+        if (r.regNo) markedTrackIds[String(r.regNo)] = true;
+      });
+
+      attendanceStudents.forEach(function(s, idx) {
+        var isMarked = markedTrackIds[String(s._id)] ||
+                       (s.trackId && markedTrackIds[String(s.trackId)]) ||
+                       (s.regNo && markedTrackIds[String(s.regNo)]);
+        attendanceStudents[idx].status = isMarked ? 'present' : 'absent';
+      });
+
+      renderAttendanceSheet();
+      var selZone = document.getElementById('att-selector-zone');
+      if (selZone) selZone.style.display = 'none';
+      var sheet = document.getElementById('attsheet');
+      if (sheet) sheet.style.display = 'block';
+
+      var methodInd = document.getElementById('att-method-indicator');
+      if (methodInd) {
+        methodInd.textContent = '🔢 Quick Pass (' + (isDraft ? 'Draft' : 'Completed') + ')';
+        methodInd.style.display = 'inline-block';
+      }
+
+      var presentCount = attendanceStudents.filter(function(s) { return s.status === 'present'; }).length;
+      if (typeof dbToast === 'function') {
+        dbToast(
+          'Quick Pass attendance loaded',
+          'success',
+          presentCount + ' present, ' + (attendanceStudents.length - presentCount) + ' absent'
+        );
+      }
+    }
+
+    if (!attendanceStudents || !attendanceStudents.length) {
+      loadAttendanceSheet();
+      setTimeout(applyRecords, 1200);
+    } else {
+      applyRecords();
+    }
+  }
+
+  function saveQuickPassDraft() {
+    if (!activeQuickPassSessionId) return;
+    fetch('/api/quick-pass/save-draft/' + activeQuickPassSessionId, {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + getToken() }
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (typeof dbToast === 'function') dbToast('Quick Pass saved as draft in database', 'success');
+      applyQuickPassToAttendance(true);
+      closeQuickPassModal();
+    })
+    .catch(function(e) {
+      console.error(e);
+      applyQuickPassToAttendance(true);
+      closeQuickPassModal();
+    });
+  }
+  window.saveQuickPassDraft = saveQuickPassDraft;
+
+  function endQuickPassSession() {
+    if (quickPassPollTimer) clearInterval(quickPassPollTimer);
+    if (quickPassTicker) clearInterval(quickPassTicker);
+    quickPassPollTimer = null;
+    quickPassTicker = null;
+
+    if (activeQuickPassSessionId) {
+      fetch('/api/quick-pass/end/' + activeQuickPassSessionId, {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + getToken() }
+      }).catch(function(e){});
+    }
+
+    applyQuickPassToAttendance(false);
+    closeQuickPassModal();
+    if (typeof dbToast === 'function') dbToast('Quick Pass session ended & attendance applied', 'info');
+  }
+  window.endQuickPassSession = endQuickPassSession;
 
   let activeLiveSessionId = null;
+  let activeLiveSessionTrackId = null;
+  let activeLiveSessionMode = 'code';
   let liveSessionPollTimer = null;
+  let qrRotationTicker = null;
+  let qrReviewParticipationData = [];
+  let qrCurrentToken = null;
+  let qrExpiresAtMs = 0;
+  let qrIntervalSec = 20;
+  let isQrRefreshing = false;
 
-  function startLiveSession() {
+  function startLiveSession(mode) {
+    mode = mode || 'code';
+    if (mode === 'code') {
+      startQuickPassSession();
+      return;
+    }
     const classId   = document.getElementById('attcls').value;
     const subjectId = document.getElementById('attsub').value;
     const date      = document.getElementById('attdate').value;
+    const periodEl  = document.getElementById('attperiod');
+    const period    = periodEl ? periodEl.value : '1';
 
-    if (!classId || !subjectId || !date) { showToast('Select class, subject and date', 'warn'); return; }
+    if (!classId || !subjectId || !date) {
+      if (typeof dbToast === 'function') dbToast('Select class, subject and date', 'warn');
+      else showToast('Select class, subject and date', 'warn');
+      return;
+    }
+
+    // Switch view to State 2 (Roster Sheet) underneath
+    var selZone = document.getElementById('att-selector-zone');
+    if (selZone) selZone.style.display = 'none';
+    var sheet = document.getElementById('attsheet');
+    if (sheet) sheet.style.display = 'block';
+
+    var methodInd = document.getElementById('att-method-indicator');
+    if (methodInd) {
+      methodInd.textContent = '📷 Scan Live QR (Active)';
+      methodInd.style.display = 'inline-block';
+    }
+
+    // Preload attendance roster if not loaded
+    if (!attendanceStudents || !attendanceStudents.length) {
+      loadAttendanceSheet();
+    }
+
+    if (typeof dbToast === 'function') dbToast('Starting live QR attendance session…', 'saving');
 
     fetch('/api/live-session/start', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getToken() },
-      body: JSON.stringify({ classId: classId, subjectId: subjectId, date: date })
+      body: JSON.stringify({ classId: classId, subjectId: subjectId, date: date, periodNumber: period, attendanceMode: 'qr' })
     })
     .then(function(res){ return res.json(); })
     .then(function(data) {
-      if(data.error) { showToast(data.error, 'warn'); return; }
+      if (data.error) {
+        if (typeof dbToast === 'function') dbToast(data.error, 'error');
+        else showToast(data.error, 'warn');
+        return;
+      }
       activeLiveSessionId = data._id;
-      document.getElementById('live-session-controls').innerHTML =
-        '<div style="background:#fff;border:2px dashed #16a34a;border-radius:8px;padding:4px 12px;font-size:22px;font-weight:800;color:#166534;letter-spacing:4px;margin-right:12px;">' + data.passcode + '</div>' + 
-        '<button class="btn-pri" onclick="endLiveSession()" style="background:#dc2626;box-shadow:none;">End Session</button>';
-      
-      if(liveSessionPollTimer) clearInterval(liveSessionPollTimer);
-      liveSessionPollTimer = setInterval(pollLiveSession, 3000);
-      showToast('Live session started! Ask students to enter the passcode.', 'info');
+      activeLiveSessionTrackId = data.trackId;
+      activeLiveSessionMode = 'qr';
+
+      var ctrlEl = document.getElementById('live-session-controls');
+      if (ctrlEl) {
+        ctrlEl.style.display = 'inline-flex';
+        ctrlEl.innerHTML =
+          '<button class="btn-pri" onclick="showQrModal()" style="background:#4f46e5;box-shadow:none;font-size:12px;padding:6px 12px;">📷 View QR</button>' +
+          '<button class="btn-pri" onclick="openQrReviewModal()" style="background:#0f172a;box-shadow:none;font-size:12px;padding:6px 12px;">📋 Review</button>' +
+          '<button class="btn-pri" onclick="endLiveSession()" style="background:#dc2626;box-shadow:none;font-size:12px;padding:6px 12px;">⏹ End</button>';
+      }
+
+      showQrModal();
+      qrCurrentToken = null;
+      qrExpiresAtMs = 0; // Wait timer until QR actually loads
+      pollQrLiveSession();
+      if (liveSessionPollTimer) clearInterval(liveSessionPollTimer);
+      if (qrRotationTicker) clearInterval(qrRotationTicker);
+      liveSessionPollTimer = setInterval(pollQrLiveSession, 3000); // 3s stats sync
+      qrRotationTicker = setInterval(updateQrTicker, 200); // 200ms smooth timer & instant refresh
+      dbToast('Live Rotating QR session started!', 'success', 'QR refreshes every ' + (data.qrIntervalSec || 60) + 's');
     })
-    .catch(function(e){ showToast('Error starting live session', 'warn'); });
+    .catch(function(e){
+      console.error('[startLiveSession error]:', e);
+      dbToast('Error starting live session', 'error');
+    });
   }
   window.startLiveSession = startLiveSession;
+
+  function showQrModal() {
+    var modal = document.getElementById('modal-qr-session');
+    if (modal) modal.style.display = 'flex';
+  }
+  window.showQrModal = showQrModal;
+
+  function hideQrModal() {
+    var modal = document.getElementById('modal-qr-session');
+    if (modal) modal.style.display = 'none';
+  }
+  window.hideQrModal = hideQrModal;
+
+  function toggleQrFullscreen() {
+    var modal = document.getElementById('modal-qr-session');
+    if (!document.fullscreenElement) {
+      if (modal && modal.requestFullscreen) modal.requestFullscreen();
+    } else {
+      if (document.exitFullscreen) document.exitFullscreen();
+    }
+  }
+  window.toggleQrFullscreen = toggleQrFullscreen;
 
   function pollLiveSession() {
     if (!activeLiveSessionId) return;
@@ -1569,36 +2315,411 @@ var _memStore = {};
     })
     .then(function(res){ return res.json(); })
     .then(function(data) {
-      if(!data || data.error) return;
-      if(!data.active) { endLiveSession(true); return; }
+      if (!data || data.error) return;
+      if (!data.active) { endLiveSession(true); return; }
       
-      data.markedStudents.forEach(function(s) {
-        const idx = attendanceStudents.findIndex(function(st) { return String(st.regNo) === String(s.regNo) || String(st._id) === String(s.studentId); });
-        if(idx !== -1 && attendanceStudents[idx].status !== 'present') {
-          setAttendanceStatus(idx, 'present');
-          showToast(s.regNo + ' self-marked present', 'info');
-        }
-      });
+      if (Array.isArray(data.markedStudents)) {
+        data.markedStudents.forEach(function(s) {
+          const idx = attendanceStudents.findIndex(function(st) { return String(st.regNo) === String(s.regNo) || String(st._id) === String(s.studentId); });
+          if (idx !== -1 && attendanceStudents[idx].status !== 'present') {
+            setAttendanceStatus(idx, 'present');
+            dbToast(s.regNo + ' self-marked present', 'success');
+          }
+        });
+      }
     })
     .catch(function(e) {});
   }
 
-  function endLiveSession(autoEnded) {
-    if(liveSessionPollTimer) clearInterval(liveSessionPollTimer);
-    liveSessionPollTimer = null;
+  function updateQrTicker() {
+    if (!activeLiveSessionId || activeLiveSessionMode !== 'qr') return;
+    var timerText = document.getElementById('qr-timer-text');
+    var progressBar = document.getElementById('qr-progress-bar');
 
-    if (!autoEnded && activeLiveSessionId) {
-      fetch('/api/live-session/end/' + activeLiveSessionId, {
+    // ONLY when QR loads does the timer start; until that, wait timer!
+    if (!qrExpiresAtMs || qrExpiresAtMs <= 0) {
+      if (timerText) timerText.textContent = 'Waiting for QR…';
+      if (progressBar) progressBar.style.width = '100%';
+      return;
+    }
+
+    var now = Date.now();
+    var remainingMs = Math.max(0, qrExpiresAtMs - now);
+    var secondsRemaining = Math.max(0, Math.ceil(remainingMs / 1000));
+
+    if (timerText) timerText.textContent = secondsRemaining + 's';
+
+    if (progressBar && qrIntervalSec) {
+      var pct = (remainingMs / (qrIntervalSec * 1000)) * 100;
+      progressBar.style.width = Math.min(100, Math.max(0, pct)) + '%';
+    }
+
+    // When the countdown reaches 0, trigger immediate QR refresh
+    if (remainingMs <= 0 && !isQrRefreshing) {
+      qrExpiresAtMs = 0;
+      pollQrLiveSession();
+    }
+  }
+
+  function pollQrLiveSession() {
+    if (!activeLiveSessionId || isQrRefreshing) return;
+    isQrRefreshing = true;
+
+    fetch('/api/qr-attendance/qr-data/' + activeLiveSessionId, {
+      headers: { 'Authorization': 'Bearer ' + getToken() }
+    })
+    .then(function(res){ return res.json(); })
+    .then(function(data) {
+      isQrRefreshing = false;
+      if (!data || data.error) {
+        if (data && data.expired) endLiveSession(true);
+        return;
+      }
+      if (!data.active) { endLiveSession(true); return; }
+
+      qrIntervalSec = data.intervalSec || 60;
+
+      // Update rotation badge
+      var rotBadge = document.getElementById('qr-rotation-badge');
+      if (rotBadge) {
+        rotBadge.textContent = 'Rotation ' + (data.currentRotation || 1) + ' / ' + (data.totalRotations || data.rotationCount || 2);
+      }
+
+      // 1. Render QR to canvas only on initial token or when timer expired for rotation
+      var canvas = document.getElementById('qr-canvas');
+      var shouldRotateQr = (qrCurrentToken !== data.qrTrackId && (!qrExpiresAtMs || qrExpiresAtMs <= Date.now()));
+
+      if (canvas && data.qrUrl && window.renderQrToCanvas && shouldRotateQr) {
+        var fullUrl = (window.location.origin || '') + data.qrUrl;
+        qrCurrentToken = data.qrTrackId;
+        qrExpiresAtMs = 0; // Freeze timer until image actually loads
+        updateQrTicker();
+
+        // Render QR and start timer ONLY AFTER successful image load
+        renderQrToCanvas(canvas, fullUrl, 300, function(loadInfo) {
+          // 1. Note exact time
+          var readyTime = (loadInfo && loadInfo.loadedAt) ? loadInfo.loadedAt : new Date();
+
+          // 2. Create audit log entry for successful QR display
+          fetch('/api/qr-attendance/log-loaded', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getToken() },
+            body: JSON.stringify({
+              sessionTrackId: data.sessionTrackId || activeLiveSessionTrackId,
+              qrTrackId: data.qrTrackId,
+              loadedAt: readyTime.toISOString(),
+              intervalSec: qrIntervalSec
+            })
+          }).catch(function(e) {
+            console.error('[QR Log Loaded Error]:', e);
+          });
+
+          // 3. ONLY start refresh countdown timer now that QR is displayed
+          qrExpiresAtMs = Date.now() + (qrIntervalSec * 1000);
+          updateQrTicker();
+
+          // 4. Notify ready with dbToast
+          dbToast('QR code ready for scanning', 'success', 'Token: ' + (data.qrTrackId || '—') + ' (' + qrIntervalSec + 's)');
+        });
+      }
+
+      // 2. Dev mode: Display direct clickable/copyable QR attendance URL below QR
+      var fullUrl = (window.location.origin || '') + data.qrUrl;
+      var isDev = window.location.hostname === 'localhost' ||
+                  window.location.hostname === '127.0.0.1' ||
+                  (window._pubSettings && window._pubSettings.advanced && window._pubSettings.advanced.debugMode);
+      var devBox = document.getElementById('qr-dev-url-box');
+      var devLink = document.getElementById('qr-dev-url-link');
+      if (devBox && devLink) {
+        if (isDev && fullUrl) {
+          devBox.style.display = 'block';
+          devLink.href = fullUrl;
+          devLink.textContent = fullUrl;
+        } else {
+          devBox.style.display = 'none';
+        }
+      }
+
+      // 3. Update Window Token and Timer Bar
+      var tokenText = document.getElementById('qr-token-text');
+      if (tokenText) tokenText.textContent = data.qrTrackId || '—';
+
+      // 4. Update Counts
+      var completedEl = document.getElementById('qr-count-completed');
+      if (completedEl) completedEl.textContent = data.completedCount || 0;
+
+      var pendingEl = document.getElementById('qr-count-pending');
+      if (pendingEl) pendingEl.textContent = data.pendingCount || 0;
+    })
+    .catch(function(e) {
+      isQrRefreshing = false;
+    });
+  }
+
+  function copyQrDevUrl() {
+    var devLink = document.getElementById('qr-dev-url-link');
+    if (devLink && devLink.href && devLink.href !== '#') {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(devLink.href).then(function() {
+          dbToast('QR Attendance URL copied!', 'success');
+        }).catch(function() {
+          dbToast('Failed to copy URL', 'error');
+        });
+      } else {
+        var tempInput = document.createElement('input');
+        tempInput.value = devLink.href;
+        document.body.appendChild(tempInput);
+        tempInput.select();
+        document.execCommand('copy');
+        document.body.removeChild(tempInput);
+        dbToast('QR Attendance URL copied!', 'success');
+      }
+    }
+  }
+  window.copyQrDevUrl = copyQrDevUrl;
+
+  function openQrReviewModal() {
+    var targetTrackId = activeLiveSessionTrackId;
+    if (!targetTrackId) {
+      showToast('No active live QR session to review', 'warn');
+      return;
+    }
+    var modal = document.getElementById('modal-qr-review');
+    if (modal) modal.style.display = 'flex';
+
+    var tbody = document.getElementById('qr-review-tbody');
+    if (tbody) tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:20px;color:#94a3b8;">Loading live participation records...</td></tr>';
+
+    if (!attendanceStudents || !attendanceStudents.length) {
+      loadAttendanceSheet();
+    }
+
+    fetch('/api/qr-attendance/participation/' + targetTrackId, {
+      headers: { 'Authorization': 'Bearer ' + getToken() }
+    })
+    .then(function(res){ return res.json(); })
+    .then(function(data) {
+      qrReviewParticipationData = data.records || [];
+      if (!attendanceStudents || !attendanceStudents.length) {
+        setTimeout(renderQrReviewTable, 600);
+      } else {
+        renderQrReviewTable();
+      }
+    })
+    .catch(function(e) {
+      if (tbody) tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:20px;color:#ef4444;">Failed to load records</td></tr>';
+    });
+  }
+  window.openQrReviewModal = openQrReviewModal;
+
+  function closeQrReviewModal() {
+    var modal = document.getElementById('modal-qr-review');
+    if (modal) modal.style.display = 'none';
+  }
+  window.closeQrReviewModal = closeQrReviewModal;
+
+  function renderQrReviewTable() {
+    var tbody = document.getElementById('qr-review-tbody');
+    if (!tbody) return;
+
+    if (!attendanceStudents || !attendanceStudents.length) {
+      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:20px;color:#94a3b8;">No students loaded for this class</td></tr>';
+      return;
+    }
+
+    var html = '';
+    attendanceStudents.forEach(function(st, idx) {
+      var part = qrReviewParticipationData.find(function(p) {
+        return String(p.studentId) === String(st._id) || String(p.studentTrackId) === String(st.trackId) || String(p.regNo) === String(st.regNo);
+      });
+
+      var liveStatusBadge = '';
+      var qrTiming = '—';
+      var isPrePresent = false;
+
+      if (part && part.status === 'completed') {
+        var windowBadge = part.qrWindowType === 'grace' ? ' <span style="color:#d97706;font-size:10px;">(5s Grace)</span>' : '';
+        liveStatusBadge = '<span style="background:#dcfce7;color:#166534;font-size:11px;padding:3px 8px;border-radius:6px;font-weight:700;">🟢 Completed' + windowBadge + '</span>';
+        qrTiming = (part.qrTrackId || 'QR') + ' @ ' + (new Date(part.markedAt).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'}));
+        isPrePresent = true;
+        setAttendanceStatus(idx, 'present');
+      } else if (part && part.status === 'pending') {
+        var reason = (part.verificationDetails && part.verificationDetails.failReason) || 'Awaiting Review';
+        liveStatusBadge = '<span style="background:#fef3c7;color:#92400e;font-size:11px;padding:3px 8px;border-radius:6px;font-weight:700;" title="' + reason + '">🟡 Pending: ' + reason + '</span>';
+        qrTiming = (part.qrTrackId || 'QR') + ' @ ' + (new Date(part.markedAt).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'}));
+        isPrePresent = false;
+        setAttendanceStatus(idx, 'absent');
+      } else {
+        // Not Scanned -> Mark as AB (absent), NOT P
+        liveStatusBadge = '<span style="background:#fee2e2;color:#991b1b;font-size:11px;padding:3px 8px;border-radius:6px;font-weight:700;">🔴 Not Scanned</span>';
+        isPrePresent = false;
+        setAttendanceStatus(idx, 'absent');
+      }
+
+      html += '<tr style="border-bottom:1px solid #f1f5f9;">' +
+        '<td style="padding:10px 8px;font-weight:600;color:#64748b;">' + (idx + 1) + '</td>' +
+        '<td style="padding:10px 8px;font-weight:700;">' + (st.regNo || '—') + '</td>' +
+        '<td style="padding:10px 8px;">' + (st.fullName || st.name || '—') + '</td>' +
+        '<td style="padding:10px 8px;">' + liveStatusBadge + '</td>' +
+        '<td style="padding:10px 8px;font-size:11.5px;color:#64748b;">' + qrTiming + '</td>' +
+        '<td style="padding:10px 8px;text-align:center;">' +
+          '<label style="display:inline-flex;align-items:center;gap:4px;cursor:pointer;margin-right:8px;">' +
+            '<input type="radio" name="qr_stat_' + idx + '" value="present" ' + (isPrePresent ? 'checked' : '') + ' onchange="setAttendanceStatus(' + idx + ', \'present\')">' +
+            '<span style="color:#16a34a;font-weight:700;font-size:12px;">P</span>' +
+          '</label>' +
+          '<label style="display:inline-flex;align-items:center;gap:4px;cursor:pointer;">' +
+            '<input type="radio" name="qr_stat_' + idx + '" value="absent" ' + (!isPrePresent ? 'checked' : '') + ' onchange="setAttendanceStatus(' + idx + ', \'absent\')">' +
+            '<span style="color:#ef4444;font-weight:700;font-size:12px;">AB</span>' +
+          '</label>' +
+        '</td>' +
+      '</tr>';
+    });
+
+    tbody.innerHTML = html;
+  }
+
+  function applyQrParticipationToRoster(callback) {
+    var targetTrackId = activeLiveSessionTrackId;
+    if (!targetTrackId) {
+      if (typeof callback === 'function') callback();
+      return;
+    }
+    fetch('/api/qr-attendance/participation/' + targetTrackId, {
+      headers: { 'Authorization': 'Bearer ' + getToken() }
+    })
+    .then(function(res){ return res.json(); })
+    .then(function(data) {
+      var completedList = (data.records || []).filter(function(r) { return r.status === 'completed'; });
+      var completedMap = Object.create(null);
+      completedList.forEach(function(r) {
+        if (r.studentId) completedMap[String(r.studentId)] = true;
+        if (r.studentTrackId) completedMap[String(r.studentTrackId)] = true;
+        if (r.regNo) completedMap[String(r.regNo)] = true;
+      });
+
+      function apply() {
+        if (attendanceStudents && attendanceStudents.length) {
+          attendanceStudents.forEach(function(s, idx) {
+            var isCompleted = completedMap[String(s._id)] ||
+                              (s.trackId && completedMap[String(s.trackId)]) ||
+                              (s.regNo && completedMap[String(s.regNo)]);
+            attendanceStudents[idx].status = isCompleted ? 'present' : 'absent';
+          });
+          renderAttendanceSheet();
+          updateAttendanceSummary();
+        }
+        if (typeof callback === 'function') callback();
+      }
+
+      if (!attendanceStudents || !attendanceStudents.length) {
+        loadAttendanceSheet();
+        setTimeout(apply, 800);
+      } else {
+        apply();
+      }
+    })
+    .catch(function(err) {
+      console.error('Error applying QR participation:', err);
+      if (typeof callback === 'function') callback();
+    });
+  }
+
+  function saveQrLiveDraft() {
+    if (!activeLiveSessionId) {
+      showToast('No active QR session to save as draft', 'warn');
+      return;
+    }
+    var targetTrackId = activeLiveSessionTrackId;
+    fetch('/api/qr-attendance/save-draft/' + activeLiveSessionId, {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + getToken() }
+    })
+    .then(function(r) { return r.json(); })
+    .then(function() {
+      applyQrParticipationToRoster(function() {
+        hideQrModal();
+        var methodInd = document.getElementById('att-method-indicator');
+        if (methodInd) {
+          methodInd.textContent = '📷 Scan Live (Draft Saved)';
+          methodInd.style.display = 'inline-block';
+        }
+        dbToast('QR attendance saved as draft and applied to roster', 'success');
+      });
+    })
+    .catch(function(err) {
+      console.error('Error saving QR draft:', err);
+      applyQrParticipationToRoster(function() {
+        hideQrModal();
+        dbToast('QR participation applied to roster', 'info');
+      });
+    });
+  }
+  window.saveQrLiveDraft = saveQrLiveDraft;
+
+  function applyAndSaveQrAttendance() {
+    if (attendanceStudents && Array.isArray(attendanceStudents)) {
+      attendanceStudents.forEach(function(st, idx) {
+        var radioAb = document.querySelector('input[name="qr_stat_' + idx + '"][value="absent"]');
+        var radioP = document.querySelector('input[name="qr_stat_' + idx + '"][value="present"]');
+        if (radioAb && radioAb.checked) {
+          setAttendanceStatus(idx, 'absent');
+        } else if (radioP && radioP.checked) {
+          setAttendanceStatus(idx, 'present');
+        }
+      });
+    }
+    closeQrReviewModal();
+    hideQrModal();
+    renderAttendanceSheet();
+    updSum();
+    dbToast('Saving attendance from QR participation…', 'saving');
+    submitAttendance();
+  }
+  window.applyAndSaveQrAttendance = applyAndSaveQrAttendance;
+
+  function endLiveSession(autoEnded) {
+    if (liveSessionPollTimer) clearInterval(liveSessionPollTimer);
+    if (qrRotationTicker) clearInterval(qrRotationTicker);
+    liveSessionPollTimer = null;
+    qrRotationTicker = null;
+    qrCurrentToken = null;
+    isQrRefreshing = false;
+
+    var endingSessionId = activeLiveSessionId;
+    var endingTrackId = activeLiveSessionTrackId;
+
+    if (!autoEnded && endingSessionId) {
+      fetch('/api/live-session/end/' + endingSessionId, {
         method: 'POST',
         headers: { 'Authorization': 'Bearer ' + getToken() }
       }).catch(function(e){});
     }
 
-    activeLiveSessionId = null;
-    document.getElementById('live-session-controls').innerHTML =
-      '<button class="btn-pri" onclick="startLiveSession()" style="background:#16a34a;box-shadow:none;">Start Live Session</button>';
-    if(!autoEnded) { showToast('Live session ended manually.', 'info'); }
-    else { showToast('Live session expired.', 'warn'); }
+    hideQrModal();
+
+    var ctrlEl = document.getElementById('live-session-controls');
+    if (ctrlEl) {
+      ctrlEl.innerHTML = '';
+      ctrlEl.style.display = 'none';
+    }
+
+    if (endingTrackId) {
+      applyQrParticipationToRoster(function() {
+        var methodInd = document.getElementById('att-method-indicator');
+        if (methodInd) {
+          methodInd.textContent = '📷 Scan Live (Session Ended)';
+          methodInd.style.display = 'inline-block';
+        }
+        activeLiveSessionId = null;
+        activeLiveSessionTrackId = null;
+      });
+    } else {
+      activeLiveSessionId = null;
+      activeLiveSessionTrackId = null;
+    }
+
+    if (!autoEnded) { dbToast('Live QR session ended manually.', 'info'); }
+    else { dbToast('Live QR session expired.', 'warn'); }
   }
   window.endLiveSession = endLiveSession;
 
@@ -1616,14 +2737,32 @@ var _memStore = {};
     if (!tok) { showToast('Not authenticated', 'warn'); return; }
     if (!assignment) { showToast('Assignment not found', 'warn'); return; }
 
-    showToast('Saving attendance…');
+    var topicVal = (document.getElementById('att-topic') ? document.getElementById('att-topic').value : '').trim();
+    var notesVal = (document.getElementById('att-notes') ? document.getElementById('att-notes').value : '').trim();
+    var requireRemark = !!(window._pubSettings && window._pubSettings.attendance && window._pubSettings.attendance.requirePeriodRemark);
+    if (requireRemark && !topicVal) {
+      if (typeof dbToast === 'function') dbToast('Topic Covered is required by institutional policy', 'warn');
+      else showToast('Topic Covered is required by policy', 'warn');
+      return;
+    }
+
+    if (typeof dbToast === 'function') {
+      dbToast('Saving attendance to database…', 'saving');
+    } else {
+      showToast('Saving attendance…');
+    }
 
     // Single batch POST — server stores everything in ClassAttendance + StudentAttendance
     var payload = {
-      classId:      classId,
-      subjectId:    subjectId,
-      date:         date,
-      periodNumber: periodNumber,
+      classId:            classId,
+      subjectId:          subjectId,
+      date:               date,
+      periodNumber:       periodNumber,
+      topic:              topicVal,
+      notes:              notesVal,
+      quickPassSessionId: activeQuickPassSessionId || undefined,
+      scanLiveSessionId:  activeLiveSessionId || undefined,
+      repShareSessionId:  activeRepShareSessionId || undefined,
       records: attendanceStudents.map(function(student) {
         return {
           studentId:     String(student._id),
@@ -1651,16 +2790,24 @@ var _memStore = {};
     .then(function() {
       return syncMyAttendance();
     }).then(function() {
-      dbToast('&#9989; Attendance saved!', 'success');
+      updateAttendanceSavedStatusCard(true, attendanceStudents.length);
+      if (typeof dbToast === 'function') {
+        dbToast('✅ Attendance saved to MongoDB!', 'success', (assignment.className || 'Class') + ' • ' + attendanceStudents.length + ' records');
+      } else {
+        showToast('✅ Attendance saved!', 'success');
+      }
       renderAttendanceSheet();
     }).catch(function(err) {
       var msg = (err && err.error) ? ('❌ ' + err.error) : 'Error saving attendance — please retry';
-      showToast(msg, 'warn');
+      if (typeof dbToast === 'function') dbToast(msg, 'error');
+      else showToast(msg, 'warn');
     });
   }
   var submitAtt = submitAttendance;
+  window.submitAttendance = submitAttendance;
+  window.submitAtt = submitAttendance;
 
-  // ─── REPORTS ────────────────────────────────────────────────────────────────
+  // REPORTS
   function renderAttendanceRecord() {
     var classFilter   = document.getElementById('rfc') ? document.getElementById('rfc').value : '';
     var subjectFilter = document.getElementById('rfs') ? document.getElementById('rfs').value : '';
@@ -1722,10 +2869,13 @@ var _memStore = {};
             + '<td><span class="pb ' + pctClass + '">' + pct + '%</span></td>'
             + '</tr>';
         }).join('');
+      }).catch(function() {
+        tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:24px;color:#dc2626;">Error loading records.</td></tr>';
       });
   }
-  // Alias — HTML filter dropdowns call renderAttRec() via onchange
   var renderAttRec = renderAttendanceRecord;
+  window.renderAttendanceRecord = renderAttendanceRecord;
+  window.renderAttRec = renderAttendanceRecord;
 
   function exportAttendanceCSV() {
     const tableEl = document.getElementById('attrec');
@@ -1735,9 +2885,12 @@ var _memStore = {};
       if (cells.length) rows.push(cells);
     });
     downloadCSV(rows, 'Attendance_Record');
-    showToast('&#8659; Downloaded!');
+    if (typeof dbToast === 'function') dbToast('📥 Attendance CSV downloaded!', 'success');
+    else showToast('📥 Downloaded!', 'success');
   }
   var exportAttCSV = exportAttendanceCSV;
+  window.exportAttendanceCSV = exportAttendanceCSV;
+  window.exportAttCSV = exportAttendanceCSV;
 
   function renderDefaultersList() {
     const classFilter   = document.getElementById('dfc') ? document.getElementById('dfc').value : '';
@@ -1796,6 +2949,8 @@ var _memStore = {};
     }).join('');
   }
   var renderDefs = renderDefaultersList;
+  window.renderDefaultersList = renderDefaultersList;
+  window.renderDefs = renderDefaultersList;
 
   function exportDefaultersCSV() {
     const tableEl = document.getElementById('deftbody');
@@ -1805,9 +2960,12 @@ var _memStore = {};
       if (cells.length) rows.push(cells);
     });
     downloadCSV(rows, 'Defaulters_List');
-    showToast('&#8659; Downloaded!');
+    if (typeof dbToast === 'function') dbToast('📥 Defaulters CSV downloaded!', 'success');
+    else showToast('📥 Downloaded!', 'success');
   }
   var exportDefCSV = exportDefaultersCSV;
+  window.exportDefaultersCSV = exportDefaultersCSV;
+  window.exportDefCSV = exportDefaultersCSV;
 
   function renderStudentList() {
     const classFilter  = document.getElementById('slc') ? document.getElementById('slc').value : '';
@@ -1824,11 +2982,16 @@ var _memStore = {};
       tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--tdi);">No students found.</td></tr>';
       return;
     }
+
+    students.sort(function(a, b) {
+      return String(a.regNo || a.registerNo || '').localeCompare(String(b.regNo || b.registerNo || ''), undefined, { numeric: true });
+    });
+
     tbody.innerHTML = students.map(function(student, index) {
       return '<tr>'
         + '<td>' + (index + 1) + '</td>'
+        + '<td style="font-weight:700;font-family:monospace;color:var(--td);">' + (student.regNo || student.registerNo || '—') + '</td>'
         + '<td style="font-weight:600;">' + student.name + '</td>'
-        + '<td>' + student.regNo + '</td>'
         + '<td>' + (student.className || '—') + '</td>'
         + '<td>' + (student.section || 'A') + '</td>'
         + '<td style="color:var(--tmu);">' + (student.deptName || '—') + '</td>'
@@ -1836,20 +2999,278 @@ var _memStore = {};
     }).join('');
   }
   var renderStuList = renderStudentList;
+  window.renderStudentList = renderStudentList;
+  window.renderStuList = renderStudentList;
 
   function exportStudentCSV() {
     const tableEl = document.getElementById('stutbody');
-    const rows    = [['#','Name','Reg No','Class','Section','Department']];
+    const rows    = [['#','Reg No','Name','Class','Section','Department']];
     tableEl.querySelectorAll('tr').forEach(function(tr) {
       const cells = Array.from(tr.querySelectorAll('td')).map(function(td) { return td.textContent.trim(); });
       if (cells.length) rows.push(cells);
     });
     downloadCSV(rows, 'Student_List');
-    showToast('&#8659; Downloaded!');
+    if (typeof dbToast === 'function') dbToast('📥 Student List CSV downloaded!', 'success');
+    else showToast('📥 Downloaded!', 'success');
   }
   var exportStuCSV = exportStudentCSV;
+  window.exportStudentCSV = exportStudentCSV;
+  // ATTENDANCE INSIGHTS DASHBOARD (PLAN 1-5 ITEM 3)
+  function initAttendanceInsights() {
+    var classSelect = document.getElementById('ins-class');
+    var subjSelect  = document.getElementById('ins-subject');
+    if (!classSelect || !subjSelect) return;
 
-  // ─── GRIEVANCES ──────────────────────────────────────────────────────────────
+    var assignments = getMyAssignments();
+    var uniqueClasses = {};
+    var uniqueSubjs   = {};
+
+    assignments.forEach(function(a) {
+      if (a.classId) uniqueClasses[a.classId] = a.className || a.classId;
+      if (a.subjectId) uniqueSubjs[a.subjectId] = a.subjectName || a.subjectId;
+    });
+
+    var classOptions = '<option value="">All My Assigned Classes</option>';
+    Object.keys(uniqueClasses).forEach(function(cid) {
+      classOptions += '<option value="' + cid + '">' + uniqueClasses[cid] + '</option>';
+    });
+    classSelect.innerHTML = classOptions;
+
+    var subjOptions = '<option value="">All Subjects</option>';
+    Object.keys(uniqueSubjs).forEach(function(sid) {
+      subjOptions += '<option value="' + sid + '">' + uniqueSubjs[sid] + '</option>';
+    });
+    subjSelect.innerHTML = subjOptions;
+
+    renderAttendanceInsights();
+  }
+  window.initAttendanceInsights = initAttendanceInsights;
+
+  function renderAttendanceInsights() {
+    var classFilter = document.getElementById('ins-class') ? document.getElementById('ins-class').value : '';
+    var subjFilter  = document.getElementById('ins-subject') ? document.getElementById('ins-subject').value : '';
+    var rangeDays   = document.getElementById('ins-range') ? parseInt(document.getElementById('ins-range').value, 10) || 30 : 30;
+
+    var dTo = new Date();
+    var dFrom = new Date(Date.now() - rangeDays * 86400000);
+    var fromStr = dFrom.toISOString().slice(0, 10);
+    var toStr = dTo.toISOString().slice(0, 10);
+
+    var tbodyAlerts = document.getElementById('ins-alerts-tbody');
+    if (tbodyAlerts) tbodyAlerts.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:24px;color:var(--tdi);">Analyzing student patterns…</td></tr>';
+
+    fetchAttendanceForReport(classFilter, subjFilter, fromStr, toStr)
+      .then(function(attendance) {
+        if (subjFilter) {
+          attendance = attendance.filter(function(a) { return String(a.subjectId) === String(subjFilter); });
+        }
+
+        var totalMarks = attendance.length;
+        var presentMarks = attendance.filter(function(a) { return a.status === 'present'; }).length;
+        var avgPct = totalMarks ? Math.round((presentMarks / totalMarks) * 100) : 0;
+
+        // Distinct session count (unique date + periodNumber + classId)
+        var sessionMap = {};
+        attendance.forEach(function(a) {
+          var sKey = (a.date || '') + '_' + (a.periodNumber || 0) + '_' + (a.classId || '');
+          sessionMap[sKey] = true;
+        });
+        var sessionCount = Object.keys(sessionMap).length;
+
+        // Method-wise breakdown
+        var methodCounts = { quickPass: 0, liveScan: 0, repShare: 0, manual: 0 };
+        attendance.forEach(function(a) {
+          var m = (a.method || '').toLowerCase();
+          if (m.indexOf('quick') !== -1 || m === 'code') methodCounts.quickPass++;
+          else if (m.indexOf('live') !== -1 || m.indexOf('qr') !== -1) methodCounts.liveScan++;
+          else if (m.indexOf('rep') !== -1) methodCounts.repShare++;
+          else methodCounts.manual++;
+        });
+
+        // Top Method
+        var topMethod = 'Quick Pass';
+        var topVal = methodCounts.quickPass;
+        if (methodCounts.liveScan > topVal) { topMethod = 'Live Scan'; topVal = methodCounts.liveScan; }
+        if (methodCounts.repShare > topVal) { topMethod = 'Rep Share'; topVal = methodCounts.repShare; }
+        if (methodCounts.manual > topVal) { topMethod = 'Manual'; topVal = methodCounts.manual; }
+        if (totalMarks === 0) topMethod = '—';
+
+        // Period-wise performance (1 through 9)
+        var periodStats = {};
+        for (var p = 1; p <= 9; p++) {
+          periodStats[p] = { total: 0, present: 0 };
+        }
+        attendance.forEach(function(a) {
+          var pNum = parseInt(a.periodNumber, 10);
+          if (pNum >= 1 && pNum <= 9) {
+            periodStats[pNum].total++;
+            if (a.status === 'present') periodStats[pNum].present++;
+          }
+        });
+
+        // Student aggregation for Defaulters & Consecutive Absences
+        var studentMap = {};
+        var allStudents = DB.get('students');
+        attendance.forEach(function(a) {
+          var sid = String(a.studentId);
+          if (!studentMap[sid]) {
+            var stuObj = allStudents.find(function(s) { return String(s._id) === sid; });
+            studentMap[sid] = {
+              id: sid,
+              name: a.studentName || (stuObj ? stuObj.name : 'Unknown'),
+              regNo: stuObj ? (stuObj.regNo || stuObj.registerNo || '') : '',
+              className: a.className || '',
+              subjectName: a.subjectName || '',
+              records: []
+            };
+          }
+          studentMap[sid].records.push(a);
+        });
+
+        var minThreshold = window._pubSettings && window._pubSettings.academic ? (window._pubSettings.academic.minAttendance || 75) : 75;
+        var defaulterCount = 0;
+        var consecutiveAlerts = [];
+
+        Object.values(studentMap).forEach(function(stu) {
+          stu.records.sort(function(a, b) {
+            var dateA = a.date || '';
+            var dateB = b.date || '';
+            return dateA.localeCompare(dateB) || ((a.periodNumber || 0) - (b.periodNumber || 0));
+          });
+
+          var total = stu.records.length;
+          var pres = stu.records.filter(function(r) { return r.status === 'present'; }).length;
+          var pct = total ? Math.round((pres / total) * 100) : 0;
+          if (pct < minThreshold) defaulterCount++;
+
+          var trailingAbsences = 0;
+          var lastAttendDate = '—';
+          for (var i = stu.records.length - 1; i >= 0; i--) {
+            if (stu.records[i].status !== 'present') {
+              trailingAbsences++;
+            } else {
+              if (lastAttendDate === '—') lastAttendDate = stu.records[i].date || '—';
+              break;
+            }
+          }
+
+          if (trailingAbsences >= 3) {
+            consecutiveAlerts.push({
+              name: stu.name,
+              regNo: stu.regNo || '—',
+              className: stu.className || '—',
+              subjectName: stu.subjectName || '—',
+              consecutive: trailingAbsences,
+              pct: pct,
+              lastAttended: lastAttendDate
+            });
+          }
+        });
+
+        // UPDATE KPI CARDS
+        var elAvg = document.getElementById('ins-kpi-avg');
+        var elDef = document.getElementById('ins-kpi-defaulters');
+        var elSes = document.getElementById('ins-kpi-sessions');
+        var elMet = document.getElementById('ins-kpi-method');
+
+        if (elAvg) elAvg.textContent = avgPct + '%';
+        if (elDef) elDef.textContent = defaulterCount;
+        if (elSes) elSes.textContent = sessionCount;
+        if (elMet) elMet.textContent = topMethod;
+
+        // RENDER METHOD PROGRESS BARS
+        var barsEl = document.getElementById('ins-method-bars');
+        if (barsEl) {
+          var methods = [
+            { label: 'Quick Pass (12-Char Code)', count: methodCounts.quickPass, color: '#3b82f6', bg: '#eff6ff' },
+            { label: 'Live Scan / QR (7-Layer)',  count: methodCounts.liveScan,  color: '#10b981', bg: '#ecfdf5' },
+            { label: 'Rep Share (Class Rep)',     count: methodCounts.repShare,  color: '#8b5cf6', bg: '#f5f3ff' },
+            { label: 'Manual Teacher Marking',    count: methodCounts.manual,    color: '#f59e0b', bg: '#fffbeb' }
+          ];
+
+          barsEl.innerHTML = methods.map(function(m) {
+            var mPct = totalMarks ? Math.round((m.count / totalMarks) * 100) : 0;
+            return '<div style="margin-bottom:4px;">'
+              + '<div style="display:flex;justify-content:space-between;font-size:11.5px;font-weight:600;margin-bottom:4px;">'
+              + '  <span style="color:var(--td);">' + m.label + '</span>'
+              + '  <span style="color:var(--tmu);">' + m.count + ' records (' + mPct + '%)</span>'
+              + '</div>'
+              + '<div style="width:100%;height:8px;background:' + m.bg + ';border-radius:6px;overflow:hidden;border:1px solid rgba(0,0,0,.06);">'
+              + '  <div style="width:' + mPct + '%;height:100%;background:' + m.color + ';border-radius:6px;transition:width .4s ease;"></div>'
+              + '</div>'
+              + '</div>';
+          }).join('');
+        }
+
+        // RENDER PERIOD-WISE CHART
+        var chartEl = document.getElementById('ins-period-chart');
+        if (chartEl) {
+          var pEntries = [];
+          var lowestPeriod = null;
+          var lowestPct = 101;
+
+          for (var p = 1; p <= 9; p++) {
+            var pData = periodStats[p];
+            var pPct = pData.total ? Math.round((pData.present / pData.total) * 100) : 0;
+            if (pData.total > 0 && pPct < lowestPct) {
+              lowestPct = pPct;
+              lowestPeriod = p;
+            }
+            var barHeight = Math.max(8, Math.round((pPct / 100) * 110));
+            var barColor = pPct >= 80 ? '#10b981' : (pPct >= 65 ? '#3b82f6' : '#ef4444');
+            pEntries.push(
+              '<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;" title="Period ' + p + ': ' + pPct + '% attendance (' + pData.present + '/' + pData.total + ')">'
+              + '<div style="font-size:9.5px;font-weight:700;color:var(--tmu);">' + (pData.total ? pPct + '%' : '—') + '</div>'
+              + '<div style="width:100%;max-width:28px;height:' + barHeight + 'px;background:' + (pData.total ? barColor : 'var(--brl)') + ';border-radius:4px 4px 0 0;transition:height .3s ease;"></div>'
+              + '<div style="font-size:10px;font-weight:700;color:var(--td);margin-top:2px;">P' + p + '</div>'
+              + '</div>'
+            );
+          }
+          chartEl.innerHTML = pEntries.join('');
+
+          var insightEl = document.getElementById('ins-period-insight');
+          if (insightEl) {
+            insightEl.textContent = lowestPeriod
+              ? '⚠️ Lowest turnout detected in Period ' + lowestPeriod + ' (' + lowestPct + '% average). Consider scheduling interactive sessions earlier.'
+              : 'Consistent attendance distribution across teaching periods.';
+          }
+        }
+
+        // RENDER CONSECUTIVE ABSENCES ALERTS
+        var countEl = document.getElementById('ins-alerts-count');
+        if (countEl) countEl.textContent = consecutiveAlerts.length + ' Alerts';
+
+        if (tbodyAlerts) {
+          if (consecutiveAlerts.length === 0) {
+            tbodyAlerts.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:28px;color:#10b981;font-weight:600;">✓ No consecutive absence patterns detected in this timeframe!</td></tr>';
+          } else {
+            consecutiveAlerts.sort(function(a, b) { return b.consecutive - a.consecutive; });
+            tbodyAlerts.innerHTML = consecutiveAlerts.map(function(item) {
+              return '<tr>'
+                + '<td style="font-weight:700;color:var(--td);">' + item.name + '</td>'
+                + '<td style="font-family:monospace;font-weight:600;">' + item.regNo + '</td>'
+                + '<td>' + item.className + '</td>'
+                + '<td>' + item.subjectName + '</td>'
+                + '<td><span class="badge" style="background:#fee2e2;color:#dc2626;font-weight:800;padding:3px 8px;border-radius:8px;">' + item.consecutive + ' consecutive absent</span></td>'
+                + '<td><span class="pb ' + (item.pct < 50 ? 'pl' : 'pm') + '">' + item.pct + '%</span></td>'
+                + '<td style="font-size:11.5px;color:var(--tmu);">' + item.lastAttended + '</td>'
+                + '</tr>';
+            }).join('');
+          }
+        }
+      })
+      .catch(function(err) {
+        if (tbodyAlerts) tbodyAlerts.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:24px;color:#dc2626;">Failed to load insights: ' + err.message + '</td></tr>';
+      });
+  }
+  window.renderAttendanceInsights = renderAttendanceInsights;
+
+  function exportAttendanceInsightsPDF() {
+    window.print();
+  }
+  window.exportAttendanceInsightsPDF = exportAttendanceInsightsPDF;
+
+  // GRIEVANCES
   function renderGrievances() {
     const myGrievances = DB.get('teacher-grievances').filter(function(g) { return g.teacherId === currentUser._id; });
     const containerEl  = document.getElementById('grievlist');
@@ -1929,7 +3350,7 @@ var _memStore = {};
   }
   var submitGriev = submitGrievance;
 
-  // ─── PROFILE PAGE ────────────────────────────────────────────────────────────
+  // PROFILE PAGE
   function initProfilePage() {
     document.getElementById('profav').textContent    = currentUser.name[0];
     document.getElementById('profname').textContent  = currentUser.name;
@@ -2029,7 +3450,7 @@ var _memStore = {};
   }
   var changePw = changePassword;
 
-  // ─── MODAL HELPERS ───────────────────────────────────────────────────────────
+  // MODAL HELPERS
   
 
   
@@ -2041,7 +3462,7 @@ var _memStore = {};
     });
   });
 
-  // ─── UTILITY FUNCTIONS ───────────────────────────────────────────────────────
+  // UTILITY FUNCTIONS
   
   var showT = showToast;
 
@@ -2059,7 +3480,7 @@ var _memStore = {};
   }
   var dlCSV = downloadCSV;
 
-  // ─── BOOT ────────────────────────────────────────────────────────────────────
+  // BOOT
   ensureDB();
 
   (function checkAuthAndBoot() {
@@ -2076,7 +3497,7 @@ var _memStore = {};
     bootApp();
   })();
 
-// -- Change Password ----------------------------------
+// Change Password
 var _pwToken = getToken();
 
 function showForcePwModal() {
@@ -2130,13 +3551,206 @@ function submitChangePw() {
     setTimeout(closeChangePwModal,1500);
   }).catch(function(){err.textContent='Server error. Try again.';err.style.display='block';});
 }
+var activeRepShareSessionId = null;
+var repSharePollTimer = null;
+
 function forwardToRepModal() {
   if (window._pubSettings && window._pubSettings.attendance && window._pubSettings.attendance.forwardToRep === false) {
-    showToast('Delegation to Class Representative is locked by administrator.', 'warn');
+    showToast('Delegation to Class Representative is disabled in settings.', 'warn');
     return;
   }
-  showToast('👥 Forward to Class Representative: Class Rep delegation feature queued for verification.', 'info');
+  var classId = document.getElementById('attcls').value;
+  var subjectId = document.getElementById('attsub').value;
+  var date = document.getElementById('attdate').value;
+  if (!classId || !subjectId || !date) {
+    if (typeof dbToast === 'function') dbToast('Select class, subject and date first', 'warn');
+    else showToast('Select class, subject and date first', 'warn');
+    return;
+  }
+
+  var modal = document.getElementById('modal-rep-share');
+  if (modal) modal.style.display = 'flex';
+  var spinner = document.getElementById('rep-loading-spinner');
+  var list = document.getElementById('rep-list-container');
+  if (spinner) spinner.style.display = 'block';
+  if (list) { list.style.display = 'none'; list.innerHTML = ''; }
+
+  fetch('/api/rep-share/reps/' + classId, {
+    headers: { 'Authorization': 'Bearer ' + getToken() }
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    if (spinner) spinner.style.display = 'none';
+    if (!list) return;
+    list.style.display = 'flex';
+    var reps = data.reps || [];
+    if (!reps.length) {
+      list.innerHTML = '<div style="text-align:center;padding:24px;color:#64748b;">'
+        + '<div style="font-size:28px;margin-bottom:8px;">⚠️</div>'
+        + '<div style="font-size:13px;font-weight:600;">No students found in this class roster.</div>'
+        + '</div>';
+      return;
+    }
+
+    var html = '';
+    reps.forEach(function(rep) {
+      var initials = (rep.fullName || 'R').split(' ').map(function(w){return w[0];}).join('').slice(0,2).toUpperCase();
+      var repBadge = rep.isRep ? '<span style="background:#dcfce7;color:#166534;font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;margin-left:6px;">Class Rep</span>' : '';
+      html += '<div style="background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:12px;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px;">'
+        + '<div style="display:flex;align-items:center;gap:12px;">'
+        + '  <div style="width:38px;height:38px;border-radius:50%;background:#e0f2fe;color:#0369a1;font-weight:800;font-size:13px;display:flex;align-items:center;justify-content:center;">' + initials + '</div>'
+        + '  <div>'
+        + '    <div style="font-size:13.5px;font-weight:700;color:#0f172a;">' + (rep.fullName || '—') + repBadge + '</div>'
+        + '    <div style="font-size:11.5px;color:#64748b;font-family:monospace;margin-top:2px;">Reg No: ' + (rep.registerNo || '—') + '</div>'
+        + '  </div>'
+        + '</div>'
+        + '<button class="btn-pri" onclick="delegateAttendanceToRep(\'' + rep._id + '\', \'' + (rep.fullName || '').replace(/'/g, "\\'") + '\')" style="font-size:12px;padding:7px 14px;background:#059669;">'
+        + '  Delegate ➔'
+        + '</button>'
+        + '</div>';
+    });
+    list.innerHTML = html;
+  })
+  .catch(function(err) {
+    if (spinner) spinner.style.display = 'none';
+    if (list) {
+      list.style.display = 'block';
+      list.innerHTML = '<div style="color:#dc2626;font-size:13px;text-align:center;padding:16px;">Failed to load representatives: ' + err.message + '</div>';
+    }
+  });
 }
+window.forwardToRepModal = forwardToRepModal;
+
+function closeRepShareModal() {
+  var modal = document.getElementById('modal-rep-share');
+  if (modal) modal.style.display = 'none';
+}
+window.closeRepShareModal = closeRepShareModal;
+
+function delegateAttendanceToRep(repId, repName) {
+  var classId = document.getElementById('attcls').value;
+  var subjectId = document.getElementById('attsub').value;
+  var date = document.getElementById('attdate').value;
+  var periodEl = document.getElementById('attperiod');
+  var periodNumber = periodEl ? Number(periodEl.value) || 1 : 1;
+  var topicVal = (document.getElementById('att-topic') ? document.getElementById('att-topic').value : '').trim();
+
+  if (typeof dbToast === 'function') dbToast('Delegating attendance to ' + repName + '…', 'saving');
+  else showToast('Delegating attendance…');
+
+  fetch('/api/rep-share/request', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer ' + getToken()
+    },
+    body: JSON.stringify({
+      classId: classId,
+      subjectId: subjectId,
+      date: date,
+      periodNumber: periodNumber,
+      repStudentId: repId,
+      topic: topicVal,
+      actualClassCount: attendanceStudents ? attendanceStudents.length : 0
+    })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    if (data.error) {
+      if (typeof dbToast === 'function') dbToast(data.error, 'error');
+      else showToast(data.error, 'error');
+      return;
+    }
+    closeRepShareModal();
+    activeRepShareSessionId = data.session._id || data.session.sessionTrackId;
+    if (typeof dbToast === 'function') {
+      dbToast('Attendance Delegated!', 'success', 'Class Rep ' + repName + ' notified. Waiting for submission…');
+    } else {
+      showToast('Attendance delegated to ' + repName, 'success');
+    }
+
+    // Switch to waiting state
+    var selZone = document.getElementById('att-selector-zone');
+    if (selZone) selZone.style.display = 'none';
+    var sheet = document.getElementById('attsheet');
+    if (sheet) sheet.style.display = 'block';
+
+    var methodInd = document.getElementById('att-method-indicator');
+    if (methodInd) {
+      methodInd.textContent = '👥 Rep Share (' + repName + ' Pending)';
+      methodInd.style.display = 'inline-block';
+    }
+
+    startRepDraftPolling(activeRepShareSessionId, repName);
+  })
+  .catch(function(err) {
+    if (typeof dbToast === 'function') dbToast('Failed to delegate: ' + err.message, 'error');
+    else showToast('Failed to delegate: ' + err.message, 'error');
+  });
+}
+window.delegateAttendanceToRep = delegateAttendanceToRep;
+
+function startRepDraftPolling(sessionId, repName) {
+  if (repSharePollTimer) clearInterval(repSharePollTimer);
+  repSharePollTimer = setInterval(function() {
+    fetch('/api/rep-share/session/' + sessionId, {
+      headers: { 'Authorization': 'Bearer ' + getToken() }
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (data && data.session && data.session.status === 'submitted') {
+        clearInterval(repSharePollTimer);
+        repSharePollTimer = null;
+        if (typeof dbToast === 'function') {
+          dbToast('Rep Draft Submitted!', 'success', repName + ' verified ' + data.session.repConfirmedCount + ' present. Loading draft…');
+        } else {
+          showToast('Rep Draft Submitted by ' + repName, 'success');
+        }
+        applyRepDraftToAttendance(data.session);
+      }
+    })
+    .catch(function(){});
+  }, 5000);
+}
+
+function applyRepDraftToAttendance(session) {
+  function applyRecords() {
+    var repRecords = session.records || [];
+    var markedStatusMap = Object.create(null);
+    repRecords.forEach(function(r) {
+      var s = String(r.status || '').trim().toLowerCase();
+      var normalized = (s === 'present' || s === 'p') ? 'present' : 'absent';
+      if (r.studentTrackId) markedStatusMap[String(r.studentTrackId)] = normalized;
+      if (r.studentId) markedStatusMap[String(r.studentId)] = normalized;
+      if (r.regNo) markedStatusMap[String(r.regNo)] = normalized;
+    });
+
+    attendanceStudents.forEach(function(s, idx) {
+      var stat = markedStatusMap[String(s._id)] ||
+                 (s.trackId && markedStatusMap[String(s.trackId)]) ||
+                 (s.regNo && markedStatusMap[String(s.regNo)]);
+      if (stat) attendanceStudents[idx].status = stat;
+    });
+
+    renderAttendanceSheet();
+    var methodInd = document.getElementById('att-method-indicator');
+    if (methodInd) {
+      methodInd.textContent = '👥 Rep Share Draft Loaded (' + (session.repConfirmedCount || 0) + ' Verified Present)';
+      methodInd.style.display = 'inline-block';
+    }
+    if (typeof dbToast === 'function') {
+      dbToast('Draft applied from ' + (session.repStudentName || 'Rep'), 'success', 'Review student rows and click Save Attendance to finalize.');
+    }
+  }
+
+  if (!attendanceStudents || !attendanceStudents.length) {
+    loadAttendanceSheet();
+    setTimeout(applyRecords, 1200);
+  } else {
+    applyRecords();
+  }
+}
+window.applyRepDraftToAttendance = applyRepDraftToAttendance;
 
 window.addEventListener('load', function(){
   if(sessionStorage.getItem('eams_mustChangePw')==='1'){ showForcePwModal(); }
@@ -2145,8 +3759,8 @@ window.addEventListener('load', function(){
     .then(function(pub){
       window._pubSettings = pub;
       if (pub.institution) {
-        var shortN = pub.institution.institutionShort || 'Sri Shakthi';
-        document.title = 'EAMS – Teacher | ' + shortN;
+        var shortN = pub.institution.institutionShort || '';
+        document.title = shortN ? ('EAMS – Teacher | ' + shortN) : 'EAMS – Teacher Portal';
         var brandEl = document.querySelector('.sb-brand');
         if (brandEl && pub.institution.institutionName) {
           brandEl.innerHTML = pub.institution.institutionName + '<small>Teacher Portal</small>';
@@ -2168,13 +3782,576 @@ window.addEventListener('load', function(){
         }
       }
       if (pub.attendance) {
+        if (typeof updateAttendanceMethodETAs === 'function') updateAttendanceMethodETAs();
         if (pub.attendance.forwardToRep === false) {
           var fBtn = document.getElementById('btn-forward-rep');
           if (fBtn) fBtn.style.display = 'none';
+          var repCard = document.getElementById('card-rep-share');
+          if (repCard) repCard.style.display = 'none';
+        }
+        if (pub.attendance.quickPass === false || pub.attendance.liveSessions === false) {
+          var qpCard = document.getElementById('card-quick-pass');
+          if (qpCard) qpCard.style.display = 'none';
+        }
+        if (pub.attendance.liveSessions === false) {
+          var slCard = document.getElementById('card-scan-live');
+          if (slCard) slCard.style.display = 'none';
+        }
+        if (pub.attendance.requirePeriodRemark) {
+          var reqBadge = document.getElementById('att-topic-req');
+          if (reqBadge) reqBadge.style.display = 'inline-block';
+          var starTopic = document.getElementById('star-topic-req');
+          if (starTopic) starTopic.style.display = 'inline';
         }
       }
     }).catch(function(e){ console.warn(e); });
 });
+
+// ─────────────────────────────────────────────────────────────
+// PLAN 4 (FEATURES 6 & 11): FACULTY LEAVE & SUBSTITUTION LOGIC
+// ─────────────────────────────────────────────────────────────
+
+var _myTeacherLeaves = [];
+var _currentAffectedSlots = [];
+var _targetSlotForSubstitute = null;
+var _tlCurrentSubTab = 'apps';
+var _hodPendingLeaves = [];
+
+function initMyLeavesPage() {
+  loadMyTeacherLeaves();
+  loadFacultyDepartmentsForFinder();
+  var u = DB.get('user');
+  if (u && (u.isHod || u.isAdmin)) {
+    var btnHod = document.getElementById('tab-tl-hod-pending');
+    if (btnHod) btnHod.style.display = '';
+    loadHodTeacherLeaves();
+  }
+}
+
+function switchTeacherLeaveSubTab(subTab) {
+  _tlCurrentSubTab = subTab;
+  var btnApps = document.getElementById('tab-tl-apps');
+  var btnDuties = document.getElementById('tab-tl-duties');
+  var btnHod = document.getElementById('tab-tl-hod-pending');
+  var contApps = document.getElementById('cont-tl-apps');
+  var contDuties = document.getElementById('cont-tl-duties');
+  var contHod = document.getElementById('cont-tl-hod-pending');
+
+  if (btnApps) btnApps.classList.toggle('act', subTab === 'apps');
+  if (btnDuties) btnDuties.classList.toggle('act', subTab === 'duties');
+  if (btnHod) btnHod.classList.toggle('act', subTab === 'hod-pending');
+  if (contApps) contApps.style.display = subTab === 'apps' ? '' : 'none';
+  if (contDuties) contDuties.style.display = subTab === 'duties' ? '' : 'none';
+  if (contHod) contHod.style.display = subTab === 'hod-pending' ? '' : 'none';
+
+  if (subTab === 'hod-pending') {
+    loadHodTeacherLeaves();
+  }
+}
+
+function loadHodTeacherLeaves() {
+  var tbody = document.getElementById('tl-hod-tbody');
+  if (!tbody) return;
+  tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:24px;color:var(--tdi);">Loading department requests…</td></tr>';
+
+  fetch('/api/leave/teacher/pending-hod', { credentials: 'same-origin' })
+    .then(function(res) { return res.json(); })
+    .then(function(data) {
+      _hodPendingLeaves = Array.isArray(data) ? data : [];
+      var badge = document.getElementById('tl-hod-badge');
+      if (badge) {
+        badge.textContent = _hodPendingLeaves.length;
+        badge.style.display = _hodPendingLeaves.length > 0 ? 'inline-block' : 'none';
+      }
+      renderHodTeacherLeavesTable();
+    })
+    .catch(function(err) {
+      if (tbody) tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:24px;color:#dc2626;">Failed to load department requests.</td></tr>';
+    });
+}
+window.loadHodTeacherLeaves = loadHodTeacherLeaves;
+
+function renderHodTeacherLeavesTable() {
+  var tbody = document.getElementById('tl-hod-tbody');
+  if (!tbody) return;
+
+  if (_hodPendingLeaves.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:32px;color:#16a34a;font-weight:600;">✓ No pending department leave requests to review.</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = _hodPendingLeaves.map(function(l) {
+    var dateRange = l.fromDate === l.toDate ? l.fromDate : (l.fromDate + ' to ' + l.toDate);
+    var subsHtml = (l.substitutions && l.substitutions.length > 0)
+      ? l.substitutions.map(function(s) {
+          return '<div style="font-size:11px;margin:2px 0;"><strong>' + (s.className || 'Class') + ' · P' + s.periodNumber + ':</strong> ' + (s.substituteTeacherName || 'Substitute') + '</div>';
+        }).join('')
+      : '<span style="color:var(--tmu);font-size:11px;">None</span>';
+
+    return '<tr>'
+      + '<td><strong>' + (l.teacherName || 'Faculty') + '</strong><div style="font-size:10.5px;color:var(--tmu);">' + (l.teacherEmpId || l.deptCode || '') + '</div></td>'
+      + '<td><span class="tt-slot-badge badge-theory">' + l.category + '</span><div style="font-size:10.5px;color:var(--tmu);">' + l.leaveType + '</div></td>'
+      + '<td><strong>' + dateRange + '</strong><div style="font-size:11px;color:var(--tdi);">' + (l.slot || 'Full Day') + '</div></td>'
+      + '<td><strong>' + (l.daysCount || 1) + 'd</strong></td>'
+      + '<td style="font-size:11.5px;max-width:180px;white-space:normal;">' + (l.reason || '—') + '</td>'
+      + '<td>' + subsHtml + '</td>'
+      + '<td style="text-align:center;white-space:nowrap;">'
+      + '  <button class="btno bsm" style="margin-right:6px;font-size:11px;padding:4px 10px;background:var(--gD);color:#fff;border-color:var(--gD);" onclick="approveTeacherLeaveHod(\'' + l._id + '\')">✓ Approve</button>'
+      + '  <button class="btno bsm" style="font-size:11px;padding:4px 10px;color:#dc2626;border-color:rgba(220,38,38,0.4);" onclick="rejectTeacherLeaveHod(\'' + l._id + '\')">✕ Reject</button>'
+      + '</td>'
+      + '</tr>';
+  }).join('');
+}
+
+function approveTeacherLeaveHod(id) {
+  if (!confirm('Approve this faculty leave request?\n\nThis will automatically create Timetable Day Overrides for all arranged substitute slots and notify the substitute teachers.')) return;
+  fetch('/api/leave/teacher/' + id + '/hod-approve', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'same-origin'
+  })
+    .then(function(res) { return res.json(); })
+    .then(function(data) {
+      if (data.error) {
+        showToast(data.error, 'error');
+      } else {
+        showToast('Leave approved & timetable substitutions registered!', 'success');
+        loadHodTeacherLeaves();
+      }
+    })
+    .catch(function(err) {
+      showToast('Failed to approve leave: ' + err.message, 'error');
+    });
+}
+window.approveTeacherLeaveHod = approveTeacherLeaveHod;
+
+function rejectTeacherLeaveHod(id) {
+  var reason = prompt('Enter reason for rejecting this leave request:');
+  if (reason === null) return;
+  fetch('/api/leave/teacher/' + id + '/hod-reject', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ remarks: reason }),
+    credentials: 'same-origin'
+  })
+    .then(function(res) { return res.json(); })
+    .then(function(data) {
+      if (data.error) {
+        showToast(data.error, 'error');
+      } else {
+        showToast('Leave request rejected', 'info');
+        loadHodTeacherLeaves();
+      }
+    })
+    .catch(function(err) {
+      showToast('Failed to reject leave: ' + err.message, 'error');
+    });
+}
+window.rejectTeacherLeaveHod = rejectTeacherLeaveHod;
+
+function loadMyTeacherLeaves() {
+  var tbodyApps = document.getElementById('tl-apps-tbody');
+  if (tbodyApps) tbodyApps.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:24px;color:var(--tdi);">Loading your leave requests…</td></tr>';
+
+  fetch('/api/leave/teacher/my-requests', { credentials: 'same-origin' })
+    .then(function(res) { return res.json(); })
+    .then(function(data) {
+      _myTeacherLeaves = Array.isArray(data) ? data : [];
+      renderTeacherLeavesTable();
+      updateTeacherLeaveKPIs();
+      renderTeacherSubstituteDuties();
+    })
+    .catch(function(err) {
+      if (tbodyApps) tbodyApps.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:24px;color:#dc2626;">Failed to load leave requests.</td></tr>';
+    });
+}
+
+function updateTeacherLeaveKPIs() {
+  var total = _myTeacherLeaves.length;
+  var approved = _myTeacherLeaves.filter(function(l) { return l.status === 'Approved'; }).length;
+  var pending = _myTeacherLeaves.filter(function(l) { return l.status === 'Pending'; }).length;
+  var subs = _myTeacherLeaves.reduce(function(acc, l) { return acc + (l.substitutions ? l.substitutions.length : 0); }, 0);
+
+  var elTot = document.getElementById('tl-stat-total');
+  var elApp = document.getElementById('tl-stat-approved');
+  var elPen = document.getElementById('tl-stat-pending');
+  var elSub = document.getElementById('tl-stat-subs');
+
+  if (elTot) elTot.textContent = total;
+  if (elApp) elApp.textContent = approved;
+  if (elPen) elPen.textContent = pending;
+  if (elSub) elSub.textContent = subs;
+}
+
+function renderTeacherLeavesTable() {
+  var tbody = document.getElementById('tl-apps-tbody');
+  if (!tbody) return;
+
+  if (_myTeacherLeaves.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:32px;color:var(--tdi);">No leave requests submitted yet. Click <strong>"Apply for Leave"</strong> to begin.</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = _myTeacherLeaves.map(function(l) {
+    var appliedDate = l.createdAt ? new Date(l.createdAt).toLocaleDateString('en-IN', { day:'2-digit', month:'short' }) : '—';
+    var dateRange = l.fromDate === l.toDate ? l.fromDate : (l.fromDate + ' to ' + l.toDate);
+
+    var subsBadge = '';
+    if (l.substitutions && l.substitutions.length > 0) {
+      subsBadge = l.substitutions.map(function(s) {
+        return '<span class="tt-slot-badge badge-sub" style="display:inline-block;margin:2px 3px;font-size:10.5px;">P' + s.periodNumber + ': ' + s.substituteTeacherName + '</span>';
+      }).join('');
+    } else {
+      subsBadge = '<span style="color:var(--tdi);font-size:11px;">None</span>';
+    }
+
+    var statusColor = l.status === 'Approved' ? '#16a34a' : (l.status === 'Rejected' ? '#dc2626' : '#d97706');
+    var statusBg = l.status === 'Approved' ? 'rgba(22,163,74,0.1)' : (l.status === 'Rejected' ? 'rgba(220,38,38,0.1)' : 'rgba(217,119,6,0.1)');
+
+    var cancelBtn = l.status === 'Pending'
+      ? '<button class="btno bsm" style="color:#dc2626;border-color:rgba(220,38,38,0.3);" onclick="cancelTeacherLeaveReq(\'' + l._id + '\')">Cancel</button>'
+      : '<span style="color:var(--tdi);font-size:11px;">—</span>';
+
+    return '<tr>'
+      + '<td style="font-weight:600;font-size:12px;">' + appliedDate + '</td>'
+      + '<td><span class="tt-slot-badge badge-theory">' + l.category + '</span><div style="font-size:11px;color:var(--tmu);margin-top:2px;">' + l.leaveType + '</div></td>'
+      + '<td><div style="font-weight:700;font-size:12px;">' + dateRange + '</div><div style="font-size:11px;color:var(--tdi);">' + (l.slot || 'Full Day') + '</div></td>'
+      + '<td style="font-weight:700;">' + (l.daysCount || 1) + 'd</td>'
+      + '<td style="font-size:12px;max-width:180px;white-space:normal;">' + (l.reason || '—') + '</td>'
+      + '<td>' + subsBadge + '</td>'
+      + '<td><span style="font-size:11px;font-weight:700;color:var(--td);">' + (l.hodStatus || 'Pending') + '</span></td>'
+      + '<td><span style="display:inline-block;padding:3px 9px;border-radius:10px;font-size:11px;font-weight:800;background:' + statusBg + ';color:' + statusColor + ';">' + l.status + '</span></td>'
+      + '<td>' + cancelBtn + '</td>'
+      + '</tr>';
+  }).join('');
+}
+
+function renderTeacherSubstituteDuties() {
+  var tbody = document.getElementById('tl-duties-tbody');
+  if (!tbody) return;
+
+  fetch('/api/timetable/teacher-day-schedule?date=' + todayISO(), { credentials: 'same-origin' })
+    .then(function(res) { return res.json(); })
+    .then(function(data) {
+      var subs = (data?.schedule || []).filter(function(s) { return s.isSubstitute; });
+      if (!subs || subs.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:28px;color:var(--tdi);">No substitute duties assigned for today.</td></tr>';
+        return;
+      }
+      tbody.innerHTML = subs.map(function(s) {
+        return '<tr>'
+          + '<td style="font-weight:700;">' + data.date + '</td>'
+          + '<td><strong>Period ' + s.periodNumber + '</strong> (' + (s.timing?.start || '') + '–' + (s.timing?.end || '') + ')</td>'
+          + '<td><span class="tt-slot-badge badge-comb">' + (s.slot?.className || '—') + '</span></td>'
+          + '<td><strong>' + (s.slot?.subjectName || '—') + '</strong></td>'
+          + '<td>' + (s.slot?.hallNo || '—') + '</td>'
+          + '<td><span class="tt-slot-badge badge-sub">Substitute for ' + (s.originalTeacher || 'Faculty') + '</span></td>'
+          + '<td><button class="attbtn" onclick="navigateToAttendance(\'' + (s.slot?.classId || '') + '\',\'\')">&#9989; Take Att.</button></td>'
+          + '</tr>';
+      }).join('');
+    })
+    .catch(function() {
+      tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:28px;color:var(--tdi);">No substitute duties scheduled today.</td></tr>';
+    });
+}
+
+function cancelTeacherLeaveReq(id) {
+  if (!confirm('Are you sure you want to cancel this leave request?')) return;
+  fetch('/api/leave/teacher/cancel/' + encodeURIComponent(id), {
+    method: 'PUT',
+    credentials: 'same-origin'
+  })
+  .then(function(res) { return res.json(); })
+  .then(function(data) {
+    if (data.error) showToast(data.error, 'danger');
+    else {
+      showToast('Leave request cancelled successfully', 'success');
+      loadMyTeacherLeaves();
+    }
+  })
+  .catch(function(err) { showToast(err.message, 'danger'); });
+}
+
+// ── LEAVE APPLICATION & AFFECTED SLOTS MODAL ──
+
+function openTeacherApplyLeaveModal() {
+  var todayStr = todayISO();
+  var tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  var tomorrowStr = tomorrow.toISOString().split('T')[0];
+
+  var fromEl = document.getElementById('tl-from');
+  var toEl = document.getElementById('tl-to');
+  if (fromEl) fromEl.value = tomorrowStr;
+  if (toEl) toEl.value = tomorrowStr;
+
+  var rEl = document.getElementById('tl-reason');
+  if (rEl) rEl.value = '';
+
+  var emEl = document.getElementById('tl-emergency');
+  if (emEl) emEl.checked = false;
+
+  openModal('m-teacher-apply-leave');
+  fetchTeacherAffectedSlots();
+}
+
+function fetchTeacherAffectedSlots() {
+  var fromDate = document.getElementById('tl-from')?.value;
+  var toDate = document.getElementById('tl-to')?.value || fromDate;
+  var slot = document.getElementById('tl-slot')?.value || 'Full Day';
+  var cont = document.getElementById('tl-affected-slots-container');
+  var badge = document.getElementById('tl-slots-count-badge');
+
+  if (!fromDate) {
+    if (cont) cont.innerHTML = '<div style="text-align:center;padding:16px;color:var(--tdi);font-size:12px;">Select valid dates above.</div>';
+    return;
+  }
+
+  if (cont) cont.innerHTML = '<div style="text-align:center;padding:16px;color:var(--tdi);font-size:12px;">🔍 Detecting scheduled teaching slots…</div>';
+
+  fetch('/api/leave/affected-slots?fromDate=' + encodeURIComponent(fromDate) + '&toDate=' + encodeURIComponent(toDate) + '&slot=' + encodeURIComponent(slot), {
+    credentials: 'same-origin'
+  })
+  .then(function(res) { return res.json(); })
+  .then(function(data) {
+    _currentAffectedSlots = (data.affectedSlots || []).map(function(s) {
+      return Object.assign({}, s, {
+        substituteTeacherTrackId: '',
+        substituteTeacherName: '',
+        substituteTeacherId: null
+      });
+    });
+
+    if (badge) badge.textContent = _currentAffectedSlots.length + ' class slot(s)';
+    renderAffectedSlotsList();
+  })
+  .catch(function(err) {
+    if (cont) cont.innerHTML = '<div style="text-align:center;padding:16px;color:#dc2626;font-size:12px;">Failed to fetch schedule slots.</div>';
+  });
+}
+
+function renderAffectedSlotsList() {
+  var cont = document.getElementById('tl-affected-slots-container');
+  if (!cont) return;
+
+  if (_currentAffectedSlots.length === 0) {
+    cont.innerHTML = '<div style="text-align:center;padding:16px;color:#16a34a;font-size:12.5px;font-weight:700;">✅ No scheduled classes on these selected dates/periods! No substitutions required.</div>';
+    return;
+  }
+
+  cont.innerHTML = _currentAffectedSlots.map(function(slot, idx) {
+    var subAssigned = slot.substituteTeacherName;
+    var subDisplay = subAssigned
+      ? '<span style="font-size:12px;font-weight:800;color:#16a34a;background:rgba(22,163,74,0.12);padding:4px 10px;border-radius:10px;display:inline-flex;align-items:center;gap:5px;">✅ Sub: ' + slot.substituteTeacherName + '</span>'
+      : '<span style="font-size:11.5px;font-weight:700;color:#d97706;background:rgba(217,119,6,0.1);padding:4px 9px;border-radius:10px;">⚠️ Substitute Required</span>';
+
+    return '<div style="display:flex;align-items:center;justify-content:space-between;background:#fff;border:1px solid var(--brl);border-radius:10px;padding:10px 14px;flex-wrap:wrap;gap:8px;">'
+      + '<div>'
+      + '<div style="font-size:12.5px;font-weight:800;color:var(--td);">' + slot.date + ' (' + slot.day + ') · Period ' + slot.periodNumber + ' <span style="font-size:11px;font-weight:500;color:var(--tmu);">(' + slot.start + '–' + slot.end + ')</span></div>'
+      + '<div style="font-size:12px;color:var(--tmu);margin-top:2px;">🏫 ' + slot.className + ' • <strong>' + slot.subjectName + '</strong> ' + (slot.hallNo ? '• Hall: ' + slot.hallNo : '') + '</div>'
+      + '</div>'
+      + '<div style="display:flex;align-items:center;gap:10px;">'
+      + subDisplay
+      + '<button class="btno bsm" onclick="openFreeSlotFinderForSlot(' + idx + ')" style="padding:6px 12px;font-size:11.5px;">🔍 ' + (subAssigned ? 'Change' : 'Find Substitute') + '</button>'
+      + '</div>'
+      + '</div>';
+  }).join('');
+}
+
+// ── TEACHER FREE-SLOT FINDER INTEGRATION (FEATURE 11) ──
+
+function loadFacultyDepartmentsForFinder() {
+  fetch('/api/departments', { credentials: 'same-origin' })
+    .then(function(res) { return res.json(); })
+    .then(function(depts) {
+      var sel = document.getElementById('fsf-dept');
+      if (sel && Array.isArray(depts)) {
+        var opts = '<option value="all">All Departments</option>' + depts.map(function(d) {
+          return '<option value="' + d._id + '">' + d.name + ' (' + (d.code || '') + ')</option>';
+        }).join('');
+        sel.innerHTML = opts;
+      }
+    }).catch(function(){});
+}
+
+function openFreeSlotFinderForSlot(slotIdx) {
+  _targetSlotForSubstitute = slotIdx;
+  var slot = _currentAffectedSlots[slotIdx];
+  if (!slot) return;
+
+  var dateEl = document.getElementById('fsf-date');
+  var pEl = document.getElementById('fsf-period');
+  var headerSub = document.getElementById('fsf-header-sub');
+
+  if (dateEl) dateEl.value = slot.date;
+  if (pEl) pEl.value = slot.periodNumber;
+  if (headerSub) {
+    headerSub.innerHTML = 'Selecting substitute for <strong>' + slot.className + ' — ' + slot.subjectName + '</strong> on ' + slot.date + ' (Period ' + slot.periodNumber + ')';
+  }
+
+  openModal('m-free-slot-finder');
+  runFreeSlotSearch();
+}
+
+function runFreeSlotSearch() {
+  var date = document.getElementById('fsf-date')?.value || todayISO();
+  var period = document.getElementById('fsf-period')?.value || '';
+  var deptId = document.getElementById('fsf-dept')?.value || 'all';
+  var search = document.getElementById('fsf-search')?.value || '';
+
+  var list = document.getElementById('fsf-faculty-list');
+  var summary = document.getElementById('fsf-results-summary');
+  if (list) list.innerHTML = '<div style="text-align:center;padding:24px;color:var(--tdi);">Searching faculty availability…</div>';
+
+  var url = '/api/timetable/free-teachers?date=' + encodeURIComponent(date);
+  if (period) url += '&periodNumber=' + encodeURIComponent(period);
+  if (deptId && deptId !== 'all') url += '&deptId=' + encodeURIComponent(deptId);
+  if (search) url += '&search=' + encodeURIComponent(search);
+
+  fetch(url, { credentials: 'same-origin' })
+    .then(function(res) { return res.json(); })
+    .then(function(data) {
+      var teachers = data.teachers || [];
+      if (summary) {
+        summary.innerHTML = 'Found <strong>' + teachers.length + ' faculty</strong> (' + data.availableCount + ' completely free for Period ' + (period || 'all') + ')';
+      }
+
+      if (teachers.length === 0) {
+        if (list) list.innerHTML = '<div style="text-align:center;padding:24px;color:var(--tdi);">No faculty records found matching criteria.</div>';
+        return;
+      }
+
+      if (list) {
+        list.innerHTML = teachers.map(function(t) {
+          var isSelf = t.trackId === currentUser.trackId || t._id === currentUser._id;
+          var statusPill = '';
+          var canAssign = false;
+
+          if (isSelf) {
+            statusPill = '<span class="tt-slot-badge" style="background:#e2e8f0;color:#64748b;">Current Faculty (You)</span>';
+          } else if (t.isFreeForTarget) {
+            statusPill = '<span class="tt-slot-badge" style="background:#dcfce7;color:#166534;font-weight:800;">🟢 FREE for Period ' + period + '</span>';
+            canAssign = true;
+          } else {
+            var busyReason = t.targetPeriodStatus === 'leave' ? '🌴 On Leave' : '🔴 Teaching Class';
+            statusPill = '<span class="tt-slot-badge" style="background:#fee2e2;color:#991b1b;font-weight:700;">' + busyReason + '</span>';
+          }
+
+          var periodBadges = '';
+          for (var p = 1; p <= 9; p++) {
+            var pStat = t.periodStatus[p];
+            var pColor = pStat === 'free' ? '#16a34a' : (pStat === 'leave' ? '#d97706' : '#dc2626');
+            var isCurrentP = Number(period) === p;
+            periodBadges += '<span style="display:inline-block;width:22px;height:22px;line-height:20px;text-align:center;font-size:10px;font-weight:800;border-radius:6px;border:1.5px solid ' + pColor + ';color:' + pColor + ';' + (isCurrentP ? 'background:' + pColor + ';color:#fff;' : '') + '" title="P' + p + ': ' + pStat + '">' + p + '</span>';
+          }
+
+          var actionBtn = canAssign && _targetSlotForSubstitute !== null
+            ? '<button class="btnp bsm" onclick="assignSubstituteToSlot(\'' + t.trackId + '\',\'' + t.fullName.replace(/'/g, "\\'") + '\',\'' + t._id + '\')">&#9989; Select</button>'
+            : '';
+
+          return '<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-radius:12px;background:#fff;border:1px solid var(--brl);gap:10px;flex-wrap:wrap;">'
+            + '<div style="display:flex;align-items:center;gap:10px;">'
+            + '<div style="width:36px;height:36px;border-radius:50%;background:var(--gL);color:var(--gD);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;">' + (t.fullName[0] || 'T') + '</div>'
+            + '<div>'
+            + '<div style="font-size:13px;font-weight:800;color:var(--td);">' + t.fullName + '</div>'
+            + '<div style="font-size:11px;color:var(--tmu);">' + (t.designation || 'Faculty') + ' • ' + (t.department || '') + '</div>'
+            + '</div>'
+            + '</div>'
+            + '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">'
+            + '<div style="display:flex;gap:3px;align-items:center;margin-right:6px;">' + periodBadges + '</div>'
+            + statusPill
+            + actionBtn
+            + '</div>'
+            + '</div>';
+        }).join('');
+      }
+    })
+    .catch(function(err) {
+      if (list) list.innerHTML = '<div style="text-align:center;padding:24px;color:#dc2626;">Error searching available faculty.</div>';
+    });
+}
+
+function assignSubstituteToSlot(trackId, name, teacherId) {
+  if (_targetSlotForSubstitute === null || !_currentAffectedSlots[_targetSlotForSubstitute]) return;
+  _currentAffectedSlots[_targetSlotForSubstitute].substituteTeacherTrackId = trackId;
+  _currentAffectedSlots[_targetSlotForSubstitute].substituteTeacherName = name;
+  _currentAffectedSlots[_targetSlotForSubstitute].substituteTeacherId = teacherId;
+
+  closeModalBg('m-free-slot-finder');
+  renderAffectedSlotsList();
+  showToast('Assigned ' + name + ' as substitute for slot ' + (_targetSlotForSubstitute + 1), 'success');
+}
+
+function submitTeacherLeaveApplication() {
+  var category = document.getElementById('tl-cat')?.value || 'Leave';
+  var leaveType = document.getElementById('tl-type')?.value || 'Casual Leave';
+  var slot = document.getElementById('tl-slot')?.value || 'Full Day';
+  var fromDate = document.getElementById('tl-from')?.value;
+  var toDate = document.getElementById('tl-to')?.value || fromDate;
+  var reason = document.getElementById('tl-reason')?.value || '';
+  var isEmergency = document.getElementById('tl-emergency')?.checked || false;
+
+  if (!fromDate) {
+    showToast('Please select a valid start date', 'warning');
+    return;
+  }
+  if (!reason.trim()) {
+    showToast('Please enter a reason for the leave', 'warning');
+    return;
+  }
+
+  var unassignedSlots = _currentAffectedSlots.filter(function(s) { return !s.substituteTeacherTrackId; });
+  if (unassignedSlots.length > 0 && !isEmergency) {
+    if (!confirm('You have ' + unassignedSlots.length + ' scheduled class(es) without an assigned substitute teacher. Would you like to proceed anyway?')) {
+      return;
+    }
+  }
+
+  var payload = {
+    category: category,
+    leaveType: leaveType,
+    slot: slot,
+    fromDate: fromDate,
+    toDate: toDate,
+    reason: reason.trim(),
+    isEmergency: isEmergency,
+    substitutions: _currentAffectedSlots
+      .filter(function(s) { return !!s.substituteTeacherTrackId; })
+      .map(function(s) {
+        return {
+          date: s.date,
+          day: s.day,
+          periodNumber: s.periodNumber,
+          classId: s.classId,
+          className: s.className,
+          subjectName: s.subjectName,
+          hallNo: s.hallNo,
+          substituteTeacherTrackId: s.substituteTeacherTrackId,
+          substituteTeacherName: s.substituteTeacherName,
+          substituteTeacherId: s.substituteTeacherId
+        };
+      })
+  };
+
+  fetch('/api/leave/teacher/apply', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+    credentials: 'same-origin'
+  })
+  .then(function(res) { return res.json(); })
+  .then(function(data) {
+    if (data.error) showToast(data.error, 'danger');
+    else {
+      showToast('Faculty leave request submitted successfully!', 'success');
+      closeModalBg('m-teacher-apply-leave');
+      loadMyTeacherLeaves();
+    }
+  })
+  .catch(function(err) {
+    showToast(err.message, 'danger');
+  });
+}
 
 // Security
 document.addEventListener('contextmenu', function(e){ e.preventDefault(); });

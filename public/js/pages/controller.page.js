@@ -737,6 +737,8 @@ function filterStudentsTable(q) {
 }
 
 // ── 6. PERIOD RECORDS & TEACHING NOTES ──────────────────────────
+var cachedPeriodRecords = [];
+
 function loadPeriodRecords() {
   var token = getToken();
   var dateStr = document.getElementById('records-date-picker')?.value || new Date().toISOString().split('T')[0];
@@ -749,29 +751,57 @@ function loadPeriodRecords() {
   fetch(url, { headers: { 'Authorization': 'Bearer ' + token } })
     .then(function (r) { return r.json(); })
     .then(function (records) {
-      if (!records || !records.length) {
-        tbody.innerHTML = '<tr><td colspan="8" class="text-center">No teaching records logged for ' + dateStr + '.</td></tr>';
-        return;
-      }
-
-      tbody.innerHTML = records.map(function (rec) {
-        var timeStr = rec.markedAt ? new Date(rec.markedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—';
-        return '' +
-          '<tr>' +
-            '<td><strong>' + rec.className + ' (' + rec.section + ')</strong></td>' +
-            '<td>Period ' + (rec.periodNumbers || []).join(', ') + '</td>' +
-            '<td><span class="chip chip-blue">' + rec.subjectTrackId + '</span></td>' +
-            '<td>' + rec.markedBy + '</td>' +
-            '<td><strong>' + rec.topic + '</strong></td>' +
-            '<td style="color:#64748b;font-style:italic;">' + (rec.notes || '—') + '</td>' +
-            '<td>' + rec.presentCount + ' / ' + rec.totalCount + '</td>' +
-            '<td>' + timeStr + '</td>' +
-          '</tr>';
-      }).join('');
+      cachedPeriodRecords = Array.isArray(records) ? records : [];
+      renderPeriodRecordsTable(cachedPeriodRecords, dateStr);
     })
     .catch(function (err) {
       console.error('[Period Records Error]:', err);
+      if (tbody) tbody.innerHTML = '<tr><td colspan="8" class="text-center" style="color:#ef4444;">Failed to load period records.</td></tr>';
     });
+}
+
+function renderPeriodRecordsTable(records, dateStr) {
+  var tbody = document.getElementById('records-tbody');
+  if (!tbody) return;
+
+  if (!records || !records.length) {
+    tbody.innerHTML = '<tr><td colspan="8" class="text-center">No teaching records logged for ' + (dateStr || 'selected filter') + '.</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = records.map(function (rec) {
+    var timeStr = rec.markedAt ? new Date(rec.markedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—';
+    var topicDisplay = rec.topic && rec.topic !== '—' ? '<strong>' + rec.topic + '</strong>' : '<span style="color:#94a3b8;font-style:italic;">No topic entered</span>';
+    var notesDisplay = rec.notes && rec.notes !== '—' ? rec.notes : '<span style="color:#94a3b8;font-style:italic;">—</span>';
+    var periodsStr = Array.isArray(rec.periodNumbers) && rec.periodNumbers.length ? rec.periodNumbers.join(', ') : (rec.periodNumber || '1');
+    return '' +
+      '<tr>' +
+        '<td><strong>' + rec.className + (rec.section && rec.section !== '—' ? ' (' + rec.section + ')' : '') + '</strong></td>' +
+        '<td>Period ' + periodsStr + '</td>' +
+        '<td><span class="chip chip-blue">' + rec.subjectTrackId + '</span></td>' +
+        '<td>' + rec.markedBy + '</td>' +
+        '<td>' + topicDisplay + '</td>' +
+        '<td style="color:#475569;">' + notesDisplay + '</td>' +
+        '<td><span class="status-tag approved">' + rec.presentCount + ' / ' + rec.totalCount + '</span></td>' +
+        '<td style="color:#64748b;font-size:12px;">' + timeStr + '</td>' +
+      '</tr>';
+  }).join('');
+}
+
+function filterPeriodRecords(q) {
+  var query = (q || '').toLowerCase().trim();
+  if (!query) {
+    renderPeriodRecordsTable(cachedPeriodRecords);
+    return;
+  }
+  var filtered = cachedPeriodRecords.filter(function (rec) {
+    return (rec.topic && rec.topic.toLowerCase().includes(query)) ||
+      (rec.notes && rec.notes.toLowerCase().includes(query)) ||
+      (rec.className && rec.className.toLowerCase().includes(query)) ||
+      (rec.markedBy && rec.markedBy.toLowerCase().includes(query)) ||
+      (rec.subjectTrackId && String(rec.subjectTrackId).toLowerCase().includes(query));
+  });
+  renderPeriodRecordsTable(filtered);
 }
 
 // ── 7. DEFAULTERS REPORT & BULK MEET ME ACTION ───────────────────

@@ -72,6 +72,21 @@ const TeacherLeaveRequestSchema = new mongoose.Schema({
   principalRemarks: { type: String, default: '' },
   substituteTeacherTrackId: { type: String, default: '' },
   substituteTeacherName:    { type: String, default: '' },
+  substitutions: [{
+    date:                     { type: String, required: true }, // YYYY-MM-DD
+    day:                      { type: String, required: true }, // 'Monday', 'Tuesday', etc.
+    periodNumber:             { type: Number, required: true },
+    classId:                  { type: mongoose.Schema.Types.ObjectId, ref: 'Class' },
+    className:                { type: String, default: '' },
+    subjectName:              { type: String, default: '' },
+    subjectCode:              { type: String, default: '' },
+    hallNo:                   { type: String, default: '' },
+    substituteTeacherId:      { type: mongoose.Schema.Types.ObjectId, ref: 'Teacher' },
+    substituteTeacherTrackId: { type: String, required: true },
+    substituteTeacherName:    { type: String, required: true },
+    status:                   { type: String, enum: ['pending', 'accepted', 'rejected'], default: 'pending' },
+    notes:                    { type: String, default: '' }
+  }],
 }, { timestamps: true });
 
 TeacherLeaveRequestSchema.index({ teacherId: 1, createdAt: -1 });

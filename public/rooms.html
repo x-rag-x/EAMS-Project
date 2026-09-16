@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EAMS – Campus Rooms &amp; Buildings Directory</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/timetable.css">
+  <link rel="stylesheet" href="css/rooms.css">
+</head>
+<body>
+
+  <!-- APP SHELL -->
+  <div class="sb" id="sidebar">
+    <div class="sb-logo">
+      <div class="sb-logomark">🎓</div>
+      <div class="sb-brand">EAMS<small>Campus Facilities</small></div>
+    </div>
+    <div class="navs" id="sb-nav">
+      <div class="sb-section-label">Facilities</div>
+      <button class="sb-item act" id="tab-btn-rooms" onclick="switchRoomTab('rooms')">
+        <span class="sbi-ic">🏛️</span>Rooms &amp; Labs
+      </button>
+      <button class="sb-item" id="tab-btn-buildings" onclick="switchRoomTab('buildings')">
+        <span class="sbi-ic">🏢</span>Campus Buildings
+      </button>
+      <button class="sb-item" id="tab-btn-overview" onclick="switchRoomTab('overview')">
+        <span class="sbi-ic">📊</span>Utilization &amp; Stats
+      </button>
+      <div class="sb-section-label" style="margin-top:12px;">Navigation</div>
+      <button class="sb-item" onclick="location.href='timetable.html'">
+        <span class="sbi-ic">📅</span>Timetable Studio
+      </button>
+    </div>
+    <div class="sb-bottom">
+      <button class="sb-back-btn" onclick="history.back()">← Back</button>
+      <button class="sb-logout-btn" onclick="location.href='index.html'" title="Logout">
+        <div class="logout-text">Logout</div>
+      </button>
+    </div>
+  </div>
+
+  <div class="mc" id="mc">
+    <div class="topbar">
+      <div class="topbar-left">
+        <div class="tb-icon">🏢</div>
+        <div>
+          <div class="topbar-title">Campus Rooms &amp; Facilities Management</div>
+          <div class="tb-sub">Classrooms, Computer/Science Labs, Lecture Halls &amp; Building Directory</div>
+        </div>
+      </div>
+      <div class="topbar-right">
+        <button class="btn btn-primary btn-sm" id="btn-add-primary" onclick="onPrimaryAddClick()">➕ Add Room</button>
+      </div>
+    </div>
+
+    <div class="main" style="padding:20px;">
+      <!-- KPI DASHBOARD -->
+      <div class="rooms-kpi-grid">
+        <div class="rooms-kpi-card">
+          <div class="rooms-kpi-val" id="kpi-total-rooms">0</div>
+          <div class="rooms-kpi-lbl">Total Rooms &amp; Halls</div>
+        </div>
+        <div class="rooms-kpi-card">
+          <div class="rooms-kpi-val" id="kpi-total-labs" style="color:#2563eb;">0</div>
+          <div class="rooms-kpi-lbl">Practical &amp; Computer Labs</div>
+        </div>
+        <div class="rooms-kpi-card">
+          <div class="rooms-kpi-val" id="kpi-theory-rooms" style="color:var(--gD);">0</div>
+          <div class="rooms-kpi-lbl">Theory Classrooms</div>
+        </div>
+        <div class="rooms-kpi-card">
+          <div class="rooms-kpi-val" id="kpi-total-capacity" style="color:#7c3aed;">0</div>
+          <div class="rooms-kpi-lbl">Total Seating Capacity</div>
+        </div>
+      </div>
+
+      <!-- TAB 1: ROOMS DIRECTORY -->
+      <div id="view-tab-rooms" class="room-view-tab">
+        <div class="room-table-hd">
+          <div class="room-filter-bar">
+            <input type="text" class="fc2" id="room-search" placeholder="Search hall no, name..." oninput="filterRoomsList()">
+            <select class="fc2" id="room-filter-type" onchange="filterRoomsList()">
+              <option value="">All Room Types</option>
+              <option value="Theory">Theory</option>
+              <option value="Lab">Lab</option>
+              <option value="Seminar">Seminar</option>
+              <option value="Workshop">Workshop</option>
+            </select>
+            <select class="fc2" id="room-filter-building" onchange="filterRoomsList()">
+              <option value="">All Buildings</option>
+            </select>
+          </div>
+          <div class="room-count-badge" id="room-filtered-count">Showing 0 rooms</div>
+        </div>
+
+        <div class="tbl-card">
+          <table class="tbl" id="tbl-rooms">
+            <thead>
+              <tr>
+                <th>Hall No</th>
+                <th>Room Name</th>
+                <th>Type</th>
+                <th>Building</th>
+                <th>Floor</th>
+                <th>Capacity</th>
+                <th>Department</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="tbody-rooms">
+              <tr><td colspan="8" style="text-align:center;padding:32px;color:var(--tdi);">Loading rooms directory…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- TAB 2: CAMPUS BUILDINGS -->
+      <div id="view-tab-buildings" class="room-view-tab" style="display:none;">
+        <div class="room-table-hd">
+          <div style="font-weight:700;font-size:14px;">Campus Buildings &amp; Blocks</div>
+          <button class="btn btn-outline btn-sm" onclick="openAddBuildingModal()">➕ Add Building</button>
+        </div>
+        <div class="buildings-grid" id="buildings-grid">
+          <div style="text-align:center;padding:32px;color:var(--tdi);">Loading campus buildings…</div>
+        </div>
+      </div>
+
+      <!-- TAB 3: OVERVIEW & UTILIZATION -->
+      <div id="view-tab-overview" class="room-view-tab" style="display:none;">
+        <div class="room-table-hd">
+          <div style="font-weight:700;font-size:14px;">Facility Capacity &amp; Utilization Analytics</div>
+        </div>
+        <div id="overview-content" class="tbl-card" style="padding:20px;">
+          <div style="text-align:center;padding:32px;color:var(--tdi);">Calculating utilization metrics…</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ADD / EDIT ROOM MODAL -->
+  <div class="modal-bg" id="modal-room">
+    <div class="modal modal-md">
+      <div class="modal-hd">
+        <div>
+          <div class="modal-title" id="room-modal-title">Add Classroom / Lab</div>
+          <div class="modal-sub">Create or modify room metadata, building allocation and capacity.</div>
+        </div>
+        <button class="modal-close" onclick="closeModal('modal-room')">✕</button>
+      </div>
+      <div class="mbody" style="padding:16px 20px;">
+        <input type="hidden" id="room-edit-id">
+        <div class="frow fr2">
+          <div class="fg">
+            <label class="fl">Hall / Room Number *</label>
+            <input type="text" class="fc2" id="room-input-hall" placeholder="e.g. LH-101, CS-LAB-1" required>
+          </div>
+          <div class="fg">
+            <label class="fl">Room Name</label>
+            <input type="text" class="fc2" id="room-input-name" placeholder="e.g. Algorithms Lab">
+          </div>
+        </div>
+        <div class="frow fr2">
+          <div class="fg">
+            <label class="fl">Type *</label>
+            <select class="fc2" id="room-input-type">
+              <option value="Theory">Theory Class</option>
+              <option value="Lab">Practical / Lab</option>
+              <option value="Seminar">Seminar / Auditorium</option>
+              <option value="Workshop">Workshop</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+          <div class="fg">
+            <label class="fl">Seating Capacity *</label>
+            <input type="number" class="fc2" id="room-input-capacity" placeholder="60" min="5" max="500" required>
+          </div>
+        </div>
+        <div class="frow fr2">
+          <div class="fg">
+            <label class="fl">Building Block</label>
+            <select class="fc2" id="room-input-building">
+              <option value="">— Select Building —</option>
+            </select>
+          </div>
+          <div class="fg">
+            <label class="fl">Floor Level</label>
+            <input type="number" class="fc2" id="room-input-floor" placeholder="1" min="0" max="10">
+          </div>
+        </div>
+        <div class="fg">
+          <label class="fl">Dedicated Department (Optional)</label>
+          <select class="fc2" id="room-input-dept">
+            <option value="">— College-Wide / General Pool —</option>
+          </select>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" onclick="closeModal('modal-room')">Cancel</button>
+        <button class="btn btn-primary" onclick="saveRoomForm()">💾 Save Room</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ADD / EDIT BUILDING MODAL -->
+  <div class="modal-bg" id="modal-building">
+    <div class="modal modal-sm">
+      <div class="modal-hd">
+        <div>
+          <div class="modal-title" id="building-modal-title">Add Campus Building</div>
+          <div class="modal-sub">Define a new building block or campus wing.</div>
+        </div>
+        <button class="modal-close" onclick="closeModal('modal-building')">✕</button>
+      </div>
+      <div class="mbody" style="padding:16px 20px;">
+        <input type="hidden" id="building-edit-id">
+        <div class="fg" style="margin-bottom:12px;">
+          <label class="fl">Building Name *</label>
+          <input type="text" class="fc2" id="building-input-name" placeholder="e.g. Science Block" required>
+        </div>
+        <div class="frow fr2">
+          <div class="fg">
+            <label class="fl">Building Code *</label>
+            <input type="text" class="fc2" id="building-input-code" placeholder="e.g. SB" required>
+          </div>
+          <div class="fg">
+            <label class="fl">Total Floors</label>
+            <input type="number" class="fc2" id="building-input-floors" placeholder="4" min="1" max="15">
+          </div>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" onclick="closeModal('modal-building')">Cancel</button>
+        <button class="btn btn-primary" onclick="saveBuildingForm()">💾 Save Building</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast"></div>
+  <div id="db-toast"></div>
+
+  <script src="js/core/session.js"></script>
+  <script src="js/core/modal.js"></script>
+  <script src="js/core/toast.js"></script>
+  <script src="js/pages/rooms.page.js"></script>
+</body>
+</html>

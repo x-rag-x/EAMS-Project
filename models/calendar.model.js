@@ -10,7 +10,7 @@ const CalendarDaySchema = new mongoose.Schema({
     required: true },
   details: [{
     year     : { type: String, enum: ['I', 'II', 'III', 'IV'] },
-    dayType  : { type: String, enum: ['working','leave','exam','half-day'], default: 'working'},
+    dayType  : { type: String, enum: ['working', 'leave', 'holiday', 'exam', 'half-day', 'vacation', 'event', 'assessment'], default: 'working'},
     comments : { type: String, default: '', trim: true },
     timing   : { start : { type: String, default: '08:30' }, end: { type: String, default: '16:30' }},
   }],
@@ -28,6 +28,10 @@ const CalendarDaySchema = new mongoose.Schema({
   finalizedAt   : { type: Date, default: null },
 });
 
+const CalendarDay = mongoose.model('CalendarDay', CalendarDaySchema);
+
 module.exports = {
-  CalendarDay: mongoose.model('CalendarDay', CalendarDaySchema),
+  CalendarDay,
+  AcademicCalendar: CalendarDay,
 };
+

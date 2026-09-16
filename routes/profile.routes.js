@@ -50,12 +50,24 @@ router.get('/me', authMiddleware, async (req, res) => {
         department: userDoc.department || '',
         designation: userDoc.designation || 'Assistant Professor',
         isHod: specials.some(s => s.option === 'isHod'),
-        HoddeptName: (specials.find(s => s.option === 'isHod') || {}).value || (specials.find(s => s.option === 'isHod') || {}).key || '',
+        HoddeptName: (() => {
+          const s = specials.find(x => x.option === 'isHod');
+          if (!s) return '';
+          if (typeof s.value === 'string' && s.value.trim() && s.value !== 'true') return s.value.trim();
+          if (typeof s.key === 'string' && s.key.trim() && !s.key.startsWith('isHod') && s.key !== 'true') return s.key.trim();
+          return (userDoc.department || '').trim();
+        })(),
         isClassAdvisor: specials.some(s => s.option === 'isClassAdvisor'),
         className: (specials.find(s => s.option === 'isClassAdvisor') || {}).key || (specials.find(s => s.option === 'isClassAdvisor') || {}).value || '',
         advisorClassName: (specials.find(s => s.option === 'isClassAdvisor') || {}).key || (specials.find(s => s.option === 'isClassAdvisor') || {}).value || '',
         isTimeTableCoordinator: specials.some(s => s.option === 'isTimeTableCoordinator'),
-        TTdeptName: (specials.find(s => s.option === 'isTimeTableCoordinator') || {}).value || (specials.find(s => s.option === 'isTimeTableCoordinator') || {}).key || '',
+        TTdeptName: (() => {
+          const s = specials.find(x => x.option === 'isTimeTableCoordinator');
+          if (!s) return '';
+          if (typeof s.value === 'string' && s.value.trim() && s.value !== 'true') return s.value.trim();
+          if (typeof s.key === 'string' && s.key.trim() && !s.key.startsWith('isTimeTableCoordinator') && s.key !== 'true') return s.key.trim();
+          return (userDoc.department || '').trim();
+        })(),
         isWarden: specials.some(s => s.option === 'isWarden'),
         isExamCoordinator: specials.some(s => s.option === 'isExamCoordinator'),
         isPlacementCoordinator: specials.some(s => s.option === 'isPlacementCoordinator'),

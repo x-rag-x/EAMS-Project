@@ -8,30 +8,15 @@
   <link
     href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&family=Playfair+Display:wght@700&family=JetBrains+Mono:wght@400;600&display=swap"
     rel="stylesheet">
+  <link rel="stylesheet" href="css/base.css">
   <link rel="stylesheet" href="css/control.css">
 </head>
 
 <body>
 
-  <!-- ── PAGE LOADER ── shown until initial DB fetch completes 
-<div id="page-loader">
-  <div class="loader-brand">⚙️ EAMS Control Panel</div>
-  <div class="three-body">
-    <div class="three-body__dot"></div>
-    <div class="three-body__dot"></div>
-    <div class="three-body__dot"></div>
-  </div>
-  <div class="loader-msg" id="loader-msg">Initializing EAMS…</div>
-  <div class="loader-steps">
-    <div class="loader-step active" id="lstep-0"></div>
-    <div class="loader-step" id="lstep-1"></div>
-    <div class="loader-step" id="lstep-2"></div>
-    <div class="loader-step" id="lstep-3"></div>
-    <div class="loader-step" id="lstep-4"></div>
-  </div>
-</div> -->
+  <!-- Page loader overlay shown until initial database fetch completes -->
 
-  <!-- ── SIDEBAR ── -->
+  <!-- SIDEBAR -->
   <nav class="sb">
     <div class="sb-logo">
       <div>
@@ -56,6 +41,7 @@
 
       <div class="sb-section-label">Configuration & Logs</div>
       <a href="logs.html" class="sb-item" style="text-decoration:none;"><span class="sbi-ic">📋</span>Audit Logs →</a>
+      <a href="export.html" class="sb-item" style="text-decoration:none;"><span class="sbi-ic">📊</span>Export Center →</a>
       <a href="settings.html" class="sb-item" style="text-decoration:none;"><span class="sbi-ic">⚙️</span>Settings &amp;
         Security →</a>
     </div>
@@ -82,7 +68,7 @@
     </div>
   </nav>
 
-  <!-- ── MAIN ── -->
+  <!-- MAIN -->
   <div class="mc">
 
     <!-- TOP BAR -->
@@ -97,14 +83,14 @@
       </div>
     </div>
 
-    <!-- ══ OVERVIEW PAGE ══ -->
+    <!-- OVERVIEW PAGE -->
     <div class="pg act" id="pg-overview">
       <div class="page-hd">
         <div class="page-title">System Overview</div>
         <div class="page-sub">Live stats and system health at a glance</div>
       </div>
 
-      <!-- ── Live Health Strip ── -->
+      <!-- Live Health Strip -->
       <div id="health-bar" style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:18px;">
         <div class="health-chip">
           <span class="health-dot" id="hc-db-dot">●</span>
@@ -146,7 +132,7 @@
           Refresh</button>
       </div>
 
-      <!-- ── Recent Errors Card ── -->
+      <!-- Recent Errors Card -->
       <div id="health-errors-card" class="card" style="margin-bottom:16px;display:none;">
         <div class="card-hd">
           <div class="card-icon red">⚠️</div>
@@ -155,12 +141,14 @@
             <div class="card-desc" id="errors-card-desc">Last <span id="errors-count-label">20</span> error-level log
               entries</div>
           </div>
-          <div style="margin-left:auto;display:flex;align-items:center;gap:8px;">
+          <div style="margin-left:auto;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+            <button onclick="setErrorsMode('all')" id="err-btn-all"
+              style="padding:5px 12px;background:var(--gLt);border:1px solid var(--gLr);color:var(--gD);border-radius:8px;font-size:11.5px;font-weight:600;cursor:pointer;font-family:Poppins,sans-serif;">All</button>
             <button onclick="setErrorsMode('week')" id="err-btn-week"
               style="padding:5px 12px;background:var(--gD);color:#fff;border:none;border-radius:8px;font-size:11.5px;font-weight:600;cursor:pointer;font-family:Poppins,sans-serif;">This
               Week</button>
             <button onclick="setErrorsMode('n')" id="err-btn-n"
-              style="padding:5px 12px;background:var(--gLt);border:1px solid var(--gLr);color:var(--gD);border:none;border-radius:8px;font-size:11.5px;font-weight:600;cursor:pointer;font-family:Poppins,sans-serif;">Last
+              style="padding:5px 12px;background:var(--gLt);border:1px solid var(--gLr);color:var(--gD);border-radius:8px;font-size:11.5px;font-weight:600;cursor:pointer;font-family:Poppins,sans-serif;">Last
               <span id="err-n-disp">20</span></button>
           </div>
         </div>
@@ -188,7 +176,7 @@
             style="margin-left:auto;padding:6px 14px;background:var(--gLt);border:1px solid var(--gLr);border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;color:var(--gD);font-family:Poppins,sans-serif;">↻
             Refresh</button>
         </div>
-        <div id="collection-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;"></div>
+        <div id="collection-grid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;"></div>
       </div>
 
       <div class="card">
@@ -207,7 +195,7 @@
       </div>
     </div>
 
-    <!-- ══ USER GRID PAGE ══ -->
+    <!-- USER GRID PAGE -->
     <div class="pg" id="pg-usergrid">
       <div class="page-wrap">
         <div class="page-hd">
@@ -353,7 +341,7 @@
           </div>
         </div>
 
-        <!-- ══ MODAL 1: EDIT USER PROFILE (MATCHING ADMIN ADD STUDENT POPUP STYLE) ══ -->
+        <!-- MODAL 1: EDIT USER PROFILE (MATCHING ADMIN ADD STUDENT POPUP STYLE) -->
         <div class="modal-overlay" id="ug-edit-modal">
           <div class="modal-box"
             style="width:720px;max-width:96vw;max-height:92vh;display:flex;flex-direction:column;padding:0;overflow:hidden;border-radius:20px;box-shadow:0 28px 70px rgba(0,0,0,0.22);text-align:left;">
@@ -615,7 +603,7 @@
           </div>
         </div>
 
-        <!-- ══ MODAL 2: PASSWORD RESET MODAL ══ -->
+        <!-- MODAL 2: PASSWORD RESET MODAL -->
         <div class="modal-overlay" id="ug-pw-modal">
           <div class="modal-box"
             style="width:450px;max-width:96vw;text-align:left;padding:0;overflow:hidden;border-radius:20px;box-shadow:0 24px 60px rgba(0,0,0,0.22);">
@@ -661,7 +649,7 @@
           </div>
         </div>
 
-        <!-- ══ MODAL 3: ATTENDANCE EDIT MODAL ══ -->
+        <!-- MODAL 3: ATTENDANCE EDIT MODAL -->
         <div class="modal-overlay" id="ug-att-modal">
           <div class="modal-box"
             style="width:500px;max-width:96vw;text-align:left;padding:0;overflow:hidden;border-radius:20px;box-shadow:0 24px 60px rgba(0,0,0,0.22);">
@@ -711,7 +699,7 @@
           </div>
         </div>
 
-        <!-- ══ MODAL 4: SMALL DELETE CONFIRMATION POPUP ══ -->
+        <!-- MODAL 4: SMALL DELETE CONFIRMATION POPUP -->
         <div class="modal-overlay" id="ug-del-modal">
           <div class="modal-box"
             style="width:390px;max-width:94vw;text-align:center;padding:26px 24px;border-radius:20px;box-shadow:0 24px 60px rgba(0,0,0,0.25);">
@@ -733,7 +721,7 @@
       </div>
     </div>
 
-    <!-- ══ DATA MANAGEMENT PAGE ══ -->
+    <!-- DATA MANAGEMENT PAGE -->
     <div class="pg" id="pg-data">
       <div class="page-hd">
         <div class="page-title">🗑️ Data Management</div>
@@ -802,7 +790,7 @@
           Undo menu.</div>
       </div>
 
-      <!-- ── Export Data (expanded) ── -->
+      <!-- Export Data (expanded) -->
       <div class="card">
         <div class="card-hd">
           <div class="card-icon blue">📤</div>
@@ -845,7 +833,7 @@
     </div>
 
 
-    <!-- ══ BACKUP PAGE ══ -->
+    <!-- BACKUP PAGE -->
     <div class="pg" id="pg-backup">
       <div class="page-hd">
         <div class="page-title">🗄️ Backup</div>
@@ -925,7 +913,7 @@
       </div>
     </div>
 
-    <!-- ══ UNDO PAGE ══ -->
+    <!-- UNDO PAGE -->
     <div class="pg" id="pg-undo">
       <div class="page-hd">
         <div class="page-title">↩️ Undo</div>
@@ -962,7 +950,7 @@
       </div>
     </div>
 
-    <!-- ══ MAINTENANCE MODE PAGE ══ -->
+    <!-- MAINTENANCE MODE PAGE -->
     <div class="pg" id="pg-maintenance">
       <div class="page-hd" style="display:flex;align-items:flex-start;justify-content:space-between;">
         <div>
@@ -1221,7 +1209,7 @@
 
     </div>
 
-    <!-- ══ BROADCASTS DISPATCH CENTER ══ -->
+    <!-- BROADCASTS DISPATCH CENTER -->
     <div class="pg" id="pg-broadcasts">
       <div class="page-hd" style="display:flex;align-items:flex-start;justify-content:space-between;">
         <div>
@@ -1414,7 +1402,7 @@
 
   </div><!-- end .mc -->
 
-  <!-- ══ CONFIRM MODAL ══ -->
+  <!-- CONFIRM MODAL -->
   <div class="modal-overlay" id="confirm-modal">
     <div class="modal-box">
       <div class="modal-icon" id="m-icon">⚠️</div>
@@ -1437,7 +1425,7 @@
     </div>
   </div>
 
-  <!-- ══ SPECIAL DELETE PASSWORD MODAL ══ -->
+  <!-- SPECIAL DELETE PASSWORD MODAL -->
   <div class="modal-overlay" id="m-special-pw"
     style="display:none;align-items:center;justify-content:center;z-index:10001;">
     <div class="modal-box" style="width:400px;padding:32px 28px;text-align:center;">
@@ -1466,7 +1454,7 @@
     </div>
   </div>
 
-  <!-- ══ MAINTENANCE EXPIRY DIALOG ══ -->
+  <!-- MAINTENANCE EXPIRY DIALOG -->
   <div class="modal-overlay" id="maint-expiry-modal" style="z-index:10000;">
     <div class="modal-box" style="max-width:480px;padding:32px 28px;">
       <div style="font-size:48px;margin-bottom:12px;">⏰</div>
@@ -1498,10 +1486,10 @@
     </div>
   </div>
 
-  <!-- ══ TOAST ══ -->
+  <!-- TOAST -->
   <div class="toast" id="toast"><span id="toast-msg"></span></div>
 
-  <!-- ══ DB SYNC TOAST ══ -->
+  <!-- DB SYNC TOAST -->
   <div id="db-sync-toast"
     style="position:fixed;bottom:80px;right:28px;background:#1a2e1a;color:#fff;padding:14px 20px;border-radius:14px;font-size:13px;font-weight:600;z-index:10000;display:flex;align-items:center;gap:12px;box-shadow:0 8px 30px rgba(0,0,0,.25);transform:translateY(100px);opacity:0;transition:all .4s cubic-bezier(.34,1.56,.64,1);">
     <span style="font-size:16px;">✅</span>
@@ -1513,7 +1501,7 @@
   </div>
 
 
-  <!-- ══ DELETE ALL ADDER MODAL ══ -->
+  <!-- DELETE ALL ADDER MODAL -->
   <div class="modal-overlay" id="m-delete-adder" style="display:none;align-items:center;justify-content:center;">
     <div
       style="background:#fff;border-radius:20px;padding:28px 24px;width:480px;max-width:96vw;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.3);">
@@ -1577,7 +1565,7 @@
     </div>
   </div>
 
-  <!-- ══ ATTENDANCE DATE RANGE MODAL ══ -->
+  <!-- ATTENDANCE DATE RANGE MODAL -->
   <div class="modal-overlay" id="m-attendance-date" style="display:none;align-items:center;justify-content:center;">
     <div
       style="background:#fff;border-radius:20px;padding:28px 24px;width:500px;max-width:96vw;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.3);">
@@ -1636,7 +1624,7 @@
     </div>
   </div>
 
-  <!-- ══ CLEAR CACHE MODAL ══ -->
+  <!-- CLEAR CACHE MODAL -->
   <div class="modal-overlay" id="m-clear-storage" style="display:none;align-items:center;justify-content:center;">
     <div
       style="background:#fff;border-radius:20px;padding:28px 24px;width:500px;max-width:96vw;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.3);">

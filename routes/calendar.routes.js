@@ -5,6 +5,18 @@ const { authMiddleware, adminOnly } = require('../middleware/auth');
 const { logAction } = require('../utils/logAction');
 const { dateToDow, satOrdinal } = require('../utils/dateUtils');
 
+// Helper to normalize input date string to YYYY-MM-DD
+function parseDateStr(dateInput) {
+  if (!dateInput) return '';
+  if (typeof dateInput === 'string') {
+    return dateInput.split('T')[0];
+  }
+  if (dateInput instanceof Date && !isNaN(dateInput.getTime())) {
+    return dateInput.toISOString().split('T')[0];
+  }
+  return String(dateInput).split('T')[0];
+}
+
 // GET /api/calendar  — all days in a month
 router.get('/', authMiddleware, async (req, res) => {
   try {
@@ -12,7 +24,21 @@ router.get('/', authMiddleware, async (req, res) => {
     const year = parseInt(req.query.year) || new Date().getFullYear();
     const mm = String(month).padStart(2, '0');
     const yyyy = String(year);
-    const days = await M.CalendarDay.find({ month: mm, year: yyyy }).sort({ date: 1 });
+    const docs = await M.CalendarDay.find({ month: mm, year: yyyy }).sort({ date: 1 }).lean();
+    
+    // Ensure clean dateKey on every day object
+    const days = docs.map(d => {
+      let dateKey = '';
+      if (d.date instanceof Date) {
+        dateKey = d.date.toISOString().split('T')[0];
+      } else if (typeof d.date === 'string') {
+        dateKey = d.date.split('T')[0];
+      }
+      return {
+        ...d,
+        dateKey: dateKey || (d.date ? String(d.date) : '')
+      };
+    });
     res.json(days);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -20,16 +46,20 @@ router.get('/', authMiddleware, async (req, res) => {
 // GET /api/calendar/check/:date  — single day status + exam info
 router.get('/check/:date', authMiddleware, async (req, res) => {
   try {
-    const { date } = req.params;
-    const dateObj = new Date(date + 'T00:00:00');
+    const dateStr = parseDateStr(req.params.date);
+    const dateObj = new Date(dateStr + 'T00:00:00.000Z');
+    const localDateObj = new Date(dateStr + 'T00:00:00');
     const [day, exams] = await Promise.all([
-      M.CalendarDay.findOne({ date: dateObj }),
-      M.Exam.find({ Dates: date, status: { $in: ['upcoming', 'ongoing'] } })
+      M.CalendarDay.findOne({
+        $or: [{ date: dateObj }, { date: localDateObj }]
+      }),
+      M.Exam.find({ Dates: dateStr, status: { $in: ['upcoming', 'ongoing'] } })
     ]);
-    const defaults = { details: [{ year: 'I', dayType: dateObj.getDay() === 0 ? 'leave' : 'working', comments: '', timing: { start: '08:30', end: '16:30' }
+    const defaults = { details: [{ year: 'I', dayType: dateObj.getUTCDay() === 0 ? 'leave' : 'working', comments: '', timing: { start: '08:30', end: '16:30' }
       }]
     };
-    res.json({ ...(day ? day.toObject() : defaults), hasExam: exams.length > 0, exams });
+    const dayObj = day ? (day.toObject ? day.toObject() : day) : defaults;
+    res.json({ ...dayObj, dateKey: dateStr, hasExam: exams.length > 0, exams });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -40,23 +70,27 @@ router.post('/', authMiddleware, adminOnly, async (req, res) => {
     if (!date) return res.status(400).json({ error: 'date required' });
     if (!details || !Array.isArray(details)) return res.status(400).json({ error: 'details array required' });
     
-    const dateObj = new Date(date + 'T00:00:00');
-    const month = String(dateObj.getMonth() + 1).padStart(2, '0');
-    const year = String(dateObj.getFullYear());
-    const day = dateToDow(date);
+    const dateStr = parseDateStr(date);
+    const dateObj = new Date(dateStr + 'T00:00:00.000Z');
+    const localDateObj = new Date(dateStr + 'T00:00:00');
+    const month = String(dateObj.getUTCMonth() + 1).padStart(2, '0');
+    const year = String(dateObj.getUTCFullYear());
+    const day = dateToDow(dateStr);
     
     // Generate unique CalendarTrackId if new
     let trackId;
-    const existing = await M.CalendarDay.findOne({ date: dateObj });
+    const existing = await M.CalendarDay.findOne({
+      $or: [{ date: dateObj }, { date: localDateObj }]
+    });
     if (existing) { trackId = existing.CalendarTrackId; }
-    else { trackId = `TR-CAL${year}${month}${String(dateObj.getDate()).padStart(2, '0')}-${Date.now()}`; }
+    else { trackId = `TR-CAL${year}${month}${String(dateObj.getUTCDate()).padStart(2, '0')}-${Date.now()}`; }
     
     const updateData = { CalendarTrackId: trackId, date: dateObj, month, year, day, details, createdBy: req.user.name};
     if (isFinalized) { updateData.isFinalized = true; updateData.finalizedBy = req.user.name; updateData.finalizedAt = new Date();}
     else { updateData.isFinalized = false; updateData.finalizedBy = null; updateData.finalizedAt = null; }
     
     const doc = await M.CalendarDay.findOneAndUpdate(
-      { date: dateObj },
+      { $or: [{ date: dateObj }, { date: localDateObj }] },
       { 
         $set: updateData,
         $push: {
@@ -67,7 +101,7 @@ router.post('/', authMiddleware, adminOnly, async (req, res) => {
       },
       { returnDocument: 'after', upsert: true }
     );
-    await logAction(req.user._id, req.user.name, req.user.role, 'Calendar Day Updated', `${date}`, 'manage', 'info', req.ip);
+    await logAction(req.user._id, req.user.name, req.user.role, 'Calendar Day Updated', `${dateStr}`, 'manage', 'info', req.ip);
     res.json(doc);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -75,22 +109,25 @@ router.post('/', authMiddleware, adminOnly, async (req, res) => {
 // PUT /api/calendar/:date  — same as POST
 router.put('/:date', authMiddleware, adminOnly, async (req, res) => {
   try {
-    const { date } = req.params;
+    const dateStr = parseDateStr(req.params.date);
     const { details, isFinalized } = req.body;
     if (!details || !Array.isArray(details)) return res.status(400).json({ error: 'details array required' });
     
-    const dateObj = new Date(date + 'T00:00:00');
-    const month = String(dateObj.getMonth() + 1).padStart(2, '0');
-    const year = String(dateObj.getFullYear());
-    const existing = await M.CalendarDay.findOne({ date: dateObj });
+    const dateObj = new Date(dateStr + 'T00:00:00.000Z');
+    const localDateObj = new Date(dateStr + 'T00:00:00');
+    const month = String(dateObj.getUTCMonth() + 1).padStart(2, '0');
+    const year = String(dateObj.getUTCFullYear());
+    const existing = await M.CalendarDay.findOne({
+      $or: [{ date: dateObj }, { date: localDateObj }]
+    });
     
-    const updateData = { details, day: dateToDow(date), month, year };
+    const updateData = { details, day: dateToDow(dateStr), month, year, date: dateObj };
     
     if (isFinalized) { updateData.isFinalized = true; updateData.finalizedBy = req.user.name; updateData.finalizedAt = new Date(); }
     else { updateData.isFinalized = false; updateData.finalizedBy = null; updateData.finalizedAt = null; }
     
     const doc = await M.CalendarDay.findOneAndUpdate(
-      { date: dateObj },
+      { $or: [{ date: dateObj }, { date: localDateObj }] },
       { $set: updateData, $push: { history: {updatedBy: req.user.name, updatedAt: new Date(), field: 'details', oldValue: existing ? JSON.stringify(existing.details) : '', newValue: JSON.stringify(details) } } },
       { returnDocument: 'after', upsert: true }
     );
@@ -115,10 +152,14 @@ router.post('/month/save', authMiddleware, adminOnly, async (req, res) => {
 
     for (const d of days) {
       if (!d.date) continue;
-      const dateObj = new Date(d.date + 'T00:00:00');
-      const day = dateToDow(d.date);
+      const dateStr = parseDateStr(d.date);
+      if (!dateStr) continue;
+      const dateObj = new Date(dateStr + 'T00:00:00.000Z');
+      const localDateObj = new Date(dateStr + 'T00:00:00');
+      const day = dateToDow(dateStr);
       const details = d.details || [{ year: 'I', dayType: 'working', comments: '', timing: { start: '08:30', end: '16:30' } }];
-      const trackId = `TR-CAL${yyyy}${mm}${String(dateObj.getDate()).padStart(2, '0')}-${Date.now()}-${dateObj.getDate()}`;
+      const dayNum = dateStr.split('-')[2] || String(dateObj.getUTCDate()).padStart(2, '0');
+      const trackId = `TR-CAL${yyyy}${mm}${dayNum}-${Date.now()}-${parseInt(dayNum, 10)}`;
       
       const updateData = {
         date: dateObj,
@@ -134,7 +175,12 @@ router.post('/month/save', authMiddleware, adminOnly, async (req, res) => {
 
       ops.push({
         updateOne: {
-          filter: { date: dateObj },
+          filter: {
+            $or: [
+              { date: dateObj },
+              { date: localDateObj }
+            ]
+          },
           update: {
             $set: updateData,
             $setOnInsert: { CalendarTrackId: trackId }
@@ -147,7 +193,7 @@ router.post('/month/save', authMiddleware, adminOnly, async (req, res) => {
     if (ops.length > 0) {
       await M.CalendarDay.bulkWrite(ops);
     }
-    const savedDates = days.map(d => d.date).filter(Boolean);
+    const savedDates = days.map(d => parseDateStr(d.date)).filter(Boolean);
     const datesText = savedDates.length > 0 ? ` [${savedDates.join(', ')}]` : '';
     const logDetails = `${yyyy}-${mm} (${savedDates.length} days)${datesText}`;
     await logAction(
@@ -201,8 +247,12 @@ router.delete('/month/clear', authMiddleware, adminOnly, async (req, res) => {
 // DELETE /api/calendar/:date  — remove override, revert to auto-default
 router.delete('/:date', authMiddleware, adminOnly, async (req, res) => {
   try {
-    const dateObj = new Date(req.params.date + 'T00:00:00');
-    await M.CalendarDay.deleteOne({ date: dateObj });
+    const dateStr = parseDateStr(req.params.date);
+    const dateObj = new Date(dateStr + 'T00:00:00.000Z');
+    const localDateObj = new Date(dateStr + 'T00:00:00');
+    await M.CalendarDay.deleteMany({
+      $or: [{ date: dateObj }, { date: localDateObj }]
+    });
     res.json({ ok: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -210,17 +260,24 @@ router.delete('/:date', authMiddleware, adminOnly, async (req, res) => {
 // GET /api/calendar/day-details/:date  — single day with exam info for specific student
 router.get('/day-details/:date', authMiddleware, async (req, res) => {
   try {
-    const { date } = req.params;
+    const dateStr = parseDateStr(req.params.date);
     const { trackId } = req.query;
-    const dateObj = new Date(date + 'T00:00:00');
-    const [day, exams] = await Promise.all([M.CalendarDay.findOne({ date: dateObj }),M.Exam.find({ Dates: date })]);
+    const dateObj = new Date(dateStr + 'T00:00:00.000Z');
+    const localDateObj = new Date(dateStr + 'T00:00:00');
+    const [day, exams] = await Promise.all([
+      M.CalendarDay.findOne({
+        $or: [{ date: dateObj }, { date: localDateObj }]
+      }),
+      M.Exam.find({ Dates: dateStr })
+    ]);
     if (!day) return res.status(404).json({ error: 'Day not found' });
     let filteredDetails = day.details;
     if (trackId) {
       const student = await M.Student.findOne({ studentTrackId: trackId }).select('year');
       if (student && student.year) filteredDetails = day.details.filter(d => d.year === student.year);
     }
-    res.json({ ...day.toObject(), details: filteredDetails, exams: exams || [] });
+    const dayObj = day.toObject ? day.toObject() : day;
+    res.json({ ...dayObj, dateKey: dateStr, details: filteredDetails, exams: exams || [] });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -230,7 +287,7 @@ router.post('/bulk-generate', authMiddleware, adminOnly, async (req, res) => {
     const month = parseInt(req.body.month) || new Date().getMonth() + 1;
     const year = parseInt(req.body.year) || new Date().getFullYear();
     const overwriteExisting = req.body.overwriteExisting === true;
-    const lastDay = new Date(year, month, 0).getDate();
+    const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
     const mm = String(month).padStart(2, '0');
     const yyyy = String(year);
     let generated = 0, skipped = 0;
@@ -238,8 +295,9 @@ router.post('/bulk-generate', authMiddleware, adminOnly, async (req, res) => {
     
     for (let day = 1; day <= lastDay; day++) {
       const dateStr = `${year}-${mm}-${String(day).padStart(2, '0')}`;
-      const d = new Date(dateStr + 'T00:00:00');
-      const dow = d.getDay();
+      const d = new Date(dateStr + 'T00:00:00.000Z');
+      const localD = new Date(dateStr + 'T00:00:00');
+      const dow = d.getUTCDay();
       let dayType;
       
       if (dow === 0) { 
@@ -252,7 +310,10 @@ router.post('/bulk-generate', authMiddleware, adminOnly, async (req, res) => {
       }
       
       if (!overwriteExisting) {
-        const existing = await M.CalendarDay.findOne({ date: d, isFinalized: true });
+        const existing = await M.CalendarDay.findOne({
+          $or: [{ date: d }, { date: localD }],
+          isFinalized: true
+        });
         if (existing) { skipped++; continue; }
       }
       
@@ -262,7 +323,7 @@ router.post('/bulk-generate', authMiddleware, adminOnly, async (req, res) => {
       const details = ['I', 'II', 'III', 'IV'].map(yr => ({year: yr, dayType, comments: '', timing: { start: '08:30', end: '16:30' } }));
       
       ops.push({ 
-        updateOne: { filter: { date: d }, 
+        updateOne: { filter: { $or: [{ date: d }, { date: localD }] }, 
           update: { $set: { CalendarTrackId: trackId, date: d, month: mm, year: yyyy, day: dateToDow(dateStr), details, createdBy: 'system',isFinalized: false } }, 
           upsert: true 
         } 

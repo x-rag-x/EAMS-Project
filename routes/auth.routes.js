@@ -12,6 +12,7 @@ const { authLimiter } = require('../utils/rateLimiters');
 const { validatePassword } = require('../utils/passwordValidator');
 
 const { reverseGeocode } = require('../utils/reverseGeocode');
+const { getSettings } = require('../utils/settingsCache');
 
 function getClientDetails(req) {
   const headers = req.headers || {};
@@ -39,7 +40,7 @@ const loginLimiter = rateLimit({
   legacyHeaders: false,
 });
 
-// ── STEP 1 PRE-AUTH: Verify credentials before requesting location permission ──
+// Verify user credentials before requesting location permissions
 router.post('/verify-credentials', loginLimiter, async (req, res) => {
   try {
     const { username, password, role } = req.body;
@@ -50,40 +51,34 @@ router.post('/verify-credentials', loginLimiter, async (req, res) => {
     const model = getRoleModel(role);
     if (!model) return res.status(400).json({ error: 'Invalid role' });
 
-    let shadowUser = await M.User.findOne({ username: username.toLowerCase().trim(), role: role });
-    if (!shadowUser) {
+    const cleanUsername = username.toLowerCase().trim();
+    const [shadowUser, userDoc, settingsMap, loginHistory] = await Promise.all([
+      M.User.findOne({ username: cleanUsername, role }),
+      model.findOne({ username: cleanUsername }).select('+password'),
+      getSettings(['security', 'pages', 'maintenance']),
+      M.LoginHistory.findOne({ username: cleanUsername }).lean()
+    ]);
+
+    if (!shadowUser || !userDoc) {
       await logAction(null, username, role, 'Login Failed', 'User not found', 'security', 'warning', req.ip, '', { module: 'system', subType: 'auth-fail' });
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
-    let loginHistory = await M.LoginHistory.findOne({ trackId: shadowUser.trackId });
-    if (!loginHistory) {
-      loginHistory = await M.LoginHistory.create({
-        username: shadowUser.username,
-        trackId: shadowUser.trackId,
-        role: role,
-        totalLogins: 0,
-        history: []
-      });
-    }
-
-    const secSettings = await M.Settings.findOne({ key: 'security' });
-    const security = secSettings?.value || {};
+    const security = settingsMap.security || {};
     const maxAttempts = security.maxLoginAttempts || 3;
     const lockoutMins = security.lockoutDurationMins || 15;
     const isAdmin = role === 'admin' || shadowUser.role === 'admin';
 
     if (!isAdmin && shadowUser.status === 'locked') {
-      if (loginHistory.lockedUntil && loginHistory.lockedUntil > new Date()) {
-        const remainingTimeMs = loginHistory.lockedUntil - new Date();
+      if (loginHistory?.lockedUntil && new Date(loginHistory.lockedUntil) > new Date()) {
+        const remainingTimeMs = new Date(loginHistory.lockedUntil) - new Date();
         const remainingTimeMins = Math.ceil(remainingTimeMs / 60000);
         return res.status(401).json({ error: `Account locked. Try again in ${remainingTimeMins} minute(s).` });
       } else {
-        shadowUser.status = 'active';
-        await shadowUser.save();
-        loginHistory.failedLogins = 0;
-        loginHistory.lockedUntil = null;
-        await loginHistory.save();
+        await Promise.all([
+          M.User.updateOne({ _id: shadowUser._id }, { $set: { status: 'active' } }),
+          M.LoginHistory.updateOne({ trackId: shadowUser.trackId }, { $set: { failedLogins: 0, lockedUntil: null } })
+        ]);
       }
     }
 
@@ -92,25 +87,30 @@ router.post('/verify-credentials', loginLimiter, async (req, res) => {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
-    const userDoc = await model.findOne({ username: username.toLowerCase().trim() }).select('+password');
-    if (!userDoc) {
-      await logAction(shadowUser.trackId || shadowUser._id, shadowUser.username, role, 'Login Failed', 'User document not found in role model', 'security', 'warning', req.ip, '', { module: 'system', subType: 'auth-fail' });
-      return res.status(401).json({ error: 'Invalid credentials' });
-    }
-
     const match = await bcrypt.compare(password, userDoc.password);
     if (!match) {
-      loginHistory.failedLogins = (loginHistory.failedLogins || 0) + 1;
-      if (!isAdmin && loginHistory.failedLogins >= maxAttempts) {
-        shadowUser.status = 'locked';
-        await shadowUser.save();
-        loginHistory.lockedUntil = new Date(Date.now() + lockoutMins * 60 * 1000);
-        await loginHistory.save();
-        await logAction(shadowUser.trackId || shadowUser._id, shadowUser.username, role, 'Login Failed (Locked)', 'Wrong password, account locked', 'security', 'warning', req.ip, '', { module: 'system', subType: 'auth-fail' });
+      const newFailed = (loginHistory?.failedLogins || 0) + 1;
+      if (!isAdmin && newFailed >= maxAttempts) {
+        const lockedUntil = new Date(Date.now() + lockoutMins * 60 * 1000);
+        await Promise.all([
+          M.User.updateOne({ _id: shadowUser._id }, { $set: { status: 'locked' } }),
+          M.LoginHistory.updateOne(
+            { trackId: shadowUser.trackId },
+            { $set: { lockedUntil, failedLogins: newFailed, username: cleanUsername, role } },
+            { upsert: true }
+          ),
+          logAction(shadowUser.trackId || shadowUser._id, shadowUser.username, role, 'Login Failed (Locked)', 'Wrong password, account locked', 'security', 'warning', req.ip, '', { module: 'system', subType: 'auth-fail' })
+        ]);
         return res.status(401).json({ error: `Account locked due to too many failed attempts. Try again in ${lockoutMins} minute(s).` });
       }
-      await loginHistory.save();
-      await logAction(shadowUser.trackId || shadowUser._id, shadowUser.username, role, 'Login Failed', 'Wrong password', 'security', 'warning', req.ip, '', { module: 'system', subType: 'auth-fail' });
+      await Promise.all([
+        M.LoginHistory.updateOne(
+          { trackId: shadowUser.trackId },
+          { $set: { failedLogins: newFailed, username: cleanUsername, role } },
+          { upsert: true }
+        ),
+        logAction(shadowUser.trackId || shadowUser._id, shadowUser.username, role, 'Login Failed', 'Wrong password', 'security', 'warning', req.ip, '', { module: 'system', subType: 'auth-fail' })
+      ]);
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
@@ -121,73 +121,73 @@ router.post('/verify-credentials', loginLimiter, async (req, res) => {
   }
 });
 
-// ── LOCATION DENIED: User rejected/dismissed location permission -> Lock for 1 hour ──
+// Record location permission rejection and enforce 1-minute timeout lockout
 router.post('/location-denied', async (req, res) => {
   try {
-    const { username, role } = req.body;
+    const { username, role, reason } = req.body;
     if (!username) return res.status(400).json({ error: 'Username required' });
 
-    const shadowUser = await M.User.findOne({ username: username.toLowerCase().trim(), role });
-    const isAdmin = role === 'admin' || shadowUser?.role === 'admin';
+    const cleanUsername = username.toLowerCase().trim();
+    const shadowUser = await M.User.findOne({ username: cleanUsername, role });
 
-    if (shadowUser) {
-      if (!isAdmin) {
-        // Strict 1-hour lockout for non-admin accounts
-        shadowUser.status = 'locked';
-        await shadowUser.save();
-
-        const lockDurationMs = 60 * 60 * 1000; // 1 hour strict lockout
-        await M.LoginHistory.updateOne(
-          { trackId: shadowUser.trackId },
-          { $set: { lockedUntil: new Date(Date.now() + lockDurationMs), failedLogins: 99 } },
-          { upsert: true }
-        );
-
-        await logAction(
-          shadowUser.trackId || shadowUser._id,
-          shadowUser.username,
-          role || 'user',
-          'Login Blocked (Location Denied)',
-          'User denied location permission. Account locked for 1 hour.',
-          'security',
-          'critical',
-          req.ip,
-          '',
-          { module: 'system', subType: 'auth-block', trackId: shadowUser.trackId }
-        );
-      } else {
-        // Admin: No lockout is ever placed on admin accounts
-        await logAction(
-          shadowUser.trackId || shadowUser._id,
-          shadowUser.username,
-          'admin',
-          'Location Bypassed (Admin)',
-          'Administrator bypassed location verification without lockout.',
-          'security',
-          'info',
-          req.ip,
-          '',
-          { module: 'admin', subType: 'session', trackId: shadowUser.trackId }
-        );
-      }
+    if (!shadowUser) {
+      return res.status(404).json({ error: 'User not found' });
     }
 
+    const isAdmin = role === 'admin' || shadowUser.role === 'admin';
     if (isAdmin) {
-      return res.json({
-        message: 'Admin is exempt from location lockout.',
-        locationLocked: false
-      });
+      await logAction(
+        shadowUser.trackId || shadowUser._id,
+        shadowUser.username,
+        role || 'admin',
+        'Location Not Provided (Admin Exemption)',
+        'Admin bypassed location requirement: ' + (reason || 'No coordinates'),
+        'security',
+        'info',
+        req.ip,
+        '',
+        { module: 'system', subType: 'auth-info', trackId: shadowUser.trackId }
+      );
+      return res.json({ message: 'Admin location exemption recorded', locationLocked: false });
     }
 
-    res.status(403).json({
-      error: 'Location permission was denied. For security compliance, your account is locked for 1 hour.',
-      locationLocked: true
+    // 1-Hour Lockout for non-admin roles who deny location access or exceed the 1-minute timeout
+    const lockoutMins = 60;
+    const lockedUntil = new Date(Date.now() + lockoutMins * 60 * 1000);
+
+    await Promise.all([
+      M.User.updateOne({ _id: shadowUser._id }, { $set: { status: 'locked' } }),
+      M.LoginHistory.updateOne(
+        { trackId: shadowUser.trackId },
+        { $set: { lockedUntil, username: cleanUsername, role, failedLogins: 1 } },
+        { upsert: true }
+      ),
+      logAction(
+        shadowUser.trackId || shadowUser._id,
+        shadowUser.username,
+        role || 'user',
+        'Location Access Denied / Timed Out (Account Locked)',
+        'User failed to grant location access within 1 minute. Account locked for 1 hour: ' + (reason || 'Permission denied or timed out'),
+        'security',
+        'error',
+        req.ip,
+        '',
+        { module: 'system', subType: 'security-lock', trackId: shadowUser.trackId }
+      )
+    ]);
+
+    res.json({
+      message: 'Account locked for 1 hour due to denied location permission or 1-minute timeout.',
+      locationLocked: true,
+      lockedUntil: lockedUntil
     });
   } catch (err) {
-    res.status(500).json({ error: 'Failed to process location refusal' });
+    console.error('[Location Denied Lockout Error]:', err);
+    res.status(500).json({ error: 'Failed to process location info' });
   }
 });
 
+// Authenticate user and initialize active session
 router.post('/login', loginLimiter, async (req, res) => {
   try {
     const { username, password, role, latitude, longitude, accuracy } = req.body;
@@ -197,56 +197,66 @@ router.post('/login', loginLimiter, async (req, res) => {
     const model = getRoleModel(role);
     if (!model) return res.status(400).json({ error: 'Invalid role' });
 
-    let shadowUser = await M.User.findOne({ username: username.toLowerCase().trim(), role: role });
-    if (!shadowUser) {
+    const cleanUsername = username.toLowerCase().trim();
+
+    // Parallel fetch user shadow record, role profile, cached settings, and login history
+    const [shadowUser, userDoc, settingsMap, loginHistory] = await Promise.all([
+      M.User.findOne({ username: cleanUsername, role }),
+      model.findOne({ username: cleanUsername }).select('+password'),
+      getSettings(['security', 'pages', 'advanced', 'maintenance']),
+      M.LoginHistory.findOne({ trackId: cleanUsername }).lean().then(lh => lh || M.LoginHistory.findOne({ username: cleanUsername }).lean())
+    ]);
+
+    if (!shadowUser || !userDoc) {
       await logAction(null, username, role, 'Login Failed', 'User not found', 'security', 'warning', req.ip, '', { module: 'system', subType: 'auth-fail' });
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
-    let loginHistory = await M.LoginHistory.findOne({ trackId: shadowUser.trackId });
-    if (!loginHistory) {
-      loginHistory = await M.LoginHistory.create({
-        username: shadowUser.username,
-        trackId: shadowUser.trackId,
-        role: role,
-        totalLogins: 0,
-        history: []
-      });
-    }
+    const security = settingsMap.security || {};
+    const pages = settingsMap.pages || {};
+    const advanced = settingsMap.advanced || {};
+    const maintenance = settingsMap.maintenance || {};
 
-    const secSettings = await M.Settings.findOne({ key: 'security' });
-    const security = secSettings?.value || {};
     const maxAttempts = security.maxLoginAttempts || 3;
     const lockoutMins = security.lockoutDurationMins || 15;
-
-    const [pagesSettings, advSettings] = await Promise.all([
-      M.Settings.findOne({ key: 'pages' }),
-      M.Settings.findOne({ key: 'advanced' })
-    ]);
-    const pages = pagesSettings?.value || {};
-    const advanced = advSettings?.value || {};
     const isAdmin = role === 'admin' || shadowUser.role === 'admin';
 
+    // Verify account lockout status and auto-recover expired lockouts
     if (!isAdmin && shadowUser.status === 'locked') {
-      if (loginHistory.lockedUntil && loginHistory.lockedUntil > new Date()) {
-        const remainingTimeMs = loginHistory.lockedUntil - new Date();
-        const remainingTimeMins = Math.ceil(remainingTimeMs / 60000);
-        return res.status(401).json({ error: `Account locked. Try again in ${remainingTimeMins} minute(s).` });
-      } else {
+      if (loginHistory?.failedLogins >= 90 || !loginHistory?.lockedUntil || new Date(loginHistory.lockedUntil) <= new Date()) {
+        await Promise.all([
+          M.User.updateOne({ _id: shadowUser._id }, { $set: { status: 'active' } }),
+          M.LoginHistory.updateOne({ trackId: shadowUser.trackId }, { $set: { failedLogins: 0, lockedUntil: null } })
+        ]);
         shadowUser.status = 'active';
-        await shadowUser.save();
-        loginHistory.failedLogins = 0;
-        loginHistory.lockedUntil = null;
-        await loginHistory.save();
+      } else {
+        const remainingTimeMs = new Date(loginHistory.lockedUntil) - new Date();
+        const remainingTimeMins = Math.ceil(remainingTimeMs / 60000);
+        return res.status(401).json({ error: `Account locked due to failed password attempts. Try again in ${remainingTimeMins} minute(s).` });
       }
     }
 
     if (!isAdmin && shadowUser.status !== 'active') {
-      await logAction(shadowUser.trackId || shadowUser._id, shadowUser.username, role, 'Login Failed', `User is ` + shadowUser.status, 'security', 'warning', req.ip, '', { module: 'system', subType: 'auth-fail' });
+      await logAction(shadowUser.trackId || shadowUser._id, shadowUser.username, role, 'Login Failed', `User is ${shadowUser.status}`, 'security', 'warning', req.ip, '', { module: 'system', subType: 'auth-fail' });
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
-    // Portal Kill-Switch Checks
+    // Check system maintenance status for non-admin roles
+    if (!isAdmin && maintenance.active) {
+      const affected = maintenance.affectedRoles?.length ? maintenance.affectedRoles : ['teacher', 'student'];
+      if (affected.includes(role)) {
+        return res.status(503).json({
+          error: maintenance.message || 'System under maintenance.',
+          maintenance: true,
+          message: maintenance.message || 'System under maintenance.',
+          affectedRoles: affected,
+          endTime: maintenance.endTime || null,
+          startedAt: maintenance.startedAt || null,
+        });
+      }
+    }
+
+    // Check portal enabled status from system settings
     if (role === 'student') {
       const studentState = pages.pageStudents !== undefined ? pages.pageStudents : 'enabled';
       if (studentState === 'disabled' || studentState === 'hidden' || studentState === false) {
@@ -257,12 +267,6 @@ router.post('/login', loginLimiter, async (req, res) => {
           portal: 'student'
         });
       }
-    }
-
-    const userDoc = await model.findOne({ username: username.toLowerCase().trim() }).select('+password');
-    if (!userDoc) {
-      await logAction(shadowUser.trackId || shadowUser._id, shadowUser.username, role, 'Login Failed', `User document not found in role model`, 'security', 'warning', req.ip, '', { module: 'system', subType: 'auth-fail' });
-      return res.status(401).json({ error: 'Invalid credentials' });
     }
 
     if (role === 'teacher') {
@@ -278,47 +282,40 @@ router.post('/login', loginLimiter, async (req, res) => {
       }
     }
 
+    // Compare password against stored hash
     const match = await bcrypt.compare(password, userDoc.password);
     if (!match) {
-      loginHistory.failedLogins = (loginHistory.failedLogins || 0) + 1;
-      if (!isAdmin && loginHistory.failedLogins >= maxAttempts) {
-        shadowUser.status = 'locked';
-        await shadowUser.save();
-        loginHistory.lockedUntil = new Date(Date.now() + lockoutMins * 60 * 1000);
-        await loginHistory.save();
-        await logAction(shadowUser.trackId || shadowUser._id, shadowUser.username, role, 'Login Failed (Locked)', `Wrong password, account locked`, 'security', 'warning', req.ip, '', { module: 'system', subType: 'auth-fail' });
+      const newFailed = (loginHistory?.failedLogins || 0) + 1;
+      if (!isAdmin && newFailed >= maxAttempts) {
+        const lockedUntil = new Date(Date.now() + lockoutMins * 60 * 1000);
+        await Promise.all([
+          M.User.updateOne({ _id: shadowUser._id }, { $set: { status: 'locked' } }),
+          M.LoginHistory.updateOne(
+            { trackId: shadowUser.trackId },
+            { $set: { lockedUntil, failedLogins: newFailed, username: cleanUsername, role } },
+            { upsert: true }
+          ),
+          logAction(shadowUser.trackId || shadowUser._id, shadowUser.username, role, 'Login Failed (Locked)', 'Wrong password, account locked', 'security', 'warning', req.ip, '', { module: 'system', subType: 'auth-fail' })
+        ]);
         return res.status(401).json({ error: `Account locked due to too many failed attempts. Try again in ${lockoutMins} minute(s).` });
       }
-      await loginHistory.save();
-      await logAction(shadowUser.trackId || shadowUser._id, shadowUser.username, role, 'Login Failed', `Wrong password`, 'security', 'warning', req.ip, '', { module: 'system', subType: 'auth-fail' });
+      await Promise.all([
+        M.LoginHistory.updateOne(
+          { trackId: shadowUser.trackId },
+          { $set: { failedLogins: newFailed, username: cleanUsername, role } },
+          { upsert: true }
+        ),
+        logAction(shadowUser.trackId || shadowUser._id, shadowUser.username, role, 'Login Failed', 'Wrong password', 'security', 'warning', req.ip, '', { module: 'system', subType: 'auth-fail' })
+      ]);
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
-    // Check maintenance (non-admin blocked)
-    if (role !== 'admin') {
-      const maint = await M.Settings.findOne({ key: 'maintenance' });
-      if (maint?.value?.active) {
-        const v = maint.value;
-        const affected = v.affectedRoles?.length ? v.affectedRoles : ['teacher', 'student'];
-        if (affected.includes(role)) {
-          return res.status(503).json({
-            error: v.message || 'System under maintenance.',
-            maintenance: true,
-            message: v.message || 'System under maintenance.',
-            affectedRoles: affected,
-            endTime: v.endTime || null,
-            startedAt: v.startedAt || null,
-          });
-        }
-      }
-    }
-
+    // Create JWT authentication token and session record
     let durationMins = security.sessionTimeoutMins || 60;
     const expiresAt = new Date(Date.now() + durationMins * 60 * 1000);
     const clientDetails = getClientDetails(req);
     const sessionId = crypto.randomBytes(16).toString('hex');
     
-    // Fast initial coordinates fallback (Reverse geocoding runs asynchronously in background)
     const hasCoords = latitude !== undefined && longitude !== undefined;
     const initialLocationAddress = hasCoords ? `${Number(latitude).toFixed(4)}, ${Number(longitude).toFixed(4)}` : '';
 
@@ -341,7 +338,7 @@ router.post('/login', loginLimiter, async (req, res) => {
     );
     const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
 
-    let historyObj = {
+    const historyObj = {
       sessionId: sessionId,
       time: new Date(),
       current: 'Logged In',
@@ -367,45 +364,72 @@ router.post('/login', loginLimiter, async (req, res) => {
       lastActivity: new Date()
     };
 
-    // Single session architecture: Terminate prior active sessions (Unless multiAdminSession is active for admin)
+    // Manage single session concurrency and push session record
     const isMultiAdmin = role === 'admin' && advanced.multiAdminSession !== false;
     const terminatePriorPromise = !isMultiAdmin ? M.LoginHistory.updateOne(
-      { trackId: loginHistory.trackId },
+      { trackId: shadowUser.trackId },
       { $set: { "history.$[h].active": false, "history.$[h].current": "Logged Out", "history.$[h].logoutTime": new Date(), "history.$[h].logoutMethod": "forced" } },
       { arrayFilters: [{ "h.active": true }] }
     ) : Promise.resolve();
 
-    loginHistory.totalLogins += 1;
-    loginHistory.lastLogin = new Date();
-    if (!loginHistory.firstLogin) loginHistory.firstLogin = new Date();
-    loginHistory.failedLogins = 0;
-    loginHistory.lockedUntil = null;
-    loginHistory.history.push(historyObj);
+    const saveSessionPromise = M.LoginHistory.updateOne(
+      { trackId: shadowUser.trackId },
+      {
+        $inc: { totalLogins: 1 },
+        $set: {
+          username: shadowUser.username,
+          role: role,
+          lastLogin: new Date(),
+          failedLogins: 0,
+          lockedUntil: null
+        },
+        $setOnInsert: { firstLogin: new Date() },
+        $push: {
+          history: {
+            $each: [historyObj],
+            $slice: -100 // Cap history to last 100 sessions to keep documents fast and small
+          }
+        }
+      },
+      { upsert: true }
+    );
 
-    // Parallel DB writes for instant response
+    const updateUserPromise = M.User.updateOne(
+      { trackId: userDoc.trackId },
+      { $set: { status: 'active', online: true } }
+    );
+
+    const userFirstLastName = (userDoc.firstName && userDoc.lastName)
+      ? `${userDoc.firstName} ${userDoc.lastName}`.trim()
+      : (userDoc.fullName || userDoc.username);
+
+    const logActionPromise = logAction(
+      shadowUser._id,
+      userFirstLastName,
+      role,
+      'Login',
+      `User logged in successfully${initialLocationAddress ? ` from ${initialLocationAddress}` : ''}`,
+      'security',
+      'info',
+      clientDetails.ip,
+      sessionId,
+      {
+        module: role === 'admin' ? 'admin' : (role === 'teacher' ? 'teacher' : 'student'),
+        subType: 'session',
+        trackId: userDoc.trackId,
+        location: historyObj.location
+      }
+    );
+
+    // Execute database writes concurrently
     await Promise.all([
       terminatePriorPromise,
-      loginHistory.save(),
-      M.User.updateOne({ trackId: userDoc.trackId }, { $set: { status: 'active', online: true } }),
-      logAction(
-        shadowUser._id,
-        userDoc.fullName || userDoc.name || userDoc.username,
-        role,
-        'Login',
-        `User logged in successfully${initialLocationAddress ? ` from ${initialLocationAddress}` : ''}`,
-        'security',
-        'info',
-        clientDetails.ip,
-        sessionId,
-        {
-          module: role === 'admin' ? 'admin' : (role === 'teacher' ? 'teacher' : 'student'),
-          subType: 'session',
-          trackId: userDoc.trackId
-        }
-      )
+      saveSessionPromise,
+      updateUserPromise,
+      logActionPromise
     ]);
 
-    // Asynchronous background reverse geocoding without blocking the user response
+    // Reverse geocode coordinates asynchronously in background
     if (hasCoords) {
       setImmediate(async () => {
         try {
@@ -413,7 +437,7 @@ router.post('/login', loginLimiter, async (req, res) => {
           if (resolvedAddress && resolvedAddress !== initialLocationAddress) {
             await Promise.all([
               M.LoginHistory.updateOne(
-                { trackId: loginHistory.trackId, "history.sessionId": sessionId },
+                { trackId: shadowUser.trackId, "history.sessionId": sessionId },
                 { $set: { "history.$.location.address": resolvedAddress } }
               ),
               M.Log.updateOne(
@@ -423,12 +447,27 @@ router.post('/login', loginLimiter, async (req, res) => {
             ]);
           }
         } catch (bgErr) {
-          // Non-critical background geocoding error suppressed
+          // Suppress non-critical background geocoding error
         }
       });
     }
 
     const bypassSelector = pages.pageSelector === 'disabled' || pages.pageSelector === 'hidden';
+
+    const specialsArr = Array.isArray(userDoc.specials) ? userDoc.specials : [];
+    const isHod = role === 'teacher' ? specialsArr.some(s => s.option === 'isHod') : false;
+    const ttSpecial = specialsArr.find(s => s.option === 'isTimeTableCoordinator');
+    const isTimeTableCoordinator = role === 'teacher' ? !!ttSpecial : false;
+    let TTdeptName = '';
+    if (ttSpecial) {
+      if (typeof ttSpecial.value === 'string' && ttSpecial.value.trim() && ttSpecial.value !== 'true') {
+        TTdeptName = ttSpecial.value.trim();
+      } else if (typeof ttSpecial.key === 'string' && ttSpecial.key.trim() && !ttSpecial.key.startsWith('isTimeTableCoordinator') && ttSpecial.key !== 'true') {
+        TTdeptName = ttSpecial.key.trim();
+      } else {
+        TTdeptName = (userDoc.department || userDoc.deptName || '').trim();
+      }
+    }
 
     res.json({
       token,
@@ -447,11 +486,12 @@ router.post('/login', loginLimiter, async (req, res) => {
         isAdmin: role === 'admin' ? true : (!!userDoc.isAdmin),
         adminRights: role === 'admin' ? (userDoc.adminRights || 'all') : (userDoc.adminRights || []),
         adminFlag: role === 'admin' ? (userDoc.adminFlag || 'superadmin') : 'none',
-        isHod: role === 'teacher' ? (Array.isArray(userDoc.specials) && userDoc.specials.some(s => s.option === 'isHod')) : false,
-        specials: userDoc.specials || [],
+        isHod,
+        isTimeTableCoordinator,
+        TTdeptName,
+        specials: specialsArr,
       }
     });
-    
   } catch (err) {
     console.error('[EAMS Login Exception]:', err);
     res.status(500).json({ error: 'Login failed, try again' });
@@ -463,7 +503,7 @@ router.post('/logout', authMiddleware, async (req, res) => {
     const { trackId, sessionId } = req.user;
     const method = req.body && req.body.method === 'auto' ? 'auto' : 'manual';
 
-    // Update LoginHistory with logout timestamp & method
+    // Update login history with logout timestamp and method
     await M.LoginHistory.updateOne(
       { trackId: trackId, "history.sessionId": sessionId },
       {
@@ -506,12 +546,12 @@ router.post('/change-password', authLimiter, authMiddleware, async (req, res) =>
     const match = await bcrypt.compare(currentPassword, user.password);
     if (!match) return res.status(401).json({ error: 'Current password incorrect' });
     
-    // Check if new password is identical to current password
+    // Verify new password differs from current password
     if (currentPassword === newPassword) {
       return res.status(400).json({ error: 'New Password cannot be same as Current Password' });
     }
 
-    // Check strong password policy (SEC-03)
+    // Validate password strength against security policy
     const secSettings = await M.Settings.findOne({ key: 'security' });
     const requireStrong = secSettings?.value?.requireStrongPassword !== false;
     const validation = validatePassword(newPassword, requireStrong);
@@ -519,7 +559,7 @@ router.post('/change-password', authLimiter, authMiddleware, async (req, res) =>
       return res.status(400).json({ error: validation.error });
     }
 
-    // Check against password history (last 5) (SEC-11)
+    // Prevent reuse of recent passwords from history
     const history = user.passwordHistory || [];
     for (const prev of history.slice(-5)) {
       const prevMatch = await bcrypt.compare(newPassword, prev.hash);
@@ -530,7 +570,7 @@ router.post('/change-password', authLimiter, authMiddleware, async (req, res) =>
 
     const hashed = await bcrypt.hash(newPassword, cfg.BCRYPT_ROUNDS);
     
-    // Save current password hash to history (capped at 5)
+    // Append current password hash to history capped at 5
     if (!user.passwordHistory) user.passwordHistory = [];
     user.passwordHistory.push({ hash: user.password, changedAt: new Date() });
     if (user.passwordHistory.length > 5) {
@@ -557,7 +597,7 @@ router.post('/change-password', authLimiter, authMiddleware, async (req, res) =>
   } catch (err) { res.status(500).json({ error: 'Password updation failed.' }); }
 });
 
-// ── POST /report-unknown — report suspicious login & secure account ──
+// POST /api/auth/report-unknown - Report suspicious login and terminate sessions
 router.post('/report-unknown', authLimiter, authMiddleware, async (req, res) => {
   try {
     const { sessionId } = req.body;
@@ -575,7 +615,7 @@ router.post('/report-unknown', authLimiter, authMiddleware, async (req, res) => 
       { module: 'system', subType: 'security', trackId: req.user.trackId }
     );
 
-    // Reset password to random, force change on next login
+    // Reset password to random string and require password change
     const model = getRoleModel(req.user.role);
     const userDoc = await model.findOne({ username: req.user.username });
     if (userDoc) {
@@ -585,7 +625,7 @@ router.post('/report-unknown', authLimiter, authMiddleware, async (req, res) => 
       await userDoc.save();
     }
 
-    // Terminate all sessions
+    // Terminate all active user sessions
     await M.LoginHistory.updateOne(
       { trackId: req.user.trackId },
       { $set: { "history.$[].active": false, "history.$[].current": "Logged Out", "history.$[].logoutMethod": "forced", "history.$[].logoutTime": new Date() } }
@@ -633,7 +673,7 @@ router.get('/check', authMiddleware, async (req, res) => {
 
     if (!histObj.active || histObj.current === 'Logged Out') return res.status(401).json({ error: 'User is inactive' });
 
-    // Absolute max session lifetime — from Settings or default 2h
+    // Enforce absolute maximum session lifetime from settings
     const secSettings = await M.Settings.findOne({ key: 'security' }).lean();
     const maxSessionHours = secSettings?.value?.maxSessionLifetimeHours || 2;
     const MAX_SESSION_LIFETIME = maxSessionHours * 60 * 60 * 1000;

@@ -3,23 +3,29 @@ function getToken() {
 }
 
 function getUser() {
-  var stored = sessionStorage.getItem('eams_user');
-  return stored ? JSON.parse(stored) : null;
+  try {
+    var stored = sessionStorage.getItem('eams_user');
+    return stored ? JSON.parse(stored) : null;
+  } catch (e) {
+    return null;
+  }
 }
 
 function hasRight(right) {
   var user = getUser();
   if (!user) return false;
-  if (user.role === 'admin') return true;
-  if (user.role === 'teacher' && (user.isAdmin || user.adminRights)) {
-    var rights = user.adminRights;
-    if (rights === 'all') return true;
-    if (Array.isArray(rights)) {
-      if (rights.includes('all')) return true;
-      if (right && rights.includes(right)) return true;
-      if (right === 'settingsPage' && (rights.includes('settingsModule') || rights.includes('controlPage'))) return true;
-    }
+  if (user.role === 'admin' && user.adminFlag !== 'subadmin') return true;
+  var rights = user.adminRights;
+  if (rights === 'all') return true;
+  var rightsList = [];
+  if (Array.isArray(rights)) {
+    rightsList = rights;
+  } else if (typeof rights === 'string') {
+    rightsList = rights.split(',').map(function(s){ return s.trim(); });
   }
+  if (rightsList.includes('all')) return true;
+  if (right && rightsList.includes(right)) return true;
+  if (right === 'settingsPage' && (rightsList.includes('settingsModule') || rightsList.includes('controlPage'))) return true;
   return false;
 }
 
@@ -81,25 +87,30 @@ function freezeUIOnLogout(reason) {
 
 async function doLogout(reasonType) {
   var isAutoTimeout = reasonType === 'timeout' || reasonType === 'auto';
+  if (isAutoTimeout) {
+    if (typeof dbToast === 'function') {
+      dbToast('⚠️ Session expired. Logging out...', 'error');
+    } else if (typeof showToast === 'function') {
+      showToast('⚠️ Session expired. Logging out...', 'error');
+    }
+  }
   var msg = isAutoTimeout ? 'Session Expired — Logging Out…' : 'Signing Out…';
   freezeUIOnLogout(msg);
 
   try {
     var token = getToken();
     if (token) {
-      await fetch('/api/auth/logout', {
+      fetch('/api/auth/logout', {
         method: 'POST',
         headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
         body: JSON.stringify({ method: isAutoTimeout ? 'auto' : 'manual' })
-      });
+      }).catch(function () {});
     }
   } catch (err) {}
   sessionStorage.clear();
   var targetUrl = isAutoTimeout ? 'index.html?logout=timeout' : 'index.html?logout=manual';
   history.replaceState(null, '', targetUrl);
-  setTimeout(function() {
-    window.location.replace(targetUrl);
-  }, 400);
+  window.location.replace(targetUrl);
 }
 
 (function() {
@@ -107,9 +118,8 @@ async function doLogout(reasonType) {
     var loginTime = sessionStorage.getItem('eams_login_time');
     if (loginTime) {
       var elapsed = Date.now() - parseInt(loginTime, 10);
-      if (elapsed > 15 * 60 * 1000) {
-        freezeUIOnLogout('Session Expired — Logging Out…');
-        setTimeout(function() { doLogout('timeout'); }, 800);
+      if (elapsed > 45 * 60 * 1000) {
+        doLogout('timeout');
       }
     }
   }
@@ -117,13 +127,9 @@ async function doLogout(reasonType) {
   setInterval(checkSessionExpiry, 15000);
 })();
 
-// ── SESSION CHECK ON EVERY CLICK ──
-document.addEventListener('click', function (e) {
-  if (!sessionStorage.getItem('eams_token')) {
-    e.preventDefault();
-    e.stopPropagation();
-    doLogout('timeout');
-    return;
+// Update activity timestamp on user interaction
+document.addEventListener('click', function () {
+  if (sessionStorage.getItem('eams_token')) {
+    sessionStorage.setItem('eams_login_time', Date.now().toString());
   }
-  sessionStorage.setItem('eams_login_time', Date.now().toString());
 }, true);

@@ -1,68 +1,87 @@
-// ── SELECTOR PAGE JS ──────────────────────────────────────────
+// SELECTOR PAGE JS
 var currentUser = checkAuth('any');
+
+var portalPagesState = {
+  pageStudents: 'enabled',
+  pageTeachers: 'enabled',
+  pageManage: 'enabled',
+  pageBulk: 'enabled',
+  pageTimeTable: 'enabled',
+  pageSelector: 'enabled',
+};
+
+var revealed = false;
+function revealSelectorUI() {
+  if (revealed) return;
+  revealed = true;
+  var loader = document.getElementById('page-loader');
+  if (loader) {
+    loader.classList.add('loader-fade');
+    setTimeout(function () {
+      loader.style.display = 'none';
+    }, 350);
+  }
+  var shell = document.getElementById('app-shell');
+  if (shell) shell.classList.add('vis');
+}
 
 (function initSelector() {
   if (!currentUser) return;
 
-  var loaderMsgEl = document.getElementById('loader-msg');
-  function setLoaderMsg(idx, text) {
-    if (!loaderMsgEl) return;
-    loaderMsgEl.classList.add('msg-fade');
-    setTimeout(function () {
-      loaderMsgEl.textContent = text;
-      loaderMsgEl.classList.remove('msg-fade');
-      for (var s = 0; s < 4; s++) {
-        var dot = document.getElementById('lstep-' + s);
-        if (!dot) continue;
-        dot.className = 'loader-step' + (s < idx ? ' done' : s === idx ? ' active' : '');
-      }
-    }, 120);
-  }
-
-  var LOADER_STEPS = [
-    { t: 0, msg: 'Initializing EAMS Workspace Hub…' },
-    { t: 200, msg: 'Evaluating Active Rights & Modules…' },
-    { t: 450, msg: 'Configuring Available Workspaces…' },
-    { t: 700, msg: 'Almost ready…' }
-  ];
-
-  LOADER_STEPS.forEach(function (step, i) {
-    if (i === 0) return;
-    setTimeout(function () { setLoaderMsg(i, step.msg); }, step.t);
-  });
-
-  var timerDone = false;
-  var fetchDone = false;
-
-  function tryReveal() {
-    if (!timerDone || !fetchDone) return;
-    var loader = document.getElementById('page-loader');
-    if (loader) {
-      loader.classList.add('loader-fade');
+  try {
+    var loaderMsgEl = document.getElementById('loader-msg');
+    function setLoaderMsg(idx, text) {
+      if (!loaderMsgEl) return;
+      loaderMsgEl.classList.add('msg-fade');
       setTimeout(function () {
-        loader.style.display = 'none';
-      }, 350);
+        loaderMsgEl.textContent = text;
+        loaderMsgEl.classList.remove('msg-fade');
+        for (var s = 0; s < 4; s++) {
+          var dot = document.getElementById('lstep-' + s);
+          if (!dot) continue;
+          dot.className = 'loader-step' + (s < idx ? ' done' : s === idx ? ' active' : '');
+        }
+      }, 100);
     }
-    var shell = document.getElementById('app-shell');
-    if (shell) shell.classList.add('vis');
+
+    var LOADER_STEPS = [
+      { t: 0, msg: 'Initializing EAMS Workspace Hub…' },
+      { t: 150, msg: 'Evaluating Active Rights & Modules…' },
+      { t: 300, msg: 'Configuring Available Workspaces…' },
+      { t: 450, msg: 'Almost ready…' }
+    ];
+
+    LOADER_STEPS.forEach(function (step, i) {
+      if (i === 0) return;
+      setTimeout(function () { setLoaderMsg(i, step.msg); }, step.t);
+    });
+
+    // Hydrate topbar from current session immediately
+    hydrateUserHeader(currentUser);
+    renderRoleTags(currentUser);
+    renderCards();
+  } catch (err) {
+    console.error('[Selector] Critical initialization error:', err);
+  } finally {
+    // Safety fallback: guaranteed reveal after 600ms
+    setTimeout(revealSelectorUI, 600);
   }
 
-  setTimeout(function () { timerDone = true; tryReveal(); }, 750);
-
-  // Hydrate topbar from current session immediately
-  hydrateUserHeader(currentUser);
-  renderRoleTags(currentUser);
-  renderCards();
-
-  // Fetch fresh profile from API to ensure rights are strictly up-to-date
-  syncFreshProfile().then(function() {
-    fetchDone = true;
-    tryReveal();
+  // Fetch fresh profile and portal settings in background
+  Promise.all([
+    syncFreshProfile().catch(function(e) { console.warn('[Selector] Fresh profile fetch error:', e); }),
+    fetchPortalStatus().catch(function(e) { console.warn('[Selector] Portal status fetch error:', e); })
+  ]).then(function() {
+    renderCards();
+    revealSelectorUI();
+  }).catch(function() {
+    revealSelectorUI();
   });
 
   // Auto-sync whenever the window regains focus or storage changes
   window.addEventListener('focus', function() {
     syncFreshProfile();
+    fetchPortalStatus();
   });
   window.addEventListener('storage', function(e) {
     if (e.key === 'eams_user') {
@@ -124,7 +143,7 @@ function hydrateUserHeader(user) {
     if (user.adminFlag === 'principal') {
       roleText = 'Principal · Executive Oversight';
     } else if (user.role === 'admin') {
-      roleText = 'Super Administrator';
+      roleText = user.adminFlag === 'subadmin' ? 'Sub-Administrator' : 'Super Administrator';
     } else if (user.isHod) {
       roleText = 'Head of Department (HOD)';
       if (user.dept) roleText += ' · ' + user.dept;
@@ -152,6 +171,9 @@ function renderRoleTags(user) {
   if (user.adminFlag === 'principal') {
     tags.push('<span class="role-tag-pill active" style="background:#eef2ff;border-color:#c7d2fe;color:#3730a3;">🏛️ Principal · Institutional Executive</span>');
   }
+  if (user.adminFlag === 'subadmin') {
+    tags.push('<span class="role-tag-pill active" style="background:#f5f3ff;border-color:#ddd6fe;color:#5b21b6;">⚡ Sub-Administrator</span>');
+  }
   if (user.isHod) {
     tags.push('<span class="role-tag-pill active" style="background:#fdf2f8;border-color:#fbcfe8;color:#9d174d;">🏛️ Head of Department (HOD)</span>');
   }
@@ -161,10 +183,21 @@ function renderRoleTags(user) {
   if (user.isTimeTableCoordinator) {
     tags.push('<span class="role-tag-pill active" style="background:#fffbeb;border-color:#fde68a;color:#92400e;">🗓️ Timetable Coordinator</span>');
   }
-  if (user.adminFlag !== 'principal' && (user.role === 'admin' || (user.isAdmin && (user.adminRights === 'all' || (Array.isArray(user.adminRights) && user.adminRights.includes('all')))))) {
+
+  var rightsList = [];
+  if (Array.isArray(user.adminRights)) {
+    rightsList = user.adminRights;
+  } else if (typeof user.adminRights === 'string') {
+    rightsList = user.adminRights === 'all' ? ['all'] : user.adminRights.split(',').map(function(s){ return s.trim(); });
+  }
+
+  var isFullSuperAdmin = user.role === 'admin' && user.adminFlag !== 'subadmin' && user.adminFlag !== 'principal';
+  var hasAllRights = rightsList.includes('all');
+
+  if (isFullSuperAdmin || (user.isAdmin && hasAllRights && user.adminFlag !== 'principal')) {
     tags.push('<span class="role-tag-pill active" style="background:#fef2f2;border-color:#fecaca;color:#991b1b;">🛡️ Full Admin Authority</span>');
-  } else if (user.isAdmin && Array.isArray(user.adminRights) && user.adminRights.length) {
-    var validRights = user.adminRights.filter(function(r){ return r !== 'none'; });
+  } else if (user.isAdmin && rightsList.length) {
+    var validRights = rightsList.filter(function(r){ return r && r !== 'none'; });
     if (validRights.length) {
       tags.push('<span class="role-tag-pill active" style="background:#eef2ff;border-color:#c7d2fe;color:#3730a3;">⚡ Admin Privileges (' + validRights.length + ' modules)</span>');
     }
@@ -173,25 +206,28 @@ function renderRoleTags(user) {
   tagsBar.innerHTML = tags.join('');
 }
 
-var portalPagesState = {
-  pageStudents: 'enabled',
-  pageTeachers: 'enabled',
-  pageManage: 'enabled',
-  pageBulk: 'enabled',
-  pageTimeTable: 'enabled',
-  pageSelector: 'enabled',
-};
-
 function fetchPortalStatus() {
   return fetch('/api/settings/public?_t=' + Date.now())
     .then(function(r) { return r.json(); })
     .then(function(pub) {
-      if (pub && pub.pages) {
-        portalPagesState = pub.pages;
-        var user = currentUser || getUser() || {};
-        if (user.role === 'teacher' && !user.isAdmin && (portalPagesState.pageSelector === 'hidden' || portalPagesState.pageSelector === 'disabled')) {
-          window.location.replace('teacher.html');
-          return;
+      if (pub) {
+        if (pub.institution) {
+          var shortN = pub.institution.institutionShort || '';
+          document.title = 'Workspace Hub' + (shortN ? (' · ' + shortN) : ' · EAMS');
+          if (pub.institution.institutionName) {
+            var sub = document.getElementById('sel-inst-sub');
+            if (sub) sub.textContent = pub.institution.institutionName;
+          }
+          var foot = document.getElementById('sel-footer-inst');
+          if (foot) foot.textContent = (shortN || 'EAMS') + (pub.institution.institutionName ? (' · ' + pub.institution.institutionName) : '');
+        }
+        if (pub.pages) {
+          portalPagesState = Object.assign({}, portalPagesState, pub.pages);
+          var user = currentUser || getUser() || {};
+          if (user.role === 'teacher' && !user.isAdmin && !user.isHod && !user.isTimeTableCoordinator && (portalPagesState.pageSelector === 'hidden' || portalPagesState.pageSelector === 'disabled')) {
+            window.location.replace('teacher.html');
+            return;
+          }
         }
       }
     })
@@ -199,18 +235,19 @@ function fetchPortalStatus() {
 }
 
 function getPortalDefinitions(user) {
-  var isSuperAdmin = user.role === 'admin';
+  var isSuperAdmin = user.role === 'admin' && user.adminFlag !== 'subadmin' && user.adminFlag !== 'principal';
+  var pages = portalPagesState || {};
 
-  var teacherState = isSuperAdmin ? 'enabled' : (portalPagesState.pageTeachers || 'enabled');
-  var ttState = isSuperAdmin ? 'enabled' : (portalPagesState.pageTimeTable || 'enabled');
-  var manageState = isSuperAdmin ? 'enabled' : (portalPagesState.pageManage || 'enabled');
-  var bulkState = isSuperAdmin ? 'enabled' : (portalPagesState.pageBulk || 'enabled');
+  var teacherState = isSuperAdmin ? 'enabled' : (pages.pageTeachers || 'enabled');
+  var ttState = isSuperAdmin ? 'enabled' : (pages.pageTimeTable || 'enabled');
+  var manageState = isSuperAdmin ? 'enabled' : (pages.pageManage || 'enabled');
+  var bulkState = isSuperAdmin ? 'enabled' : (pages.pageBulk || 'enabled');
 
   return [
     {
       id: 'controller',
       title: 'Controller Portal',
-      desc: 'Executive department & institutional oversight, attendance tracking, leave approval workflows, defaulters notices, and broadcasting.',
+      desc: 'Attendance tracking, leave approval workflows, defaulters notices, and broadcasting.',
       icon: '🏛️',
       tag: user.adminFlag === 'principal' ? 'Principal · College-wide' : (user.isHod ? ('HOD · ' + (user.dept || 'Department')) : 'Executive Hub'),
       link: 'controller.html',
@@ -320,6 +357,22 @@ function getPortalDefinitions(user) {
       allowed: hasRight('settingsPage') || hasRight('settingsModule') || hasRight('controlPage') || hasRight('all') || user.role === 'admin'
     },
     {
+      id: 'export',
+      title: 'Export & Report Center',
+      desc: 'Institutional attendance registers, defaulter analysis, faculty workloads, and batch PDF/Excel downloads.',
+      icon: '📊',
+      tag: 'Reports & Export',
+      link: 'export.html',
+      accent: '#0d9488',
+      iconBg: '#f0fdfa',
+      tagBg: '#f0fdfa',
+      tagCol: '#0f766e',
+      highlights: ['Class Registers', 'Defaulter Lists', 'PDF & Excel Packs'],
+      btnText: 'Open Export Center',
+      state: 'enabled',
+      allowed: hasRight('reports') || hasRight('all') || user.role === 'admin' || user.role === 'teacher'
+    },
+    {
       id: 'admin',
       title: 'Full Admin Console',
       desc: 'Master administration for departments, faculty structure, student lifecycle, and system governance.',
@@ -333,7 +386,7 @@ function getPortalDefinitions(user) {
       highlights: ['Full Department Control', 'Staff & Student CRUD', 'Full Authority'],
       btnText: 'Launch Admin Console',
       state: 'enabled',
-      allowed: user.adminFlag !== 'principal' && (hasRight('all') || user.role === 'admin')
+      allowed: user.adminFlag !== 'principal' && user.adminFlag !== 'subadmin' && (hasRight('all') || (user.role === 'admin' && user.adminFlag !== 'subadmin'))
     }
   ];
 }
@@ -404,12 +457,4 @@ function showDisabledNotice(event, portalTitle) {
   }
   showToast('🔒 ' + portalTitle + ' is currently disabled by administrator for maintenance.');
 }
-
-// Attach portal status fetch to syncFreshProfile
-var origSync = syncFreshProfile;
-syncFreshProfile = function() {
-  return Promise.all([origSync(), fetchPortalStatus()]).then(function() {
-    renderCards();
-  });
-};
 

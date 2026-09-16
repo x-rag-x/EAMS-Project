@@ -1,260 +1,1242 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>EAMS – Timetable</title>
-<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EAMS – Timetable</title>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&family=Playfair+Display:wght@700&display=swap"
+    rel="stylesheet">
   <link rel="stylesheet" href="css/base.css">
   <link rel="stylesheet" href="css/timetable.css">
 </head>
+
 <body>
 
-<!-- AUTH GATE -->
-<div id="auth-gate">
-  <div class="ag-icon">🔒</div>
-  <div style="font-size:22px;font-weight:800;color:var(--td)">Access Denied</div>
-  <div style="font-size:14px;color:var(--tmu)">You don't have permission to view timetables.</div>
-  <button class="btn btn-ghost" onclick="history.back()">← Go Back</button>
-</div>
-
-<!-- SIDEBAR -->
-<div class="sb" id="sidebar">
-  <div class="sb-logo">
-    <div class="sb-logomark">🎓</div>
-    <div class="sb-brand">EAMS<small>Sri Shakthi</small></div>
+  <!-- AUTH GATE -->
+  <div id="auth-gate">
+    <div class="ag-icon">🔒</div>
+    <div style="font-size:22px;font-weight:800;color:var(--td)">Access Denied</div>
+    <div style="font-size:14px;color:var(--tmu)">You don't have permission to view timetables.</div>
+    <button class="btn btn-ghost" onclick="history.back()">← Go Back</button>
   </div>
-  <div class="navs" id="sb-nav"></div>
-  <div class="sb-bottom">
-    <div class="sb-user">
-      <div class="sb-uav" id="sb-av">?</div>
-      <div style="overflow:hidden;">
-        <div class="sb-uname" id="sb-name">—</div>
-        <div class="sb-urole" id="sb-role-lbl">—</div>
-      </div>
-    </div>
-    <button class="sb-back-btn" id="tt-back-btn" onclick="goHome()" style="margin-bottom:8px;">← Back to Dashboard</button>
-    <button class="sb-logout-btn" onclick="doLogout()" title="Logout">
-      <div class="logout-sign">
-        <svg viewBox="0 0 512 512"><path d="M377.9 105.9L500.7 228.7c7.2 7.2 11.3 17.1 11.3 27.3s-4.1 20.1-11.3 27.3L377.9 406.1c-6.4 6.4-15 9.9-24 9.9c-18.7 0-33.9-15.2-33.9-33.9l0-62.1-128 0c-17.7 0-32-14.3-32-32l0-64c0-17.7 14.3-32 32-32l128 0 0-62.1c0-18.7 15.2-33.9 33.9-33.9c9 0 17.6 3.6 24 9.9zM160 96L96 96c-17.7 0-32 14.3-32 32l0 256c0 17.7 14.3 32 32 32l64 0c17.7 0 32 14.3 32 32s-14.3 32-32 32l-64 0c-53 0-96-43-96-96L0 128C0 75 43 32 96 32l64 0c17.7 0 32 14.3 32 32s-14.3 32-32 32z"></path></svg>
-      </div>
-      <div class="logout-text">Logout</div>
-    </button>
-  </div>
-</div>
-<button class="sb-toggle-btn" id="sb-toggle" onclick="toggleSb()">☰</button>
 
-<!-- MAIN -->
-<div class="mc" id="mc">
-  <div class="topbar">
-    <div class="topbar-left">
-    <div style="width:32px;"></div>
-      <div class="tb-icon">📅</div>
-      <div>
-        <div class="topbar-title">Timetable Management</div>
-        <div class="tb-sub" id="tb-sub">Loading…</div>
-      </div>
+  <!-- SIDEBAR -->
+  <div class="sb" id="sidebar">
+    <div class="sb-logo">
+      <div class="sb-logomark">🎓</div>
+      <div class="sb-brand" id="tt-brand-txt">EAMS<small>Timetable</small></div>
     </div>
-    <div class="topbar-right">
-      <span class="role-pill" id="role-pill">—</span>
-      <div class="profile-chip">
-        <div class="profile-av" id="tb-av">?</div>
-        <div>
-          <div class="profile-name" id="tb-name">—</div>
-          <div class="profile-role" id="tb-dept">—</div>
+
+    <!-- NAVIGATION -->
+    <div class="navs" id="sb-nav"></div>
+
+    <!-- FOOTER -->
+    <div class="sb-bottom">
+      <div class="sb-user" onclick="location.href='profile.html'" style="cursor:pointer;" title="Open profile page">
+        <div class="sb-uav" id="sb-av">?</div>
+        <div style="overflow:hidden;">
+          <div class="sb-uname" id="sb-name">—</div>
+          <div class="sb-urole" id="sb-role-lbl">—</div>
         </div>
       </div>
+      <button class="sb-back-btn" id="tt-back-btn" onclick="goHome()" style="margin-bottom:8px;">← Back to Dashboard</button>
+      <button class="sb-logout-btn" onclick="doLogout()" title="Logout">
+        <div class="logout-sign">
+          <svg viewBox="0 0 512 512">
+            <path d="M377.9 105.9L500.7 228.7c7.2 7.2 11.3 17.1 11.3 27.3s-4.1 20.1-11.3 27.3L377.9 406.1c-6.4 6.4-15 9.9-24 9.9c-18.7 0-33.9-15.2-33.9-33.9l0-62.1-128 0c-17.7 0-32-14.3-32-32l0-64c0-17.7 14.3-32 32-32l128 0 0-62.1c0-18.7 15.2-33.9 33.9-33.9c9 0 17.6 3.6 24 9.9zM160 96L96 96c-17.7 0-32 14.3-32 32l0 256c0 17.7 14.3 32 32 32l64 0c17.7 0 32 14.3 32 32s-14.3 32-32 32l-64 0c-53 0-96-43-96-96L0 128C0 75 43 32 96 32l64 0c17.7 0 32 14.3 32 32s-14.3 32-32 32z"></path>
+          </svg>
+        </div>
+        <div class="logout-text">Logout</div>
+      </button>
     </div>
   </div>
+  <button class="sb-toggle-btn" id="sb-toggle" onclick="toggleSb()">☰</button>
 
-  <div class="main" id="app">
-
-    <!-- DEPT VIEW -->
-    <div id="view-dept" class="fade-in">
-      <div class="page-hd">
+  <!-- MAIN -->
+  <div class="mc" id="mc">
+    <div class="topbar">
+      <div class="topbar-left">
+        <div class="tb-icon">📅</div>
         <div>
-          <div class="page-title" id="dept-h1">Select Department</div>
-          <div class="ps" id="dept-ps">Choose a department to view its timetable</div>
+          <div class="topbar-title">Timetable Management</div>
+          <div class="tb-sub" id="tb-sub">Loading…</div>
         </div>
       </div>
-      <div class="dept-grid" id="dept-grid"></div>
+      <!-- TOPBAR SEARCH (instant autocomplete across all classes) -->
+      <div class="topbar-search" id="tt-topbar-search">
+        <div class="tt-search-box">
+          <span class="tt-search-icon">🔍</span>
+          <input type="text" id="tt-class-search" class="tt-search-input" placeholder="Search class (e.g. CSE-A, AIML, Year 3)..." autocomplete="off" onfocus="openClassSearch()" oninput="onClassSearchInput(this.value)">
+          <button class="tt-search-clear" id="tt-search-clear" onclick="clearClassSearch()" style="display:none;">✕</button>
+        </div>
+        <div class="tt-search-results" id="tt-search-results" style="display:none;"></div>
+      </div>
+      <div class="topbar-right">
+        <span class="role-pill" id="role-pill">—</span>
+        <button class="btn btn-sm btn-ghost" id="btn-export-tt" onclick="exportCSV()" title="Export timetable to CSV">⬇ Export</button>
+      </div>
     </div>
 
-    <!-- TT VIEW -->
-    <div id="view-tt" class="hidden fade-in">
-      <div class="page-hd">
-        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-          <button class="btn btn-ghost btn-sm" onclick="goBack()">← Back</button>
+    <div class="main" id="app">
+
+      <!-- READ-ONLY NOTICE BANNER (when user has view-only access or viewing another dept) -->
+      <div class="readonly-notice" id="tt-readonly-notice" style="display:none;">
+        <span class="ro-icon">🔒</span>
+        <div class="ro-text">
+          <strong id="ro-title">Read-Only Mode:</strong>
+          <span id="ro-desc">You are viewing the published live timetable. Editing is disabled.</span>
+        </div>
+        <span class="ro-badge" id="ro-badge">VIEW ONLY</span>
+      </div>
+
+      <!-- TEACHER ASSIGNED CLASSES BAR -->
+      <div class="assigned-bar" id="tt-assigned-bar" style="display:none;">
+        <div class="assigned-bar-label">📋 Your Classes:</div>
+        <div class="assigned-pills" id="tt-assigned-pills"></div>
+      </div>
+
+      <!-- DEPT VIEW -->
+      <div id="view-dept" class="fade-in">
+        <div class="page-hd">
           <div>
-            <div class="page-title" id="tt-h1">—</div>
-            <div class="ps" id="tt-ps">—</div>
+            <div class="page-title" id="dept-h1">Select Department</div>
+            <div class="ps" id="dept-ps">Choose a department to view its timetable</div>
           </div>
         </div>
-        <div class="page-actions" id="tt-top-acts"></div>
+        <div class="dept-grid" id="dept-grid"></div>
       </div>
 
-      <!-- Class + Section selectors -->
-      <div class="sel-panel" id="sel-panel">
-        <div class="sel-lbl-top">Class Selection</div>
-        <div class="sel-row">
-          <div class="sel-grp">
-            <label class="sel-label">Class / Year</label>
-            <select class="sel-select" id="sel-class" onchange="onClassChange()">
-              <option value="">— Select Class —</option>
-            </select>
+      <!-- TT VIEW -->
+      <div id="view-tt" class="hidden fade-in">
+
+        <!-- MODE BAR (Hero switcher with prominent live/draft indicator) -->
+        <div class="tt-mode-bar" id="tt-mode-bar">
+          <div class="mode-info">
+            <span class="mode-badge prod" id="mode-badge">LIVE SCHEDULE</span>
+            <span class="mode-note" id="mode-note">Showing current published timetable</span>
           </div>
-          <div class="sel-grp">
-            <label class="sel-label">Section</label>
-            <select class="sel-select" id="sel-section" onchange="onSectionChange()" disabled>
-              <option value="">— Select Section —</option>
-            </select>
-          </div>
-          <div class="sel-grp" style="flex:0;min-width:auto;">
-            <label class="sel-label">&nbsp;</label>
-            <button class="btn btn-primary" id="btn-load" onclick="loadTT()" disabled>Load Timetable</button>
+          <div class="mode-actions">
+            <!-- Mode Switch for TTC -->
+            <div class="mode-switch-wrap" id="mode-switch-wrap" style="display:none;">
+              <span class="mode-switch-lbl">Mode:</span>
+              <div class="mode-switch" id="hero-mode-switch" onclick="toggleTTMode()" role="switch" aria-checked="false" tabindex="0" title="Click to switch Development / Production mode">
+                <div class="mode-switch-thumb"></div>
+                <span class="mode-switch-label lbl-dev">🛠 Dev</span>
+                <span class="mode-switch-label lbl-prod">📋 Prod</span>
+              </div>
+            </div>
+            <!-- Auto-Gen button for TTC in dev mode -->
+            <button class="btn btn-amber btn-sm" id="btn-hero-autogen" onclick="openAutoGenModal()" style="display:none;">⚡ Auto-Gen</button>
           </div>
         </div>
-      </div>
 
-      <!-- Placeholder -->
-      <div id="tt-placeholder" class="tt-card">
-        <div class="state-sc">
-          <div class="state-icon">📋</div>
-          <div class="state-t">Select a Class &amp; Section</div>
-          <div class="state-s">Choose a class and section above to load the timetable</div>
+        <!-- TIER BAR (Semester Master / Academic Weeks / Day Overrides) -->
+        <div class="tier-bar" id="tt-tier-bar">
+          <button class="tier-btn active" id="btn-tier-master" onclick="switchTTTier('master')">🏛 Semester Master</button>
+          <button class="tier-btn" id="btn-tier-week" onclick="switchTTTier('week')">📅 Academic Weeks</button>
+          <button class="tier-btn" id="btn-tier-day" onclick="switchTTTier('day')">⚡ Day Overrides</button>
+          <div style="margin-left:auto;display:flex;align-items:center;gap:8px;">
+            <button class="btn btn-outline btn-sm" id="timing-set-badge" onclick="cycleTimingSet()" title="Click to switch institutional timing set">⏱ Timing Set 1 ▾</button>
+            <button class="btn btn-outline btn-sm" onclick="openTTReportsModal()">📊 Workload</button>
+            <button class="btn btn-outline btn-sm" onclick="openCalendarStatsModal()">📅 Teaching Hours</button>
+          </div>
         </div>
-      </div>
 
-      <!-- TT Card -->
-      <div id="tt-card" class="hidden">
-        <div class="tt-card">
-          <div class="tt-card-hd">
-            <div>
-              <div class="tt-card-title" id="tt-card-title">—</div>
-              <div class="tt-card-sub" id="tt-card-sub">—</div>
+        <!-- SELECTOR BAR (Breadcrumb navigation + Selectors) -->
+        <div class="sel-bar card" id="sel-panel">
+          <div class="sel-bar-inner">
+            <button class="btn btn-ghost btn-sm" onclick="goBack()" style="margin-right:8px;">← Back</button>
+            <div class="fg" style="min-width:180px;">
+              <select class="fs" id="sel-dept" onchange="onDeptSelectChange()">
+                <option value="">— Select Department —</option>
+              </select>
+            </div>
+            <div class="fg" style="min-width:180px;">
+              <select class="fs" id="sel-class" onchange="onClassChange()">
+                <option value="">— Select Class —</option>
+              </select>
+            </div>
+            <div class="fg" style="min-width:140px;">
+              <select class="fs" id="sel-section" onchange="onSectionChange()" disabled>
+                <option value="">— Select Section —</option>
+              </select>
+            </div>
+            <button class="btn btn-primary btn-sm" id="btn-load" onclick="loadTT()" disabled>Load Timetable</button>
+          </div>
+        </div>
+
+        <!-- Placeholder -->
+        <div id="tt-placeholder" class="tt-card">
+          <div class="state-sc">
+            <div class="state-icon">📋</div>
+            <div class="state-t">Search or Select a Class</div>
+            <div class="state-s">Use the search bar above or browse departments to load a timetable</div>
+          </div>
+        </div>
+
+        <!-- CLASS INFO CARD + TT Card -->
+        <div id="tt-card" class="hidden">
+          <div class="tt-class-info mode-card" id="tt-class-info">
+            <div class="tt-class-info-main">
+              <div>
+                <div class="tt-class-info-title" id="tt-card-title">—</div>
+                <div class="tt-class-info-sub" id="tt-card-sub">—</div>
+              </div>
+              <div class="tt-class-info-meta" id="tt-class-meta">
+                <span class="meta-chip" id="meta-hall" title="Hall Number">🏛 Hall: —</span>
+                <span class="meta-chip" id="meta-advisor" title="Class Advisor">👤 Advisor: —</span>
+              </div>
             </div>
             <div class="tt-card-acts" id="tt-card-acts"></div>
           </div>
-          <div class="tw"><table class="tbl" id="tt-table"></table></div>
-          
-          <!-- Summary (coordinators only) -->
-          <div class="sum-sect hidden" id="tt-summary">
-            <div class="sum-title">Subject Summary</div>
-            <div class="stat-row" id="stat-row"></div>
-            <table class="tbl">
+          <div class="tt-card">
+            <div class="tw">
+              <table class="tbl" id="tt-table"></table>
+            </div>
+
+            <!-- Summary (coordinators only) -->
+            <div class="sum-sect hidden" id="tt-summary">
+              <div class="sum-title">Subject Summary</div>
+              <div class="stat-row" id="stat-row"></div>
+              <table class="tbl">
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>Subject</th>
+                    <th>Code</th>
+                    <th>Type</th>
+                    <th>Staff</th>
+                    <th>Hall</th>
+                    <th>Cr</th>
+                    <th>Hrs/Wk</th>
+                  </tr>
+                </thead>
+                <tbody id="sum-tbody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- .main -->
+  </div><!-- .mc -->
+
+  <!-- CELL EDIT MODAL -->
+  <div class="modal-bg" id="modal-edit">
+    <div class="modal">
+      <div class="modal-hd">
+        <div>
+          <div class="modal-title" id="edit-title">Edit Period</div>
+          <div class="modal-sub" id="edit-sub">—</div>
+        </div>
+        <button class="modal-close" onclick="closeModal('modal-edit')" title="Close">✕</button>
+      </div>
+
+      <div class="fg">
+        <label class="fl">Subject</label>
+        <div class="sdropwrap">
+          <input type="text" class="fc2" id="edit-subj" placeholder="Search subjects…" autocomplete="off"
+            oninput="filterSubj(this.value)" onfocus="openSubjDrop()" onblur="closeSubjDrop()">
+          <div class="sdrop" id="sdrop"></div>
+        </div>
+        <div class="fhint" id="edit-subj-hint"></div>
+      </div>
+      <input type="hidden" id="edit-subj-id">
+      <input type="hidden" id="edit-subj-code">
+
+      <div class="frow fr2">
+        <div class="fg"><label class="fl">Staff / Teacher</label><input type="text" class="fc2" id="edit-staff"
+            placeholder="e.g. Dr. R. Kumar" oninput="liveCheckConflict()"></div>
+        <div class="fg"><label class="fl">Hall / Room No.</label><input type="text" class="fc2" id="edit-hall"
+            placeholder="e.g. CSE Lab 1" oninput="liveCheckConflict()"></div>
+      </div>
+      <div id="edit-conflict-alert"
+        style="display:none;margin-bottom:12px;padding:8px 12px;background:#fef2f2;border-left:3.5px solid #dc2626;border-radius:8px;font-size:11.5px;color:#7f1d1d;">
+      </div>
+      <div class="frow fr2">
+        <div class="fg"><label class="fl">Credits</label><input type="number" class="fc2" id="edit-credit"
+            placeholder="3" min="1" max="6"></div>
+        <div class="fg">
+          <label class="fl">Type</label>
+          <select class="fs" id="edit-type" onchange="onEditTypeChange()">
+            <option value="theory">Theory</option>
+            <option value="lab">Lab / Practical</option>
+            <option value="elective">Elective</option>
+          </select>
+        </div>
+      </div>
+      <div class="frow fr2">
+        <div class="fg">
+          <label class="fl">Period Span (Continuous)</label>
+          <select class="fs" id="edit-span">
+            <option value="1">1 Period (45 min)</option>
+            <option value="2">2 Consecutive Periods (90 min)</option>
+            <option value="3">3 Consecutive Periods (Lab Default)</option>
+            <option value="4">4 Consecutive Periods</option>
+          </select>
+        </div>
+        <div class="fg">
+          <label class="fl">Room Availability</label>
+          <button type="button" class="btn btn-ghost btn-sm" style="width:100%;height:38px;font-size:11.5px;"
+            onclick="openRoomAvailabilityModal(true)">🏢 Browse Available Rooms</button>
+        </div>
+      </div>
+      <div class="fg" style="margin-bottom:12px;">
+        <label class="fl" style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+          <input type="checkbox" id="edit-is-combined" onchange="toggleCombinedUI()">
+          <strong>Combined Class</strong> (Multi-section joined slot)
+        </label>
+        <div id="edit-combined-sections-wrap"
+          style="display:none;margin-top:6px;background:var(--gP);padding:10px;border-radius:8px;">
+          <div style="font-size:11px;color:var(--td);font-weight:600;margin-bottom:6px;">Select other sections joining
+            this slot:</div>
+          <div id="edit-combined-checkboxes" style="display:flex;gap:12px;flex-wrap:wrap;"></div>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <div class="modal-actions-l m-ft-l"><button class="btn btn-danger btn-sm" id="btn-clear">🗑 Clear Cell</button>
+        </div>
+        <button class="btn btn-ghost" onclick="closeModal('modal-edit')">Cancel</button>
+        <button class="btn btn-primary" id="btn-save">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="16"
+            height="16">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+          </svg>
+          Save Period
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- SUBMIT TO HOD MODAL -->
+  <div class="modal-bg" id="modal-submit-hod">
+    <div class="modal modal-sm">
+      <div class="modal-hd">
+        <div>
+          <div class="modal-title">📤 Submit to HOD for Confirmation</div>
+          <div class="modal-sub">Draft will be shared with the Department HOD for approval.</div>
+        </div>
+        <button class="modal-close" onclick="closeModal('modal-submit-hod')">✕</button>
+      </div>
+      <div class="mbody" style="padding:16px 20px;">
+        <div id="submit-hod-summary"
+          style="margin-bottom:14px;background:var(--gP);padding:10px 12px;border-radius:10px;font-size:12px;"></div>
+        <div class="fg">
+          <label class="fl">Coordinator Note / Remarks (Optional)</label>
+          <textarea class="fc2" id="submit-hod-note" rows="3"
+            placeholder="e.g. Even semester timetable draft ready with updated lab slots..."></textarea>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" onclick="closeModal('modal-submit-hod')">Cancel</button>
+        <button class="btn btn-primary" id="btn-confirm-submit-hod" onclick="executeSubmitToHod()">🚀 Send to
+          HOD</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- HOD REJECT / CHANGES REQUESTED MODAL -->
+  <div class="modal-bg" id="modal-hod-reject">
+    <div class="modal modal-sm">
+      <div class="modal-hd">
+        <div>
+          <div class="modal-title">❌ Request Changes on Timetable</div>
+          <div class="modal-sub">Provide feedback to the Timetable Coordinator.</div>
+        </div>
+        <button class="modal-close" onclick="closeModal('modal-hod-reject')">✕</button>
+      </div>
+      <div class="mbody" style="padding:16px 20px;">
+        <div class="fg">
+          <label class="fl">Reason / Changes Needed <span style="color:#dc2626;">*</span></label>
+          <textarea class="fc2" id="hod-reject-remarks" rows="4"
+            placeholder="e.g. Please swap Friday Period 2 with Period 4 to avoid lab overlap..."></textarea>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" onclick="closeModal('modal-hod-reject')">Cancel</button>
+        <button class="btn btn-danger" onclick="executeHodReject()">Submit Feedback</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- VERSION HISTORY & BACKUPS MODAL -->
+  <div class="modal-bg" id="modal-versions">
+    <div class="modal modal-lg">
+      <div class="modal-hd">
+        <div>
+          <div class="modal-title">🕒 Timetable Version Changelog &amp; Backups</div>
+          <div class="modal-sub">Review past published revisions or restore a backup into Dev Mode.</div>
+        </div>
+        <button class="modal-close" onclick="closeModal('modal-versions')">✕</button>
+      </div>
+      <div class="mbody" style="padding:16px 20px;max-height:450px;overflow-y:auto;" id="versions-modal-body">
+        <div class="state-sc">
+          <div class="state-s">Loading version history…</div>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" onclick="closeModal('modal-versions')">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- NEW COMPARISON TAB MODAL -->
+  <div class="modal-bg" id="modal-new-tab">
+    <div class="modal modal-sm">
+      <div class="modal-hd">
+        <div>
+          <div class="modal-title">➕ Open Comparison Tab</div>
+          <div class="modal-sub">Select another class section to compare side-by-side.</div>
+        </div>
+        <button class="modal-close" onclick="closeModal('modal-new-tab')">✕</button>
+      </div>
+      <div class="mbody" style="padding:16px 20px;">
+        <div class="fg" style="margin-bottom:12px;">
+          <label class="fl">Class</label>
+          <select class="fc2" id="tab-modal-class" onchange="onTabModalClassChange()">
+            <option value="">— Select Class —</option>
+          </select>
+        </div>
+        <div class="fg">
+          <label class="fl">Section</label>
+          <select class="fc2" id="tab-modal-section" disabled>
+            <option value="">— Select Section —</option>
+          </select>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" onclick="closeModal('modal-new-tab')">Cancel</button>
+        <button class="btn btn-primary" onclick="confirmOpenNewTab()">Open Tab</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- EDIT CLASS METADATA MODAL (PHASE 2: STAGED METADATA) -->
+  <div class="modal-bg" id="modal-class-meta">
+    <div class="modal modal-sm">
+      <div class="modal-hd">
+        <div>
+          <div class="modal-title">🏛️ Edit Class Metadata (Staged)</div>
+          <div class="modal-sub">Update Hall Number and Class Advisor for the active draft.</div>
+        </div>
+        <button class="modal-close" onclick="closeModal('modal-class-meta')">✕</button>
+      </div>
+      <div class="mbody" style="padding:16px 20px;">
+        <div
+          style="background:rgba(37,99,235,0.06);border:1px solid rgba(37,99,235,0.2);border-radius:8px;padding:10px;font-size:11.5px;color:var(--td);margin-bottom:14px;line-height:1.4;">
+          ℹ️ Metadata changes are <strong>staged in your draft</strong> and will be committed to the live Class record
+          once approved by HOD.
+        </div>
+        <div class="fg" style="margin-bottom:12px;">
+          <label class="fl">Class Hall / Room Number</label>
+          <input type="text" class="fc2" id="meta-input-hall" placeholder="e.g. Hall 39, Lab 4">
+        </div>
+        <div class="fg">
+          <label class="fl">Class Advisor Faculty</label>
+          <select class="fc2" id="meta-input-advisor">
+            <option value="">— Select Advisor —</option>
+          </select>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" onclick="closeModal('modal-class-meta')">Cancel</button>
+        <button class="btn btn-primary" onclick="saveClassMeta()">💾 Stage Metadata</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- STUDENT DETAIL MODAL -->
+  <div class="modal-bg" id="modal-detail">
+    <div class="modal modal-sm">
+      <div class="modal-hd">
+        <div>
+          <div
+            style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--tdi);margin-bottom:6px;"
+            id="det-period">—</div>
+          <div class="det-subj" id="det-subj">—</div>
+        </div>
+        <button class="modal-close" onclick="closeModal('modal-detail')" title="Close">✕</button>
+      </div>
+      <div class="det-grid">
+        <div class="det-item">
+          <div class="det-key">Staff</div>
+          <div class="det-val" id="det-staff">—</div>
+        </div>
+        <div class="det-item">
+          <div class="det-key">Hall / Room</div>
+          <div class="det-val" id="det-hall">—</div>
+        </div>
+        <div class="det-item">
+          <div class="det-key">Type</div>
+          <div class="det-val" id="det-type">—</div>
+        </div>
+        <div class="det-item">
+          <div class="det-key">Subject Code</div>
+          <div class="det-val" id="det-code">—</div>
+        </div>
+      </div>
+      <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal('modal-detail')">Close</button></div>
+    </div>
+  </div>
+
+  <!-- AUTOGEN MODAL (PLAN 3: FEATURE 5 & 9) -->
+  <div class="modal-bg" id="modal-ag">
+    <div class="modal modal-lg" style="max-width:820px;">
+      <div class="modal-hd">
+        <div>
+          <div class="modal-title">⚡ Auto Generate Timetable</div>
+          <div class="modal-sub" id="ag-sub">Intelligent timetable generation with continuous 3-period labs &amp;
+            collision prevention.</div>
+        </div>
+        <button class="modal-close" onclick="closeModal('modal-ag')" title="Close">✕</button>
+      </div>
+
+      <!-- Target Scope & Reusable Template Selection -->
+      <div
+        style="background:var(--gP);padding:14px 18px;border-radius:12px;margin-bottom:16px;border:1px solid var(--brl);">
+        <div class="frow fr2" style="margin-bottom:10px;">
+          <div class="fg">
+            <label class="fl">Generation Scope</label>
+            <div style="display:flex;gap:16px;align-items:center;margin-top:4px;">
+              <label style="font-size:12.5px;color:var(--td);cursor:pointer;display:flex;align-items:center;gap:6px;">
+                <input type="radio" name="ag-scope" id="ag-scope-sec" value="section" checked
+                  onchange="toggleAgScope()">
+                <strong>Current Section Only</strong>
+              </label>
+              <label style="font-size:12.5px;color:var(--td);cursor:pointer;display:flex;align-items:center;gap:6px;">
+                <input type="radio" name="ag-scope" id="ag-scope-year" value="year" onchange="toggleAgScope()">
+                <strong>Entire Year (All Sections)</strong>
+              </label>
+            </div>
+          </div>
+          <div class="fg">
+            <label class="fl">Apply Reusable Template (Optional)</label>
+            <select class="fs" id="ag-template-select" onchange="onAgTemplateSelectChange()">
+              <option value="">— Choose a Reusable Template —</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="frow fr3" style="margin-bottom:0;">
+          <div class="fg">
+            <label class="fl">Target Year</label>
+            <select class="fs" id="ag-year">
+              <option value="1">I Year (1st Year)</option>
+              <option value="2">II Year (2nd Year)</option>
+              <option value="3">III Year (3rd Year)</option>
+              <option value="4">IV Year (4th Year)</option>
+            </select>
+          </div>
+          <div class="fg">
+            <label class="fl">Default Theory Hall</label>
+            <input type="text" class="fc2" id="ag-hall" placeholder="e.g. LH-101">
+          </div>
+          <div class="fg">
+            <label class="fl">Default Lab Room</label>
+            <input type="text" class="fc2" id="ag-lab-hall" placeholder="e.g. CS-LAB-1">
+          </div>
+        </div>
+      </div>
+
+      <!-- Algorithmic Parameters -->
+      <div class="frow fr3" style="margin-bottom:14px;">
+        <div class="fg">
+          <label class="fl">Lab Continuous Duration</label>
+          <select class="fs" id="ag-lab-duration">
+            <option value="3" selected>3 Periods (135 min - Institutional Default)</option>
+            <option value="2">2 Periods (90 min)</option>
+            <option value="4">4 Periods (180 min)</option>
+          </select>
+        </div>
+        <div class="fg">
+          <label class="fl">Max Classes / Day per Teacher</label>
+          <input type="number" class="fc2" id="ag-max-teacher-load" value="4" min="1" max="8">
+        </div>
+        <div class="fg">
+          <label class="fl">Working Days</label>
+          <select class="fs" id="ag-days-mode" onchange="onAgDaysModeChange()">
+            <option value="5" selected>Mon – Fri (5 Days)</option>
+            <option value="6">Mon – Sat (6 Days)</option>
+          </select>
+        </div>
+      </div>
+
+      <div style="display:flex;align-items:center;gap:18px;margin-bottom:14px;">
+        <label style="font-size:12px;color:var(--td);display:flex;align-items:center;gap:6px;cursor:pointer;">
+          <input type="checkbox" id="ag-avoid-first-lab" checked>
+          <span>Avoid Morning 1st Period for Labs (allow morning theory)</span>
+        </label>
+      </div>
+
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--tdi);">
+          Curriculum Subjects &amp; Allocation</div>
+        <button class="btn btn-ghost btn-sm" onclick="addAgRow()" style="font-size:11.5px;">＋ Add Subject</button>
+      </div>
+
+      <div class="ag-list" id="ag-list"
+        style="max-height:220px;overflow-y:auto;margin-bottom:12px;border:1px solid var(--brl);border-radius:10px;padding:8px;">
+      </div>
+
+      <div class="conflict-log" id="conflict-log"></div>
+
+      <div class="modal-actions">
+        <button class="btn btn-ghost" onclick="closeModal('modal-ag')">Cancel</button>
+        <button class="btn btn-amber" id="btn-conflicts">🔍 Check Conflicts</button>
+        <button class="btn btn-primary" id="btn-gen">⚡ Generate Draft TT</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- REUSABLE TEMPLATES MODAL (PLAN 3: FEATURE 9) -->
+  <div class="modal-bg" id="modal-templates">
+    <div class="modal modal-lg" style="max-width:860px;">
+      <div class="modal-hd">
+        <div>
+          <div class="modal-title">📑 Timetable Templates</div>
+          <div class="modal-sub">Institutional blueprints &amp; reusable department configurations.</div>
+        </div>
+        <button class="modal-close" onclick="closeModal('modal-templates')" title="Close">✕</button>
+      </div>
+
+      <div class="mbody" style="padding:16px 20px;">
+        <div
+          style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:10px;">
+          <div class="tt-mode-toggle" style="margin-bottom:0;">
+            <button class="mode-btn active" id="tpl-tab-all" onclick="filterTemplates('all')">All Templates</button>
+            <button class="mode-btn" id="tpl-tab-sys" onclick="filterTemplates('system')">Institutional (5)</button>
+            <button class="mode-btn" id="tpl-tab-cust" onclick="filterTemplates('custom')">Custom Department</button>
+          </div>
+          <button class="btn btn-outline btn-sm" onclick="openSaveTemplateModal()">💾 Save Current Draft as
+            Template</button>
+        </div>
+
+        <div class="template-grid" id="template-grid"
+          style="max-height:420px;overflow-y:auto;display:grid;grid-template-columns:repeat(auto-fill, minmax(250px, 1fr));gap:14px;">
+          <div class="state-sc" style="grid-column:1/-1;">
+            <div class="state-s">Loading templates…</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-actions">
+        <button class="btn btn-ghost" onclick="closeModal('modal-templates')">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- SAVE CUSTOM TEMPLATE MODAL -->
+  <div class="modal-bg" id="modal-save-template">
+    <div class="modal modal-sm">
+      <div class="modal-hd">
+        <div>
+          <div class="modal-title">💾 Save Timetable Template</div>
+          <div class="modal-sub">Create a reusable template from current schedule structure.</div>
+        </div>
+        <button class="modal-close" onclick="closeModal('modal-save-template')">✕</button>
+      </div>
+      <div class="mbody" style="padding:16px 20px;">
+        <div class="fg" style="margin-bottom:12px;">
+          <label class="fl">Template Name <span style="color:#dc2626;">*</span></label>
+          <input type="text" class="fc2" id="new-tpl-name" placeholder="e.g. CSE Even Semester Standard">
+        </div>
+        <div class="fg" style="margin-bottom:12px;">
+          <label class="fl">Description</label>
+          <textarea class="fc2" id="new-tpl-desc" rows="2"
+            placeholder="e.g. Core theory with 2 programming lab blocks on Tue &amp; Thu..."></textarea>
+        </div>
+        <div class="frow fr2" style="margin-bottom:0;">
+          <div class="fg">
+            <label class="fl">Timing Set</label>
+            <select class="fs" id="new-tpl-timingset">
+              <option value="SET_1">Set 1 (Years I &amp; IV)</option>
+              <option value="SET_2">Set 2 (Years II &amp; III)</option>
+            </select>
+          </div>
+          <div class="fg">
+            <label class="fl">Default Lab Duration</label>
+            <select class="fs" id="new-tpl-lab-span">
+              <option value="3">3 Periods</option>
+              <option value="2">2 Periods</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" onclick="closeModal('modal-save-template')">Cancel</button>
+        <button class="btn btn-primary" onclick="executeSaveTemplate()">Save Template</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- DRAG & DROP CONFLICT RESOLUTION MODAL (PLAN 3: FEATURE 10) -->
+  <div class="modal-bg" id="modal-drag-conflict">
+    <div class="modal modal-md">
+      <div class="modal-hd">
+        <div>
+          <div class="modal-title" style="color:#b91c1c;">⚠️ Drag &amp; Drop Conflict Detected</div>
+          <div class="modal-sub" id="drag-conflict-sub">Moving this class causes a scheduling collision.</div>
+        </div>
+        <button class="modal-close" onclick="cancelDragOperation()">✕</button>
+      </div>
+      <div class="mbody" style="padding:16px 20px;">
+        <div id="drag-conflict-details" class="drag-conflict-box"
+          style="background:#fef2f2;border-left:4px solid #dc2626;padding:12px 14px;border-radius:8px;font-size:12px;color:#7f1d1d;line-height:1.6;margin-bottom:14px;">
+        </div>
+        <div style="font-size:12px;color:var(--td);line-height:1.5;">
+          You can choose to revert the move, force the move (which flags the slot with a conflict badge for later
+          review), or let the engine auto-fix by placing into a free period.
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" onclick="cancelDragOperation()">✕ Cancel Move</button>
+        <button class="btn btn-danger btn-sm" onclick="confirmDragMoveAnyway()">⚠️ Move Anyway (Flag Conflict)</button>
+        <button class="btn btn-primary btn-sm" onclick="autoFixDragConflict()">⚡ Auto-Fix (Find Free Slot)</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- DUPLICATE DAY MODAL (PLAN 3: FEATURE 10) -->
+  <div class="modal-bg" id="modal-duplicate-day">
+    <div class="modal modal-sm">
+      <div class="modal-hd">
+        <div>
+          <div class="modal-title">📋 Duplicate Day Schedule</div>
+          <div class="modal-sub">Copy all scheduled periods from one day to another day.</div>
+        </div>
+        <button class="modal-close" onclick="closeModal('modal-duplicate-day')">✕</button>
+      </div>
+      <div class="mbody" style="padding:16px 20px;">
+        <div class="fg" style="margin-bottom:12px;">
+          <label class="fl">Source Day (Copy From)</label>
+          <select class="fs" id="dup-source-day">
+            <option value="Monday">Monday</option>
+            <option value="Tuesday">Tuesday</option>
+            <option value="Wednesday">Wednesday</option>
+            <option value="Thursday">Thursday</option>
+            <option value="Friday">Friday</option>
+            <option value="Saturday">Saturday</option>
+          </select>
+        </div>
+        <div class="fg" style="margin-bottom:12px;">
+          <label class="fl">Target Day (Copy To)</label>
+          <select class="fs" id="dup-target-day">
+            <option value="Tuesday">Tuesday</option>
+            <option value="Monday">Monday</option>
+            <option value="Wednesday">Wednesday</option>
+            <option value="Thursday">Thursday</option>
+            <option value="Friday">Friday</option>
+            <option value="Saturday">Saturday</option>
+          </select>
+        </div>
+        <div class="fg">
+          <label class="fl">Overwrite Mode</label>
+          <div style="display:flex;flex-direction:column;gap:6px;margin-top:4px;">
+            <label style="font-size:12px;color:var(--td);display:flex;align-items:center;gap:6px;cursor:pointer;">
+              <input type="radio" name="dup-mode" value="overwrite" checked>
+              <span>Overwrite existing periods on target day</span>
+            </label>
+            <label style="font-size:12px;color:var(--td);display:flex;align-items:center;gap:6px;cursor:pointer;">
+              <input type="radio" name="dup-mode" value="empty">
+              <span>Fill empty periods only (keep existing classes)</span>
+            </label>
+          </div>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" onclick="closeModal('modal-duplicate-day')">Cancel</button>
+        <button class="btn btn-primary" onclick="executeDuplicateDay()">Duplicate Schedule</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- GENERATE ACADEMIC WEEKS MODAL (FEATURE 13 - TIER 2) -->
+  <div class="modal-bg" id="modal-generate-weeks">
+    <div class="modal modal-md">
+      <div class="modal-hd">
+        <div>
+          <div class="modal-title">📅 Generate Academic Weeks</div>
+          <div class="modal-sub">Clone Semester Master Template into individual dated Academic Weeks.</div>
+        </div>
+        <button class="modal-close" onclick="closeModal('modal-generate-weeks')">✕</button>
+      </div>
+      <div class="mbody" style="padding:16px 20px;">
+        <div class="frow fr2" style="margin-bottom:12px;">
+          <div class="fg">
+            <label class="fl">Semester Start Date <span style="color:#dc2626;">*</span></label>
+            <input type="date" class="fc2" id="gen-weeks-start-date">
+          </div>
+          <div class="fg">
+            <label class="fl">Number of Weeks</label>
+            <input type="number" class="fc2" id="gen-weeks-count" value="16" min="1" max="24">
+          </div>
+        </div>
+        <div
+          style="background:var(--gP);padding:10px 14px;border-radius:8px;font-size:11.5px;color:var(--td);line-height:1.5;">
+          💡 <strong>Three-Tier Architecture:</strong> Generating weeks creates independent weekly copies (Weeks 1 to
+          16). You can adjust any specific week or publish it without altering or destroying the Semester Master
+          template.
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" onclick="closeModal('modal-generate-weeks')">Cancel</button>
+        <button class="btn btn-primary" onclick="executeGenerateWeeks()">⚡ Generate Weeks</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- DAY OVERRIDE MODAL (FEATURE 13 - TIER 3) -->
+  <div class="modal-bg" id="modal-day-override">
+    <div class="modal modal-md">
+      <div class="modal-hd">
+        <div>
+          <div class="modal-title">⚡ Date-Specific Delta Override</div>
+          <div class="modal-sub" id="day-override-modal-sub">Authoritative schedule modification for a single calendar
+            date.</div>
+        </div>
+        <button class="modal-close" onclick="closeModal('modal-day-override')">✕</button>
+      </div>
+      <div class="mbody" style="padding:16px 20px;max-height:480px;overflow-y:auto;">
+        <div class="frow fr2" style="margin-bottom:12px;">
+          <div class="fg">
+            <label class="fl">Target Date</label>
+            <input type="date" class="fc2" id="override-date" onchange="onOverrideDateChange()">
+          </div>
+          <div class="fg">
+            <label class="fl">Action Type</label>
+            <select class="fs" id="override-action" onchange="onOverrideActionChange()">
+              <option value="swap">Swap Two Periods</option>
+              <option value="substitute">Teacher Substitution</option>
+              <option value="cancel">Cancel Period</option>
+              <option value="holiday">Institutional Holiday</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Swap Fields -->
+        <div id="override-fields-swap" class="frow fr2" style="margin-bottom:12px;">
+          <div class="fg">
+            <label class="fl">Period 1</label>
+            <select class="fs" id="override-swap-p1"></select>
+          </div>
+          <div class="fg">
+            <label class="fl">Period 2 (Swap With)</label>
+            <select class="fs" id="override-swap-p2"></select>
+          </div>
+        </div>
+
+        <!-- Substitute Fields -->
+        <div id="override-fields-sub" style="display:none;margin-bottom:12px;">
+          <div class="frow fr2">
+            <div class="fg">
+              <label class="fl">Period to Substitute</label>
+              <select class="fs" id="override-sub-period"></select>
+            </div>
+            <div class="fg">
+              <label class="fl">Substitute Teacher Name</label>
+              <input type="text" class="fc2" id="override-sub-teacher" placeholder="e.g. Dr. S. Mehta">
+            </div>
+          </div>
+        </div>
+
+        <!-- Cancel Fields -->
+        <div id="override-fields-cancel" style="display:none;margin-bottom:12px;">
+          <div class="fg">
+            <label class="fl">Period to Cancel</label>
+            <select class="fs" id="override-cancel-period"></select>
+          </div>
+        </div>
+
+        <!-- Holiday Fields -->
+        <div id="override-fields-holiday" style="display:none;margin-bottom:12px;">
+          <div class="fg">
+            <label class="fl">Holiday Name / Reason</label>
+            <input type="text" class="fc2" id="override-holiday-reason"
+              placeholder="e.g. National Holiday / Sports Day">
+          </div>
+        </div>
+
+        <div class="fg" id="override-reason-grp">
+          <label class="fl">Reason / Note (Optional)</label>
+          <input type="text" class="fc2" id="override-note" placeholder="e.g. Faculty medical leave / Lab maintenance">
+        </div>
+
+        <div id="existing-overrides-summary" style="margin-top:12px;"></div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-danger btn-sm" id="btn-delete-override" onclick="executeDeleteOverride()"
+          style="display:none;">Revert All Day Overrides</button>
+        <button class="btn btn-ghost" onclick="closeModal('modal-day-override')">Cancel</button>
+        <button class="btn btn-primary" onclick="executeSaveOverride()">💾 Apply Override</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ROOM AVAILABILITY GRID MODAL (FEATURE 4) -->
+  <div class="modal-bg" id="modal-room-availability">
+    <div class="modal modal-lg">
+      <div class="modal-hd">
+        <div>
+          <div class="modal-title">🏢 Campus Room Availability Grid</div>
+          <div class="modal-sub">View occupied vs free classrooms, labs, and lecture halls with capacity validation.
+          </div>
+        </div>
+        <button class="modal-close" onclick="closeModal('modal-room-availability')">✕</button>
+      </div>
+      <div class="mbody" style="padding:16px 20px;">
+        <div class="frow fr2" style="margin-bottom:14px;align-items:flex-end;">
+          <div class="fg">
+            <label class="fl">Day &amp; Period</label>
+            <div style="display:flex;gap:8px;">
+              <select class="fs" id="room-avail-day" onchange="loadRoomAvailabilityGrid()">
+                <option value="Mon">Monday</option>
+                <option value="Tue">Tuesday</option>
+                <option value="Wed">Wednesday</option>
+                <option value="Thu">Thursday</option>
+                <option value="Fri">Friday</option>
+                <option value="Sat">Saturday</option>
+              </select>
+              <select class="fs" id="room-avail-period" onchange="loadRoomAvailabilityGrid()"></select>
+            </div>
+          </div>
+          <div class="fg">
+            <label class="fl">Room Type Filter</label>
+            <select class="fs" id="room-avail-type" onchange="loadRoomAvailabilityGrid()">
+              <option value="">All Types</option>
+              <option value="Theory">Lecture Halls (Theory)</option>
+              <option value="Lab">Laboratories</option>
+              <option value="Seminar">Auditoriums / Seminars</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="room-grid" id="room-grid-list">
+          <div class="state-sc">
+            <div class="state-s">Loading room availability…</div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" onclick="closeModal('modal-room-availability')">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- TIMING SET SWITCHER MODAL (FEATURE 4) -->
+  <div class="modal-bg" id="modal-timing-set">
+    <div class="modal modal-sm">
+      <div class="modal-hd">
+        <div>
+          <div class="modal-title">⏱ Institutional Timing Set</div>
+          <div class="modal-sub">Break times and period schedule assigned to this class.</div>
+        </div>
+        <button class="modal-close" onclick="closeModal('modal-timing-set')">✕</button>
+      </div>
+      <div class="mbody" style="padding:16px 20px;">
+        <div class="fg" style="margin-bottom:12px;">
+          <label class="fl">Active Timing Set</label>
+          <select class="fs" id="sel-class-timing-set"></select>
+        </div>
+        <div id="timing-set-schedule-preview"
+          style="font-size:11.5px;color:var(--td);background:var(--gP);padding:10px 12px;border-radius:8px;line-height:1.6;">
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" onclick="closeModal('modal-timing-set')">Cancel</button>
+        <button class="btn btn-primary" onclick="executeSaveTimingSet()">Save Timing Set</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- REPORTS & ANALYTICS MODAL (PLAN 5: FEATURE 7) -->
+  <div class="modal-bg" id="modal-tt-reports">
+    <div class="modal modal-lg" style="max-width:860px;">
+      <div class="modal-hd">
+        <div>
+          <div class="modal-title">📊 Timetable Reports &amp; Analytics</div>
+          <div class="modal-sub">Institutional workloads, room utilization, and curriculum subject distribution.</div>
+        </div>
+        <button class="modal-close" onclick="closeModal('modal-tt-reports')">✕</button>
+      </div>
+      <div class="mbody" style="max-height:72vh;overflow-y:auto;padding:16px 20px;">
+        <!-- Report Type Tabs -->
+        <div style="display:flex;gap:8px;margin-bottom:14px;border-bottom:1px solid var(--brl);padding-bottom:10px;">
+          <button class="sched-tab act" id="tab-rep-workload" onclick="switchTTReportTab('workload')">👨‍🏫 Teacher
+            Workload</button>
+          <button class="sched-tab" id="tab-rep-rooms" onclick="switchTTReportTab('rooms')">🏢 Room Utilization</button>
+          <button class="sched-tab" id="tab-rep-subjects" onclick="switchTTReportTab('subjects')">📚 Subject
+            Distribution</button>
+          <div style="margin-left:auto;display:flex;gap:6px;">
+            <button class="btn btn-outline btn-sm" onclick="exportCurrentReportCSV()">📥 Export CSV</button>
+            <button class="btn btn-ghost btn-sm" onclick="printCurrentReport()">🖨 Print</button>
+          </div>
+        </div>
+
+        <!-- WORKLOAD REPORT PANE -->
+        <div id="pane-rep-workload">
+          <div style="display:flex;gap:12px;margin-bottom:14px;flex-wrap:wrap;align-items:center;">
+            <div style="flex:1;min-width:180px;">
+              <label class="fl" style="font-size:11px;">Department Filter</label>
+              <select class="fs" id="rep-workload-dept" onchange="loadTeacherWorkloadReport()">
+                <option value="all">All Departments</option>
+              </select>
+            </div>
+            <div style="display:flex;gap:12px;margin-left:auto;font-size:12px;font-weight:700;color:var(--td);">
+              <span>Avg Workload: <strong id="rep-wl-avg" style="color:var(--gD);">—</strong></span>
+              <span>Overloaded: <strong id="rep-wl-over" style="color:#dc2626;">0</strong></span>
+              <span>Underloaded: <strong id="rep-wl-under" style="color:#d97706;">0</strong></span>
+            </div>
+          </div>
+          <div style="overflow-x:auto;border:1px solid var(--brl);border-radius:10px;">
+            <table class="tbl" style="width:100%;margin:0;" id="table-rep-workload">
               <thead>
                 <tr>
-                  <th>#</th><th>Subject</th><th>Code</th><th>Type</th>
-                  <th>Staff</th><th>Hall</th><th>Cr</th><th>Hrs/Wk</th>
+                  <th>Faculty Name</th>
+                  <th>Department</th>
+                  <th>Theory Classes</th>
+                  <th>Lab Hours</th>
+                  <th>Total Weekly Periods</th>
+                  <th>Workload Status</th>
                 </tr>
               </thead>
-              <tbody id="sum-tbody"></tbody>
+              <tbody id="tbody-rep-workload">
+                <tr>
+                  <td colspan="6" style="text-align:center;padding:24px;color:var(--tdi);">Loading workload metrics…
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- ROOM UTILIZATION PANE -->
+        <div id="pane-rep-rooms" style="display:none;">
+          <div style="display:flex;gap:12px;margin-bottom:14px;align-items:center;">
+            <div style="font-size:12.5px;color:var(--tmu);">Room occupancy measured against standard 45 teaching hours
+              weekly capacity.</div>
+            <div style="margin-left:auto;display:flex;gap:12px;font-size:12px;font-weight:700;color:var(--td);">
+              <span>Optimal (&gt;75%): <strong id="rep-room-opt" style="color:#16a34a;">0</strong></span>
+              <span>Underutilized (&lt;40%): <strong id="rep-room-under" style="color:#d97706;">0</strong></span>
+            </div>
+          </div>
+          <div style="overflow-x:auto;border:1px solid var(--brl);border-radius:10px;">
+            <table class="tbl" style="width:100%;margin:0;" id="table-rep-rooms">
+              <thead>
+                <tr>
+                  <th>Hall No</th>
+                  <th>Room Name</th>
+                  <th>Type</th>
+                  <th>Capacity</th>
+                  <th>Weekly Hours Used</th>
+                  <th>Utilization %</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="tbody-rep-rooms">
+                <tr>
+                  <td colspan="7" style="text-align:center;padding:24px;color:var(--tdi);">Loading room utilization…
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- SUBJECT DISTRIBUTION PANE -->
+        <div id="pane-rep-subjects" style="display:none;">
+          <div style="font-size:12px;color:var(--tmu);margin-bottom:12px;">Curriculum credit hours compliance and weekly
+            slot allocations for scheduled sections.</div>
+          <div style="overflow-x:auto;border:1px solid var(--brl);border-radius:10px;">
+            <table class="tbl" style="width:100%;margin:0;" id="table-rep-subjects">
+              <thead>
+                <tr>
+                  <th>Class / Section</th>
+                  <th>Subject Name</th>
+                  <th>Short Name</th>
+                  <th>Type</th>
+                  <th>Credits</th>
+                  <th>Weekly Scheduled Hours</th>
+                  <th>Compliance</th>
+                </tr>
+              </thead>
+              <tbody id="tbody-rep-subjects">
+                <tr>
+                  <td colspan="7" style="text-align:center;padding:24px;color:var(--tdi);">Loading subject distribution…
+                  </td>
+                </tr>
+              </tbody>
             </table>
           </div>
         </div>
       </div>
-    </div>
-
-  </div><!-- .main -->
-</div><!-- .mc -->
-
-<!-- CELL EDIT MODAL -->
-<div class="modal-bg" id="modal-edit">
-  <div class="modal">
-    <div class="modal-title" id="edit-title">Edit Period</div>
-    <div class="modal-sub" id="edit-sub">—</div>
-
-    <div class="fg">
-      <label class="fl">Subject</label>
-      <div class="sdropwrap">
-        <input type="text" class="fc2" id="edit-subj" placeholder="Search subjects…"
-               autocomplete="off" oninput="filterSubj(this.value)"
-               onfocus="openSubjDrop()" onblur="closeSubjDrop()">
-        <div class="sdrop" id="sdrop"></div>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" onclick="closeModal('modal-tt-reports')">Close</button>
       </div>
-      <div class="fhint" id="edit-subj-hint"></div>
-    </div>
-    <input type="hidden" id="edit-subj-id">
-    <input type="hidden" id="edit-subj-code">
-
-    <div class="frow">
-      <div class="fg"><label class="fl">Staff / Teacher</label><input type="text" class="fc2" id="edit-staff" placeholder="e.g. Dr. R. Kumar"></div>
-      <div class="fg"><label class="fl">Hall / Room No.</label><input type="text" class="fc2" id="edit-hall" placeholder="e.g. CSE Lab 1"></div>
-    </div>
-    <div class="frow">
-      <div class="fg"><label class="fl">Credits</label><input type="number" class="fc2" id="edit-credit" placeholder="3" min="1" max="6"></div>
-      <div class="fg">
-        <label class="fl">Type</label>
-        <select class="fs" id="edit-type">
-          <option value="theory">Theory</option>
-          <option value="lab">Lab / Practical</option>
-          <option value="elective">Elective</option>
-        </select>
-      </div>
-    </div>
-    <div class="modal-actions">
-      <div class="m-ft-l"><button class="btn btn-danger btn-sm" id="btn-clear">🗑 Clear Cell</button></div>
-      <button class="btn btn-ghost" onclick="closeModal('modal-edit')">Cancel</button>
-      <button class="btn btn-primary" id="btn-save">
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
-        Save Period
-      </button>
     </div>
   </div>
-</div>
 
-<!-- STUDENT DETAIL MODAL -->
-<div class="modal-bg" id="modal-detail">
-  <div class="modal">
-    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:14px;margin-bottom:10px;">
-      <div>
-        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--tdi);margin-bottom:6px;" id="det-period">—</div>
-        <div class="det-subj" id="det-subj">—</div>
+  <!-- ACADEMIC CALENDAR STATS MODAL (PLAN 5: FEATURE 12) -->
+  <div class="modal-bg" id="modal-calendar-stats">
+    <div class="modal modal-md" style="max-width:720px;">
+      <div class="modal-hd">
+        <div>
+          <div class="modal-title">📅 Academic Calendar &amp; Teaching Hours</div>
+          <div class="modal-sub">Semester teaching period completion against syllabus curriculum targets.</div>
+        </div>
+        <button class="modal-close" onclick="closeModal('modal-calendar-stats')">✕</button>
       </div>
-      <div class="credit-ring" id="det-ring">?</div>
-    </div>
-    <div class="det-grid">
-      <div class="det-item"><div class="det-key">Staff</div><div class="det-val" id="det-staff">—</div></div>
-      <div class="det-item"><div class="det-key">Hall / Room</div><div class="det-val" id="det-hall">—</div></div>
-      <div class="det-item"><div class="det-key">Type</div><div class="det-val" id="det-type">—</div></div>
-      <div class="det-item"><div class="det-key">Subject Code</div><div class="det-val" id="det-code">—</div></div>
-    </div>
-    <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal('modal-detail')">Close</button></div>
-  </div>
-</div>
+      <div class="mbody" style="max-height:72vh;overflow-y:auto;padding:16px 20px;">
+        <!-- CALENDAR METRICS -->
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px;">
+          <div
+            style="background:var(--gP);padding:12px;border-radius:12px;text-align:center;border:1px solid var(--brl);">
+            <div style="font-size:20px;font-weight:800;color:var(--td);" id="cal-tot-days">—</div>
+            <div style="font-size:10px;font-weight:700;color:var(--tmu);text-transform:uppercase;">Total Semester Days
+            </div>
+          </div>
+          <div
+            style="background:var(--gP);padding:12px;border-radius:12px;text-align:center;border:1px solid var(--brl);">
+            <div style="font-size:20px;font-weight:800;color:var(--gD);" id="cal-rem-days">—</div>
+            <div style="font-size:10px;font-weight:700;color:var(--tmu);text-transform:uppercase;">Remaining Days</div>
+          </div>
+          <div
+            style="background:var(--gP);padding:12px;border-radius:12px;text-align:center;border:1px solid var(--brl);">
+            <div style="font-size:20px;font-weight:800;color:#dc2626;" id="cal-holidays">—</div>
+            <div style="font-size:10px;font-weight:700;color:var(--tmu);text-transform:uppercase;">Holidays Deducted
+            </div>
+          </div>
+          <div
+            style="background:var(--gP);padding:12px;border-radius:12px;text-align:center;border:1px solid var(--brl);">
+            <div style="font-size:20px;font-weight:800;color:#2563eb;" id="cal-work-sat">—</div>
+            <div style="font-size:10px;font-weight:700;color:var(--tmu);text-transform:uppercase;">Working Saturdays
+            </div>
+          </div>
+        </div>
 
-<!-- AUTOGEN MODAL -->
-<div class="modal-bg" id="modal-ag">
-  <div class="modal modal-lg">
-    <div class="modal-title">⚡ Auto Generate Timetable</div>
-    <div class="modal-sub" id="ag-sub">—</div>
-    <div class="frow" style="margin-bottom:16px;">
-      <div class="fg">
-        <label class="fl">Target Year</label>
-        <select class="fs" id="ag-year">
-          <option>I Year</option><option>II Year</option><option>III Year</option><option>IV Year</option>
-        </select>
+        <!-- SUBJECT PERIOD PROGRESS TABLE -->
+        <div style="font-size:12.5px;font-weight:800;color:var(--td);margin-bottom:8px;">Subject Syllabus Teaching
+          Periods Breakdown</div>
+        <div style="overflow-x:auto;border:1px solid var(--brl);border-radius:10px;">
+          <table class="tbl" style="width:100%;margin:0;">
+            <thead>
+              <tr>
+                <th>Subject</th>
+                <th>Weekly Slots</th>
+                <th>Total Scheduled</th>
+                <th>Completed Periods</th>
+                <th>Remaining Periods</th>
+                <th>Completion %</th>
+              </tr>
+            </thead>
+            <tbody id="cal-subjects-tbody">
+              <tr>
+                <td colspan="6" style="text-align:center;padding:24px;color:var(--tdi);">Loading subject syllabus
+                  metrics…</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </div>
-      <div class="fg"><label class="fl">Default Hall</label><input type="text" class="fc2" id="ag-hall" placeholder="e.g. Block A – 201"></div>
-    </div>
-    <div style="font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--tdi);margin-bottom:8px;">Subjects &amp; Weekly Hours</div>
-    <div class="ag-list" id="ag-list"></div>
-    <button class="btn btn-ghost btn-sm" onclick="addAgRow()" style="margin-bottom:12px;">+ Add Subject</button>
-    <div class="conflict-log" id="conflict-log"></div>
-    <div class="modal-actions">
-      <button class="btn btn-ghost" onclick="closeModal('modal-ag')">Cancel</button>
-      <button class="btn btn-amber" id="btn-conflicts">🔍 Check Conflicts</button>
-      <button class="btn btn-primary" id="btn-gen">⚡ Generate</button>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" onclick="closeModal('modal-calendar-stats')">Close</button>
+      </div>
     </div>
   </div>
-</div>
 
-<!-- TOAST -->
-<div class="toast" id="toast"></div>
+  <!-- BACKUP & RESTORE MODAL (PLAN 5: FEATURE 8) -->
+  <div class="modal-bg" id="modal-tt-backups">
+    <div class="modal modal-md" style="max-width:680px;">
+      <div class="modal-hd">
+        <div>
+          <div class="modal-title">📦 Timetable Backups &amp; Version Snapshots</div>
+          <div class="modal-sub">Restore previous revisions safely into Development Draft mode.</div>
+        </div>
+        <button class="modal-close" onclick="closeModal('modal-tt-backups')">✕</button>
+      </div>
+      <div class="mbody" style="max-height:68vh;overflow-y:auto;padding:16px 20px;">
+        <div
+          style="background:rgba(37,99,235,0.06);border:1px solid rgba(37,99,235,0.2);border-radius:10px;padding:10px 14px;font-size:12px;color:var(--td);margin-bottom:14px;line-height:1.5;">
+          ℹ️ Restoring a backup loads the historical timetable into your <strong>Development Draft Workspace</strong>
+          for review. Live production will not be touched until you publish.
+        </div>
+        <div id="tt-backups-list" style="display:flex;flex-direction:column;gap:10px;">
+          <div style="text-align:center;padding:24px;color:var(--tdi);">Loading backups…</div>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" onclick="closeModal('modal-tt-backups')">Close</button>
+      </div>
+    </div>
+  </div>
 
-<script src="js/core/session.js"></script>
-<script src="js/core/modal.js"></script>
-<script src="js/core/toast.js"></script>
-<script src="js/pages/timetable.page.js"></script>
+  <!-- PUBLISH PREVIEW & DIFF CONFIRMATION MODAL (PLAN 5: FEATURE 8) -->
+  <div class="modal-bg" id="modal-publish-preview">
+    <div class="modal modal-md" style="max-width:720px;">
+      <div class="modal-hd">
+        <div>
+          <div class="modal-title">🚀 Publish Timetable to Production</div>
+          <div class="modal-sub">Review pre-flight diff, impact metrics, and broadcast notifications.</div>
+        </div>
+        <button class="modal-close" onclick="closeModal('modal-publish-preview')">✕</button>
+      </div>
+      <div class="mbody" style="max-height:72vh;overflow-y:auto;padding:16px 20px;">
+        <!-- IMPACT METRICS -->
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px;">
+          <div
+            style="background:var(--gP);padding:12px;border-radius:12px;text-align:center;border:1px solid var(--brl);">
+            <div style="font-size:20px;font-weight:800;color:var(--gD);" id="pub-stu-count">—</div>
+            <div style="font-size:10px;font-weight:700;color:var(--tmu);text-transform:uppercase;">Impacted Students
+            </div>
+          </div>
+          <div
+            style="background:var(--gP);padding:12px;border-radius:12px;text-align:center;border:1px solid var(--brl);">
+            <div style="font-size:20px;font-weight:800;color:var(--gD);" id="pub-teach-count">—</div>
+            <div style="font-size:10px;font-weight:700;color:var(--tmu);text-transform:uppercase;">Assigned Faculty
+            </div>
+          </div>
+          <div
+            style="background:var(--gP);padding:12px;border-radius:12px;text-align:center;border:1px solid var(--brl);">
+            <div style="font-size:20px;font-weight:800;color:#2563eb;" id="pub-diff-summary">—</div>
+            <div style="font-size:10px;font-weight:700;color:var(--tmu);text-transform:uppercase;">Slot Changes</div>
+          </div>
+        </div>
+
+        <!-- CHANGES SUMMARY LIST -->
+        <div style="font-size:12.5px;font-weight:800;color:var(--td);margin-bottom:8px;">Detailed Diff vs Current Live
+          Schedule</div>
+        <div id="pub-diff-details"
+          style="max-height:220px;overflow-y:auto;border:1px solid var(--brl);border-radius:10px;padding:10px;background:var(--gP);display:flex;flex-direction:column;gap:6px;margin-bottom:14px;">
+          <div style="text-align:center;padding:16px;color:var(--tdi);">Generating diff…</div>
+        </div>
+
+        <div class="frow fr2">
+          <div class="fg">
+            <label class="fl">Effective From Date</label>
+            <input type="date" class="fc" id="pub-effective-date">
+          </div>
+          <div class="fg">
+            <label class="fl">Revision Notes (Optional)</label>
+            <input type="text" class="fc" id="pub-notes" placeholder="e.g. Revised lab slot allocations">
+          </div>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" onclick="closeModal('modal-publish-preview')">Cancel</button>
+        <button class="btn btn-primary" onclick="executePublishWithNotifications()">🚀 Confirm &amp; Publish</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- TOAST CONTAINERS -->
+  <div class="toast" id="toast"></div>
+  <div id="db-toast"></div>
+
+  <script src="js/core/session.js"></script>
+  <script src="js/core/modal.js"></script>
+  <script src="js/core/toast.js"></script>
+  <script src="js/pages/timetable.page.js"></script>
 </body>
+
 </html>

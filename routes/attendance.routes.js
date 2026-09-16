@@ -95,7 +95,7 @@ async function syncStudentAttendanceCounters(studentTrackId, targetClassId) {
   }
 }
 
-// GET /api/attendance — Query attendance records, returning flattened session rows with search, filters & pagination
+// GET /api/attendance - Query attendance records with search, filters, and pagination
 router.get('/', authMiddleware, async (req, res) => {
   try {
     const qFrom = sanitizeToString(req.query.from);
@@ -127,9 +127,8 @@ router.get('/', authMiddleware, async (req, res) => {
     }
 
     if (qDate) {
-      const d = new Date(qDate);
-      const start = new Date(d.setUTCHours(0, 0, 0, 0));
-      const end = new Date(d.setUTCHours(23, 59, 59, 999));
+      const start = new Date(qDate + 'T00:00:00.000Z');
+      const end = new Date(qDate + 'T23:59:59.999Z');
       filter.date = { $gte: start, $lte: end };
     } else if (qFrom && qTo) {
       const start = new Date(qFrom + 'T00:00:00.000Z');
@@ -241,6 +240,8 @@ router.get('/', authMiddleware, async (req, res) => {
             status: statusText,
             rawStatus: rec.status,
             remarks: rec.remarks || period.topic || '',
+            topic: period.topic || '',
+            notes: period.notes || '',
           });
         }
       }
@@ -249,7 +250,7 @@ router.get('/', authMiddleware, async (req, res) => {
     // Status filter
     if (qStatus && qStatus !== 'all') {
       const targetStat = qStatus.toLowerCase().trim();
-      flattened = flattened.filter(r => r.status === targetStat || r.rawStatus.toLowerCase() === targetStat);
+      flattened = flattened.filter(r => (r.status && r.status.toLowerCase() === targetStat) || (r.rawStatus && String(r.rawStatus).toLowerCase() === targetStat));
     }
 
     // Search filter
@@ -283,8 +284,207 @@ router.get('/', authMiddleware, async (req, res) => {
   }
 });
 
-// PUT /api/attendance/:id — Update individual student attendance record
-router.put('/:id', authMiddleware, adminOnly, async (req, res) => {
+// GET /api/attendance/period-notes - Query period notes with filters
+router.get('/period-notes', authMiddleware, async (req, res) => {
+  try {
+    const qFrom = sanitizeToString(req.query.from);
+    const qTo = sanitizeToString(req.query.to);
+    const qClassId = sanitizeToString(req.query.classId);
+    const qSubjectId = sanitizeToString(req.query.subjectId);
+    const qTeacherId = sanitizeToString(req.query.teacherId);
+    const qSearch = sanitizeToString(req.query.search);
+
+    const filter = {};
+    if (qClassId && qClassId !== 'all') {
+      filter.classId = qClassId;
+    }
+    if (qFrom || qTo) {
+      filter.date = {};
+      if (qFrom) filter.date.$gte = new Date(qFrom + 'T00:00:00.000Z');
+      if (qTo) filter.date.$lte = new Date(qTo + 'T23:59:59.999Z');
+    }
+
+    const docs = await M.ClassAttendance.find(filter).sort({ date: -1 }).lean();
+
+    const [allClasses, allSubjects, allTeachers] = await Promise.all([
+      M.Class.find().lean(),
+      M.Subject.find().lean(),
+      M.Teacher.find().lean()
+    ]);
+
+    const classMap = new Map();
+    allClasses.forEach(c => {
+      classMap.set(String(c._id), c.name || c.className || c.trackId);
+      if (c.trackId) classMap.set(c.trackId, c.name || c.className);
+    });
+
+    const subjectMap = new Map();
+    allSubjects.forEach(s => {
+      subjectMap.set(String(s._id), s);
+      if (s.trackId) subjectMap.set(s.trackId, s);
+    });
+
+    const teacherMap = new Map();
+    allTeachers.forEach(t => {
+      teacherMap.set(String(t._id), t);
+      if (t.trackId) teacherMap.set(t.trackId, t);
+    });
+
+    const results = [];
+    for (const doc of docs) {
+      const dateStr = doc.date ? new Date(doc.date).toISOString().split('T')[0] : '';
+      const className = classMap.get(String(doc.classId)) || classMap.get(doc.classId) || doc.classId;
+
+      for (let pIdx = 0; pIdx < (doc.periods || []).length; pIdx++) {
+        const period = doc.periods[pIdx];
+        if (qSubjectId && qSubjectId !== 'all' && period.subjectTrackId !== qSubjectId) {
+          continue;
+        }
+        if (qTeacherId && qTeacherId !== 'all' && period.teacherTrackId !== qTeacherId) {
+          continue;
+        }
+
+        const subObj = subjectMap.get(period.subjectTrackId);
+        const subjectName = subObj ? subObj.name : period.subjectTrackId;
+        const teachObj = teacherMap.get(period.teacherTrackId);
+        const teacherName = teachObj ? (teachObj.fullName || teachObj.name) : (period.markedBy || 'Faculty');
+
+        const topic = period.topic || '';
+        const notes = period.notes || '';
+
+        // Search filter if provided
+        if (qSearch) {
+          const q = qSearch.toLowerCase().trim();
+          const match = (
+            topic.toLowerCase().includes(q) ||
+            notes.toLowerCase().includes(q) ||
+            className.toLowerCase().includes(q) ||
+            subjectName.toLowerCase().includes(q) ||
+            teacherName.toLowerCase().includes(q)
+          );
+          if (!match) continue;
+        }
+
+        const records = period.records || [];
+        const presentCount = records.filter(r => r.status === 'P').length;
+        const totalCount = records.length;
+
+        results.push({
+          docId: doc._id,
+          periodIndex: pIdx,
+          date: dateStr,
+          periodNumber: period.periodNumber || (period.periodNumbers ? period.periodNumbers[0] : 1),
+          classId: doc.classId,
+          className,
+          subjectTrackId: period.subjectTrackId,
+          subjectName,
+          teacherTrackId: period.teacherTrackId,
+          teacherName,
+          topic,
+          notes,
+          presentCount,
+          totalCount,
+          markedAt: period.markedAt
+        });
+      }
+    }
+
+    res.json(results);
+  } catch (err) {
+    console.error('[Period Notes Error]:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT /api/attendance/period-notes/:docId/:periodIndex - Update period notes
+router.put('/period-notes/:docId/:periodIndex', authMiddleware, async (req, res) => {
+  try {
+    const { docId, periodIndex } = req.params;
+    const { topic, notes } = req.body;
+    const pIdx = parseInt(periodIndex, 10);
+
+    const doc = await M.ClassAttendance.findById(docId);
+    if (!doc || !doc.periods || !doc.periods[pIdx]) {
+      return res.status(404).json({ error: 'Period attendance record not found' });
+    }
+
+    const attSettings = await getCachedSettings('attendance');
+    if (req.user.role !== 'admin' && attSettings.allowAttendanceEdit === false) {
+      return res.status(403).json({ error: 'Editing attendance or notes is locked by administrator.' });
+    }
+
+    if (topic !== undefined) doc.periods[pIdx].topic = String(topic).trim();
+    if (notes !== undefined) doc.periods[pIdx].notes = String(notes).trim();
+    doc.updatedAt = new Date();
+    await doc.save();
+
+    res.json({ success: true, message: 'Period notes updated successfully', period: doc.periods[pIdx] });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+async function appendAttendanceChangeToDailyLog(classId, dateStr, periodNum, studentTrackId, newStatus, req) {
+  try {
+    const student = await M.Student.findOne({ $or: [{ trackId: studentTrackId }, { _id: studentTrackId }] }).select('registerNo fullName trackId').lean();
+    const regNo = student?.registerNo || studentTrackId;
+    const sName = student?.fullName || studentTrackId;
+
+    const teacherName = (req.user?.firstName && req.user?.lastName)
+      ? `${req.user.firstName} ${req.user.lastName}`.trim()
+      : (req.user?.fullName || req.user?.name || req.user?.username || 'Teacher');
+    const teacherSessionId = req.user?.sessionId || '';
+    const teacherTrackId = req.user?.trackId || String(req.user?._id || '');
+
+    const log = await M.Log.findOne({
+      category: 'attendance',
+      subType: 'attendance',
+      'attendanceClassDaily.classId': String(classId),
+      'attendanceClassDaily.date': dateStr
+    });
+
+    if (log && log.attendanceClassDaily) {
+      const periods = log.attendanceClassDaily.periods || [];
+      const period = periods.find(p => p.periodNumber === Number(periodNum));
+      if (period) {
+        const rec = (period.records || []).find(r => r.studentTrackId === studentTrackId);
+        const oldStatus = rec ? rec.status : 'Unknown';
+        if (rec) rec.status = newStatus;
+        else period.records.push({ studentTrackId, regNo, name: sName, status: newStatus });
+
+        // Update stats
+        let pCnt = 0, aCnt = 0, odCnt = 0;
+        period.records.forEach(r => {
+          if (r.status === 'P' || r.status === 'PRESENT') pCnt++;
+          else if (r.status === 'OD' || r.status === 'ON DUTY') odCnt++;
+          else aCnt++;
+        });
+        period.stats = { total: period.records.length, present: pCnt, absent: aCnt, od: odCnt };
+
+        period.history = (period.history || []).concat([{
+          action: 'Updated',
+          teacherTrackId,
+          teacherName,
+          teacherSessionId,
+          method: 'Manual Edit',
+          changedAt: new Date(),
+          summary: `Updated student ${regNo} (${oldStatus} -> ${newStatus}) by ${teacherName}`
+        }]);
+
+        log.time = new Date();
+        log.sessionId = teacherSessionId;
+        log.userName = teacherName;
+        log.details = `Class ${classId} Period ${periodNum} updated: ${regNo} changed to ${newStatus} by ${teacherName}. Session: ${teacherSessionId}`;
+        await log.save();
+      }
+    }
+  } catch (err) {
+    console.error('[appendAttendanceChange Error]:', err.message);
+  }
+}
+
+// POST /api/attendance/update - Update an individual attendance record
+router.post('/update/:id?', authMiddleware, async (req, res) => {
   try {
     const { status, remarks, studentTrackId, date, periodNumber } = req.body;
     const idParam = req.params.id;
@@ -294,70 +494,70 @@ router.put('/:id', authMiddleware, adminOnly, async (req, res) => {
     let pIdx = -1;
     let rIdx = -1;
 
-    if (idParam.includes('_')) {
+    if (idParam && idParam.includes('_')) {
       const parts = idParam.split('_');
       const docId = parts[0];
       pIdx = parseInt(parts[1], 10);
       rIdx = parseInt(parts[2], 10);
       classAttDoc = await M.ClassAttendance.findById(docId);
-    } else {
-      classAttDoc = await M.ClassAttendance.findById(idParam);
+      if (classAttDoc && classAttDoc.periods && classAttDoc.periods[pIdx] && classAttDoc.periods[pIdx].records && classAttDoc.periods[pIdx].records[rIdx]) {
+        const rec = classAttDoc.periods[pIdx].records[rIdx];
+        if (status) rec.status = normalizeStatus(status);
+        if (remarks !== undefined) rec.remarks = remarks;
+        classAttDoc.periods[pIdx].records[rIdx] = rec;
+        classAttDoc.updatedAt = new Date();
+        await classAttDoc.save();
+
+        if (rec.studentTrackId) {
+          syncStudentAttendanceCounters(rec.studentTrackId, classAttDoc.classId).catch(() => {});
+          const pNum = classAttDoc.periods[pIdx].periodNumber || (pIdx + 1);
+          const dStr = classAttDoc.date ? new Date(classAttDoc.date).toISOString().split('T')[0] : (date || '');
+          appendAttendanceChangeToDailyLog(classAttDoc.classId, dStr, pNum, rec.studentTrackId, rec.status, req).catch(() => {});
+        }
+        return res.json({ success: true, message: 'Attendance record updated successfully', record: rec });
+      }
     }
 
-    if (!classAttDoc) return res.status(404).json({ error: 'Attendance document not found' });
+    // Find record matching studentTrackId across all periods
+    const effectiveStudentTrackId = studentTrackId || idParam;
+    const attDoc = await M.ClassAttendance.findOne({
+      "periods.records.studentTrackId": effectiveStudentTrackId,
+      ...(date ? { date } : {})
+    });
 
-    let targetStudentTrackId = studentTrackId;
-
-    if (pIdx >= 0 && rIdx >= 0 && classAttDoc.periods[pIdx]?.records[rIdx]) {
-      const rec = classAttDoc.periods[pIdx].records[rIdx];
-      targetStudentTrackId = rec.studentTrackId;
-      if (status) rec.status = status.toUpperCase() === 'PRESENT' || status === 'P' ? 'P' : (status.toUpperCase() === 'OD' ? 'OD' : (status.toUpperCase() === 'LEAVE' ? 'LEAVE' : 'AB'));
-      if (remarks !== undefined) rec.remarks = remarks;
-    } else if (targetStudentTrackId) {
-      // Find record matching studentTrackId across all periods
-      for (const p of classAttDoc.periods || []) {
-        for (const r of p.records || []) {
-          if (r.studentTrackId === targetStudentTrackId) {
-            if (status) r.status = status.toUpperCase() === 'PRESENT' || status === 'P' ? 'P' : (status.toUpperCase() === 'OD' ? 'OD' : (status.toUpperCase() === 'LEAVE' ? 'LEAVE' : 'AB'));
-            if (remarks !== undefined) r.remarks = remarks;
-          }
+    if (attDoc) {
+      let found = false;
+      let matchedRec = null;
+      let matchedPeriodNumber = 1;
+      for (const p of attDoc.periods) {
+        if (periodNumber && p.periodNumber !== Number(periodNumber)) continue;
+        const rec = p.records.find(r => r.studentTrackId === effectiveStudentTrackId);
+        if (rec) {
+          if (status) rec.status = normalizeStatus(status);
+          if (remarks !== undefined) rec.remarks = remarks;
+          matchedRec = rec;
+          matchedPeriodNumber = p.periodNumber || 1;
+          found = true;
+          break;
         }
       }
-    }
-
-    classAttDoc.updatedAt = new Date();
-    await classAttDoc.save();
-
-    if (targetStudentTrackId) {
-      await syncStudentAttendanceCounters(targetStudentTrackId, classAttDoc.classId);
-    }
-
-    await logAction(
-      req.user.trackId || req.user._id,
-      req.user.name,
-      req.user.role,
-      'Attendance Record Updated',
-      `Updated status to ${status} for student ${targetStudentTrackId || ''}`,
-      'attendance',
-      'info',
-      req.ip,
-      req.user.sessionId,
-      {
-        module: 'teacher',
-        subType: 'attendance',
-        trackId: req.user.trackId,
-        actingWithAdminRights: req.user.actingWithAdminRights,
-        changes: { before: { status: 'PREVIOUS' }, after: { status } }
+      if (found) {
+        attDoc.updatedAt = new Date();
+        await attDoc.save();
+        syncStudentAttendanceCounters(effectiveStudentTrackId, attDoc.classId).catch(() => {});
+        const dStr = attDoc.date ? new Date(attDoc.date).toISOString().split('T')[0] : (date || '');
+        appendAttendanceChangeToDailyLog(attDoc.classId, dStr, matchedPeriodNumber, effectiveStudentTrackId, matchedRec.status, req).catch(() => {});
+        return res.json({ success: true, message: 'Attendance record updated successfully', record: matchedRec });
       }
-    );
+    }
 
-    res.json({ success: true, message: 'Attendance record updated successfully' });
+    return res.status(404).json({ error: 'Attendance record not found for update' });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// POST /api/attendance — Save or batch update class attendance
+// POST /api/attendance - Save or batch update class attendance records
 router.post('/', authMiddleware, checkAttendanceMarkGuard, async (req, res) => {
   try {
     const isBatch = Array.isArray(req.body.records);
@@ -372,12 +572,12 @@ router.post('/', authMiddleware, checkAttendanceMarkGuard, async (req, res) => {
       return res.status(400).json({ error: 'classId and subjectId are required' });
     }
 
-    // ── Policy Checks (Non-Admin Enforced) ────────────────
+    // Verify attendance policy constraints for non-admin roles
     const settings = await getCachedSettings();
     const attSettings = settings.attendance || {};
 
     if (req.user.role !== 'admin') {
-      // 1. Check maxAttendanceBackdateDays
+      // Verify max attendance backdate limit
       const maxBackdate = attSettings.maxAttendanceBackdateDays !== undefined ? Number(attSettings.maxAttendanceBackdateDays) : 3;
       const targetDate = new Date(dateInput + 'T00:00:00.000Z');
       const today = new Date();
@@ -390,7 +590,7 @@ router.post('/', authMiddleware, checkAttendanceMarkGuard, async (req, res) => {
         });
       }
 
-      // 2. Check requirePeriodRemark
+      // Verify required period remark or topic
       const requireRemark = !!attSettings.requirePeriodRemark;
       const topicInput = req.body.topic || req.body.remarks || (rawRecords[0] && (rawRecords[0].topic || rawRecords[0].remarks));
       if (requireRemark && (!topicInput || !String(topicInput).trim())) {
@@ -475,22 +675,26 @@ router.post('/', authMiddleware, checkAttendanceMarkGuard, async (req, res) => {
     });
 
     const periodObj = {
+      periodNumber: periodNumInput,
       periodNumbers: [periodNumInput],
       subjectTrackId: targetSubjectTrackId,
       teacherTrackId,
       markedBy,
       markedAt: new Date(),
+      topic: String(req.body.topic || '').trim(),
+      notes: String(req.body.notes || '').trim(),
       records: formattedRecords
     };
 
     if (classAttDoc) {
       // Check if period for this subject and period number already exists
       const existingPeriodIdx = classAttDoc.periods.findIndex(p =>
-        p.subjectTrackId === targetSubjectTrackId && p.periodNumbers.includes(periodNumInput)
+        (p.subjectTrackId === targetSubjectTrackId || String(p.subjectTrackId) === String(targetSubjectTrackId)) &&
+        (Number(p.periodNumber) === periodNumInput || (Array.isArray(p.periodNumbers) && p.periodNumbers.includes(periodNumInput)))
       );
 
       if (existingPeriodIdx !== -1) {
-        // 3. Check allowAttendanceEdit
+        // Verify attendance edit permissions
         if (req.user.role !== 'admin' && attSettings.allowAttendanceEdit === false) {
           return res.status(403).json({
             error: 'Modifying previously saved attendance is locked by administrator.',
@@ -498,7 +702,7 @@ router.post('/', authMiddleware, checkAttendanceMarkGuard, async (req, res) => {
           });
         }
 
-        // 4. Check autoLockAttendanceHours
+        // Verify auto-lock threshold for finalized attendance
         const autoLockHours = Number(attSettings.autoLockAttendanceHours) || 0;
         if (req.user.role !== 'admin' && autoLockHours > 0) {
           const existingPeriod = classAttDoc.periods[existingPeriodIdx];
@@ -531,95 +735,189 @@ router.post('/', authMiddleware, checkAttendanceMarkGuard, async (req, res) => {
       });
     }
 
-    // Sync student counters asynchronously and upsert daily student attendance logs
+    // Sync student counters asynchronously
     for (const stTrackId of affectedTrackIds) {
       await syncStudentAttendanceCounters(stTrackId, targetClassId);
-
-      // Upsert student daily attendance log
-      try {
-        const studentRec = formattedRecords.find(r => r.studentTrackId === stTrackId);
-        const stuStatus = studentRec ? studentRec.status : 'P';
-        const dateStr = dateInput;
-
-        const periodSummaryObj = {
-          periodNumber: periodNumInput,
-          subjectTrackId: targetSubjectTrackId,
-          subjectName: targetSubjectTrackId,
-          status: stuStatus,
-          markedBy: req.user.name || 'Teacher',
-          markedAt: new Date()
-        };
-
-        const existingDailyLog = await M.Log.findOne({
-          module: 'student',
-          subType: 'attendance',
-          'attendanceSummary.studentTrackId': stTrackId,
-          'attendanceSummary.date': dateStr
-        });
-
-        if (existingDailyLog && existingDailyLog.attendanceSummary) {
-          // Update existing period or push new period
-          const existingPeriods = existingDailyLog.attendanceSummary.periods || [];
-          const pIdx = existingPeriods.findIndex(p => p.periodNumber === periodNumInput);
-          if (pIdx >= 0) {
-            existingPeriods[pIdx] = periodSummaryObj;
-          } else {
-            existingPeriods.push(periodSummaryObj);
-            existingPeriods.sort((a, b) => a.periodNumber - b.periodNumber);
-          }
-          existingDailyLog.attendanceSummary.periods = existingPeriods;
-          existingDailyLog.time = new Date();
-          await existingDailyLog.save();
-        } else {
-          // Find student name
-          const stuDoc = await M.Student.findOne({ trackId: stTrackId }).select('fullName').lean();
-          const studentName = stuDoc?.fullName || stTrackId;
-          await logAction(
-            stTrackId,
-            studentName,
-            'student',
-            'Student Attendance Daily',
-            `Attendance record for ${dateStr}`,
-            'attendance',
-            'info',
-            req.ip,
-            '',
-            {
-              module: 'student',
-              subType: 'attendance',
-              trackId: stTrackId,
-              attendanceSummary: {
-                studentTrackId: stTrackId,
-                studentName,
-                date: dateStr,
-                classId: targetClassId,
-                periods: [periodSummaryObj]
-              }
-            }
-          );
-        }
-      } catch (logErr) {
-        console.error('[Student Daily Log Error]:', logErr.message);
-      }
     }
 
-    await logAction(
-      req.user.trackId || req.user._id,
-      req.user.name,
-      req.user.role,
-      'Attendance Marked',
-      `Class ${targetClassId} on ${dateInput} Period ${periodNumInput}`,
-      'attendance',
-      'info',
-      req.ip,
-      req.user.sessionId,
-      {
-        module: 'teacher',
-        subType: 'attendance',
-        trackId: req.user.trackId,
-        actingWithAdminRights: req.user.actingWithAdminRights
+    // Consolidated Daily Class Attendance Logging (1 log per class per day, appended with period changes & student reg numbers)
+    try {
+      // Determine capture method
+      let captureMethod = 'Manual';
+      if (req.body.quickPassSessionId) captureMethod = 'QuickPass Code';
+      else if (req.body.scanLiveSessionId) captureMethod = 'Live QR';
+      else if (req.body.repShareSessionId) captureMethod = 'Rep Share';
+      else if (req.body.method && typeof req.body.method === 'string') captureMethod = req.body.method;
+
+      const teacherName = (req.user.firstName && req.user.lastName)
+        ? `${req.user.firstName} ${req.user.lastName}`.trim()
+        : (req.user.fullName || req.user.name || req.user.username || 'Teacher');
+      const teacherSessionId = req.user.sessionId || (req.session && req.session.sessionId) || '';
+      const teacherTrackId = req.user.trackId || String(req.user._id);
+
+      // Build student records with register numbers
+      const periodStudentRecords = [];
+      let presentCount = 0;
+      let absentCount = 0;
+      let odCount = 0;
+
+      for (const rec of formattedRecords) {
+        const sObj = studentLookup.get(rec.studentTrackId);
+        const regNo = sObj?.registerNo || sObj?.regNo || rec.studentTrackId;
+        const sName = sObj?.fullName || sObj?.name || rec.studentTrackId;
+        const status = rec.status || 'P';
+
+        if (status === 'P' || status === 'PRESENT') presentCount++;
+        else if (status === 'OD' || status === 'ON DUTY') odCount++;
+        else absentCount++;
+
+        periodStudentRecords.push({
+          studentTrackId: rec.studentTrackId,
+          regNo,
+          name: sName,
+          status
+        });
       }
-    );
+
+      const periodStats = {
+        total: formattedRecords.length,
+        present: presentCount,
+        absent: absentCount,
+        od: odCount
+      };
+
+      const periodLogObj = {
+        periodNumber: periodNumInput,
+        subjectTrackId: targetSubjectTrackId,
+        subjectName: (sub && sub.name) ? `${sub.name} (${targetSubjectTrackId})` : targetSubjectTrackId,
+        teacherTrackId,
+        teacherName,
+        teacherSessionId,
+        method: captureMethod,
+        topic: req.body.topic || req.body.remarks || '',
+        markedAt: new Date(),
+        stats: periodStats,
+        records: periodStudentRecords,
+        history: [{
+          action: 'Initial Marking',
+          teacherTrackId,
+          teacherName,
+          teacherSessionId,
+          method: captureMethod,
+          changedAt: new Date(),
+          summary: `Marked ${presentCount}/${formattedRecords.length} Present via ${captureMethod}`
+        }]
+      };
+
+      const dateStr = dateInput;
+      const className = cls ? (cls.name || cls.classTrackId || targetClassId) : targetClassId;
+
+      const existingDailyClassLog = await M.Log.findOne({
+        category: 'attendance',
+        subType: 'attendance',
+        'attendanceClassDaily.classId': String(targetClassId),
+        'attendanceClassDaily.date': dateStr
+      });
+
+      if (existingDailyClassLog && existingDailyClassLog.attendanceClassDaily) {
+        const periods = existingDailyClassLog.attendanceClassDaily.periods || [];
+        const existingPIdx = periods.findIndex(p => p.periodNumber === periodNumInput);
+
+        if (existingPIdx >= 0) {
+          // Existing period updated: calculate changes
+          const oldPeriod = periods[existingPIdx];
+          const oldRecords = oldPeriod.records || [];
+          const changesSummary = [];
+
+          periodStudentRecords.forEach(newRec => {
+            const oldRec = oldRecords.find(o => o.studentTrackId === newRec.studentTrackId);
+            if (oldRec && oldRec.status !== newRec.status) {
+              changesSummary.push(`${newRec.regNo} (${oldRec.status} -> ${newRec.status})`);
+            }
+          });
+
+          const updateSummary = changesSummary.length > 0
+            ? `Updated ${changesSummary.length} student(s): ${changesSummary.slice(0, 5).join(', ')}${changesSummary.length > 5 ? '…' : ''}`
+            : `Re-saved period by ${teacherName} (${presentCount}/${formattedRecords.length} Present)`;
+
+          const updatedHistory = (oldPeriod.history || []).concat([{
+            action: 'Updated',
+            teacherTrackId,
+            teacherName,
+            teacherSessionId,
+            method: captureMethod,
+            changedAt: new Date(),
+            summary: updateSummary
+          }]);
+
+          periodLogObj.history = updatedHistory;
+          periods[existingPIdx] = periodLogObj;
+        } else {
+          periods.push(periodLogObj);
+          periods.sort((a, b) => a.periodNumber - b.periodNumber);
+        }
+
+        existingDailyClassLog.attendanceClassDaily.periods = periods;
+        existingDailyClassLog.time = new Date();
+        existingDailyClassLog.sessionId = teacherSessionId;
+        existingDailyClassLog.userName = teacherName;
+        existingDailyClassLog.role = req.user.role || 'teacher';
+        existingDailyClassLog.details = `Class ${className} attendance updated on ${dateStr}. Period ${periodNumInput} marked via ${captureMethod} by ${teacherName} (${presentCount}/${formattedRecords.length} Present). Session: ${teacherSessionId}`;
+        await existingDailyClassLog.save();
+      } else {
+        // Create brand new daily class attendance log
+        await logAction(
+          teacherTrackId,
+          teacherName,
+          req.user.role || 'teacher',
+          'Class Attendance Marked',
+          `Class ${className} on ${dateStr} - Period ${periodNumInput} marked via ${captureMethod} by ${teacherName} (${presentCount}/${formattedRecords.length} Present). Session: ${teacherSessionId}`,
+          'attendance',
+          'info',
+          req.ip,
+          teacherSessionId,
+          {
+            module: 'teacher',
+            subType: 'attendance',
+            trackId: teacherTrackId,
+            actingWithAdminRights: req.user.actingWithAdminRights,
+            attendanceClassDaily: {
+              classId: String(targetClassId),
+              className: className,
+              date: dateStr,
+              periods: [periodLogObj]
+            },
+            req
+          }
+        );
+      }
+    } catch (attLogErr) {
+      console.error('[Class Daily Attendance Log Error]:', attLogErr.message);
+    }
+
+    // Update draft sessions to final saved status if associated
+    try {
+      if (req.body.quickPassSessionId) {
+        await M.QuickPassSession.updateOne(
+          { $or: [{ _id: req.body.quickPassSessionId }, { sessionTrackId: req.body.quickPassSessionId }] },
+          { isFinalSaved: true }
+        );
+      }
+      if (req.body.scanLiveSessionId) {
+        await M.ScanLiveSession.updateOne(
+          { $or: [{ _id: req.body.scanLiveSessionId }, { sessionTrackId: req.body.scanLiveSessionId }] },
+          { isFinalSaved: true }
+        );
+      }
+      if (req.body.repShareSessionId) {
+        await M.RepShareSession.updateOne(
+          { $or: [{ _id: req.body.repShareSessionId }, { sessionTrackId: req.body.repShareSessionId }] },
+          { isFinalSaved: true, status: 'finalized' }
+        );
+      }
+    } catch (sessionFinalErr) {
+      console.warn('Error marking draft session finalized:', sessionFinalErr.message);
+    }
 
     res.status(201).json({ ok: true, classAttendanceId: classAttDoc._id, savedCount: formattedRecords.length });
   } catch (err) {

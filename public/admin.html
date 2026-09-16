@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>EAMS – Admin Dashboard | Sri Shakthi</title>
+  <title>EAMS – Admin Dashboard</title>
   <link
     href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&family=Playfair+Display:wght@700&display=swap"
     rel="stylesheet">
@@ -12,12 +12,11 @@
   
   <link rel="stylesheet" href="css/base.css">
   <link rel="stylesheet" href="css/admin.css">
-
 </head>
 
 <body>
 
-  <!-- ── PAGE LOADER ── shown until first DB sync completes -->
+  <!-- Page loader overlay shown until initial database sync completes -->
   <div id="page-loader">
     <div class="loader-brand">🌿 EAMS Admin</div>
     <div class="three-body">
@@ -40,10 +39,10 @@
   <div id="app-shell">
     <div class="sb-overlay" id="sb-overlay" onclick="toggleAdminSidebar()"></div>
 
-    <!-- ── SIDEBAR TOGGLE BUTTON ───────────────────── -->
+    <!-- SIDEBAR TOGGLE BUTTON -->
     <button class="sb-toggle-btn" id="sbtoggle" onclick="toggleAdminSidebar()" title="Toggle menu">✖</button>
 
-    <!-- ── SIDEBAR ───────────────────────────────────────────── -->
+    <!-- SIDEBAR -->
     <nav class="sb">
       <div class="sb-logo">
         <div class="sb-brand">EAMS Admin</div>
@@ -75,6 +74,8 @@
         <div class="sb-section-label">Reports & Logs</div>
         <button class="sb-item" data-page="reports" onclick="nav('reports')"><span
             class="sbi-ic">📈</span>Analytics</button>
+        <button class="sb-item" onclick="window.location.href='export.html'"><span class="sbi-ic">📊</span>Export
+          Center</button>
         <button class="sb-item" onclick="window.location.href='bulk.html'"><span class="sbi-ic">📤</span>Bulk
           Upload</button>
         <button class="sb-item" onclick="window.location.href='logs.html'"><span class="sbi-ic">📋</span>Activity
@@ -110,7 +111,7 @@
       </div>
     </nav>
 
-    <!-- ── MAIN CONTENT ──────────────────────────────────────── -->
+    <!-- MAIN CONTENT -->
     <div class="mc">
 
       <!-- TOP BAR -->
@@ -138,13 +139,13 @@
             <div class="profile-av" id="topbar-av">A</div>
             <div class="profile-info">
               <div class="name" id="topbar-name">Administrator</div>
-              <div class="email">Sri Shakthi Institute</div>
+              <div class="email" id="topbar-inst-name">Admin Portal</div>
             </div>
           </div>
         </div>
       </div>
 
-      <!-- ── DASHBOARD PAGE ── -->
+      <!-- DASHBOARD PAGE -->
       <div class="pg act" id="pg-dash">
         <div class="page-wrap">
           <div class="page-hd">
@@ -387,7 +388,7 @@
         </div>
       </div>
 
-      <!-- ── DEPARTMENTS PAGE ── -->
+      <!-- DEPARTMENTS PAGE -->
       <div class="pg" id="pg-depts">
         <div class="page-wrap">
           <div class="page-hd">
@@ -404,7 +405,7 @@
         <div id="dg2" class="tgrd"></div>
       </div>
 
-      <!-- ── CLASSES & SUBJECTS PAGE ── -->
+      <!-- CLASSES & SUBJECTS PAGE -->
       <div class="pg" id="pg-struct">
         <div class="page-wrap">
           <div class="page-hd">
@@ -484,7 +485,7 @@
         </div>
       </div>
 
-      <!-- ── STUDENTS PAGE ── -->
+      <!-- STUDENTS PAGE -->
       <div class="pg" id="pg-students">
         <div class="shd">
           <div class="stl"><span class="sdo"></span>Students</div>
@@ -572,7 +573,7 @@
         </div>
       </div>
 
-      <!-- ── TEACHERS PAGE ── -->
+      <!-- TEACHERS PAGE -->
       <div class="pg" id="pg-teachers">
         <div class="page-wrap">
           <div class="page-hd">
@@ -586,10 +587,10 @@
             </div>
           </div>
 
-          <!-- ── Stat Cards ── -->
+          <!-- Stat Cards -->
           <div class="stats-row" id="t-stat-cards"></div>
 
-          <!-- ── Filter Toolbar ── -->
+          <!-- Filter Toolbar -->
           <div class="card" style="margin-bottom:16px;">
             <div class="card-body-p">
               <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
@@ -631,10 +632,10 @@
             </div>
           </div>
 
-          <!-- ── Grid View ── -->
+          <!-- Grid View -->
           <div id="tgr" class="tgrd"></div>
 
-          <!-- ── Table View ── -->
+          <!-- Table View -->
           <div id="ttbl-wrap" class="tw" style="display:none;">
             <table class="tbl t-tbl">
               <thead>
@@ -658,7 +659,7 @@
         </div>
       </div>
 
-      <!-- ── EXECUTIVE ROLES & SPECIAL ACCESS PAGE ── -->
+      <!-- EXECUTIVE ROLES & SPECIAL ACCESS PAGE -->
       <div class="pg" id="pg-roles">
         <div class="page-wrap">
           <div class="page-hd">
@@ -756,7 +757,7 @@
         </div>
       </div>
 
-      <!-- ── REPORTS PAGE ── -->
+      <!-- REPORTS PAGE -->
       <div class="pg" id="pg-reports">
         <div class="shd">
           <div class="stl"><span class="sdo"></span>Analytics & Reports</div>
@@ -879,7 +880,7 @@
         </div>
       </div>
 
-      <!-- ══════════════════════════ MODALS ══════════════════════════ -->
+      <!-- MODALS -->
 
       <!-- Add Department -->
       <div class="modal-bg" id="m-add-dept">
@@ -900,15 +901,15 @@
           </div>
           <!-- Row 2: 2-digit | 3-digit | Dept Number -->
           <div class="form-grid" style="grid-template-columns:1fr 1fr 1fr;">
-            <div class="fg"><label class="fl">2-Letter Code<span style="color:var(--red);">*</span></label>
+            <div class="fg"><label class="fl">2-Letter Character<span style="color:var(--red);">*</span></label>
               <input type="text" class="fc2" id="dept-2code" placeholder="cs" maxlength="4"
                 oninput="this.value=this.value.toLowerCase().replace(/[^a-z]/g,'')">
             </div>
-            <div class="fg"><label class="fl">3-Letter Code<span style="color:var(--red);">*</span></label>
+            <div class="fg"><label class="fl">3-Letter Character<span style="color:var(--red);">*</span></label>
               <input type="text" class="fc2" id="dept-code" placeholder="CSE" maxlength="6"
                 oninput="this.value=this.value.toUpperCase().replace(/[^A-Z]/g,'')">
             </div>
-            <div class="fg"><label class="fl">Dept Number <span style="color:var(--red);">*</span></label>
+            <div class="fg"><label class="fl">Department Code <span style="color:var(--red);">*</span></label>
               <input type="text" class="fc2" id="dept-number" placeholder="e.g. 104" maxlength="3"
                 oninput="this.value=this.value.replace(/\D/g,'')">
             </div>
@@ -1914,7 +1915,7 @@
       <div class="toast" id="toast"></div>
       <div id="db-toast"></div>
 
-      <!-- ── SUBJECT STAFF & HALL ASSIGNMENT MODAL ─────────────── -->
+      <!-- SUBJECT STAFF & HALL ASSIGNMENT MODAL -->
       <div class="modal-bg" id="m-subj-assign">
         <div class="modal" style="max-width:820px;width:96vw;">
           <div class="modal-hd">
@@ -1969,7 +1970,7 @@
         </div>
       </div>
 
-      <!-- ── CLEAR BROWSER STORAGE MODAL ─────────────────── -->
+      <!-- CLEAR BROWSER STORAGE MODAL -->
       <div class="modal-bg" id="m-clear-storage">
         <div class="modal modal-sm" style="text-align:center;">
           <div class="modal-hd">
@@ -2061,7 +2062,7 @@
         </div>
       </div>
 
-      <!-- ── MODAL: ASSIGN / EDIT PRINCIPAL ── -->
+      <!-- MODAL: ASSIGN / EDIT PRINCIPAL -->
       <div class="modal-bg" id="m-assign-principal">
         <div class="modal modal-md">
           <div class="modal-hd">
@@ -2083,7 +2084,7 @@
             </div>
             <div class="fg" style="margin-bottom:12px;">
               <label class="fl">Official Email</label>
-              <input type="email" id="prin-email" class="fc" placeholder="principal@srishakthi.ac.in">
+              <input type="email" id="prin-email" class="fc" placeholder="principal@institution.edu">
             </div>
             <div class="fg">
               <label class="fl">Employee ID</label>
@@ -2097,7 +2098,7 @@
         </div>
       </div>
 
-      <!-- ── MODAL: ASSIGN DEPARTMENT HOD ── -->
+      <!-- MODAL: ASSIGN DEPARTMENT HOD -->
       <div class="modal-bg" id="m-assign-hod">
         <div class="modal modal-md">
           <div class="modal-hd">
@@ -2125,7 +2126,7 @@
         </div>
       </div>
 
-      <!-- ── MODAL: GRANT SUB-ADMIN PRIVILEGES ── -->
+      <!-- MODAL: GRANT SUB-ADMIN PRIVILEGES -->
       <div class="modal-bg" id="m-grant-subadmin">
         <div class="modal modal-md">
           <div class="modal-hd">

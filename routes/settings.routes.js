@@ -8,35 +8,28 @@ const cfg = require('../config');
 const { deleteAuthLimiter } = require('../utils/rateLimiters');
 
 const { DEFAULT_SETTINGS_MAP } = require('../config/defaultSettings');
+const { getSettings, invalidateSettingsCache } = require('../utils/settingsCache');
 
-// ── GET /api/settings/public — Public endpoint for pre-auth status & portal availability ──
+// GET /api/settings/public — Public endpoint for pre-auth status & portal availability
 router.get('/public', async (req, res) => {
   try {
-    const [pages, maint, institution, broadcast, academic, models, attendance] = await Promise.all([
-      M.Settings.findOne({ key: 'pages' }).lean(),
-      M.Settings.findOne({ key: 'maintenance' }).lean(),
-      M.Settings.findOne({ key: 'institution' }).lean(),
-      M.Settings.findOne({ key: 'broadcast' }).lean(),
-      M.Settings.findOne({ key: 'academic' }).lean(),
-      M.Settings.findOne({ key: 'models' }).lean(),
-      M.Settings.findOne({ key: 'attendance' }).lean(),
-    ]);
+    const settingsMap = await getSettings(['pages', 'maintenance', 'institution', 'broadcast', 'academic', 'models', 'attendance']);
 
     res.json({
-      pages: { ...DEFAULT_SETTINGS_MAP.pages.value, ...(pages?.value || {}) },
-      maintenance: { ...DEFAULT_SETTINGS_MAP.maintenance.value, ...(maint?.value || {}) },
-      institution: { ...DEFAULT_SETTINGS_MAP.institution.value, ...(institution?.value || {}) },
-      academic: { ...DEFAULT_SETTINGS_MAP.academic.value, ...(academic?.value || {}) },
-      models: { ...DEFAULT_SETTINGS_MAP.models.value, ...(models?.value || {}) },
-      attendance: { ...DEFAULT_SETTINGS_MAP.attendance.value, ...(attendance?.value || {}) },
-      broadcast: { ...DEFAULT_SETTINGS_MAP.broadcast.value, ...(broadcast?.value || {}) },
+      pages: settingsMap.pages || DEFAULT_SETTINGS_MAP.pages.value,
+      maintenance: settingsMap.maintenance || DEFAULT_SETTINGS_MAP.maintenance.value,
+      institution: settingsMap.institution || DEFAULT_SETTINGS_MAP.institution.value,
+      academic: settingsMap.academic || DEFAULT_SETTINGS_MAP.academic.value,
+      models: settingsMap.models || DEFAULT_SETTINGS_MAP.models.value,
+      attendance: settingsMap.attendance || DEFAULT_SETTINGS_MAP.attendance.value,
+      broadcast: settingsMap.broadcast || DEFAULT_SETTINGS_MAP.broadcast.value,
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// ── GET /api/settings/history — Change history audit log ──
+// GET /api/settings/history — Change history audit log
 router.get('/history', authMiddleware, requireRight('settingsPage', 'settingsModule', 'controlPage'), async (req, res) => {
   try {
     const page = parseInt(req.query.page || '1', 10);
@@ -69,7 +62,7 @@ router.get('/history', authMiddleware, requireRight('settingsPage', 'settingsMod
   }
 });
 
-// ── GET /api/settings — Load all domain settings ──
+// GET /api/settings — Load all domain settings
 router.get('/', authMiddleware, requireRight('settingsPage', 'settingsModule', 'controlPage'), async (req, res) => {
   try {
     const rows = await M.Settings.find({ key: { $ne: 'special_delete_password' } }).lean();
@@ -112,7 +105,7 @@ router.get('/', authMiddleware, requireRight('settingsPage', 'settingsModule', '
   }
 });
 
-// ── POST /api/settings/verify-delete-password ──
+// POST /api/settings/verify-delete-password
 router.post('/verify-delete-password', deleteAuthLimiter, authMiddleware, adminOnly, async (req, res) => {
   try {
     const { password } = req.body;
@@ -153,7 +146,7 @@ router.post('/verify-delete-password', deleteAuthLimiter, authMiddleware, adminO
   }
 });
 
-// ── POST /api/settings/reset — Factory Reset All Settings ──
+// POST /api/settings/reset — Factory Reset All Settings
 router.post('/reset', authMiddleware, adminOnly, async (req, res) => {
   try {
     const { password } = req.body;
@@ -204,13 +197,14 @@ router.post('/reset', authMiddleware, adminOnly, async (req, res) => {
       req.user.sessionId,
       { module: 'settings', subType: 'danger', trackId: req.user.trackId }
     );
+    invalidateSettingsCache();
     res.json({ success: true, message: 'All settings restored to factory defaults.' });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// ── GET /api/settings/:key ──
+// GET /api/settings/:key
 router.get('/:key', authMiddleware, async (req, res) => {
   const s = await M.Settings.findOne({ key: req.params.key });
   if (!s) return res.status(404).json({ error: 'Setting not found' });
@@ -218,7 +212,7 @@ router.get('/:key', authMiddleware, async (req, res) => {
   res.json(s.value);
 });
 
-// ── PUT /api/settings/:key — Save & Audit Setting Domain ──
+// PUT /api/settings/:key — Save & Audit Setting Domain
 router.put('/:key', authMiddleware, requireRight('settingsPage', 'settingsModule', 'controlPage'), async (req, res) => {
   try {
     if (req.params.key === 'special_delete_password') return res.status(403).json({ error: 'Forbidden' });
@@ -259,11 +253,14 @@ router.put('/:key', authMiddleware, requireRight('settingsPage', 'settingsModule
       });
     }
 
+    const cardName = existing?.card || DEFAULT_SETTINGS_MAP[key]?.card || key;
     const s = await M.Settings.findOneAndUpdate(
       { key },
-      { value: newValue, updatedBy: req.user.name || 'Admin' },
+      { $set: { value: newValue, card: cardName, updatedBy: req.user.name || 'Admin' } },
       { returnDocument: 'after', upsert: true }
     );
+
+    invalidateSettingsCache(key);
 
     // Special detailed logging for maintenance changes
     if (key === 'maintenance') {
@@ -309,7 +306,7 @@ router.put('/:key', authMiddleware, requireRight('settingsPage', 'settingsModule
       );
     }
 
-    res.json(s.value);
+    res.json(s && s.value ? s.value : newValue);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

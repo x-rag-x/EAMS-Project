@@ -1,10 +1,12 @@
-const M = require('../models');
+const { getSetting } = require('../utils/settingsCache');
 
-// ── Check maintenance mode ────────────────────────────
+// Check active maintenance mode and restrict access for affected user roles
 async function checkMaintenance(req, res, next) {
-  const setting = await M.Settings.findOne({ key: 'maintenance' });
-  if (setting?.value?.active && req.user?.role !== 'admin') {
-    const v = setting.value;
+  if (req.user?.role === 'admin' || (req.user?.role === 'teacher' && req.user?.isAdmin)) {
+    return next();
+  }
+  const v = await getSetting('maintenance');
+  if (v?.active) {
     const affected = v.affectedRoles?.length ? v.affectedRoles : ['teacher', 'student'];
     if (affected.includes(req.user?.role)) {
       return res.status(503).json({

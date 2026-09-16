@@ -1,25 +1,22 @@
-// ═══════════════════════════════════════════════════════════════
-//  EAMS — Authoritative System Settings Defaults
-//  Single source of truth for all domain configuration cards
-// ═══════════════════════════════════════════════════════════════
+// System settings default configurations and seed definitions
 
 const DEFAULT_SETTINGS_MAP = {
-  // ── card: Institution Details ────────────────────────────────────────────
+  // Institution details configuration
   institution: {
     card: 'Institution Details',
     value: {
-      institutionName:    'Sri Shakthi Institute of Engineering and Technology',
-      institutionShort:   'SIET',
-      institutionTagline: 'Autonomous Institution · Approved by AICTE',
-      institutionLogoUrl: 'assets/logo.png',
-      institutionAddress: 'Sri Shakthi Nagar, L&T Bypass, Chinniyampalayam Post, Coimbatore - 641062',
-      institutionEmail:   'info@siet.ac.in',
-      institutionPhone:   '+91 422 2369900',
-      institutionWebsite: 'https://www.siet.ac.in',
+      institutionName:    '',
+      institutionShort:   '',
+      institutionTagline: '',
+      institutionLogoUrl: '',
+      institutionAddress: '',
+      institutionEmail:   '',
+      institutionPhone:   '',
+      institutionWebsite: '',
     }
   },
 
-  // ── card: Pages & Portals (Tri-State) ───────────────────────────────────
+  // Pages and portal access control settings
   pages: {
     card: 'Pages & Portals',
     value: {
@@ -32,12 +29,16 @@ const DEFAULT_SETTINGS_MAP = {
     }
   },
 
-  // ── card: Attendance Policy ──────────────────────────────────────────────
+  // Attendance policy and session rules
   attendance: {
     card: 'Attendance Policy',
     value: {
       markAttendance:            true,
       liveSessions:              true,
+      quickPass:                 true,
+      rotationCount:             2,
+      rotationTimeSec:           60,
+      qrIntervalSec:             60,
       forwardToRep:              true,
       allowAttendanceEdit:       true,
       maxAttendanceBackdateDays: 3,
@@ -47,7 +48,7 @@ const DEFAULT_SETTINGS_MAP = {
     }
   },
 
-  // ── card: Models & Features ──────────────────────────────────────────────
+  // Module and feature toggle settings
   models: {
     card: 'Models & Features',
     value: {
@@ -64,11 +65,11 @@ const DEFAULT_SETTINGS_MAP = {
     }
   },
 
-  // ── card: Academic Settings ──────────────────────────────────────────────
+  // Academic calendar and attendance thresholds
   academic: {
     card: 'Academic Settings',
     value: {
-      academicYear:           '2026-27',
+      academicYear:           '2026-2027',
       currentSemesterType:    'Odd',
       minAttendance:          75,
       lowAttendanceThreshold: 65,
@@ -77,7 +78,7 @@ const DEFAULT_SETTINGS_MAP = {
     }
   },
 
-  // ── card: Password Policy ────────────────────────────────────────────────
+  // Password policy and security constraints
   security: {
     card: 'Password Policy',
     value: {
@@ -90,7 +91,7 @@ const DEFAULT_SETTINGS_MAP = {
     }
   },
 
-  // ── card: System Broadcasts ──────────────────────────────────────────────
+  // System broadcast popup configuration
   broadcast: {
     card: 'System Broadcasts',
     value: {
@@ -100,7 +101,7 @@ const DEFAULT_SETTINGS_MAP = {
     }
   },
 
-  // ── card: System Utilities ───────────────────────────────────────────────
+  // Advanced system utilities and debugging flags
   advanced: {
     card: 'System Utilities',
     value: {
@@ -111,7 +112,7 @@ const DEFAULT_SETTINGS_MAP = {
     }
   },
 
-  // ── card: Operational maintenance ────────────────────────────────────────
+  // Operational maintenance mode configuration
   maintenance: {
     card: 'System Utilities',
     value: {

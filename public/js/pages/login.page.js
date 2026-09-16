@@ -2,6 +2,38 @@ document.addEventListener('DOMContentLoaded', function () {
   const params = new URLSearchParams(window.location.search);
   const type = params.get('type') || 'info';
   const time = parseInt(params.get('time') || '0', 10);
+  const method = params.get('method');
+  const returnUrl = params.get('returnUrl') || params.get('redirect');
+
+  if (method === 'att') {
+    const sid = params.get('sid') || '';
+    const qid = params.get('qid') || '';
+    let t = params.get('t');
+    if (!t) {
+      t = btoa(String(Date.now()));
+    }
+    const attReturnUrl = 'attendance.html?sid=' + encodeURIComponent(sid) + '&qid=' + encodeURIComponent(qid) + '&t=' + encodeURIComponent(t);
+    sessionStorage.setItem('eams_return_url', attReturnUrl);
+    pickRole('student');
+
+    // Update URL with &t=<encryptedTime>
+    history.replaceState({}, '', 'index.html?method=att&sid=' + encodeURIComponent(sid) + '&qid=' + encodeURIComponent(qid) + '&t=' + encodeURIComponent(t));
+
+    // Fast-path: if student is already authenticated, redirect straight to attendance
+    const existingToken = sessionStorage.getItem('eams_token');
+    let existingUser = null;
+    try { existingUser = JSON.parse(sessionStorage.getItem('eams_user')); } catch (e) {}
+    if (existingToken && existingUser && existingUser.role === 'student') {
+      window.location.href = attReturnUrl;
+      return;
+    }
+  } else if (returnUrl) {
+    sessionStorage.setItem('eams_return_url', returnUrl);
+    pickRole('student');
+    history.replaceState({}, '', 'index.html?returnUrl=' + encodeURIComponent(returnUrl));
+  } else {
+    history.replaceState({}, '', 'index.html');
+  }
 
   switch (params.get('logout')) {
     case 'timeout':
@@ -16,8 +48,6 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
   if (time > 0) { setTimeout(hideMsgToast, time); }
-
-  history.replaceState({}, '', 'index.html');
 });
 
 function msgToast(message, type) {
@@ -103,6 +133,16 @@ function hideMsgToast() {
           }
         }
         bannerBox.innerHTML = '<span>📢</span> <span>' + escapeHtml(d.broadcast.systemBannerMessage) + '</span>';
+      }
+
+      if (d.institution) {
+        if (d.institution.institutionShort) {
+          document.title = 'EAMS – Sign In | ' + d.institution.institutionShort;
+        }
+        if (d.institution.institutionName) {
+          var lb = document.getElementById('login-inst-name') || document.querySelector('.lb');
+          if (lb) lb.textContent = d.institution.institutionName;
+        }
       }
     })
     .catch(function () { });
@@ -250,6 +290,8 @@ function openLocationGuidanceModal() {
 }
 
 function closeLocationModal() {
+  clearInterval(locationCountdownTimer);
+  locationCountdownTimer = null;
   var modal = document.getElementById('m-loc-guide');
   if (modal) modal.classList.remove('open');
   pendingAuth = null;
@@ -290,47 +332,73 @@ function executeDirectLogin(username, password, role, coords) {
     });
 }
 
+var locationCountdownTimer = null;
+
 function confirmAndRequestLocation() {
   if (!pendingAuth) return;
 
   var modalProceedBtn = document.getElementById('btn-loc-proceed');
   var signInButton = document.getElementById('lbn');
 
-  if (modalProceedBtn) {
-    modalProceedBtn.disabled = true;
-    modalProceedBtn.innerHTML = '<div class="spin"></div><span>Requesting location…</span>';
-  }
+  var auth = pendingAuth;
+
   if (signInButton) {
     signInButton.disabled = true;
     signInButton.innerHTML = '<div class="spin"></div><span>Signing in…</span>';
   }
 
-  var auth = pendingAuth;
-
   if (!navigator.geolocation) {
     closeLocationModal();
-    handleLocationDenied(auth.username, auth.role, 'Geolocation is not supported by your browser.');
+    if (auth.role === 'admin') {
+      executeDirectLogin(auth.username, auth.password, auth.role, null);
+    } else {
+      handleLocationDenied(auth.username, auth.role, 'Geolocation is not supported by your browser.');
+    }
     return;
   }
 
+  var remainingSec = 60;
+  if (modalProceedBtn) {
+    modalProceedBtn.disabled = true;
+    modalProceedBtn.innerHTML = '<div class="spin"></div><span>Waiting for location (' + remainingSec + 's)…</span>';
+  }
+
+  clearInterval(locationCountdownTimer);
+  locationCountdownTimer = setInterval(function () {
+    remainingSec--;
+    if (remainingSec <= 0) {
+      clearInterval(locationCountdownTimer);
+      locationCountdownTimer = null;
+    } else if (modalProceedBtn) {
+      modalProceedBtn.innerHTML = '<div class="spin"></div><span>Waiting for location (' + remainingSec + 's)…</span>';
+    }
+  }, 1000);
+
   navigator.geolocation.getCurrentPosition(
     function (position) {
+      clearInterval(locationCountdownTimer);
+      locationCountdownTimer = null;
       executeDirectLogin(auth.username, auth.password, auth.role, {
         latitude: position.coords.latitude,
         longitude: position.coords.longitude,
         accuracy: position.coords.accuracy
       });
     },
-    function () {
+    function (geoErr) {
+      clearInterval(locationCountdownTimer);
+      locationCountdownTimer = null;
       closeLocationModal();
       if (auth.role === 'admin') {
-        // Admin role is never locked for location — directly execute sign in without coordinates
+        // Admin role is exempt from location requirement
         executeDirectLogin(auth.username, auth.password, auth.role, null);
       } else {
-        handleLocationDenied(auth.username, auth.role, 'Location permission denied or dismissed.');
+        var reasonMsg = (geoErr && geoErr.code === 3)
+          ? 'Location access timed out after 1 minute without permission.'
+          : 'Location permission denied by user.';
+        handleLocationDenied(auth.username, auth.role, reasonMsg);
       }
     },
-    { enableHighAccuracy: true, timeout: 4000, maximumAge: 300000 }
+    { enableHighAccuracy: true, timeout: 60000, maximumAge: 60000 }
   );
 }
 
@@ -355,6 +423,13 @@ function handleLoginResponse(data, role) {
   sessionStorage.setItem('eams_mustChangePw', data.mustChangePassword ? '1' : '0');
   sessionStorage.setItem('eams_login_time', Date.now().toString());
 
+  var returnUrl = sessionStorage.getItem('eams_return_url');
+  if (returnUrl) {
+    sessionStorage.removeItem('eams_return_url');
+    window.location.href = returnUrl;
+    return;
+  }
+
   if (role === 'student') {
     window.location.href = 'student.html';
   } else if (role === 'teacher') {
@@ -376,6 +451,8 @@ function handleLoginResponse(data, role) {
 }
 
 function handleLocationDenied(usernameInput, role, reason) {
+  clearInterval(locationCountdownTimer);
+  locationCountdownTimer = null;
   var errorBox = document.getElementById('lerr');
   var signInButton = document.getElementById('lbn');
   var isAdmin = role === 'admin';
@@ -383,7 +460,7 @@ function handleLocationDenied(usernameInput, role, reason) {
   fetch('/api/auth/location-denied', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ username: usernameInput, role: role })
+    body: JSON.stringify({ username: usernameInput, role: role, reason: reason })
   })
     .then(function (r) { return r.json(); })
     .then(function (data) {
@@ -394,9 +471,9 @@ function handleLocationDenied(usernameInput, role, reason) {
       if (isAdmin) {
         msgToast('Admin exemption active: Location not locked.', 'info');
       } else {
-        errorBox.textContent = '🔒 Location access is strictly mandatory to sign in. Your account has been temporarily locked for 1 hour for security compliance.';
+        errorBox.textContent = '🔒 Location access was not granted within 1 minute. Account locked for 1 hour for security compliance. Please contact administration.';
         errorBox.style.display = 'block';
-        msgToast('Account locked for 1 hour due to denied location permission.', 'error');
+        msgToast('Account locked for 1 hour: Location access was not granted.', 'error');
         document.getElementById('lp').value = '';
       }
     })
@@ -405,7 +482,7 @@ function handleLocationDenied(usernameInput, role, reason) {
       signInButton.disabled = false;
       signInButton.innerHTML = '<span id="lbn-txt">Sign In</span>';
       if (!isAdmin) {
-        errorBox.textContent = '🔒 Location access is required. Account locked for 1 hour.';
+        errorBox.textContent = '🔒 Location access was not granted within 1 minute. Account locked for 1 hour.';
         errorBox.style.display = 'block';
       }
     });
@@ -413,13 +490,27 @@ function handleLocationDenied(usernameInput, role, reason) {
 
 function resetSignInUI() {
   signingIn = false;
-  document.getElementById('tab-student').style.cursor = '';
-  document.getElementById('tab-teacher').style.cursor = '';
-  document.getElementById('tab-admin').style.cursor = '';
-  document.getElementById('lu').style.cursor = '';
-  document.getElementById('lp').style.cursor = '';
-  document.getElementById('lu').disabled = false;
-  document.getElementById('lp').disabled = false;
+  var signInButton = document.getElementById('lbn');
+  if (signInButton) {
+    signInButton.disabled = false;
+    signInButton.innerHTML = '<span id="lbn-txt">Sign In</span>';
+  }
+  var tabStudent = document.getElementById('tab-student');
+  if (tabStudent) tabStudent.style.cursor = '';
+  var tabTeacher = document.getElementById('tab-teacher');
+  if (tabTeacher) tabTeacher.style.cursor = '';
+  var tabAdmin = document.getElementById('tab-admin');
+  if (tabAdmin) tabAdmin.style.cursor = '';
+  var lu = document.getElementById('lu');
+  if (lu) {
+    lu.style.cursor = '';
+    lu.disabled = false;
+  }
+  var lp = document.getElementById('lp');
+  if (lp) {
+    lp.style.cursor = '';
+    lp.disabled = false;
+  }
   document.querySelectorAll('.rtab').forEach(function (tab) {
     tab.style.pointerEvents = '';
   });

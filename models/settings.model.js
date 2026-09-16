@@ -1,7 +1,4 @@
 const mongoose = require('mongoose');
-const { toIndianTime } = require('../utils/dateFormatter');
-
-const IndianDate = { type: String, default: () => toIndianTime(new Date()) };
 
 const editFieldHistory = new mongoose.Schema({
   editedModule : { type: String, required: true},
@@ -11,7 +8,7 @@ const editFieldHistory = new mongoose.Schema({
     username: { type: String, required: true},
     trackId:  { type: String, required: true},
   },
-  time: IndianDate,
+  time: { type: Date, default: Date.now },
 }, { timestamps:true });
 
 const DataManagementSchema = new mongoose.Schema({

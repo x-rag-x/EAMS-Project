@@ -7,22 +7,38 @@ var _dmDayType   = 'working';
 var _dmWorking   = true;
 var _hasLocalDraft = false;
 
-// ── Utils ─────────────────────────────────────────────────────────────
+// Utils
 function pad2(n){ return String(n).padStart(2,'0'); }
 function todayStr(){ return new Date().toISOString().split('T')[0]; }
 function fmtDate(s){ if(!s) return '—'; var d=new Date(s+'T00:00:00'); return d.toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}); }
-function normalizeCalDateKey(d){ if(!d) return ''; return String(d).split('T')[0]; }
+function normalizeCalDateKey(d){
+  if(!d) return '';
+  if(typeof d === 'object' && d !== null) {
+    if(d.dateKey) return d.dateKey;
+    d = d.date;
+  }
+  if(!d) return '';
+  if(typeof d === 'string') {
+    if(/^\d{4}-\d{2}-\d{2}$/.test(d)) return d;
+    if(d.indexOf('T') !== -1) return d.split('T')[0];
+  }
+  var dt = new Date(d);
+  if(!isNaN(dt.getTime())) {
+    return dt.getUTCFullYear() + '-' + pad2(dt.getUTCMonth() + 1) + '-' + pad2(dt.getUTCDate());
+  }
+  return String(d).split('T')[0];
+}
 function examDates(ex){
   var arr=(ex&&Array.isArray(ex.Dates))?ex.Dates.slice().sort():[];
   return { start: arr[0]||'', end: arr[arr.length-1]||'' };
 }
 
-// ── Boot ──────────────────────────────────────────────────────────────
+// Boot
 (function() {
   currentUser = checkAuth("admin", "managePage");
   if (!currentUser) return;
 
-  // ── Loader message sequence (3 s total) ─────────────
+  // Loader message sequence (3 s total)
   var LOADER_STEPS = [
     { t:    0, msg: 'Initializing EAMS…' },
     { t: 700, msg: 'Connecting to Database…' },
@@ -52,7 +68,7 @@ function examDates(ex){
     setTimeout(function () { setLoaderMsg(i, step.msg); }, step.t);
   });
 
-  // ── Gate: both 3 s timer AND real sync must finish ──────
+  // Gate: both 3 s timer AND real sync must finish
   var timerDone = false;
   var fetchDone = false;
   var fetchCb   = null; // store the nav callback until gate opens
@@ -93,15 +109,19 @@ function examDates(ex){
     }
   }
 
-  // ── Dynamic Settings & Tri-State Guard ─────────────────
+  // Dynamic Settings & Tri-State Guard
   fetch('/api/settings/public')
     .then(function (r) { return r.json(); })
     .then(function (pub) {
       if (pub.institution) {
-        var instShort = pub.institution.institutionShort || 'SIET';
-        document.title = 'EAMS – Manage | ' + instShort;
+        var instShort = pub.institution.institutionShort || '';
+        document.title = instShort ? ('EAMS – Manage | ' + instShort) : 'EAMS – Manage';
         var logoImg = document.getElementById('topbar-logo');
         if (logoImg && pub.institution.institutionLogoUrl) logoImg.src = pub.institution.institutionLogoUrl;
+        var brandSub = document.getElementById('manage-brand-sub');
+        if (brandSub && pub.institution.institutionShort) {
+          brandSub.textContent = pub.institution.institutionShort + ' EAMS';
+        }
       }
       if (currentUser && currentUser.role !== 'admin') {
         var pState = pub.pages ? pub.pages.pageManage : 'enabled';
@@ -153,7 +173,7 @@ function goBack() {
   }
 }
 
-// ── Helpers ───────────────────────────────────────────────────────────
+// Helpers
 
 (function () {
   async function checkSessionExpiry() {
@@ -180,7 +200,7 @@ function goBack() {
   checkSessionExpiry();
 })();
 
-// ── Sidebar toggle ────────────────────────────────────────────────────
+// Sidebar toggle
 function toggleSidebar() {
   var isMobile = window.innerWidth <= 768;
   if (isMobile) {
@@ -198,7 +218,7 @@ function toggleSidebar() {
   }
 }
 
-// ── Navigation ────────────────────────────────────────────────────────
+// Navigation
 function nav(page) {
   if (['overview', 'calendar', 'exam', 'years', 'settings'].indexOf(page) === -1) page = 'overview';
 
@@ -219,12 +239,12 @@ function nav(page) {
   if(page==='settings')  loadManageAdmins();
 }
 
-// ── OVERVIEW ──────────────────────────────────────────────────────────
+// OVERVIEW
 function loadOverview() {
   var now = new Date(), m = now.getMonth()+1, y = now.getFullYear();
   document.getElementById('ov-month-label').textContent = ['','January','February','March','April','May','June','July','August','September','October','November','December'][m]+' '+y;
   apiCall('GET','/calendar?month='+m+'&year='+y).then(function(days){
-    var map={}; (Array.isArray(days)?days:[]).forEach(function(d){ var key=normalizeCalDateKey(d.date); map[key]=d; });
+    var map={}; (Array.isArray(days)?days:[]).forEach(function(d){ var key=normalizeCalDateKey(d.dateKey || d.date || d); map[key]=d; });
     renderCalGrid(map,m,y,'ov-cal-grid',true);
     var stats={working:0,leave:0,exam:0,total:new Date(y,m,0).getDate()};
     for(var day=1;day<=stats.total;day++){
@@ -268,7 +288,7 @@ function renderUpcomingExams(exams) {
   cont.innerHTML = html;
 }
 
-// ── CALENDAR HELPERS ──────────────────────────────────────────────────
+// CALENDAR HELPERS
 function getSatOrdinal(day, month, year) {
   var count=0;
   for(var d=1;d<=day;d++){ if(new Date(year,month-1,d).getDay()===6) count++; }
@@ -349,7 +369,7 @@ function renderCalGrid(map, month, year, gridId, readonly) {
   grid.innerHTML=cells;
 }
 
-// ── COLLEGE DAYS ──────────────────────────────────────────────────────
+// COLLEGE DAYS
 function prevMonth(){
   var m=parseInt(document.getElementById('cal-month-sel').value),y=parseInt(document.getElementById('cal-year-inp').value);
   if(m===1){m=12;y--;}else{m--;}
@@ -362,7 +382,7 @@ function nextMonth(){
   document.getElementById('cal-month-sel').value=m; document.getElementById('cal-year-inp').value=y;
   loadCalendar();
 }
-// ── CALENDAR DRAFT ENCRYPTION & SESSIONSTORAGE ────────────────────────
+// CALENDAR DRAFT ENCRYPTION & SESSIONSTORAGE
 function getCalDraftStorageKey(m, y) {
   return 'eams_cal_draft_' + y + '_' + pad2(m);
 }
@@ -442,6 +462,8 @@ function loadCalendar(){
       Object.keys(renderMap).forEach(function(k){ var d=renderMap[k];
         var hasYear = false;
         if(d.details && d.details.length > 0) hasYear = d.details.some(function(det){ return det.year === yf; });
+  dbToast('Syncing from database…','saving');
+
         if(!d.details || d.details.length===0 || hasYear) fmap[k]=d;
       });
       renderMap=fmap;
@@ -459,7 +481,7 @@ function loadCalendar(){
 
   document.getElementById('cal-grid').innerHTML='<div style="grid-column:span 7;text-align:center;padding:20px;color:var(--tdi);font-size:16px;">Loading… This may take few seconds.</div>';
   apiCall('GET','/calendar?month='+m+'&year='+y).then(function(days){
-    var map={}; (Array.isArray(days)?days:[]).forEach(function(d){ var key=normalizeCalDateKey(d.date); map[key]=d; });
+    var map={}; (Array.isArray(days)?days:[]).forEach(function(d){ var key=normalizeCalDateKey(d.dateKey || d.date || d); map[key]=d; });
     calendarData=map;
     updateFinalizedBadge(days);
     // Apply year filter
@@ -476,7 +498,12 @@ function loadCalendar(){
     }
     renderCalGrid(map,m,y,'cal-grid',false);
     updateCalStats(m,y);
-  }).catch(function(){ renderCalGrid({},m,y,'cal-grid',false); updateFinalizedBadge([]); });
+    dbToast('Synced successfully','success');
+  }).catch(function(){ 
+    renderCalGrid({},m,y,'cal-grid',false); 
+    updateFinalizedBadge([]); 
+    dbToast('Sync failed','error');
+  });
 }
 
 function updateCalStats(m,y){
@@ -536,14 +563,24 @@ function clearCalendarDraft(){
   var m=parseInt(document.getElementById('cal-month-sel').value),y=parseInt(document.getElementById('cal-year-inp').value);
   clearCalDraftFromSession(m, y);
   loadCalendar();
-  showToast('Session draft cleared. Synced with DB.','success');
+  dbToast('Session draft cleared. Synced with DB.','success');
 }
 
 function deleteCalendarMonth(){
   var m=parseInt(document.getElementById('cal-month-sel').value),y=parseInt(document.getElementById('cal-year-inp').value);
   var mn=['','January','February','March','April','May','June','July','August','September','October','November','December'];
-  if(!confirm('Are you sure you want to delete all saved days for ' + mn[m] + ' ' + y + ' from the database? This will reset the month to unsaved default state.')) return;
   
+  // Update modal label with month and year
+  document.getElementById('dmm-month-label').textContent = mn[m] + ' ' + y;
+  
+  // Open confirmation modal
+  openModal('delete-month-modal-bg');
+}
+
+function confirmDeleteCalendarMonth(){
+  var m=parseInt(document.getElementById('cal-month-sel').value),y=parseInt(document.getElementById('cal-year-inp').value);
+  
+  closeModal('delete-month-modal-bg');
   clearCalDraftFromSession(m, y);
   dbToast('Deleting month from DB…','saving');
   apiCall('DELETE','/calendar/month/clear?month='+m+'&year='+y).then(function(r){
@@ -608,9 +645,11 @@ function saveCalendarMonth(finalize){
     });
 }
 
-// ── DAY MODAL ─────────────────────────────────────────────────────────
+// DAY MODAL
 function openDayModal(dateStr){
-  var doc=calendarData[dateStr], d=new Date(dateStr+'T00:00:00');
+  var doc=calendarData[dateStr];
+  var parts = String(dateStr).split('-');
+  var d = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
   var dows=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
   var mns=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   document.getElementById('dm-title').textContent=dows[d.getDay()]+', '+d.getDate()+' '+mns[d.getMonth()]+' '+d.getFullYear();
@@ -688,7 +727,7 @@ function saveDayModal(){
   showToast('Day updated in session draft. Click Save Draft or Save & Finalize to push to DB.','success');
 }
 
-// ── EXAMS ─────────────────────────────────────────────────────────────
+// EXAMS
 function examSubTab(tab){
   document.getElementById('est-dates-panel').style.display=tab==='dates'?'':'none';
   document.getElementById('est-att-panel').style.display=tab==='attendance'?'':'none';
@@ -708,11 +747,23 @@ function populateDeptSelectsAll(){
   sel.innerHTML='<option value="">All Departments</option>';
   deptsData.forEach(function(dp){ sel.innerHTML+='<option value="'+dp._id+'">'+dp.name+'</option>'; });
 }
+function populateExamFilterAcYears(){
+  var efAcSel = document.getElementById('ef-acyear');
+  if (!efAcSel || efAcSel.tagName !== 'SELECT') return;
+  var curVal = efAcSel.value;
+  var html = '<option value="">All Academic Years</option>';
+  (yearsData || []).forEach(function(y){
+    html += '<option value="' + y.academicYear + '"' + (y.isCurrent ? ' data-current="true"' : '') + '>' + y.academicYear + (y.isCurrent ? ' (Current)' : '') + '</option>';
+  });
+  efAcSel.innerHTML = html;
+  if (curVal) efAcSel.value = curVal;
+}
+
 function loadExams(){
   var type=document.getElementById('ef-type').value, 
   yr=document.getElementById('ef-year').value;
   var status=document.getElementById('ef-status').value, 
-  acyr=document.getElementById('ef-acyear').value.trim();
+  acyr=document.getElementById('ef-acyear') ? document.getElementById('ef-acyear').value.trim() : '';
   var q='/exams?'; if(type) q+='examType='+encodeURIComponent(type)+'&'; if(yr) q+='semester='+encodeURIComponent(yr)+'&';
   if(status) q+='status='+encodeURIComponent(status)+'&'; if(acyr) q+='academicYear='+encodeURIComponent(acyr)+'&';
   document.getElementById('exams-tbody').innerHTML='<tr><td colspan="10" style="text-align:center;color:var(--tdi);padding:20px;">Loading…</td></tr>';
@@ -733,12 +784,14 @@ function renderExamsTable(exams){
   });
   document.getElementById('exams-tbody').innerHTML=html;
 }
-function populateExamAcYearsAndBatches(selectedAcYear, selectedBatch){
+function populateExamAcYearsAndBatches(selectedAcYear, selectedBatch, selectedSem){
   var acSel = document.getElementById('em-acyear');
   if(!acSel) return;
   var promise = (yearsData && yearsData.length > 0) ? Promise.resolve(yearsData) : apiCall('GET', '/year');
   promise.then(function(data){
     yearsData = Array.isArray(data) ? data : [];
+    populateExamFilterAcYears();
+
     var html = '<option value="">— Select Academic Year —</option>';
     yearsData.forEach(function(y){
       html += '<option value="' + y.academicYear + '"' + (y.isCurrent ? ' data-current="true"' : '') + '>' + y.academicYear + (y.isCurrent ? ' (Current)' : '') + '</option>';
@@ -752,15 +805,15 @@ function populateExamAcYearsAndBatches(selectedAcYear, selectedBatch){
     }
     if (targetAcYear) acSel.value = targetAcYear;
 
-    populateExamBatches(selectedBatch);
+    populateExamBatches(selectedBatch, selectedSem);
   }).catch(function(){});
 }
 
-function populateExamBatches(selectedBatch){
+function populateExamBatches(selectedBatch, selectedSem){
   var bSel = document.getElementById('em-batch');
   if(!bSel) return;
   var acVal = document.getElementById('em-acyear').value;
-  var yObj = yearsData.find(function(y){ return y.academicYear === acVal; });
+  var yObj = (yearsData || []).find(function(y){ return y.academicYear === acVal; });
   var batches = (yObj && Array.isArray(yObj.batches)) ? yObj.batches : [];
   var html = '<option value="">— Select Batch —</option>';
   batches.forEach(function(b){
@@ -770,31 +823,64 @@ function populateExamBatches(selectedBatch){
   if (selectedBatch) {
     bSel.value = selectedBatch;
   }
+  onEmBatchChange(selectedSem);
 }
 
 function onEmAcYearChange(){
-  populateExamBatches(null);
+  populateExamBatches(null, null);
 }
 
-function onEmBatchChange(){
+function updateSemesterDropdownForYear(yearLevel, selectedSem){
+  var semSel = document.getElementById('em-semester');
+  if(!semSel) return;
+  var semMap = {
+    'I': ['I', 'II'],
+    'II': ['III', 'IV'],
+    'III': ['V', 'VI'],
+    'IV': ['VII', 'VIII'],
+    'All': ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII']
+  };
+  var validSems = semMap[yearLevel] || ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII'];
+  var html = '<option value="">— Select Semester —</option>';
+  validSems.forEach(function(s){
+    html += '<option value="' + s + '">' + 'Semester ' + s + '</option>';
+  });
+  semSel.innerHTML = html;
+  if(selectedSem && validSems.includes(selectedSem)){
+    semSel.value = selectedSem;
+  } else if(validSems.length > 0 && yearLevel !== 'All'){
+    semSel.value = validSems[0];
+  }
+}
+
+function onEmBatchChange(presetSem){
   var bSel = document.getElementById('em-batch');
   var opt = bSel ? bSel.options[bSel.selectedIndex] : null;
   if(opt && opt.value){
     var bYear = opt.getAttribute('data-year');
     var bSem = opt.getAttribute('data-sem');
-    if(bYear && document.getElementById('em-year')) document.getElementById('em-year').value = bYear;
-    if(bSem && document.getElementById('em-semester')) document.getElementById('em-semester').value = bSem;
+    if(bYear && document.getElementById('em-year')) {
+      document.getElementById('em-year').value = bYear;
+      updateSemesterDropdownForYear(bYear, presetSem || bSem);
+    }
+  } else {
+    var curYr = document.getElementById('em-year') ? document.getElementById('em-year').value : '';
+    updateSemesterDropdownForYear(curYr, presetSem);
   }
 }
 
 function onEmYearChange(){
   var yr = document.getElementById('em-year').value;
-  var semSel = document.getElementById('em-semester');
-  if(!semSel || !yr) return;
-  if(yr === 'I') semSel.value = 'I';
-  else if(yr === 'II') semSel.value = 'III';
-  else if(yr === 'III') semSel.value = 'V';
-  else if(yr === 'IV') semSel.value = 'VII';
+  var bSel = document.getElementById('em-batch');
+  var acVal = document.getElementById('em-acyear') ? document.getElementById('em-acyear').value : '';
+  var yObj = (yearsData || []).find(function(y){ return y.academicYear === acVal; });
+  if (yObj && yObj.batches && yr && yr !== 'All') {
+    var matchBatch = yObj.batches.find(function(b){ return b.currentYear === yr; });
+    if (matchBatch && bSel && (!bSel.value || (bSel.options[bSel.selectedIndex] && bSel.options[bSel.selectedIndex].getAttribute('data-year') !== yr))) {
+      bSel.value = matchBatch.batch;
+    }
+  }
+  updateSemesterDropdownForYear(yr, null);
 }
 
 function onEmSemChange(){
@@ -832,12 +918,12 @@ function openExamModal(examId){
       document.getElementById('em-t-end').value=(ex.timing&&ex.timing.end)||'16:00';
       document.getElementById('em-status').value=ex.status||'upcoming';
       document.getElementById('em-notes').value=ex.notes||'';
-      populateExamAcYearsAndBatches(ex.academicYear, ex.batch);
+      populateExamAcYearsAndBatches(ex.academicYear, ex.batch, ex.semester);
+      openModal('exam-modal-bg');
+      return;
     }
   }
-  else {
-    populateExamAcYearsAndBatches(null, null);
-  }
+  populateExamAcYearsAndBatches(null, null, null);
   openModal('exam-modal-bg');
 }
 
@@ -904,7 +990,7 @@ function deleteExam(){
   }).catch(function(err){dbToast('Error: '+(err&&err.message?err.message:'Server error'),'error');});
 }
 
-// ── EXAM ATTENDANCE ───────────────────────────────────────────────────
+// EXAM ATTENDANCE
 function populateExamSel(){
   apiCall('GET','/exams/active').then(function(data){
     var exams=Array.isArray(data)?data:[], sel=document.getElementById('ea-exam-sel');
@@ -995,7 +1081,7 @@ function viewHallAtt(id){
 }
 function quickViewAtt(examId,title){ examSubTab('attendance'); setTimeout(function(){ document.getElementById('ea-exam-sel').value=examId; onExamSelChange(); },100); }
 
-// ── MANAGE ADMINS (SETTINGS) ──────────────────────────────────────────
+// MANAGE ADMINS (SETTINGS)
 var _teachersForAdminList = [];
 
 function loadTeachersForAdminModal(){
@@ -1112,11 +1198,11 @@ document.querySelectorAll('#am-perms-wrap .dept-cb-wrap').forEach(function(lbl){
   var cb=lbl.querySelector('input'); if(cb) cb.addEventListener('change',function(){ lbl.classList.toggle('checked',cb.checked); });
 });
 
-// ── YEARS MANAGEMENT ──────────────────────────────────────────────────
+// YEARS MANAGEMENT
 var yearsData = [];
 var _ymCurrent = false;
 
-// ── Year / Semester helpers ─────────────────────────────────────────
+// Year / Semester helpers
 var ROMAN_ORDER = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII'];
 var YEAR_SEM_MAP = { I: ['I', 'II'], II: ['III', 'IV'], III: ['V', 'VI'], IV: ['VII', 'VIII'] };
 var SEM_TO_YEAR = {};
@@ -1172,10 +1258,11 @@ function populateSemOptions(selectEl, yearLevel, presetSem) {
   if (!presetSem && yearLevel) selectEl.value = opts[0];
 }
 
-// ── Load / Render ────────────────────────────────────────────────────
+// Load / Render
 function loadYears() {
   apiCall('GET', '/year').then(function(data) {
     yearsData = Array.isArray(data) ? data : [];
+    populateExamFilterAcYears();
     renderCurrentYear();
     renderYearsTable();
   }).catch(function() {
@@ -1188,10 +1275,7 @@ function renderCurrentYear() {
   var cont = document.getElementById('current-year-display');
   if (!cont) return;
   var currentYear = yearsData.find(function(y) { return y.isCurrent; });
-  if (!currentYear) {
-    cont.innerHTML = '<div style="text-align:center;color:var(--tdi);padding:24px 20px;font-size:12px;">No current academic year set.<br><button class="btn-pri btn-sm" style="margin-top:10px;" onclick="openYearModal(null)">+ Add Academic Year</button></div>';
-    return;
-  }
+  
   var html = '<div style="background:var(--gLt);border:2px solid var(--gM);border-radius:12px;padding:16px;">';
   html += '<div style="font-size:20px;font-weight:800;color:var(--gD);margin-bottom:12px;">📚 ' + currentYear.academicYear + '</div>';
   html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;">';
@@ -1244,7 +1328,7 @@ function renderYearsTable() {
   tbody.innerHTML = html;
 }
 
-// ── Add / Edit Academic Year modal ──────────────────────────────────
+// Add / Edit Academic Year modal
 function openYearModal(yearId) {
   document.getElementById('ym-title').textContent = yearId ? '📚 Edit Academic Year' : '📚 Add Academic Year';
   document.getElementById('ym-sub').textContent = yearId ? 'Update year and batch configurations' : 'Create a new academic year with batch configurations';
@@ -1256,6 +1340,10 @@ function openYearModal(yearId) {
 
   // Clear batch rows
   document.getElementById('ym-batch-rows').innerHTML = '';
+
+  // Clear semester rows
+  var semContainer = document.getElementById('ym-semester-rows');
+  if (semContainer) semContainer.innerHTML = '';
 
   var autofillBar = document.getElementById('ym-autofill-bar');
   var currentYearRecord = yearsData.find(function(y) { return y.isCurrent; });
@@ -1272,6 +1360,13 @@ function openYearModal(yearId) {
       year.batches.forEach(function(b) {
         addBatchRow(b.batchTrackId, b.batch, b.currentYear, b.currentSem);
       });
+
+      // Add semester date rows if they exist
+      if (year.semesterDates && year.semesterDates.length > 0) {
+        year.semesterDates.forEach(function(sd) {
+          addSemesterDateRow(sd.year, sd.semester, sd.startDate ? sd.startDate.split('T')[0] : '', sd.endDate ? sd.endDate.split('T')[0] : '');
+        });
+      }
     }
   } else {
     // New year — auto-suggest the next academic year string
@@ -1283,6 +1378,113 @@ function openYearModal(yearId) {
 
   validateYearForm();
   openModal('year-modal-bg');
+}
+
+// Semester Dates Functions
+function addSemesterDateRow(year, semester, startDate, endDate) {
+  var container = document.getElementById('ym-semester-rows');
+  if (!container) return;
+
+  var rowId = 'sem-row-' + Date.now() + Math.floor(Math.random() * 1000);
+
+  var html = '<div class="batch-row" id="' + rowId + '" style="background:var(--gP);border:1.5px solid var(--br);border-radius:10px;padding:12px;position:relative;margin-bottom:8px;">';
+  html += '<button type="button" onclick="removeSemesterDateRow(\'' + rowId + '\')" style="position:absolute;top:8px;right:8px;width:22px;height:22px;border-radius:50%;background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.2);color:#dc2626;cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center;">✕</button>';
+
+  html += '<div style="padding-right:30px;margin-bottom:9px;"><span class="batch-preview">Semester Info</span></div>';
+
+  html += '<div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px;">';
+  html += '<div class="fg"><label class="fl">Year</label>';
+  html += '<select class="fc2 sem-year" data-id="' + rowId + '" onchange="onSemYearChange(\'' + rowId + '\')">';
+  html += '<option value="">— Select —</option>';
+  ['I', 'II', 'III', 'IV'].forEach(function(y) {
+    html += '<option value="' + y + '"' + (y === year ? ' selected' : '') + '>Year ' + y + '</option>';
+  });
+  html += '</select></div>';
+
+  html += '<div class="fg"><label class="fl">Semester</label>';
+  html += '<select class="fc2 sem-semester" data-id="' + rowId + '"></select></div>';
+
+  html += '<div class="fg"><label class="fl">Start Date</label>';
+  html += '<input type="date" class="fc2 sem-start" data-id="' + rowId + '" value="' + (startDate || '') + '"></div>';
+
+  html += '<div class="fg"><label class="fl">End Date</label>';
+  html += '<input type="date" class="fc2 sem-end" data-id="' + rowId + '" value="' + (endDate || '') + '"></div>';
+  html += '</div></div>';
+
+  container.insertAdjacentHTML('beforeend', html);
+
+  if (year) {
+    populateSemesterOptions(rowId, year, semester);
+  }
+
+  updateSemesterCount();
+}
+
+function onSemYearChange(rowId) {
+  var yearSelect = document.querySelector('.sem-year[data-id="' + rowId + '"]');
+  var year = yearSelect.value;
+  populateSemesterOptions(rowId, year, '');
+}
+
+function populateSemesterOptions(rowId, year, selectedSem) {
+  var semSelect = document.querySelector('.sem-semester[data-id="' + rowId + '"]');
+  if (!semSelect) return;
+
+  if (!year) {
+    semSelect.innerHTML = '<option value="">— Select Year first —</option>';
+    return;
+  }
+
+  var YEAR_SEM_MAP = { I: ['I', 'II'], II: ['III', 'IV'], III: ['V', 'VI'], IV: ['VII', 'VIII'] };
+  var semesters = YEAR_SEM_MAP[year] || [];
+  var html = '<option value="">— Select —</option>';
+  semesters.forEach(function(s) {
+    html += '<option value="' + s + '"' + (s === selectedSem ? ' selected' : '') + '>Semester ' + s + '</option>';
+  });
+  semSelect.innerHTML = html;
+}
+
+function removeSemesterDateRow(rowId) {
+  var row = document.getElementById(rowId);
+  if (row) {
+    row.remove();
+    updateSemesterCount();
+  }
+}
+
+function updateSemesterCount() {
+  var container = document.getElementById('ym-semester-rows');
+  if (!container) return;
+  var count = container.querySelectorAll('.batch-row').length;
+  var countEl = document.getElementById('ym-sem-count');
+  if (countEl) countEl.textContent = count + (count === 1 ? ' semester' : ' semesters');
+}
+
+function collectSemesterDates() {
+  var container = document.getElementById('ym-semester-rows');
+  if (!container) return [];
+
+  var rows = container.querySelectorAll('.batch-row');
+  var semesterDates = [];
+
+  rows.forEach(function(row) {
+    var id = row.id;
+    var year = row.querySelector('.sem-year[data-id="' + id + '"]')?.value;
+    var semester = row.querySelector('.sem-semester[data-id="' + id + '"]')?.value;
+    var startDate = row.querySelector('.sem-start[data-id="' + id + '"]')?.value;
+    var endDate = row.querySelector('.sem-end[data-id="' + id + '"]')?.value;
+
+    if (year && semester) {
+      semesterDates.push({
+        year: year,
+        semester: semester,
+        startDate: startDate || null,
+        endDate: endDate || null
+      });
+    }
+  });
+
+  return semesterDates;
 }
 
 function autoFillFromCurrentYear() {
@@ -1548,9 +1750,17 @@ function saveYear() {
   });
   
   if (hasError) return;
-  
+
+  // Collect semester dates
+  var semesterDates = collectSemesterDates();
+
   dbToast('Saving…', 'saving');
-  var payload = { academicYear: acadYear, batches: batches, isCurrent: _ymCurrent };
+  var payload = {
+    academicYear: acadYear,
+    batches: batches,
+    semesterDates: semesterDates,
+    isCurrent: _ymCurrent
+  };
   apiCall(id ? 'PUT' : 'POST', id ? '/year/' + id : '/year', payload)
     .then(function(r) {
       dbToast('Year saved', 'success');
@@ -1581,7 +1791,7 @@ function setYearAsCurrent(yearId) {
     }).catch(function(err) { dbToast('Error: ' + (err&&err.message?err.message:'Server error'), 'error'); });
 }
 
-// ── Edit Batch modal ─────────────────────────────────────────────────
+// Edit Batch modal
 function openBatchModal(yearId, batchTrackId, batch, currentYear, currentSem) {
   document.getElementById('bm-title').textContent = 'Edit Batch: ' + batch;
   document.getElementById('bm-sub').textContent = 'Update current year and semester for ' + batch;

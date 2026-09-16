@@ -4,7 +4,7 @@ const M = require('../models');
 const { authMiddleware, adminOnly, requireRight } = require('../middleware/auth');
 const { logAction } = require('../utils/logAction');
 
-router.get('/', authMiddleware, async (req, res) => res.json(await M.Department.find().sort({ name: 1 })));
+router.get('/', authMiddleware, async (req, res) => res.json(await M.Department.find().sort({ name: 1 }).lean()));
 
 router.post('/', authMiddleware, adminOnly, requireRight('adderModules'), async (req, res) => {
   try {

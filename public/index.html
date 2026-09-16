@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>EAMS – Sign In | Sri Shakthi</title>
+  <title>EAMS – Sign In</title>
   <link
     href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&family=Playfair+Display:wght@700&display=swap"
     rel="stylesheet">
@@ -16,7 +16,7 @@
   <div class="lc">
     <div class="ll">
       <img src="assets/logo.png" alt="Logo" height=60 class="center-img">
-      <span class="lb">Sri Shakthi Institute</span>
+      <span class="lb" id="login-inst-name">EAMS</span>
     </div>
     <div class="lh">EAMS Login</div>
 
@@ -42,7 +42,7 @@
     <div class="le" id="lerr">Invalid credentials. Please try again.</div>
 
     <div class="lf2"><label>Username</label><input type="text" id="lu" placeholder="Enter username"
-        autocomplete="username"></div>
+        autocomplete="username" autofocus></div>
     <div class="lf2"><label>Password</label>
       <div class="pw-wrap"><input type="password" id="lp" placeholder="Enter password"
           autocomplete="current-password"><button type="button" class="pw-eye" onclick="togglePw('lp',this)"
@@ -52,7 +52,7 @@
     <button class="lbn" id="lbn" onclick="doSignIn()"><span id="lbn-txt">Sign In</span></button>
   </div>
 
-  <!-- ── LOCATION PERMISSION GUIDANCE MODAL ── -->
+  <!-- LOCATION PERMISSION GUIDANCE MODAL -->
   <div id="m-loc-guide" class="loc-modal-overlay" onclick="if(event.target===this)closeLocationModal()">
     <div class="loc-modal-card">
       <div class="loc-modal-header">

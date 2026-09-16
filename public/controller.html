@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>EAMS – Controller Hub | Sri Shakthi</title>
+  <title>EAMS – Controller Hub</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link
@@ -15,9 +15,9 @@
 </head>
 
 <body>
-  <!-- ── PAGE LOADER ─────────────────────────────────────────── -->
+  <!-- PAGE LOADER -->
   <div id="page-loader">
-    <div class="loader-brand">Sri Shakthi EAMS</div>
+    <div class="loader-brand">EAMS Controller Hub</div>
     <div class="three-body">
       <div class="three-body__dot"></div>
       <div class="three-body__dot"></div>
@@ -36,13 +36,10 @@
   <div id="toast" class="toast"></div>
   <div id="db-toast"></div>
 
-  <!-- Mobile Sidebar Backdrop -->
-  <div id="sb-backdrop" class="sb-backdrop" onclick="toggleSidebar()"></div>
-
-  <!-- ── MAIN APP SHELL ──────────────────────────────────────── -->
+  <!-- MAIN APP SHELL -->
   <div id="app-shell" class="ctrl-shell">
 
-    <!-- ── SIDEBAR NAVIGATION ── -->
+    <!-- SIDEBAR NAVIGATION -->
     <nav class="sb" id="sidebar">
       <div class="sb-logo">
         <div class="ctrl-logo-badge">🏛️</div>
@@ -112,10 +109,10 @@
       </div>
     </nav>
 
-    <!-- ── MAIN CONTENT CONTAINER ── -->
+    <!-- MAIN CONTENT CONTAINER -->
     <div class="mc" id="main-content">
 
-      <!-- ── TOPBAR ── -->
+      <!-- TOPBAR -->
       <header class="ctrl-topbar">
         <div class="ctrl-topbar-left">
           <button class="sb-toggle-btn" id="sbtoggle" onclick="toggleSidebar()" title="Toggle Menu">☰</button>
@@ -145,9 +142,7 @@
         </div>
       </header>
 
-      <!-- ══════════════════════════════════════════════════════
-           PAGE 1: DASHBOARD (pg-dash)
-      ══════════════════════════════════════════════════════ -->
+      <!-- PAGE 1: DASHBOARD (pg-dash) -->
       <section class="ctrl-page act" id="pg-dash">
         <div class="page-hd">
           <div>
@@ -279,9 +274,7 @@
         </div>
       </section>
 
-      <!-- ══════════════════════════════════════════════════════
-           PAGE 2: DAILY ATTENDANCE OVERVIEW (pg-attendance)
-      ══════════════════════════════════════════════════════ -->
+      <!-- PAGE 2: DAILY ATTENDANCE OVERVIEW (pg-attendance) -->
       <section class="ctrl-page" id="pg-attendance">
         <div class="page-hd">
           <div>
@@ -330,9 +323,7 @@
         </div>
       </section>
 
-      <!-- ══════════════════════════════════════════════════════
-           PAGE 3: LEAVE APPROVALS (pg-leaves)
-      ══════════════════════════════════════════════════════ -->
+      <!-- PAGE 3: LEAVE APPROVALS (pg-leaves) -->
       <section class="ctrl-page" id="pg-leaves">
         <div class="page-hd">
           <div>
@@ -393,9 +384,7 @@
         </div>
       </section>
 
-      <!-- ══════════════════════════════════════════════════════
-           PAGE 4: FACULTY OVERVIEW (pg-teachers)
-      ══════════════════════════════════════════════════════ -->
+      <!-- PAGE 4: FACULTY OVERVIEW (pg-teachers) -->
       <section class="ctrl-page" id="pg-teachers">
         <div class="page-hd">
           <div>
@@ -429,9 +418,7 @@
         </div>
       </section>
 
-      <!-- ══════════════════════════════════════════════════════
-           PAGE 5: STUDENT DIRECTORY (pg-students)
-      ══════════════════════════════════════════════════════ -->
+      <!-- PAGE 5: STUDENT DIRECTORY (pg-students) -->
       <section class="ctrl-page" id="pg-students">
         <div class="page-hd">
           <div>
@@ -466,9 +453,7 @@
         </div>
       </section>
 
-      <!-- ══════════════════════════════════════════════════════
-           PAGE 6: PERIOD RECORDS & TEACHING NOTES (pg-records)
-      ══════════════════════════════════════════════════════ -->
+      <!-- PAGE 6: PERIOD RECORDS & TEACHING NOTES (pg-records) -->
       <section class="ctrl-page" id="pg-records">
         <div class="page-hd">
           <div>
@@ -476,6 +461,7 @@
             <p class="page-sub">Audit trail of syllabus topics covered, faculty notes, and period attendance.</p>
           </div>
           <div class="page-actions">
+            <input type="text" id="records-search-input" class="form-input form-input-sm" placeholder="🔍 Search topics, notes, faculty…" oninput="filterPeriodRecords(this.value)" style="min-width:200px;">
             <input type="date" id="records-date-picker" class="form-input form-input-sm" onchange="loadPeriodRecords()">
             <button class="btn btn-sm btn-pri" onclick="loadPeriodRecords()">Inspect Date</button>
           </div>
@@ -504,9 +490,7 @@
         </div>
       </section>
 
-      <!-- ══════════════════════════════════════════════════════
-           PAGE 7: DEFAULTERS REPORT (pg-defaulters)
-      ══════════════════════════════════════════════════════ -->
+      <!-- PAGE 7: DEFAULTERS REPORT (pg-defaulters) -->
       <section class="ctrl-page" id="pg-defaulters">
         <div class="page-hd">
           <div>
@@ -546,9 +530,7 @@
         </div>
       </section>
 
-      <!-- ══════════════════════════════════════════════════════
-           PAGE 8: ATTENDANCE REPORTS (pg-reports)
-      ══════════════════════════════════════════════════════ -->
+      <!-- PAGE 8: ATTENDANCE REPORTS (pg-reports) -->
       <section class="ctrl-page" id="pg-reports">
         <div class="page-hd">
           <div>
@@ -639,9 +621,7 @@
         </div>
       </section>
 
-      <!-- ══════════════════════════════════════════════════════
-           PAGE 9: BROADCAST HUB (pg-broadcast)
-      ══════════════════════════════════════════════════════ -->
+      <!-- PAGE 9: BROADCAST HUB (pg-broadcast) -->
       <section class="ctrl-page" id="pg-broadcast">
         <div class="page-hd">
           <div>
@@ -702,9 +682,7 @@
         </div>
       </section>
 
-      <!-- ══════════════════════════════════════════════════════
-           PAGE 10: ACADEMIC CALENDAR (pg-calendar)
-      ══════════════════════════════════════════════════════ -->
+      <!-- PAGE 10: ACADEMIC CALENDAR (pg-calendar) -->
       <section class="ctrl-page" id="pg-calendar">
         <div class="page-hd">
           <div>
@@ -737,9 +715,7 @@
         </div>
       </section>
 
-      <!-- ══════════════════════════════════════════════════════
-           PAGE 11: TIMETABLE VIEW (pg-timetable)
-      ══════════════════════════════════════════════════════ -->
+      <!-- PAGE 11: TIMETABLE VIEW (pg-timetable) -->
       <section class="ctrl-page" id="pg-timetable">
         <div class="page-hd">
           <div>
@@ -780,9 +756,7 @@
         </div>
       </section>
 
-      <!-- ══════════════════════════════════════════════════════
-           PAGE 12: MY PROFILE (pg-profile)
-      ══════════════════════════════════════════════════════ -->
+      <!-- PAGE 12: MY PROFILE (pg-profile) -->
       <section class="ctrl-page" id="pg-profile">
         <div class="page-hd">
           <div>
@@ -797,7 +771,7 @@
             <div>
               <h2 class="profile-hero-name" id="prof-hero-name">Loading…</h2>
               <div class="profile-hero-role" id="prof-hero-role">Executive Controller</div>
-              <div class="profile-hero-dept" id="prof-hero-dept">Sri Shakthi Institute of Engineering &amp; Technology</div>
+              <div class="profile-hero-dept" id="prof-hero-dept">Institutional Administration</div>
             </div>
           </div>
 
@@ -825,7 +799,7 @@
     </div>
   </div>
 
-  <!-- ── MODAL: BULK "MEET ME" NOTICE ────────────────────────── -->
+  <!-- MODAL: BULK "MEET ME" NOTICE -->
   <div id="meet-modal" class="modal-backdrop">
     <div class="modal-box">
       <div class="modal-hd">
@@ -848,7 +822,7 @@
     </div>
   </div>
 
-  <!-- ── MODAL: LEAVE REVIEW REMARKS ─────────────────────────── -->
+  <!-- MODAL: LEAVE REVIEW REMARKS -->
   <div id="leave-action-modal" class="modal-backdrop">
     <div class="modal-box">
       <div class="modal-hd">

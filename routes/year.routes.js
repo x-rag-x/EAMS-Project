@@ -57,19 +57,25 @@ router.get('/:id', authMiddleware, async (req, res) => {
 // POST /api/year - Create new academic year
 router.post('/', authMiddleware, adminOnly, async (req, res) => {
   try {
-    const { academicYear, batches, isCurrent } = req.body;
-    
+    const { academicYear, batches, semesterDates, isCurrent } = req.body;
+
     if (!academicYear || !batches || !Array.isArray(batches) || batches.length === 0) {
       return res.status(400).json({ error: 'academicYear and batches array are required' });
     }
-    
+
     for (const batch of batches) {
       if (!batch.batchTrackId || !batch.batch || !batch.currentYear || !batch.currentSem) {
         return res.status(400).json({ error: 'Each batch must have batchTrackId, batch, currentYear, and currentSem' });
       }
     }
     if (isCurrent) await M.Year.updateMany({}, { $set: { isCurrent: false } });
-    const year = await M.Year.create({ academicYear, batches,createdBy: req.user.trackId || req.user.name,isCurrent: isCurrent || false });
+    const year = await M.Year.create({
+      academicYear,
+      batches,
+      semesterDates: semesterDates || [],
+      createdBy: req.user.trackId || req.user.name,
+      isCurrent: isCurrent || false
+    });
     await logAction(
       req.user.trackId || req.user._id,
       req.user.name,
@@ -98,27 +104,27 @@ router.post('/', authMiddleware, adminOnly, async (req, res) => {
 // PUT /api/year/:id - Update academic year (including batch progress)
 router.put('/:id', authMiddleware, adminOnly, async (req, res) => {
   try {
-    const { academicYear, batches, isCurrent } = req.body;
+    const { academicYear, batches, semesterDates, isCurrent } = req.body;
     const existingYear = await M.Year.findById(req.params.id);
     if (!existingYear) return res.status(404).json({ error: 'Academic year not found' });
-    
+
     const before = existingYear.toObject();
     const updates = {};
     const historyEntries = [];
     const updatedBy = req.user.trackId || req.user.name;
     const updatedAt = new Date();
-    
+
     if (academicYear && academicYear !== existingYear.academicYear) {
       historyEntries.push({ field: 'academicYear', oldValue: existingYear.academicYear, newValue: academicYear, updatedBy, updatedAt });
       updates.academicYear = academicYear;
     }
-    
+
     if (batches && Array.isArray(batches)) {
       for (const newBatch of batches) {
         const oldBatch = existingYear.batches.find(b => b.batchTrackId === newBatch.batchTrackId);
         if (oldBatch) {
           if (newBatch.currentYear !== oldBatch.currentYear) {
-            historyEntries.push({ field: `batches.${newBatch.batchTrackId}.currentYear`, 
+            historyEntries.push({ field: `batches.${newBatch.batchTrackId}.currentYear`,
               oldValue: oldBatch.currentYear, newValue: newBatch.currentYear, updatedBy, updatedAt });
           }
           if (newBatch.currentSem !== oldBatch.currentSem) {
@@ -129,16 +135,21 @@ router.put('/:id', authMiddleware, adminOnly, async (req, res) => {
       }
       updates.batches = batches;
     }
-    
+
+    if (semesterDates && Array.isArray(semesterDates)) {
+      updates.semesterDates = semesterDates;
+      historyEntries.push({ field: 'semesterDates', oldValue: 'Updated', newValue: `${semesterDates.length} entries`, updatedBy, updatedAt });
+    }
+
     if (typeof isCurrent === 'boolean' && isCurrent !== existingYear.isCurrent) {
-      historyEntries.push({ field: 'isCurrent', oldValue: String(existingYear.isCurrent), 
+      historyEntries.push({ field: 'isCurrent', oldValue: String(existingYear.isCurrent),
         newValue: String(isCurrent), updatedBy, updatedAt });
       if (isCurrent) await M.Year.updateMany({ _id: { $ne: req.params.id } }, { $set: { isCurrent: false } });
       updates.isCurrent = isCurrent;
     }
-    
+
     if (historyEntries.length > 0) updates.$push = { history: { $each: historyEntries } };
-    
+
     const updatedYear = await M.Year.findByIdAndUpdate(req.params.id, updates, { returnDocument: 'after', runValidators: true });
     await logAction(
       req.user.trackId || req.user._id,

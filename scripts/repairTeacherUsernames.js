@@ -1,14 +1,5 @@
 #!/usr/bin/env node
-// ═══════════════════════════════════════════════════════════════
-//  Repair Teacher Usernames
-//  Finds teacher usernames that differ only by case/whitespace
-//  (e.g. "RAGG" vs "ragg") and merges them so the unique index
-//  username_1 is never violated. Run where MongoDB is reachable.
-//
-//  Usage:
-//    node scripts/repairTeacherUsernames.js            (dry-run: shows plan)
-//    node scripts/repairTeacherUsernames.js --apply    (performs fixes)
-// ═══════════════════════════════════════════════════════════════
+// Merge teacher username duplicates differing only by case or whitespace
 
 const mongoose = require('mongoose');
 const cfg = require('../config');

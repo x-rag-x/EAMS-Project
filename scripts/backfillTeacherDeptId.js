@@ -1,11 +1,4 @@
-// ═══════════════════════════════════════════════════════════════════════
-//  backfillTeacherDeptId.js
-//  One-shot migration: match every Teacher.department string against
-//  Department.name / Department.code / Department.threeLetterCode and
-//  set deptId + deptCode where a match is found.
-//
-//  Run: node scripts/backfillTeacherDeptId.js
-// ═══════════════════════════════════════════════════════════════════════
+// Backfill teacher deptId and deptCode from matching department names or codes
 
 const M = require('../models');
 const { logAction } = require('../utils/logAction');

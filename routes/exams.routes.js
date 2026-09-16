@@ -52,10 +52,11 @@ function semToYear(sem, fallbackYr) {
 }
 
 function getDefaultDayType(d, dateStr) {
-  const dow = d.getDay();
+  const cleanStr = typeof dateStr === 'string' ? dateStr.split('T')[0] : '';
+  const dow = new Date(cleanStr + 'T00:00:00.000Z').getUTCDay();
   if (dow === 0) return 'leave';
   if (dow === 6) {
-    const sn = satOrdinal(dateStr);
+    const sn = satOrdinal(cleanStr);
     return (sn % 2 === 0 || sn === 5) ? 'working' : 'leave';
   }
   return 'working';
@@ -68,21 +69,25 @@ async function markExamDatesInCalendar(dates, sem, yr, title, isFinalized) {
 
   for (const dateStr of dates) {
     if (!dateStr) continue;
-    const d = new Date(dateStr + 'T00:00:00');
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const year = String(d.getFullYear());
-    const day = dateToDow(dateStr);
+    const cleanStr = typeof dateStr === 'string' ? dateStr.split('T')[0] : '';
+    const d = new Date(cleanStr + 'T00:00:00.000Z');
+    const localD = new Date(cleanStr + 'T00:00:00');
+    const month = String(d.getUTCMonth() + 1).padStart(2, '0');
+    const year = String(d.getUTCFullYear());
+    const day = dateToDow(cleanStr);
 
-    let calDay = await M.CalendarDay.findOne({ date: d });
+    let calDay = await M.CalendarDay.findOne({
+      $or: [{ date: d }, { date: localD }]
+    });
     if (!calDay) {
-      const defType = getDefaultDayType(d, dateStr);
+      const defType = getDefaultDayType(d, cleanStr);
       const details = ['I', 'II', 'III', 'IV'].map(y => ({
         year: y,
         dayType: yearsToMark.includes(y) ? 'exam' : defType,
         comments: yearsToMark.includes(y) ? (title || 'Exam') : '',
         timing: { start: '08:30', end: '16:30' }
       }));
-      const trackId = `TR-CAL${year}${month}${String(d.getDate()).padStart(2, '0')}-${Date.now()}`;
+      const trackId = `TR-CAL${year}${month}${String(d.getUTCDate()).padStart(2, '0')}-${Date.now()}`;
       await M.CalendarDay.create({
         CalendarTrackId: trackId,
         date: d,
@@ -94,9 +99,11 @@ async function markExamDatesInCalendar(dates, sem, yr, title, isFinalized) {
         isFinalized: isFinalized === true
       });
     } else {
+      calDay.date = d;
+      calDay.day = day;
       let details = Array.isArray(calDay.details) ? calDay.details : [];
       if (details.length === 0) {
-        const defType = getDefaultDayType(d, dateStr);
+        const defType = getDefaultDayType(d, cleanStr);
         details = ['I', 'II', 'III', 'IV'].map(y => ({
           year: y,
           dayType: yearsToMark.includes(y) ? 'exam' : defType,
@@ -112,7 +119,7 @@ async function markExamDatesInCalendar(dates, sem, yr, title, isFinalized) {
               found.comments = title || found.comments || 'Exam';
             }
           } else {
-            const defType = getDefaultDayType(d, dateStr);
+            const defType = getDefaultDayType(d, cleanStr);
             details.push({
               year: y,
               dayType: yearsToMark.includes(y) ? 'exam' : defType,
@@ -136,16 +143,21 @@ async function unmarkExamDatesInCalendar(dates, sem, yr) {
 
   for (const dateStr of dates) {
     if (!dateStr) continue;
-    const d = new Date(dateStr + 'T00:00:00');
-    let calDay = await M.CalendarDay.findOne({ date: d });
+    const cleanStr = typeof dateStr === 'string' ? dateStr.split('T')[0] : '';
+    const d = new Date(cleanStr + 'T00:00:00.000Z');
+    const localD = new Date(cleanStr + 'T00:00:00');
+    let calDay = await M.CalendarDay.findOne({
+      $or: [{ date: d }, { date: localD }]
+    });
     if (calDay && Array.isArray(calDay.details)) {
-      const defType = getDefaultDayType(d, dateStr);
+      const defType = getDefaultDayType(d, cleanStr);
       calDay.details.forEach(det => {
         if (yearsToUnmark.includes(det.year) && det.dayType === 'exam') {
           det.dayType = defType;
           det.comments = '';
         }
       });
+      calDay.date = d;
       calDay.markModified('details');
       await calDay.save();
     }

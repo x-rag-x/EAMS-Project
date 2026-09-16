@@ -37,11 +37,64 @@ function normalizeIp(rawIp) {
   return ip || '127.0.0.1';
 }
 
+const mongoose = require('mongoose');
+
 async function logAction(userId, userName, role, action, details, category, severity, ip, sessionId, opts = {}) {
   try {
     const logTrackId = await getNextLogTrackId();
-    const cleanIp = normalizeIp(ip);
+    const cleanIp = normalizeIp(ip || opts.req?.ip);
     
+    // Resolve Session ID
+    const resolvedSessionId = sessionId || opts.sessionId || opts.req?.user?.sessionId || opts.req?.session?.sessionId || '';
+
+    // Resolve GPS Location
+    let resolvedLocation = opts.location;
+    if (!resolvedLocation && opts.req) {
+      resolvedLocation = opts.req.session?.location || opts.req.user?.location || null;
+      if (!resolvedLocation && opts.req.body && (opts.req.body.latitude !== undefined || opts.req.body.longitude !== undefined)) {
+        resolvedLocation = {
+          latitude: Number(opts.req.body.latitude) || null,
+          longitude: Number(opts.req.body.longitude) || null,
+          accuracy: Number(opts.req.body.accuracy) || null,
+          address: opts.req.body.address || ''
+        };
+      }
+    }
+    if (!resolvedLocation && resolvedSessionId) {
+      try {
+        const { getSessionLocation } = require('../middleware/auth');
+        resolvedLocation = getSessionLocation(resolvedSessionId);
+      } catch (_) {}
+    }
+    if (!resolvedLocation) {
+      resolvedLocation = { latitude: null, longitude: null, accuracy: null, address: '' };
+    }
+
+    // Resolve User Name: First Name + Last Name (prevent generic SYSTEM unless pure system background process)
+    let resolvedUserName = (userName && userName !== 'SYSTEM' && userName !== 'system') ? String(userName).trim() : '';
+    if (!resolvedUserName && opts.req?.user) {
+      const u = opts.req.user;
+      resolvedUserName = (u.firstName && u.lastName) ? `${u.firstName} ${u.lastName}`.trim() : (u.name || u.fullName || u.username);
+    }
+    if (!resolvedUserName && userId) {
+      try {
+        const query = mongoose.isValidObjectId(userId) ? { _id: userId } : { trackId: String(userId) };
+        const foundUser = await M.User.findOne(query).lean();
+        if (foundUser) {
+          const roleModel = foundUser.role === 'admin' ? M.Admin : (foundUser.role === 'teacher' ? M.Teacher : M.Student);
+          const roleDoc = await roleModel.findOne({ username: foundUser.username }).lean();
+          if (roleDoc) {
+            const f = (roleDoc.firstName || '').trim();
+            const l = (roleDoc.lastName || '').trim();
+            resolvedUserName = (f && l) ? `${f} ${l}` : (roleDoc.fullName || foundUser.username);
+          }
+        }
+      } catch (_) {}
+    }
+    if (!resolvedUserName) {
+      resolvedUserName = (role === 'system' || userName === 'SYSTEM') ? 'System' : 'Admin';
+    }
+
     // Determine module fallback if not explicitly provided
     let mod = opts.module;
     if (!mod) {
@@ -70,9 +123,12 @@ async function logAction(userId, userName, role, action, details, category, seve
       else subType = 'action';
     }
 
+    // Ensure details is a string for M.Log schema
+    const stringDetails = typeof details === 'object' && details !== null ? JSON.stringify(details) : String(details || '');
+
     // Encrypt sensitive details / changes
     const payloadToEncrypt = {
-      details: details || '',
+      details: stringDetails,
       changes: opts.changes || null,
       ip: cleanIp,
     };
@@ -80,8 +136,8 @@ async function logAction(userId, userName, role, action, details, category, seve
 
     let resolvedTrackId = opts.trackId;
     if (!resolvedTrackId) {
-      if (role === 'system' || userName === 'SYSTEM') resolvedTrackId = 'TR-SYS-001';
-      else if (userName === 'START-MENU') resolvedTrackId = 'TR-SYS-CLI';
+      if (role === 'system' || resolvedUserName === 'System' || resolvedUserName === 'SYSTEM') resolvedTrackId = 'TR-SYS-001';
+      else if (resolvedUserName === 'START-MENU') resolvedTrackId = 'TR-SYS-CLI';
       else if (userId) resolvedTrackId = String(userId);
       else if (role === 'admin') resolvedTrackId = 'TR-ADMIN001';
       else resolvedTrackId = 'TR-SYS-001';
@@ -89,21 +145,23 @@ async function logAction(userId, userName, role, action, details, category, seve
 
     const logEntry = await M.Log.create({
       logTrackId,
-      userName: userName || 'SYSTEM',
-      role: role || (userName === 'SYSTEM' ? 'system' : 'admin'),
+      userName: resolvedUserName,
+      role: role || (resolvedUserName === 'System' ? 'system' : 'admin'),
       trackId: resolvedTrackId,
       action: action || '',
-      details: details || '',
+      details: stringDetails,
       category: category || 'general',
       severity: severity || 'info',
       ip: cleanIp,
-      sessionId: sessionId || '',
+      sessionId: resolvedSessionId,
+      location: resolvedLocation,
       module: mod,
       subType: subType,
       actingWithAdminRights: !!opts.actingWithAdminRights,
       encryptedPayload,
       changes: opts.changes || { before: null, after: null },
       attendanceSummary: opts.attendanceSummary || undefined,
+      attendanceClassDaily: opts.attendanceClassDaily || undefined,
       time: new Date()
     });
 

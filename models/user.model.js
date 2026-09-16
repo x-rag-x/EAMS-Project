@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
 
-// ── ADMIN User Schema ─────────────────────────────────
+// Admin user schema definition
 const AdminSchema = new mongoose.Schema({
   fullName:     { type: String, required: true, trim: true },
   firstName:    { type: String, default: '', trim: true },
@@ -18,7 +18,7 @@ const AdminSchema = new mongoose.Schema({
   passwordHistory:      { type: [{ hash: { type: String, required: true }, changedAt: { type: Date, default: Date.now } }], select: false, default: [] },
 }, { timestamps: true });
 
-// ── TEACHER User Schema ────────────────────────────────
+// Teacher user schema definition
 const TeacherSchema = new mongoose.Schema({
   fullName:     { type: String, required: true, trim: true },
   firstName:    { type: String, default: '', trim: true },
@@ -50,7 +50,7 @@ const TeacherSchema = new mongoose.Schema({
 
 TeacherSchema.index({ deptId: 1 });
 
-// ── STUDENT User Schema ────────────────────────────────
+// Student user schema definition
 const StudentSchema = new mongoose.Schema({
   fullName:     { type: String, required: true, trim: true },
   firstName:    { type: String, default: '', trim: true },
@@ -63,15 +63,15 @@ const StudentSchema = new mongoose.Schema({
   branch:       { type: String, enum: ['None', 'M.E','M.TECH','B.E','B.TECH'], default: 'None' },
   department:   { type: String, default: '' },
   deptId:       { type: mongoose.Schema.Types.ObjectId, ref: 'Department', required: true },
-  admissionYear: { type: String, default: '' },   // like ADM-2025
-  batchTrackId:  { type: String, default: '', trim: true },  // like TR-BATCH-2630
+  admissionYear: { type: String, default: '' },
+  batchTrackId:  { type: String, default: '', trim: true },
   manageId:      { type: mongoose.Schema.Types.ObjectId, ref: 'DataManagement' },
   email:        { type: String, default: '', lowercase: true, trim: true },
   username:     { type: String, required: true, unique: true, trim: true, lowercase: true },
   password:     { type: String, required: true, select: false },
   trackId:      { type: String, trim: true, required:true },
   isRep:        { type: Boolean, default: false },
-  mustChangePassword:   { type: Boolean, default: true },   // once changed, update to false
+  mustChangePassword:   { type: Boolean, default: true },
   passwordHistory:      { type: [{ hash: { type: String, required: true }, changedAt: { type: Date, default: Date.now } }], select: false, default: [] },
 }, { timestamps: true });
 
@@ -82,13 +82,13 @@ StudentSchema.index({ classId: 1, section: 1 });
 StudentSchema.index({ fullName: 1 });
 StudentSchema.index({ registerNo: 1 });
 
-// ── Base User Schema ───────────────────────────────────
+// Base shadow user schema for session and status tracking
 const UserSchema = new mongoose.Schema({
   username:   { type: String, required: true, unique: true, trim: true, lowercase: true },
   role:       { type: String, enum: ['admin','teacher','student'], required: true },
   trackId:    { type: String,  unique: true, sparse: true },
   status:     { type: String, enum: ['active', 'inactive', 'locked'], default: 'active' },
-  online:     { type: Boolean, default: false }, // to get currently active users count
+  online:     { type: Boolean, default: false },
 }, { timestamps: true });
 
 module.exports = {

@@ -11,6 +11,7 @@ const DepartmentSchema = new mongoose.Schema({
   hodName: { type: String, default: '' },
   courseType:   { type: String, enum: ['UG','PG'], default: 'UG' },
   branch:       { type: String, enum: ['M.E','M.TECH','B.E','B.TECH'], default: 'B.E' },
+  icon:         { type: String, default: '🏛️', trim: true },
 }, { timestamps: true });
 
 DepartmentSchema.pre('save', function () {

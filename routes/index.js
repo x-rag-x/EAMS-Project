@@ -29,6 +29,10 @@ const logRoutes = require('./logs.routes');
 const yearRoutes = require('./year.routes');
 const leaveRoutes = require('./leave.routes');
 const controllerRoutes = require('./controller.routes');
+const qrAttendanceRoutes = require('./qrAttendance.routes');
+const quickPassRoutes = require('./quickPass.routes');
+const repShareRoutes = require('./repShare.routes');
+const exportRoutes = require('./export.routes');
 
 // Mount routes
 router.use('/assignments',      assignmentRoutes);
@@ -45,6 +49,10 @@ router.use('/exams',            examRoutes);
 router.use('/grievances',       grievanceRoutes);
 router.use('/leave',            leaveRoutes);
 router.use('/live-session',     liveSessionRoutes);
+router.use('/quick-pass',       quickPassRoutes);
+router.use('/qr-attendance',    qrAttendanceRoutes);
+router.use('/rep-share',        repShareRoutes);
+router.use('/export',           exportRoutes);
 router.use('/manage-admins',    manageAdminRoutes);
 router.use('/notifications',    notifRoutes);
 router.use('/profile',          profileRoutes);

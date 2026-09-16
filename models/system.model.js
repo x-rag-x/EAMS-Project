@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 
 const CounterSchema = new mongoose.Schema({
-  _id: { type: String, required: true }, // e.g. 'logTrackId'
+  _id: { type: String, required: true }, // Counter sequence identifier (e.g., 'logId', 'exportId')
   seq: { type: Number, default: 0 }
 });
 
@@ -34,7 +34,7 @@ const LoginHistorySchema = new mongoose.Schema({
       address:   { type: String, default: '' },
     },
     
-    authToken:    { type: String }, // SHA-256 hash of the JWT — raw token is never persisted
+    authToken:    { type: String }, // SHA-256 hash of JWT token
     createdAt:    { type: Date },
     expiresAt:    { type: Date },
     active:       { type: Boolean, default: false },
@@ -43,6 +43,8 @@ const LoginHistorySchema = new mongoose.Schema({
 }, { timestamps: true });
 
 LoginHistorySchema.index({ "history.active": 1, "history.current": 1 });
+LoginHistorySchema.index({ trackId: 1, "history.sessionId": 1 });
+LoginHistorySchema.index({ "history.sessionId": 1 });
 
 const NotificationSchema = new mongoose.Schema({
   type:          { type: String, enum: ['request','error','info','attendance-alert','leave-request','leave-approval','leave-rejection'], default: 'request' },
@@ -87,7 +89,13 @@ const LogSchema = new mongoose.Schema({
   category:              { type: String, default: 'general' },
   severity:              { type: String, default: 'info' },
   ip:                    { type: String, default: '' },
-  sessionId:             { type: String, default: '' },
+  sessionId:             { type: String, default: '', index: true },
+  location: {
+    latitude:  { type: Number, default: null },
+    longitude: { type: Number, default: null },
+    accuracy:  { type: Number, default: null },
+    address:   { type: String, default: '' },
+  },
   module:                { type: String, default: 'system' },
   subType:               { type: String, default: 'action' },
   actingWithAdminRights: { type: Boolean, default: false },
@@ -110,25 +118,68 @@ const LogSchema = new mongoose.Schema({
       markedAt:       { type: Date },
     }],
   },
+  attendanceClassDaily: {
+    classId:        { type: String, index: true },
+    className:      { type: String, default: '' },
+    date:           { type: String, index: true },
+    periods: [{
+      periodNumber:    { type: Number },
+      subjectTrackId:  { type: String },
+      subjectName:     { type: String },
+      teacherTrackId:  { type: String },
+      teacherName:     { type: String },
+      teacherSessionId:{ type: String },
+      method:          { type: String, default: 'Manual' },
+      topic:           { type: String, default: '' },
+      markedAt:        { type: Date },
+      stats: {
+        total:   { type: Number, default: 0 },
+        present: { type: Number, default: 0 },
+        absent:  { type: Number, default: 0 },
+        od:      { type: Number, default: 0 }
+      },
+      records: [{
+        studentTrackId: { type: String },
+        regNo:          { type: String },
+        name:           { type: String },
+        status:         { type: String }
+      }],
+      history: [{
+        action:          { type: String },
+        teacherTrackId:  { type: String },
+        teacherName:     { type: String },
+        teacherSessionId:{ type: String },
+        method:          { type: String },
+        changedAt:       { type: Date },
+        summary:         { type: String }
+      }]
+    }]
+  },
   time: { type: Date, default: Date.now },
 }, { timestamps: true });
 
 LogSchema.index({ createdAt: -1 });
 LogSchema.index({ module: 1, subType: 1, createdAt: -1 });
 LogSchema.index({ 'attendanceSummary.studentTrackId': 1, 'attendanceSummary.date': 1 });
+LogSchema.index({ 'attendanceClassDaily.classId': 1, 'attendanceClassDaily.date': 1 });
 
 const LiveSessionSchema = new mongoose.Schema({
-  trackId:   { type: String, required: true }, //teacherId
-  classId:   { type: mongoose.Schema.Types.ObjectId, ref: 'Class', required: true },
-  subjectId: { type: mongoose.Schema.Types.ObjectId, ref: 'Subject', required: true },
-  date:      { type: String, required: true },
-  passcode:  { type: String, required: true },
-  expiresAt: { type: String, required: true},
-  active:    { type: Boolean, default: true },
+  trackId:        { type: String, default: () => 'TR_LS_' + Math.random().toString(36).substr(2, 9).toUpperCase() },
+  teacherId:      { type: mongoose.Schema.Types.ObjectId, ref: 'Teacher' },
+  teacherTrackId: { type: String, default: '' },
+  classId:        { type: mongoose.Schema.Types.ObjectId, ref: 'Class', required: true },
+  subjectId:      { type: mongoose.Schema.Types.ObjectId, ref: 'Subject', required: true },
+  date:           { type: String, required: true },
+  passcode:       { type: String, required: true },
+  attendanceMode: { type: String, enum: ['code', 'qr'], default: 'code' },
+  qrSecret:       { type: String, default: '' },
+  qrIntervalSec:  { type: Number, default: 20 },
+  expiresAt:      { type: Date, required: true },
+  active:         { type: Boolean, default: true },
   markedStudents: [{
     studentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Student' },
     regNo:     { type: String },
-    time:      { type: Date },
+    time:      { type: Date, default: Date.now },
     ip:        { type: String }
   }]
 }, { timestamps: true });

@@ -6,7 +6,7 @@ async function controllerAuth(req, res, next) {
   }
 
   try {
-    // 1. Check for Principal / SuperAdmin
+    // Check for principal or superadmin authorization
     if (req.user.role === 'admin') {
       const adminDoc = await M.Admin.findOne({ trackId: req.user.trackId }).lean();
       const adminFlag = adminDoc?.adminFlag || 'superadmin';
@@ -24,7 +24,7 @@ async function controllerAuth(req, res, next) {
       }
     }
 
-    // 2. Check for HOD (Teacher with isHod flag)
+    // Check for HOD role via teacher profile and specials
     if (req.user.role === 'teacher' && req.user.isHod) {
       const specials = Array.isArray(req.user.specials) ? req.user.specials : [];
       const hodDeptSpec = specials.find(s => s.option === 'HodDeptTrackId');

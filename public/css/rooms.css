@@ -1,0 +1,129 @@
+/* Campus Rooms & Facilities Styles */
+
+.rooms-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.rooms-kpi-card {
+  background: var(--gP, #ffffff);
+  border: 1px solid var(--brl, #e5e7eb);
+  border-radius: 14px;
+  padding: 16px 20px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.03);
+  transition: transform .18s cubic-bezier(.4,0,.2,1), box-shadow .18s ease;
+}
+
+.rooms-kpi-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(0,0,0,0.06);
+}
+
+.rooms-kpi-val {
+  font-size: 26px;
+  font-weight: 800;
+  color: var(--td, #111827);
+  letter-spacing: -0.5px;
+  margin-bottom: 4px;
+}
+
+.rooms-kpi-lbl {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--tmu, #6b7280);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.room-table-hd {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.room-filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  max-width: 600px;
+}
+
+.room-count-badge {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--tmu, #6b7280);
+  background: var(--gP, #f3f4f6);
+  padding: 6px 12px;
+  border-radius: 20px;
+  border: 1px solid var(--brl, #e5e7eb);
+}
+
+.tbl-card {
+  background: #ffffff;
+  border: 1px solid var(--brl, #e5e7eb);
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.03);
+}
+
+.buildings-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+}
+
+.building-card {
+  background: #ffffff;
+  border: 1px solid var(--brl, #e5e7eb);
+  border-radius: 14px;
+  padding: 18px 20px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.03);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  transition: all .18s ease;
+}
+
+.building-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(0,0,0,0.07);
+  border-color: var(--gM, #16a34a);
+}
+
+.bldg-tag {
+  display: inline-block;
+  font-size: 10.5px;
+  font-weight: 800;
+  color: var(--gD, #166534);
+  background: var(--gLt, #dcfce7);
+  padding: 3px 8px;
+  border-radius: 6px;
+  letter-spacing: 0.5px;
+}
+
+.bldg-name {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--td, #111827);
+  margin: 8px 0 4px;
+}
+
+.bldg-meta {
+  font-size: 12px;
+  color: var(--tmu, #6b7280);
+  margin-bottom: 14px;
+}
+
+.bldg-acts {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-top: 1px solid var(--brl, #f3f4f6);
+  padding-top: 12px;
+}

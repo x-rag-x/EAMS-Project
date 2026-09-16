@@ -286,78 +286,6 @@ body {
   background: var(--gLt);
 }
 
-/* ── ANIMATED LOGOUT BUTTON (Matching admin.html / EMS Theme) ── */
-.sb-logout-btn {
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  width: 45px;
-  height: 45px;
-  border: none;
-  border-radius: 50%;
-  cursor: pointer;
-  position: relative;
-  overflow: hidden;
-  transition: width .3s ease, border-radius .3s ease;
-  box-shadow: 2px 2px 10px rgba(239, 68, 68, .25);
-  background: #ff4141;
-  margin: 0 auto;
-  padding: 0;
-  flex-shrink: 0;
-}
-
-.sb-logout-btn .logout-sign {
-  width: 100%;
-  transition: width .3s, padding .3s;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
-.sb-logout-btn .logout-sign svg {
-  width: 17px;
-  flex-shrink: 0;
-}
-
-.sb-logout-btn .logout-sign svg path {
-  fill: #fff;
-}
-
-.sb-logout-btn .logout-text {
-  position: absolute;
-  right: 0;
-  width: 0;
-  opacity: 0;
-  color: #fff;
-  font-size: 13px;
-  font-weight: 600;
-  transition: opacity .3s, width .3s, padding .3s;
-  white-space: nowrap;
-  font-family: var(--font);
-  overflow: hidden;
-}
-
-.sb-logout-btn:hover {
-  width: 130px;
-  border-radius: 40px;
-}
-
-.sb-logout-btn:hover .logout-sign {
-  width: 35%;
-  padding-left: 18px;
-}
-
-.sb-logout-btn:hover .logout-text {
-  opacity: 1;
-  width: 65%;
-  padding-right: 12px;
-}
-
-.sb-logout-btn:active {
-  transform: translate(2px, 2px);
-}
-
 /* ── MAIN CONTENT AREA ── */
 .mc {
   flex: 1;
@@ -463,55 +391,6 @@ body {
     transform: scale(0.95);
     box-shadow: 0 0 0 0 rgba(76, 175, 80, 0);
   }
-}
-
-.btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 7px 14px;
-  border-radius: 20px;
-  font-family: var(--font);
-  font-size: 12.5px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  border: 1.5px solid transparent;
-  white-space: nowrap;
-}
-
-.btn-pri {
-  background: var(--gD);
-  color: #ffffff;
-  box-shadow: 0 3px 10px rgba(27, 94, 32, 0.2);
-}
-
-.btn-pri:hover {
-  background: var(--gK);
-  transform: translateY(-1px);
-}
-
-.btn-out {
-  background: #ffffff;
-  border-color: var(--br);
-  color: var(--td);
-}
-
-.btn-out:hover {
-  background: var(--gLt);
-  color: var(--gD);
-  border-color: var(--gLr);
-}
-
-.btn-danger-out {
-  background: #ffffff;
-  border-color: var(--danger-br);
-  color: var(--danger);
-}
-
-.btn-danger-out:hover {
-  background: var(--danger-lt);
 }
 
 /* ── SCROLLABLE BODY ── */
@@ -1107,3 +986,179 @@ body {
     grid-template-columns: 1fr;
   }
 }
+
+/* ── SESSION ID & GPS BADGES ── */
+.log-sess-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  background: #f1f5f9;
+  color: #475569;
+  border: 1px solid #cbd5e1;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 7px;
+  border-radius: 6px;
+  letter-spacing: 0.2px;
+}
+
+.log-gps-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  background: #f0f9ff;
+  color: #0284c7;
+  border: 1px solid #bae6fd;
+  font-size: 10.5px;
+  font-weight: 600;
+  padding: 1px 7px;
+  border-radius: 6px;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.copy-pill-btn {
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #475569;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.copy-pill-btn:hover {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
+/* ── CLASS DAILY ATTENDANCE PERIOD CARDS ── */
+.att-daily-container {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.att-period-card {
+  background: #ffffff;
+  border: 1px solid var(--br);
+  border-radius: 12px;
+  padding: 14px 16px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.03);
+}
+
+.att-period-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--brl);
+}
+
+.att-period-title {
+  font-size: 13.5px;
+  font-weight: 800;
+  color: var(--td);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.att-method-badge {
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  background: #eff6ff;
+  color: #2563eb;
+  border: 1px solid #bfdbfe;
+}
+
+.att-stats-summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  font-weight: 700;
+}
+
+.att-meta-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 8px 14px;
+  margin-bottom: 12px;
+  font-size: 12px;
+  color: var(--tmu);
+}
+
+.att-meta-grid strong {
+  color: var(--td);
+}
+
+.stu-reg-chips-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  max-height: 220px;
+  overflow-y: auto;
+  padding: 8px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  margin-bottom: 8px;
+}
+
+.stu-reg-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-family: var(--font-mono);
+  font-weight: 600;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+}
+
+.stu-reg-chip.present {
+  background: #f0fdf4;
+  border-color: #86efac;
+  color: #166534;
+}
+
+.stu-reg-chip.absent {
+  background: #fef2f2;
+  border-color: #fca5a5;
+  color: #991b1b;
+}
+
+.stu-reg-chip.od {
+  background: #fffbeb;
+  border-color: #fde68a;
+  color: #92400e;
+}
+
+.att-history-box {
+  background: #f8fafc;
+  border-left: 3px solid #3b82f6;
+  border-radius: 0 8px 8px 0;
+  padding: 8px 12px;
+  font-size: 11.5px;
+  color: #475569;
+  line-height: 1.4;
+  margin-top: 8px;
+}
+

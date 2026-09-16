@@ -6,7 +6,7 @@ function apiCall(method, path, body) {
     body: body ? JSON.stringify(body) : undefined
   }).then(function (r) {
     if (r.status === 401) {
-      doLogout();
+      doLogout('timeout');
       throw new Error('Authentication failed');
     }
     var ct = r.headers.get('content-type') || '';

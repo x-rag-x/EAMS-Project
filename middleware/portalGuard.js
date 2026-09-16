@@ -1,27 +1,15 @@
 const M = require('../models');
-
-// Cache settings for 5 seconds to prevent DB overhead on every single request
-let cachedSettings = {};
-let lastCacheTime = 0;
+const { getSettings } = require('../utils/settingsCache');
 
 async function getCachedSettings() {
-  const now = Date.now();
-  if (now - lastCacheTime < 5000 && Object.keys(cachedSettings).length > 0) {
-    return cachedSettings;
-  }
   try {
-    const rows = await M.Settings.find().lean();
-    const map = {};
-    rows.forEach(r => { map[r.key] = r.value; });
-    cachedSettings = map;
-    lastCacheTime = now;
-    return map;
+    return await getSettings(['pages', 'attendance', 'models', 'academic', 'security']);
   } catch (err) {
-    return cachedSettings;
+    return {};
   }
 }
 
-// ── Check Student Portal Access ──
+// Verify student portal access permissions
 async function checkStudentPortalGuard(req, res, next) {
   if (req.user && req.user.role === 'admin') return next();
   const settings = await getCachedSettings();
@@ -36,7 +24,7 @@ async function checkStudentPortalGuard(req, res, next) {
   next();
 }
 
-// ── Check Attendance Marking Access ──
+// Verify attendance marking permissions
 async function checkAttendanceMarkGuard(req, res, next) {
   if (req.user && req.user.role === 'admin') return next();
   const settings = await getCachedSettings();
@@ -50,7 +38,7 @@ async function checkAttendanceMarkGuard(req, res, next) {
   next();
 }
 
-// ── Check Live Sessions Access ──
+// Verify live session feature availability
 async function checkLiveSessionGuard(req, res, next) {
   if (req.user && req.user.role === 'admin') return next();
   const settings = await getCachedSettings();
@@ -65,7 +53,7 @@ async function checkLiveSessionGuard(req, res, next) {
   next();
 }
 
-// ── Check Module Switch (generic) ──
+// Verify generic module enablement status
 function checkModuleGuard(moduleKey, moduleName) {
   return async function (req, res, next) {
     if (req.user && req.user.role === 'admin') return next();

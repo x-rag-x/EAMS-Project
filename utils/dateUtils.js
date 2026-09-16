@@ -1,16 +1,23 @@
 // Helper: compute day-of-week string from "YYYY-MM-DD"
 function dateToDow(dateStr) {
-  return ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][new Date(dateStr + 'T00:00:00').getDay()];
+  if (!dateStr) return 'Sunday';
+  const cleanStr = typeof dateStr === 'string' ? dateStr.split('T')[0] : '';
+  const d = new Date(cleanStr + 'T00:00:00.000Z');
+  return ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][d.getUTCDay()] || 'Sunday';
 }
 
 // Helper: returns 1-based ordinal of a Saturday within its month (1st Sat, 2nd Sat…)
 function satOrdinal(dateStr) {
-  const d = new Date(dateStr + 'T00:00:00');
-  if (d.getDay() !== 6) return 0;
+  if (!dateStr) return 0;
+  const cleanStr = typeof dateStr === 'string' ? dateStr.split('T')[0] : '';
+  const d = new Date(cleanStr + 'T00:00:00.000Z');
+  if (d.getUTCDay() !== 6) return 0;
   let count = 0;
-  for (let day = 1; day <= d.getDate(); day++) {
-    const nd = new Date(d.getFullYear(), d.getMonth(), day);
-    if (nd.getDay() === 6) count++;
+  const year = d.getUTCFullYear();
+  const month = d.getUTCMonth();
+  for (let day = 1; day <= d.getUTCDate(); day++) {
+    const nd = new Date(Date.UTC(year, month, day));
+    if (nd.getUTCDay() === 6) count++;
   }
   return count; // 1, 2, 3…
 }

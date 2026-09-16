@@ -358,8 +358,9 @@ async function addStudent(quick) {
 
   const section     = await ask('Section', classNameDefaultSection(className));
   const courseType  = await ask('Course Type (UG/PG/B.E/B.TECH/M.E/M.TECH)', 'UG');
-  const branch       = await ask('Branch', 'None');
-  const admissionYear = await ask('Academic Year', '2025-26');
+  const currYearDoc = await M.Year.findOne({ isCurrent: true }).lean();
+  const defaultAcadYear = currYearDoc ? currYearDoc.academicYear : '2026-2027';
+  const admissionYear = await ask('Academic Year', defaultAcadYear);
   const email          = await ask('Email', '');
   const username       = await ask('Username', quick ? registerNo.toLowerCase() : (email ? email.split('@')[0] : registerNo.toLowerCase()));
   if (await M.User.findOne({ username: username.toLowerCase() })) { warn(`Username "${username}" already taken (shadow collection).`); return; }
@@ -401,12 +402,14 @@ async function addDepartment() {
   const courseType     = await ask('Course Type (UG/PG)', 'UG');
   const branch           = await ask('Branch (B.E/B.TECH/M.E/M.TECH)', 'B.E');
   const icon             = await ask('Icon (emoji, optional)', '🏛️');
-  const hodId           = await ask('HoD TrackID (optional)', '');
+  const hodInput = await ask('HoD TrackID or Username (optional)', '');
   let hodName = '';
-  if (hodId) {
-    const t = await M.Teacher.findOne({ trackId: hodId.trim() }).lean();
-    hodName = t ? t.fullName : '';
-    if (!hodName) warn('HoD TrackID not found — saving without HoD name.');
+  let hodObjectId = null;
+  if (hodInput && hodInput.trim()) {
+    const t = await M.Teacher.findOne({ $or: [{ trackId: hodInput.trim() }, { username: hodInput.trim() }] }).lean();
+    hodName = t ? (t.fullName || t.name || '') : '';
+    hodObjectId = t ? t._id : null;
+    if (!hodName) warn('HoD TrackID/username not found — saving without HoD.');
     else ok(`HoD resolved: ${hodName}`);
   }
 
@@ -416,9 +419,9 @@ async function addDepartment() {
   }
 
   await M.Department.create({
-    name, code, twoLetterCode, number, courseType, branch, icon,
+    name, code, twoLetterCode, number, courseType, branch, icon: icon || '🏛️',
     threeLetterCode: code.toUpperCase(),
-    hodId: hodId || null, hodName,
+    hodId: hodObjectId, hodName,
   });
   await logSetup('Department Created (CLI)', `${name} (${code})`);
   ok(`Department "${name}" (${code}) added to DB.`);
@@ -847,8 +850,9 @@ async function _demoStudents(perClass) {
     return { created:0, skipped:0 };
   }
 
-  const academicYear = '2026-27';
-  const yearCode     = '26';   // from 2025-26
+  const currYearDoc = await M.Year.findOne({ isCurrent: true }).lean();
+  const academicYear = currYearDoc ? currYearDoc.academicYear : '2026-2027';
+  const yearCode     = academicYear.slice(2, 4);
 
   // Track roll counters per dept to keep registerNo unique
   const deptRolls = {};

@@ -25,7 +25,7 @@ function goBack() {
   }
 }
 
-// ── In-memory cache of real backend data ──────────────────────────────────
+// In-memory cache of real backend data
 // Populated from the API on load and kept in sync as rows are uploaded, so
 // duplicate/conflict checks run against what's actually in MongoDB instead
 // of a disconnected local copy.
@@ -274,7 +274,7 @@ function dlTemplate(type) {
     teacher: [['Name', 'EmployeeID', 'Department', 'Designation', 'Username', 'Password'],                        ['John Doe', 'EMP001', 'CSE', 'Assistant Professor', 'johndoe', 'teacher123']],
     class:   [['Department', 'HallNo', 'Year', 'Semester', 'Section', 'Batch'],                                   ['CSE', 'LH01', 'I Year', 'I', 'A', '2025-29']],
     subject: [['Name', 'Code', 'Department', 'Credits', 'Type'],                                                  ['Data Structures', 'CS201', 'CSE', '4', 'Theory']],
-    student: [['FullName', 'RegisterNo', 'AcademicYear', 'CourseType', 'Branch', 'Department', 'Year', 'Class', 'Section', 'Email', 'Username', 'Password'], ['Arun Kumar', '714025104000', '2025-26', 'UG', 'B.E', 'Computer Science Engineering', 'I Year', 'CSE-I-A', 'A', 'arun@eams.edu', 'arun25', 'Student@123']],
+    student: [['FullName', 'RegisterNo', 'AcademicYear', 'CourseType', 'Branch', 'Department', 'Year', 'Class', 'Section', 'Email', 'Username', 'Password'], ['Student User', '2025104001', '2025-26', 'UG', 'B.E', 'Computer Science Engineering', 'I Year', 'CSE-I-A', 'A', 'student@institution.edu', 'student25', 'Student@123']],
   };
   var data = T[type] || [['No template']];
   var ws = XLSX.utils.aoa_to_sheet(data), wb = XLSX.utils.book_new();
@@ -612,7 +612,7 @@ async function parseTeacherRows(rows) {
   if (added > 0) wizMarkDone('teacher');
 }
 
-// ── BOOT ─────────────────────────────────────────────────────────────────
+// BOOT
 var currentUser = null;
 
 (function checkAuthAndBoot() {
@@ -636,8 +636,8 @@ var currentUser = null;
     .then(function (r) { return r.json(); })
     .then(function (pub) {
       if (pub.institution) {
-        var instShort = pub.institution.institutionShort || 'SIET';
-        document.title = 'EAMS – Bulk Operations | ' + instShort;
+        var instShort = pub.institution.institutionShort || '';
+        document.title = instShort ? ('EAMS – Bulk Operations | ' + instShort) : 'EAMS – Bulk Operations';
       }
       if (currentUser && currentUser.role !== 'admin') {
         var pState = pub.pages ? pub.pages.pageBulk : 'enabled';

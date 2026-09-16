@@ -10,9 +10,7 @@ const { criticalDeleteLimiter } = require('../utils/rateLimiters');
 const { sanitizeToString } = require('../utils/sanitizeQuery');
 const { checkModuleGuard } = require('../middleware/portalGuard');
 
-// ════════════════════════════════════════════════════════
-//  BACKUP  (full DB snapshot — GDrive upload stub)
-// ════════════════════════════════════════════════════════
+// POST /api/system/backup - Create full database snapshot backup
 router.post('/backup', authMiddleware, adminOnly, requireRight('controlPage'), checkModuleGuard('modelBackup', 'Database Backup'), async (req, res) => {
   try {
     const [students, teachers, departments, classes, subjects, classAttendance, studentAttendance, assignments] = await Promise.all([
@@ -32,10 +30,7 @@ router.post('/backup', authMiddleware, adminOnly, requireRight('controlPage'), c
       students, teachers, departments, classes, subjects, classAttendance, studentAttendance, assignments
     };
     const backupPassword = crypto.randomBytes(6).toString('hex').toUpperCase();
-    // ─── Stubs (wire these when ready) ──────────────────
-    // await uploadToGDrive('backupfolder', backupPassword, JSON.stringify(backupPayload));
-    // await sendMail('mainMail', backupPassword, 'EAMS Backup Password', `Your backup password is: ${backupPassword}`);
-    // ────────────────────────────────────────────────────
+    // Backup cloud storage upload stub
     await logAction(
       req.user.trackId || req.user._id,
       req.user.name,
@@ -67,9 +62,7 @@ router.get('/backup/history', authMiddleware, adminOnly, requireRight('controlPa
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// ════════════════════════════════════════════════════════
-//  EXPORT DATA  (password-protected, email stub)
-// ════════════════════════════════════════════════════════
+// POST /api/system/export - Export database collections with password protection
 router.post('/export', authMiddleware, adminOnly, requireRight('downloadDatas', 'controlPage'), async (req, res) => {
   try {
     const type = req.body.type || 'all';
@@ -103,9 +96,7 @@ router.post('/export', authMiddleware, adminOnly, requireRight('downloadDatas', 
       };
     }
     const exportPassword = crypto.randomBytes(6).toString('hex').toUpperCase();
-    // ─── Stub (wire when ready) ──────────────────────────
-    // await exportMail(req.user.email || 'admin', exportPassword, JSON.stringify(payload));
-    // ────────────────────────────────────────────────────
+    // Export notification email dispatch stub
     await logAction(
       req.user.trackId || req.user._id,
       req.user.name,
@@ -122,9 +113,7 @@ router.post('/export', authMiddleware, adminOnly, requireRight('downloadDatas', 
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// ════════════════════════════════════════════════════════
-//  DB STATS
-// ════════════════════════════════════════════════════════
+// GET /api/system/dbstats - Return database storage and collection statistics
 router.get('/dbstats', authMiddleware, adminOnly, async (req, res) => {
   try {
     const db = mongoose.connection.db;
@@ -149,9 +138,7 @@ router.get('/serverlogs', authMiddleware, adminOnly, (req, res) => {
   });
 });
 
-// ════════════════════════════════════════════════════════
-//  SYSTEM HEALTH  (for Overview live stats)
-// ════════════════════════════════════════════════════════
+// GET /api/system/health - Return system runtime health and overview metrics
 router.get('/health', authMiddleware, adminOnly, async (req, res) => {
   try {
     const dbState = mongoose.connection.readyState;
@@ -186,9 +173,7 @@ router.get('/health', authMiddleware, adminOnly, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// ════════════════════════════════════════════════════════
-//  DELETE ADDER  (bulk-wipe one or more core collections)
-// ════════════════════════════════════════════════════════
+// POST /api/system/delete-adder - Bulk wipe selected core collections and shadow accounts
 const ADDER_MODELS = {
   departments: M.Department,
   classes:     M.Class,
@@ -212,8 +197,7 @@ router.post('/delete-adder', criticalDeleteLimiter, authMiddleware, adminOnly, r
     for (const name of collections) {
       const result = await ADDER_MODELS[name].deleteMany({});
       deleted += result.deletedCount || 0;
-      // Students and teachers also have a shadow User account - clean those up too
-      // so no orphaned, un-loginable shadow accounts are left behind.
+      // Clean up associated shadow user accounts for deleted students and teachers
       if (name === 'students') {
         const shadow = await M.User.deleteMany({ role: 'student' });
         deleted += shadow.deletedCount || 0;
@@ -239,9 +223,7 @@ router.post('/delete-adder', criticalDeleteLimiter, authMiddleware, adminOnly, r
   } catch (err) { res.status(500).json({ success: false, error: err.message }); }
 });
 
-// ════════════════════════════════════════════════════════
-//  BROADCASTS (Admin dispatch & history)
-// ════════════════════════════════════════════════════════
+// POST /api/system/broadcast/send - Dispatch broadcast banner and notifications
 router.post('/broadcast/send', authMiddleware, adminOnly, async (req, res) => {
   try {
     const { message, level = 'info', targetRoles = ['all'], isForcedAll = false, popupDurationSec = 10 } = req.body;

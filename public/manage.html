@@ -3,14 +3,14 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>EAMS – Manage | Sri Shakthi</title>
+  <title>EAMS – Manage Page</title>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/base.css">
   <link rel="stylesheet" href="css/manage.css">
 </head>
 <body>
 
-<!-- ── PAGE LOADER ── shown until first DB sync completes -->
+<!-- Page loader overlay shown until initial database sync completes -->
   <div id="page-loader">
     <div class="loader-brand">🌿 EAMS Admin</div>
     <div class="three-body">
@@ -45,18 +45,19 @@
     <div class="sb-logo-mark">📅</div>
     <div>
       <div class="sb-logo-text">Manage</div>
-      <div class="sb-logo-sub">Sri Shakthi EAMS</div>
+      <div class="sb-logo-sub">EAMS Portal</div>
     </div>
   </div>
 
   <div class="sb-nav">
     <button class="sb-item act" data-page="overview"  onclick="nav('overview')"><span class="sbi-ic">📊</span>Overview</button>
     <div class="sb-section">Academic</div>
+    <button class="sb-item" data-page="years"     onclick="nav('years')"><span class="sbi-ic">📚</span>Years</button>
     <button class="sb-item" data-page="calendar"  onclick="nav('calendar')"><span class="sbi-ic">📅</span>College Days</button>
     <button class="sb-item" data-page="exam"      onclick="nav('exam')"><span class="sbi-ic">📝</span>Exam</button>
-    <button class="sb-item" data-page="years"     onclick="nav('years')"><span class="sbi-ic">📚</span>Years</button>
     <div class="sb-section">Admin</div>
     <button class="sb-item" data-page="settings"  onclick="nav('settings')"><span class="sbi-ic">⚙️</span>Settings</button>
+    <button class="sb-item" onclick="window.location.href='export.html'"><span class="sbi-ic">📊</span>Export Center</button>
   </div>
 
   <div class="sb-bottom">
@@ -92,9 +93,7 @@
     </div>
   </div>
 
-  <!-- ═══════════════════════════════════
-       PAGE: OVERVIEW
-  ═══════════════════════════════════ -->
+  <!-- PAGE: OVERVIEW -->
   <div class="pg act" id="pg-overview">
     <div class="page-hd">
       <div>
@@ -151,9 +150,7 @@
     </div>
   </div>
 
-  <!-- ═══════════════════════════════════
-       PAGE: COLLEGE DAYS
-  ═══════════════════════════════════ -->
+  <!-- PAGE: COLLEGE DAYS -->
   <div class="pg" id="pg-calendar">
     <div class="page-hd">
       <div>
@@ -249,9 +246,7 @@
     <div style="margin-top:8px;font-size:10.5px;color:var(--tdi);text-align:center;">💡 Default: Sundays = Leave &nbsp;|&nbsp; 1st &amp; 3rd Saturdays = Leave &nbsp;|&nbsp; 2nd &amp; 4th Saturdays = Working &nbsp;|&nbsp; Click any day to edit.</div>
   </div>
 
-  <!-- ═══════════════════════════════════
-       PAGE: EXAM
-  ═══════════════════════════════════ -->
+  <!-- PAGE: EXAM -->
   <div class="pg" id="pg-exam">
     <div class="page-hd">
       <div>
@@ -265,7 +260,7 @@
       <button class="tab-btn"     id="est-att-btn"    onclick="examSubTab('attendance')">✅ Exam Attendance</button>
     </div>
 
-    <!-- ── EXAM DATES ── -->
+    <!-- EXAM DATES -->
     <div id="est-dates-panel">
       <div class="card" style="margin-bottom:12px;">
         <div class="card-body-p">
@@ -298,7 +293,9 @@
             </div>
             <div class="fg">
               <label class="fl">Acad. Year</label>
-              <input type="text" class="fc" id="ef-acyear" placeholder="2025-26" oninput="loadExams()">
+              <select class="fc" id="ef-acyear" onchange="loadExams()">
+                <option value="">All Academic Years</option>
+              </select>
             </div>
             <button class="btn-pri" onclick="openExamModal(null)" style="white-space:nowrap;">+ Add Exam</button>
           </div>
@@ -318,7 +315,7 @@
       </div>
     </div>
 
-    <!-- ── EXAM ATTENDANCE ── -->
+    <!-- EXAM ATTENDANCE -->
     <div id="est-att-panel" style="display:none;">
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
         <!-- Left: form -->
@@ -417,9 +414,7 @@
     </div>
   </div>
 
-  <!-- ═══════════════════════════════════
-       PAGE: YEARS
-  ═══════════════════════════════════ -->
+  <!-- PAGE: YEARS -->
   <div class="pg" id="pg-years">
     <div class="page-hd">
       <div>
@@ -454,9 +449,7 @@
     </div>
   </div>
 
-  <!-- ═══════════════════════════════════
-       PAGE: SETTINGS
-  ═══════════════════════════════════ -->
+  <!-- PAGE: SETTINGS -->
   <div class="pg" id="pg-settings">
     <div class="page-hd">
       <div>
@@ -480,9 +473,7 @@
 </div><!-- /app-shell -->
 
 
-<!-- ════════════════════════════════
-     MODAL: DAY DETAIL
-════════════════════════════════ -->
+<!-- MODAL: DAY DETAIL -->
 <div class="modal-bg" id="day-modal-bg" onclick="if(event.target===this)closeModal('day-modal-bg')">
   <div class="modal">
     <div class="modal-hd">
@@ -538,9 +529,7 @@
   </div>
 </div>
 
-<!-- ════════════════════════════════
-     MODAL: ADD / EDIT EXAM
-════════════════════════════════ -->
+<!-- MODAL: ADD / EDIT EXAM -->
 <div class="modal-bg" id="exam-modal-bg" onclick="if(event.target===this)closeModal('exam-modal-bg')">
   <div class="modal modal-lg">
     <div class="modal-hd">
@@ -603,9 +592,7 @@
   </div>
 </div>
 
-<!-- ════════════════════════════════
-     MODAL: VIEW HALL ATTENDANCE
-════════════════════════════════ -->
+<!-- MODAL: VIEW HALL ATTENDANCE -->
 <div class="modal-bg" id="view-att-bg" onclick="if(event.target===this)closeModal('view-att-bg')">
   <div class="modal modal-lg">
     <div class="modal-hd">
@@ -629,9 +616,7 @@
   </div>
 </div>
 
-<!-- ════════════════════════════════
-     MODAL: GRANT MANAGE ACCESS
-════════════════════════════════ -->
+<!-- MODAL: GRANT MANAGE ACCESS -->
 <div class="modal-bg" id="admin-modal-bg" onclick="if(event.target===this)closeModal('admin-modal-bg')">
   <div class="modal">
     <div class="modal-hd">
@@ -683,9 +668,7 @@
   </div>
 </div>
 
-<!-- ════════════════════════════════
-     MODAL: ADD / EDIT ACADEMIC YEAR
-════════════════════════════════ -->
+<!-- MODAL: ADD / EDIT ACADEMIC YEAR -->
 <div class="modal-bg" id="year-modal-bg" onclick="if(event.target===this)closeModal('year-modal-bg')">
   <div class="modal modal-lg">
     <div class="modal-hd">
@@ -743,6 +726,21 @@
       </div>
     </div>
 
+    <!-- Semester Dates Section -->
+    <div style="border-top:1px solid var(--brl);padding-top:14px;margin-bottom:12px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px;">
+        <div>
+          <div class="fl">Semester Dates <span style="color:var(--tmu);font-weight:400;">(Optional)</span> <span class="batch-preview" id="ym-sem-count" style="margin-left:6px;">0 semesters</span></div>
+          <div style="font-size:10px;color:var(--tmu);margin-top:2px;">Set start/end dates for each semester (used by Export Center)</div>
+        </div>
+        <button type="button" class="btn-out btn-xs" onclick="addSemesterDateRow()" style="white-space:nowrap;">+ Add Semester</button>
+      </div>
+
+      <div id="ym-semester-rows" style="display:flex;flex-direction:column;gap:8px;">
+        <!-- Semester date rows will be added here dynamically -->
+      </div>
+    </div>
+
     <div class="banner-blue" style="margin-bottom:12px;font-size:11px;">
       💡 <strong>Quick Guide:</strong> Batch name and Track ID auto-fill as you type — type the entry-year range (e.g. <strong>2026-2030</strong>) and the Track ID fills in automatically. Picking a Current Year also narrows the Semester options to the two that belong to it.
     </div>
@@ -755,9 +753,7 @@
   </div>
 </div>
 
-<!-- ════════════════════════════════
-     MODAL: EDIT BATCH
-════════════════════════════════ -->
+<!-- MODAL: EDIT BATCH -->
 <div class="modal-bg" id="batch-modal-bg" onclick="if(event.target===this)closeModal('batch-modal-bg')">
   <div class="modal">
     <div class="modal-hd">
@@ -795,6 +791,31 @@
     <div class="form-actions">
       <button class="btn-form-ghost" onclick="closeModal('batch-modal-bg')">Cancel</button>
       <button class="btn-form-pri" onclick="saveBatch()">💾 Save Batch</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: DELETE MONTH CONFIRMATION -->
+<div class="modal-bg" id="delete-month-modal-bg" onclick="if(event.target===this)closeModal('delete-month-modal-bg')">
+  <div class="modal" style="max-width:480px;">
+    <div class="modal-hd">
+      <div>
+        <div class="modal-title">🗑️ Delete Month from Database</div>
+        <div class="modal-sub">This action cannot be undone</div>
+      </div>
+      <div class="modal-close" onclick="closeModal('delete-month-modal-bg')">✕</div>
+    </div>
+    <div style="margin-bottom:16px;">
+      <div style="font-size:13px;color:var(--tmu);line-height:1.7;margin-bottom:14px;">
+        Are you sure you want to delete all saved days for <strong id="dmm-month-label" style="color:var(--td);">October 2026</strong> from the database?
+      </div>
+      <div class="banner-yellow" style="font-size:12px;">
+        ⚠️ <strong>Warning:</strong> This will reset the month to unsaved default state. All saved day configurations will be permanently removed.
+      </div>
+    </div>
+    <div class="form-actions">
+      <button class="btn-form-ghost" onclick="closeModal('delete-month-modal-bg')">Cancel</button>
+      <button class="btn-form-del" onclick="confirmDeleteCalendarMonth()">🗑 Delete Month</button>
     </div>
   </div>
 </div>

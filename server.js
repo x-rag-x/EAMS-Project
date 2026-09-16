@@ -19,7 +19,7 @@ const app = express();
 app.set('trust proxy', 1);
 const upload = multer({ storage: multer.memoryStorage() });
 
-// ── Middleware ────────────────────────────────────────
+// Configure global application middleware
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
@@ -31,7 +31,7 @@ app.use(helmet({
       styleSrcElem:  ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
       styleSrcAttr:  ["'unsafe-inline'"],
       fontSrc:       ["'self'", "https://fonts.gstatic.com", "data:"],
-      imgSrc:        ["'self'", "data:", "blob:"],
+      imgSrc:        ["'self'", "data:", "blob:", "http://localhost:*", "http://127.0.0.1:*"],
       connectSrc:    ["'self'", "http://localhost:*", "http://127.0.0.1:*", "ws:", "wss:"],
       upgradeInsecureRequests: null,
     },
@@ -44,7 +44,12 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 app.use('/api', require('./routes/index'));
 
-// ── Start Server ──────────────────────────────────────
+// QR Attendance entry point (attendance page only)
+app.get('/attendance', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'attendance.html'));
+});
+
+// Start HTTP server listener
 const PORT = process.env.PORT || cfg.PORT;
 app.listen(PORT, () => {
   console.log(`   1/5: Environment set for: ${cfg.NODE_ENV}`);

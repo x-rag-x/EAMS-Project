@@ -30,29 +30,29 @@ router.post('/bulk', authMiddleware, adminOnly, checkModuleGuard('modelAssignmen
   try {
     const { subjectId, assignments } = req.body;
 
-    // ── Validation ──────────────────────────────────────────
+    // Validation
     if (!subjectId)
       return res.status(400).json({ error: 'subjectId is required' });
     if (!Array.isArray(assignments) || assignments.length === 0)
       return res.status(400).json({ error: 'assignments[] must be a non-empty array' });
 
-    // ── Validate each row has required fields ────────────────
+    // Validate each row has required fields
     for (let i = 0; i < assignments.length; i++) {
       const { classId, teacherId, hallNo } = assignments[i];
       if (!classId || !teacherId || !hallNo)
         return res.status(400).json({ error: `Row ${i + 1}: classId, teacherId and hallNo are required` });
     }
 
-    // ── Duplicate section check (same subject + class) ───────
+    // Duplicate section check (same subject + class)
     const classIds = assignments.map(a => a.classId);
     const uniqueIds = new Set(classIds);
     if (uniqueIds.size !== classIds.length)
       return res.status(409).json({ error: 'Duplicate section detected — each class must appear only once per subject' });
 
-    // ── Replace: delete old assignments for this subject ─────
+    // Replace: delete old assignments for this subject
     const deleted = await M.Assignment.deleteMany({ subjectId });
 
-    // ── Insert all new rows in one shot ──────────────────────
+    // Insert all new rows in one shot
     const saved = await M.Assignment.insertMany(assignments);
 
     await logAction(

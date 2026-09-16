@@ -1,9 +1,9 @@
-// ---- State ----
+// State
 var TOKEN = getToken();
 var currentUser = null;
 var currentAction = null;
 
-// ---- Nav Constants ----
+// Nav Constants
 var PAGE_NAMES = [
   "overview",
   "usergrid",
@@ -14,7 +14,7 @@ var PAGE_NAMES = [
   "maintenance",
 ];
 
-// ---- Guard ----
+// Guard
 (function () {
   currentUser = checkAuth("admin", "controlPage");
   if (!currentUser) return;
@@ -41,7 +41,7 @@ function applyControlTabRestrictions() {
   }
 }
 
-// ---- Clock ----
+// Clock
 function updateClock() {
   var now = new Date();
   var clockEl = document.getElementById("top-time");
@@ -55,7 +55,7 @@ function updateClock() {
 updateClock();
 setInterval(updateClock, 1000);
 
-// ---- Nav ----
+// Nav
 function nav(page) {
   if (PAGE_NAMES.indexOf(page) === -1) page = 'overview';
 
@@ -94,7 +94,7 @@ function nav(page) {
   if (page === "maintenance") loadMaintenance();
 }
 
-// ---- Overview ----
+// Overview
 function loadOverview() {
   // Show maintenance banner from DB
   apiCall("GET", "/settings/maintenance")
@@ -105,7 +105,7 @@ function loadOverview() {
         else banner.classList.add("hidden");
       }
     })
-    .catch(function () {});
+    .catch(function () { });
   var tok = sessionStorage.getItem("eams_token") || TOKEN || "";
   var h = { Authorization: "Bearer " + tok };
   // Fetch real DB stats from server
@@ -199,10 +199,10 @@ function loadOverview() {
       }
       logLine(
         "DB stats loaded  — " +
-          d.totalDocs +
-          " docs, " +
-          d.dataSize +
-          " MB data",
+        d.totalDocs +
+        " docs, " +
+        d.dataSize +
+        " MB data",
         "success",
       );
     })
@@ -215,7 +215,7 @@ function loadOverview() {
       if (descCatch) descCatch.textContent = "Could not fetch storage info — check server connection";
     });
 }
-// ---- Log terminal ----
+// Log terminal
 function logLine(msg, type) {
   type = type || "info";
   var el = document.getElementById("sys-log");
@@ -231,8 +231,8 @@ function logLine(msg, type) {
   el.appendChild(line);
   el.scrollTop = el.scrollHeight;
 }
-// ---- Settings ----
-// ---- MAINTENANCE (fully DB-backed) ----
+// Settings
+// MAINTENANCE (fully DB-backed)
 var _maintData = null;
 function loadMaintenance() {
   // Reset UI to loading state
@@ -437,9 +437,9 @@ function saveMaintConfig() {
       showToast("✅ Configuration saved to database");
       logLine(
         "Maintenance config saved  — roles: [" +
-          roles.join(", ") +
-          "] end: " +
-          fmtDateTime(endISO),
+        roles.join(", ") +
+        "] end: " +
+        fmtDateTime(endISO),
         "success",
       );
       loadMaintLogs();
@@ -500,8 +500,8 @@ function doToggleMaintenance() {
       renderMaintUI(d);
       var msg2 = nowActive
         ? "⚠️ Maintenance ENABLED  — " +
-          affectedRoleLabels(roles).join(", ") +
-          " redirected to maintenance page"
+        affectedRoleLabels(roles).join(", ") +
+        " redirected to maintenance page"
         : "✅ Maintenance DISABLED  — All users can now log in";
       showToast(msg2);
       logLine(
@@ -629,7 +629,7 @@ function renderRoleTable(maintActive, affected) {
     })
     .join("");
 }
-// ---- — — Maintenance Activity Log (from DB) ----
+// — — Maintenance Activity Log (from DB)
 function loadMaintLogs() {
   var el = document.getElementById("maint-log-list");
   el.innerHTML =
@@ -686,7 +686,7 @@ function loadMaintLogs() {
         "</div>";
     });
 }
-// ---- — — Server Logs (live Node.js output) ----
+// — — Server Logs (live Node.js output)
 var _srvLogPollInterval = null;
 var _srvLogSince = null;
 function loadServerLogs() {
@@ -811,7 +811,7 @@ function toggleServerLogPoll() {
   }
 }
 
-// ---- Maintenance Expiry Polling ----
+// Maintenance Expiry Polling
 var _expiryPollInterval = null;
 var _expiryDialogDismissed = false;
 function dismissExpiryDialog() {
@@ -842,17 +842,17 @@ function extendMaintenance(hours) {
       document.getElementById("maint-expiry-modal").classList.remove("open");
       showToast(
         "⏱️ Extended +" +
-          hours +
-          " hr" +
-          (hours > 1 ? "s" : "") +
-          "  — ends " +
-          fmtDateTime(newEnd),
+        hours +
+        " hr" +
+        (hours > 1 ? "s" : "") +
+        "  — ends " +
+        fmtDateTime(newEnd),
       );
       logLine(
         "Maintenance EXTENDED +" +
-          hours +
-          "h  — new end: " +
-          fmtDateTime(newEnd),
+        hours +
+        "h  — new end: " +
+        fmtDateTime(newEnd),
         "warn",
       );
       loadMaintLogs();
@@ -897,13 +897,13 @@ function toggleMaintenance() {
 function saveMaintMsg() {
   saveMaintConfig();
 }
-function updateMaintLabel() {}
+function updateMaintLabel() { }
 function clearMaintEndTime() {
   document.getElementById("maint-end-time").value = "";
   document.getElementById("maint-end-time").style.borderColor = "#e2e8f0";
 }
 
-// ---- Toggle label sync ----
+// Toggle label sync
 function syncLabel(checkbox, labelId) {
   var lbl = document.getElementById(labelId);
   lbl.textContent = checkbox.checked ? "ON" : "OFF";
@@ -918,7 +918,7 @@ function syncLabel(checkbox, labelId) {
     });
 });
 
-// ---- Save settings (writes to MongoDB) ----
+// Save settings (writes to MongoDB)
 function saveSettings(section) {
   var payload = {};
   if (section === "institution") {
@@ -947,7 +947,7 @@ function saveSettings(section) {
       maxLogin: document.getElementById("sec-maxlogin").value,
     };
   }
-  showToast("⏱️ Saving to MongoDB…");
+  showToast("⏱️ Saving to Database...");
   apiCall("PUT", "/settings/" + section, { value: payload })
     .then(function (d) {
       if (d && d.error) {
@@ -957,24 +957,24 @@ function saveSettings(section) {
       logLine("Settings saved to DB: " + section, "success");
       showToast(
         "ℹ️ " +
-          section.charAt(0).toUpperCase() +
-          section.slice(1) +
-          " settings saved to MongoDB",
+        section.charAt(0).toUpperCase() +
+        section.slice(1) +
+        " settings saved to MongoDB",
       );
     })
     .catch(function (e) {
       showToast("❌ Network error  — settings NOT saved: " + (e.message || ""));
       logLine(
         "Settings save failed: " +
-          section +
-          "  — " +
-          (e.message || "network error"),
+        section +
+        "  — " +
+        (e.message || "network error"),
         "danger",
       );
     });
 }
 
-// ---- Load settings (DB-backed) ----
+// Load settings (DB-backed)
 function applySettingsToForm(s) {
   var inst = s.institution || {};
   var acad = s.academic || {};
@@ -1049,7 +1049,7 @@ function loadAllSettings() {
     });
 }
 
-// ---- Admin password reset ----
+// Admin password reset
 function resetAdminPassword() {
   var nw = document.getElementById("admin-pw-new").value.trim();
   var conf = document.getElementById("admin-pw-conf").value.trim();
@@ -1084,7 +1084,7 @@ function resetAdminPassword() {
     });
 }
 
-// ---- Confirm modal ----
+// Confirm modal
 var ACTIONS = {
   teachers: {
     icon: "⚠️",
@@ -1283,7 +1283,7 @@ function getDeleteSteps(action) {
   if (action === "logs") {
     return [
       {
-        label: "Clearing logs from MongoDB…",
+        label: "Clearing logs from Database...",
         fn: function () {
           return apiCall("DELETE", "/logs/all");
         },
@@ -1405,7 +1405,7 @@ function showProgress(label, pct) {
   document.getElementById("m-progress-fill").style.width = pct + "%";
   document.getElementById("m-progress-label").textContent = label;
 }
-// ---- — — Export Data (secure, password-protected) ----
+// — — Export Data (secure, password-protected)
 function refreshExportCount() {
   var tok = sessionStorage.getItem("eams_token") || TOKEN || "";
   fetch("/api/students/count", { headers: { Authorization: "Bearer " + tok } })
@@ -1418,7 +1418,7 @@ function refreshExportCount() {
         el.textContent =
           (d.count !== undefined ? d.count : "ℹ️ ") + " students";
     })
-    .catch(function () {});
+    .catch(function () { });
 }
 function exportDataSecure(type) {
   var tok = sessionStorage.getItem("eams_token") || TOKEN || "";
@@ -1483,7 +1483,7 @@ function exportData(type) {
   exportDataSecure(type);
 }
 
-// ---- Server utilities ----
+// Server utilities
 function pingServer() {
   var start = Date.now();
   fetch("/api/dashboard/summary", {
@@ -1523,8 +1523,8 @@ function checkDB() {
       logLine("DB check: Failed", "danger");
     });
 }
-// ---- Toast ----
-// ---- — — Health stats (for Overview live strip) ----
+// Toast
+// — — Health stats (for Overview live strip)
 function loadHealth() {
   var tok = sessionStorage.getItem("eams_token") || TOKEN || "";
   var url =
@@ -1624,12 +1624,12 @@ function loadHealth() {
       }
       logLine(
         "Health: DB=" +
-          d.dbStatus +
-          " Errors=" +
-          d.errorCount +
-          " Mem=" +
-          d.memoryMB +
-          "MB",
+        d.dbStatus +
+        " Errors=" +
+        d.errorCount +
+        " Mem=" +
+        d.memoryMB +
+        "MB",
         "success",
       );
     })
@@ -1646,10 +1646,19 @@ function loadHealth() {
 }
 
 var _errorsMode = "week";
+var _errorsCount = 20; // Default count from settings
+
 function setErrorsMode(mode) {
   _errorsMode = mode;
+  var bAll = document.getElementById("err-btn-all");
   var bWeek = document.getElementById("err-btn-week");
   var bN = document.getElementById("err-btn-n");
+
+  if (bAll) {
+    bAll.style.background = mode === "all" ? "var(--gD)" : "var(--gLt)";
+    bAll.style.color = mode === "all" ? "#fff" : "var(--gD)";
+    bAll.style.border = mode === "all" ? "none" : "1px solid var(--gLr)";
+  }
   if (bWeek) {
     bWeek.style.background = mode === "week" ? "var(--gD)" : "var(--gLt)";
     bWeek.style.color = mode === "week" ? "#fff" : "var(--gD)";
@@ -1660,6 +1669,19 @@ function setErrorsMode(mode) {
     bN.style.color = mode === "n" ? "#fff" : "var(--gD)";
     bN.style.border = mode === "n" ? "none" : "1px solid var(--gLr)";
   }
+
+  // Update description text
+  var descEl = document.getElementById("errors-card-desc");
+  if (descEl) {
+    if (mode === "all") {
+      descEl.textContent = "All error-level log entries";
+    } else if (mode === "week") {
+      descEl.textContent = "Error logs from the past 7 days";
+    } else {
+      descEl.textContent = "Last " + _errorsCount + " error-level log entries";
+    }
+  }
+
   loadHealth();
 }
 
@@ -1678,7 +1700,7 @@ function deleteSingleErrorLog(id, btn) {
       showToast("Delete failed: " + (err.message || "error"));
     });
 }
-// ---- — — Clear all error/warning logs (from overview card) ----
+// — — Clear all error/warning logs (from overview card)
 function clearErrorLogs() {
   openConfirmEx({
     icon: "🛠️",
@@ -1756,7 +1778,7 @@ function openConfirmEx(cfg) {
   document.getElementById("confirm-modal").classList.add("open");
 }
 
-// ---- Backup page ----
+// Backup page
 function loadBackupPage() {
   var tok = sessionStorage.getItem("eams_token") || TOKEN || "";
   fetch("/api/system/backup/history", {
@@ -1875,9 +1897,9 @@ function createBackup() {
             "<br><em>GDrive upload: wire uploadToGDrive() - Password mail: wire sendMail() to activate</em>";
         logLine(
           "Backup created  — " +
-            d.totalDocs +
-            " docs | pw: " +
-            d.backupPassword,
+          d.totalDocs +
+          " docs | pw: " +
+          d.backupPassword,
           "success",
         );
         showToast("✅ Backup created  — " + d.totalDocs + " docs");
@@ -1893,7 +1915,7 @@ function createBackup() {
     });
 }
 
-// ---- Undo page ----
+// Undo page
 var _undoData = [];
 var _undoFilter = "all";
 function loadUndoPage() {
@@ -1931,8 +1953,8 @@ function renderUndoList() {
     _undoFilter === "all"
       ? _undoData
       : _undoData.filter(function (x) {
-          return x.collectionName === _undoFilter;
-        });
+        return x.collectionName === _undoFilter;
+      });
   if (!items.length) {
     list.innerHTML =
       '<div style="color:var(--tmu);font-size:13px;text-align:center;padding:30px 0;">No restorable deletions' +
@@ -2057,7 +2079,7 @@ function dismissUndo(id, btn) {
     },
   });
 }
-// ---- — — Legacy saveBackup stub (runSteps calls this — no-op now) ----
+// — — Legacy saveBackup stub (runSteps calls this — no-op now)
 function saveBackup(label, data) {
   /* superseded by server-side UndoLog */
 }
@@ -2065,7 +2087,7 @@ function loadBackups() {
   /* legacy no-op */
 }
 
-// -- User Grid & Identity Console Controller ------------------------------
+// User Grid & Identity Console Controller
 var _ugState = {
   role: "student",
   page: 1,
@@ -2180,7 +2202,7 @@ function ugLoadFilterOptions() {
         if (admDeptModal) admDeptModal.innerHTML = modalOpts;
       }
     })
-    .catch(function () {});
+    .catch(function () { });
 
   // Load classes for filter and modal dropdowns
   fetch("/api/classes", { headers: h })
@@ -2201,7 +2223,7 @@ function ugLoadFilterOptions() {
         updateUGStuClassList();
       }
     })
-    .catch(function () {});
+    .catch(function () { });
 }
 
 function populateUGBatches(acYear, selectedBatch) {
@@ -2611,7 +2633,7 @@ function renderUGTable() {
       '<th class="sortable" onclick="ugSortBy(\'status\')">Status' + ugSortIndicator('status') + '</th>' +
       '<th>Remarks</th>' +
       '<th style="width:170px;text-align:center;">Actions</th>' +
-    '</tr>';
+      '</tr>';
 
     tbody.innerHTML = data.map(function (rec) {
       var isChecked = _ugState.selectedIds.has(rec._id);
@@ -2627,12 +2649,12 @@ function renderUGTable() {
         '<td><span class="badge ' + badgeCls + '">' + statusLbl + '</span></td>' +
         '<td style="font-size:11.5px;color:var(--tmu);">' + escapeHtml(rec.remarks || '—') + '</td>' +
         '<td style="text-align:center;width:170px;">' +
-          '<div class="ug-actions-cell">' +
-            '<button class="ug-action-btn edit" onclick="openUGAttEdit(\'' + rec._id + '\')" title="Edit Attendance">✏️ Edit</button>' +
-            '<button class="ug-action-btn del" onclick="openUGDeleteModal(\'' + rec._id + '\')" title="Delete Entry">🗑️ Delete</button>' +
-          '</div>' +
+        '<div class="ug-actions-cell">' +
+        '<button class="ug-action-btn edit" onclick="openUGAttEdit(\'' + rec._id + '\')" title="Edit Attendance">✏️ Edit</button>' +
+        '<button class="ug-action-btn del" onclick="openUGDeleteModal(\'' + rec._id + '\')" title="Delete Entry">🗑️ Delete</button>' +
+        '</div>' +
         '</td>' +
-      '</tr>';
+        '</tr>';
     }).join("");
   } else {
     var idColTitle = (role === "student") ? ("Reg. Number" + ugSortIndicator('registerNo')) : (role === "teacher" ? ("Emp ID" + ugSortIndicator('employeeNo')) : ("Admin ID" + ugSortIndicator('employeeNo')));
@@ -2647,7 +2669,7 @@ function renderUGTable() {
       '<th>' + extraColTitle + '</th>' +
       '<th class="sortable" onclick="ugSortBy(\'status\')">Status' + ugSortIndicator('status') + '</th>' +
       '<th style="width:330px;text-align:center;">Actions</th>' +
-    '</tr>';
+      '</tr>';
 
     tbody.innerHTML = data.map(function (u) {
       var isChecked = _ugState.selectedIds.has(u._id);
@@ -2681,22 +2703,22 @@ function renderUGTable() {
       return '<tr class="' + (isChecked ? 'ug-row-selected' : '') + '">' +
         '<td style="text-align:center;"><input type="checkbox" onchange="ugToggleRowSelect(\'' + u._id + '\')" ' + (isChecked ? 'checked' : '') + '></td>' +
         '<td>' +
-          '<div style="font-weight:700;color:var(--td);">' + escapeHtml(u.name || u.fullName || u.username) + '</div>' +
-          '<div style="font-size:11px;color:var(--tmu);">' + escapeHtml(u.email || 'No email registered') + '</div>' +
+        '<div style="font-weight:700;color:var(--td);">' + escapeHtml(u.name || u.fullName || u.username) + '</div>' +
+        '<div style="font-size:11px;color:var(--tmu);">' + escapeHtml(u.email || 'No email registered') + '</div>' +
         '</td>' +
         '<td>' + idDisplay + '</td>' +
         '<td><code style="font-size:12px;background:var(--gLt);padding:2px 6px;border-radius:4px;color:var(--gD);">@' + escapeHtml(u.username) + '</code></td>' +
         '<td>' + subInfo + '</td>' +
         '<td><span class="badge ' + badgeCls + '">' + badgeLbl + '</span>' + (u.failedLogins > 0 ? ' <span style="font-size:10px;color:#dc2626;">(' + u.failedLogins + ' fails)</span>' : '') + '</td>' +
         '<td style="text-align:center;width:330px;">' +
-          '<div class="ug-actions-cell">' +
-            '<button class="ug-action-btn edit" onclick="openUGEdit(\'' + u._id + '\')" title="Edit Profile">✏️ Edit</button>' +
-            '<button class="ug-action-btn pw" onclick="openUGPasswordReset(\'' + u._id + '\')" title="Reset Password">🔑 Password</button>' +
-            statusBtn +
-            '<button class="ug-action-btn del" onclick="openUGDeleteModal(\'' + u._id + '\')" title="Delete User">🗑️ Delete</button>' +
-          '</div>' +
+        '<div class="ug-actions-cell">' +
+        '<button class="ug-action-btn edit" onclick="openUGEdit(\'' + u._id + '\')" title="Edit Profile">✏️ Edit</button>' +
+        '<button class="ug-action-btn pw" onclick="openUGPasswordReset(\'' + u._id + '\')" title="Reset Password">🔑 Password</button>' +
+        statusBtn +
+        '<button class="ug-action-btn del" onclick="openUGDeleteModal(\'' + u._id + '\')" title="Delete User">🗑️ Delete</button>' +
+        '</div>' +
         '</td>' +
-      '</tr>';
+        '</tr>';
     }).join("");
   }
 }
@@ -2890,7 +2912,7 @@ function openUGEdit(id) {
     var rights = Array.isArray(user.adminRights) ? user.adminRights : (user.adminRights ? [user.adminRights] : []);
     var isAll = rights.includes("all") || user.adminRights === "all";
     var hasAdmin = isAll || rights.some(function (r) { return r && r !== "none"; }) || !!user.isAdmin;
-    
+
     document.getElementById("ug-e-tch-is-admin").checked = hasAdmin;
     ugToggleAdminPrivs(hasAdmin);
 
@@ -3382,7 +3404,7 @@ function escapeHtml(str) {
     .replace(/"/g, "&quot;");
 }
 
-// -- Modals / Clear Storage ------------------------------
+// Modals / Clear Storage
 function openClearStorageModal() {
   openModal("m-clear-storage");
 }
@@ -3495,7 +3517,7 @@ function deleteAttendance(id) {
     });
 }
 
-// -- Special Password --------------------------------------
+// Special Password
 function toggleSppwEye() {
   var inp = document.getElementById("sppw-input");
 
@@ -3540,7 +3562,7 @@ function verifySpecialPw() {
     });
 }
 
-// -- Loader step advancement --------------------------------
+// Loader step advancement
 var _loaderStep = 0;
 function advanceLoaderStep(msg) {
   _loaderStep++;
@@ -3556,7 +3578,7 @@ function advanceLoaderStep(msg) {
   if (msg && msgEl) msgEl.textContent = msg;
 }
 
-// -- Init ---------------------------------------------------
+// Init
 (function () {
   advanceLoaderStep("Checking authorization…");
 
@@ -3586,7 +3608,7 @@ function advanceLoaderStep(msg) {
     }
   }, 2000);
 })();
-// -- Errors mode toggling ---------------------------------
+// Errors mode toggling
 var _errorsMode = "n";
 var _errorsN = 20;
 function setErrorsMode(mode) {
@@ -3603,7 +3625,7 @@ function setErrorsMode(mode) {
   loadHealth();
 }
 
-// -- Delete All Adder -------------------------------------
+// Delete All Adder
 function openDeleteAdderModal() {
   document.querySelectorAll(".adder-chk").forEach(function (c) {
     c.checked = false;
@@ -3660,14 +3682,14 @@ function confirmDeleteAdder() {
     });
 }
 
-// -- Clear Storage select-all ------------------------------
+// Clear Storage select-all
 function toggleClearAll(el) {
   document.querySelectorAll(".clr-chk").forEach(function (c) {
     c.checked = el.checked;
   });
 }
 
-// -- Navigation helpers ------------------------------
+// Navigation helpers
 function goBack() {
   if (currentUser && currentUser.role === 'teacher') {
     window.location.href = "selector.html";
@@ -3676,9 +3698,7 @@ function goBack() {
   }
 }
 
-// ════════════════════════════════════════════════════════
 //  BROADCASTS & LIVE ANNOUNCEMENTS
-// ════════════════════════════════════════════════════════
 function toggleForceAllRoles(chk) {
   var tChk = document.getElementById('bc-role-teachers');
   var sChk = document.getElementById('bc-role-students');
@@ -3700,9 +3720,10 @@ function loadActiveBroadcastStatus() {
         if (durEl && !durEl.dataset.userEdited) durEl.value = pub.broadcast.defaultPopupDurationSec;
       }
       if (pub.institution) {
-        document.title = 'EAMS – Control Center | ' + (pub.institution.institutionShort || 'SIET');
+        var shortN = pub.institution.institutionShort || '';
+        document.title = shortN ? ('EAMS – Control Center | ' + shortN) : 'EAMS – Control Center';
       }
-    }).catch(function () {});
+    }).catch(function () { });
 
   apiCall('GET', '/settings/broadcast')
     .then(function (bcast) {
@@ -3727,7 +3748,7 @@ function loadActiveBroadcastStatus() {
         banner.style.display = 'none';
       }
     })
-    .catch(function () {});
+    .catch(function () { });
 }
 
 function sendBroadcast() {
@@ -3877,7 +3898,7 @@ function loadBroadcastHistory() {
           '<td style="padding:10px 14px;font-size:12px;">' + sentStr + '</td>' +
           '<td style="padding:10px 14px;font-size:12px;color:var(--td);">' + escapeHtml(authorName) + '</td>' +
           '<td style="padding:10px 14px;font-size:11px;font-family:\'JetBrains Mono\',monospace;color:var(--tmu);">' + escapeHtml(timeStr) + '</td>' +
-        '</tr>';
+          '</tr>';
       }).join('');
 
       tbody.innerHTML = html;
@@ -3885,4 +3906,4 @@ function loadBroadcastHistory() {
     .catch(function (err) {
       tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:30px;color:#dc2626;">❌ Error loading history: ' + escapeHtml(err.message || '') + '</td></tr>';
     });
-}
+}

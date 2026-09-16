@@ -80,7 +80,7 @@ var SECTION_META = {
   }
 };
 
-// ── INITIALIZATION ──
+// INITIALIZATION
 document.addEventListener('DOMContentLoaded', function () {
   checkAuthentication();
   setupEventListeners();
@@ -207,7 +207,7 @@ function toggleSidebar() {
   }
 }
 
-// ── STATS LOADING & RENDERING ──
+// STATS LOADING & RENDERING
 function loadStats() {
   fetch('/api/logs/stats', {
     headers: { 'Authorization': 'Bearer ' + TOKEN }
@@ -284,7 +284,7 @@ function renderStatusCards() {
   }).join('');
 }
 
-// ── SECTION SWITCHING ──
+// SECTION SWITCHING
 function switchSection(sectionKey) {
   currentSection = sectionKey;
   currentSubType = 'all';
@@ -326,7 +326,7 @@ function setSubType(subType) {
   fetchLogs(true);
 }
 
-// ── EVENT LISTENERS & FILTERING ──
+// EVENT LISTENERS & FILTERING
 function setupEventListeners() {
   // Real-time debounce search
   var searchInput = document.getElementById('filter-search');
@@ -358,7 +358,7 @@ function refreshCurrentLogs() {
   showToast('🔄 Audit logs refreshed', 'info');
 }
 
-// ── LOG FETCHING & RENDERING ──
+// LOG FETCHING & RENDERING
 function fetchLogs(reset) {
   if (isLoading) return;
   isLoading = true;
@@ -433,7 +433,7 @@ function loadMoreLogs() {
   }
 }
 
-// ── LOG RENDERING & GROUPING ──
+// LOG RENDERING & GROUPING
 function renderLogsList() {
   var container = document.getElementById('log-feed-container');
   if (!container) return;
@@ -500,6 +500,24 @@ function renderLogRow(log) {
   var timeStr = formatRelativeTime(log.time || log.createdAt);
   var exactTime = new Date(log.time || log.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
+  // Session ID badge
+  var sessId = log.sessionId || (log.sessionInfo && log.sessionInfo.sessionId) || '';
+  var sessBadge = sessId
+    ? '<span class="log-sess-badge" title="User Session ID: ' + escapeHtml(sessId) + '">🔑 ' + escapeHtml(sessId.length > 8 ? sessId.slice(0, 8) + '…' : sessId) + '</span>'
+    : '';
+
+  // GPS Location badge
+  var loc = log.location || (log.sessionInfo && log.sessionInfo.location) || {};
+  var locText = '';
+  if (loc.address) {
+    locText = loc.address;
+  } else if (loc.latitude !== null && loc.latitude !== undefined) {
+    locText = Number(loc.latitude).toFixed(4) + ', ' + Number(loc.longitude).toFixed(4);
+  }
+  var gpsBadge = locText
+    ? '<span class="log-gps-badge" title="GPS Location: ' + escapeHtml(locText) + '">📍 ' + escapeHtml(locText.length > 28 ? locText.slice(0, 28) + '…' : locText) + '</span>'
+    : '';
+
   // Format rich Page View description
   var pageViewDesc = getPageViewDescription(log);
 
@@ -513,6 +531,8 @@ function renderLogRow(log) {
         '<span class="badge-subtype">' + formatSubTypeLabel(subType) + '</span>' +
         '<span class="badge-severity ' + severity + '">' + severity.toUpperCase() + '</span>' +
         (log.actingWithAdminRights ? '<span style="font-size:10px;font-weight:700;color:#d97706;background:#fef3c7;padding:1px 6px;border-radius:10px;">ADMIN RIGHT</span>' : '') +
+        sessBadge +
+        gpsBadge +
       '</div>' +
       '<div class="log-action-title">' + escapeHtml(log.action || 'Activity Action') + '</div>' +
       '<div class="log-page-view-desc">' + pageViewDesc + '</div>' +
@@ -532,13 +552,25 @@ function formatDisplayIp(rawIp) {
   return ip;
 }
 
-// ── FORMATTING HELPERS ──
+// FORMATTING HELPERS
 function getPageViewDescription(log) {
   var action = log.action || '';
   var subType = log.subType || '';
   var details = log.details || '';
 
-  // 1. Session / Login Log Rule:
+  // 1. Attendance Class Daily Summary Log (Item 18.1)
+  if (log.attendanceClassDaily && Array.isArray(log.attendanceClassDaily.periods) && log.attendanceClassDaily.periods.length > 0) {
+    var acd = log.attendanceClassDaily;
+    var periodCount = acd.periods.length;
+    var latestPeriod = acd.periods[acd.periods.length - 1];
+    var pStats = latestPeriod.stats || {};
+    var methodStr = latestPeriod.method ? ' via ' + latestPeriod.method : '';
+    return '📅 Class Attendance for <b>' + escapeHtml(acd.className || acd.classId) + '</b> on ' + escapeHtml(acd.date || '') +
+      ': <b>' + periodCount + ' Period' + (periodCount !== 1 ? 's' : '') + ' Recorded</b>' +
+      ' · Last: Period ' + latestPeriod.periodNumber + ' (' + (pStats.present || 0) + '/' + (pStats.total || 0) + ' Present' + methodStr + ')';
+  }
+
+  // 2. Session / Login Log Rule:
   // If active: "<user> Logged In at <time> (Active)"
   // If ended: "<user> Logged In at <time> · Logged Out at <time> (<manual/auto>)"
   if (subType === 'session' && log.sessionInfo) {
@@ -553,7 +585,7 @@ function getPageViewDescription(log) {
     }
   }
 
-  // 2. Attendance Summary Log
+  // 3. Legacy Attendance Summary Log
   if (subType === 'attendance' && log.attendanceSummary) {
     var att = log.attendanceSummary;
     var presentCount = (att.periods || []).filter(function (p) { return p.status === 'P'; }).length;
@@ -620,7 +652,7 @@ function copyTrackId(event, trackId) {
   });
 }
 
-// ── LOG DETAIL MODAL ──
+// LOG DETAIL MODAL
 function openLogDetail(idOrTrackId) {
   var modal = document.getElementById('m-log-detail');
   var body = document.getElementById('modal-body-content');
@@ -663,33 +695,40 @@ function renderModalDetailContent(log) {
   var html = '';
 
   // 1. Actor & Hardware Profile Card
+  var modalSessId = log.sessionId || (log.sessionInfo && log.sessionInfo.sessionId) || '';
   html += '<div class="kv-grid">' +
     '<div class="kv-item"><span class="kv-lbl">Actor Name / User</span><span class="kv-val">' + escapeHtml(log.userName || 'System') + ' (' + (log.role || 'system').toUpperCase() + ')</span></div>' +
     '<div class="kv-item"><span class="kv-lbl">Tracking ID</span><span class="kv-val" style="font-family:var(--font-mono);color:var(--gD);">' + (log.trackId || '—') + '</span></div>' +
     '<div class="kv-item"><span class="kv-lbl">IP Address</span><span class="kv-val" style="font-family:var(--font-mono);">' + (formatDisplayIp(log.ip) || '—') + '</span></div>' +
     '<div class="kv-item"><span class="kv-lbl">Severity / Module</span><span class="kv-val">' + (log.severity || 'info').toUpperCase() + ' · ' + (log.module || 'general').toUpperCase() + '</span></div>' +
+    '<div class="kv-item" style="grid-column:1/-1;"><span class="kv-lbl">User Session ID</span><span class="kv-val" style="font-family:var(--font-mono);display:inline-flex;align-items:center;gap:8px;">' +
+      (modalSessId ? escapeHtml(modalSessId) + ' <button class="copy-pill-btn" onclick="copySessionId(event, \'' + escapeHtml(modalSessId) + '\')">📋 Copy</button>' : '—') +
+    '</span></div>' +
   '</div>';
 
-  // 2. Session / Geolocation Information (If Session log)
-  if (log.sessionInfo) {
-    var sess = log.sessionInfo;
-    var loc = sess.location || {};
+  // 2. Session / Geolocation Information
+  var modalLoc = log.location || (log.sessionInfo && log.sessionInfo.location) || {};
+  var hasLocOrSession = modalSessId || modalLoc.latitude || modalLoc.address || log.sessionInfo;
+
+  if (hasLocOrSession) {
+    var sess = log.sessionInfo || {};
     html += '<div style="background:var(--gLt);border:1px solid var(--gLr);border-radius:12px;padding:16px;">' +
       '<div style="font-weight:800;font-size:13.5px;color:var(--gD);margin-bottom:10px;display:flex;align-items:center;gap:6px;">' +
-        '<span>📍</span> Session Geolocation &amp; Device Metrics' +
+        '<span>📍</span> Session Geolocation &amp; Security Metrics' +
       '</div>' +
       '<div class="kv-grid" style="background:#ffffff;margin-bottom:10px;">' +
         '<div class="kv-item"><span class="kv-lbl">Device &amp; OS</span><span class="kv-val">' + (sess.deviceType || 'Desktop') + ' · ' + (sess.os || 'Windows') + '</span></div>' +
-        '<div class="kv-item"><span class="kv-lbl">Browser &amp; IP</span><span class="kv-val">' + (sess.browser || 'Chrome') + ' · ' + (formatDisplayIp(sess.ip) || '127.0.0.1') + '</span></div>' +
-        '<div class="kv-item"><span class="kv-lbl">Login Time</span><span class="kv-val">' + (sess.loginTime ? new Date(sess.loginTime).toLocaleTimeString('en-IN') : '—') + '</span></div>' +
-        '<div class="kv-item"><span class="kv-lbl">Logout Time</span><span class="kv-val">' + (sess.active ? '<span style="color:#16a34a;font-weight:700;">🟢 Active Now</span>' : (sess.logoutTime ? new Date(sess.logoutTime).toLocaleTimeString('en-IN') + ' (' + (sess.logoutMethod || 'manual') + ')' : '—')) + '</span></div>' +
+        '<div class="kv-item"><span class="kv-lbl">Browser &amp; IP</span><span class="kv-val">' + (sess.browser || 'Chrome') + ' · ' + (formatDisplayIp(sess.ip || log.ip) || '127.0.0.1') + '</span></div>' +
+        '<div class="kv-item"><span class="kv-lbl">Login Status</span><span class="kv-val">' + (sess.active ? '<span style="color:#16a34a;font-weight:700;">🟢 Active Session</span>' : (sess.logoutTime ? 'Session Ended (' + (sess.logoutMethod || 'manual') + ')' : 'Captured via Gateway')) + '</span></div>' +
+        '<div class="kv-item"><span class="kv-lbl">Session ID</span><span class="kv-val" style="font-family:var(--font-mono);font-size:11px;">' + (modalSessId ? escapeHtml(modalSessId.slice(0, 16) + '…') : '—') + '</span></div>' +
       '</div>' +
-      (loc.latitude ? (
+      (modalLoc.latitude ? (
         '<div style="font-size:12px;color:#0284c7;line-height:1.5;">' +
-          '<b>GPS Coordinates:</b> <span style="font-family:var(--font-mono);">' + loc.latitude.toFixed(6) + ', ' + loc.longitude.toFixed(6) + '</span> (Accuracy: ±' + Math.round(loc.accuracy || 0) + 'm)<br>' +
-          '<b>Resolved Address:</b> ' + escapeHtml(loc.address || 'Address reverse-geocoded successfully') +
+          '<b>GPS Coordinates:</b> <span style="font-family:var(--font-mono);font-weight:700;">' + Number(modalLoc.latitude).toFixed(6) + ', ' + Number(modalLoc.longitude).toFixed(6) + '</span>' +
+          (modalLoc.accuracy ? ' (Accuracy: ±' + Math.round(modalLoc.accuracy) + 'm)' : '') + '<br>' +
+          '<b>Resolved Address:</b> ' + escapeHtml(modalLoc.address || 'Address reverse-geocoded successfully') +
         '</div>'
-      ) : '<div style="font-size:12px;color:#64748b;">GPS Location: Device coordinates captured via secure login gateway.</div>') +
+      ) : '<div style="font-size:12px;color:#64748b;">GPS Coordinates: Device location captured via authenticated session.</div>') +
     '</div>';
   }
 
@@ -701,10 +740,70 @@ function renderModalDetailContent(log) {
     '</div>';
   }
 
-  // 4. Student Daily Attendance Summary View (Only displayed when any attendance is actually marked on that day)
+  // 4. Class Daily Attendance Sheet (Item 18.1)
+  if (log.attendanceClassDaily && Array.isArray(log.attendanceClassDaily.periods) && log.attendanceClassDaily.periods.length > 0) {
+    var acd = log.attendanceClassDaily;
+    html += '<div>' +
+      '<div style="font-weight:800;font-size:14px;color:var(--text-main);margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">' +
+        '<div style="display:flex;align-items:center;gap:6px;"><span>📅</span> Class Daily Attendance Sheet — <b>' + escapeHtml(acd.className || acd.classId) + '</b> (' + escapeHtml(acd.date || '') + ')</div>' +
+        '<span style="background:var(--gLt);color:var(--gD);padding:2px 10px;border-radius:12px;font-size:11.5px;font-weight:700;">' + acd.periods.length + ' Period' + (acd.periods.length !== 1 ? 's' : '') + ' Recorded</span>' +
+      '</div>' +
+      '<div class="att-daily-container">' +
+        acd.periods.map(function (p) {
+          var pStats = p.stats || {};
+          var records = Array.isArray(p.records) ? p.records : [];
+          var history = Array.isArray(p.history) ? p.history : [];
+          var pTime = p.markedAt ? new Date(p.markedAt).toLocaleTimeString('en-IN') : '';
+
+          return '<div class="att-period-card">' +
+            '<div class="att-period-header">' +
+              '<div class="att-period-title">' +
+                '<span>Period ' + p.periodNumber + '</span>' +
+                '<span style="font-weight:600;font-size:12px;color:var(--tmu);">' + escapeHtml(p.subjectName || p.subjectTrackId || '') + '</span>' +
+                '<span class="att-method-badge">' + escapeHtml(p.method || 'Manual') + '</span>' +
+              '</div>' +
+              '<div class="att-stats-summary">' +
+                '<span style="color:#16a34a;">✅ ' + (pStats.present || 0) + ' Present</span> · ' +
+                '<span style="color:#dc2626;">❌ ' + (pStats.absent || 0) + ' Absent</span>' +
+                (pStats.od ? ' · <span style="color:#d97706;">⚡ ' + pStats.od + ' OD</span>' : '') +
+              '</div>' +
+            '</div>' +
+            '<div class="att-meta-grid">' +
+              '<div><strong>Staff:</strong> ' + escapeHtml(p.teacherName || 'Teacher') + '</div>' +
+              '<div><strong>Staff Session ID:</strong> <span style="font-family:var(--font-mono);font-size:11px;">' + (p.teacherSessionId ? escapeHtml(p.teacherSessionId.slice(0, 10) + '…') : '—') + '</span> ' +
+                (p.teacherSessionId ? '<button class="copy-pill-btn" onclick="copySessionId(event, \'' + escapeHtml(p.teacherSessionId) + '\')">📋</button>' : '') + '</div>' +
+              '<div><strong>Marked At:</strong> ' + (pTime || '—') + '</div>' +
+              (p.topic ? '<div><strong>Topic:</strong> ' + escapeHtml(p.topic) + '</div>' : '') +
+            '</div>' +
+            '<div style="font-size:11.5px;font-weight:700;color:var(--td);margin-bottom:6px;">Student Register Numbers &amp; Status (' + records.length + ' Students):</div>' +
+            '<div class="stu-reg-chips-wrap">' +
+              records.map(function (r) {
+                var st = (r.status || 'P').toUpperCase();
+                var cls = (st === 'P' || st === 'PRESENT') ? 'present' : ((st === 'OD' || st === 'ON DUTY') ? 'od' : 'absent');
+                return '<div class="stu-reg-chip ' + cls + '" title="' + escapeHtml(r.name || '') + ' (' + st + ')">' +
+                  '<span>' + escapeHtml(r.regNo || r.studentTrackId) + '</span>' +
+                  '<span style="opacity:0.8;font-size:9.5px;">[' + escapeHtml(st) + ']</span>' +
+                '</div>';
+              }).join('') +
+            '</div>' +
+            (history.length > 0 ? (
+              '<div class="att-history-box">' +
+                '<b>Audit Trail:</b> ' + history.map(function (h) {
+                  var hTime = h.changedAt ? new Date(h.changedAt).toLocaleTimeString('en-IN') : '';
+                  return escapeHtml(h.summary || h.action) + ' (' + hTime + ')';
+                }).join(' · ') +
+              '</div>'
+            ) : '') +
+          '</div>';
+        }).join('') +
+      '</div>' +
+    '</div>';
+  }
+
+  // 5. Legacy Student Daily Attendance Summary View
   var hasMarkedAttendance = false;
   var markedPeriods = [];
-  if (log.attendanceSummary && Array.isArray(log.attendanceSummary.periods) && log.attendanceSummary.periods.length > 0) {
+  if (!log.attendanceClassDaily && log.attendanceSummary && Array.isArray(log.attendanceSummary.periods) && log.attendanceSummary.periods.length > 0) {
     markedPeriods = log.attendanceSummary.periods.filter(function (p) {
       return p && p.status && p.status !== '—' && p.status !== '-' && String(p.status).trim() !== '';
     });
@@ -786,7 +885,7 @@ function renderDiffTable(before, after) {
   return html;
 }
 
-// ── CSV EXPORT ──
+// CSV EXPORT
 function exportFilteredCSV() {
   showToast('⏳ Generating decrypted CSV audit export…', 'info');
 
@@ -825,7 +924,7 @@ function exportFilteredCSV() {
     });
 }
 
-// ── CLEAR LOGS (ADMIN ONLY MODAL FLOW) ──
+// CLEAR LOGS (ADMIN ONLY MODAL FLOW)
 function openClearLogsModal() {
   var modal = document.getElementById('m-clear-logs');
   if (modal) modal.classList.add('open');
@@ -870,7 +969,7 @@ function confirmClearLogs() {
     });
 }
 
-// ── TOAST MESSAGE ──
+// TOAST MESSAGE
 function showToast(msg, type) {
   var toast = document.getElementById('app-toast');
   var text = document.getElementById('toast-text');
@@ -883,6 +982,20 @@ function showToast(msg, type) {
   setTimeout(function () {
     toast.classList.remove('show');
   }, 3500);
+}
+
+function copySessionId(e, sessId) {
+  if (e) e.stopPropagation();
+  if (!sessId) return;
+  if (navigator && navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(sessId).then(function () {
+      showToast('Session ID copied to clipboard: ' + sessId, 'success');
+    }).catch(function () {
+      prompt('Copy Session ID:', sessId);
+    });
+  } else {
+    prompt('Copy Session ID:', sessId);
+  }
 }
 
 function escapeHtml(str) {

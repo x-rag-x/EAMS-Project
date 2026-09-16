@@ -11,6 +11,8 @@ const yearModels       = require('./year.model');
 const settingsModels   = require('./settings.model');
 const systemModels     = require('./system.model');
 const leaveModels      = require('./leave.model');
+const liveAttModels    = require('./liveSessionAtt.model');
+const exportModels     = require('./export.model');
 
 module.exports = {
   ...userModels,
@@ -26,4 +28,6 @@ module.exports = {
   ...settingsModels,
   ...systemModels,
   ...leaveModels,
+  ...liveAttModels,
+  ...exportModels,
 };

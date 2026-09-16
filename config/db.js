@@ -7,14 +7,18 @@ const M = require('../models');
 const { startSessionMonitor } = require('../utils/sessionMonitor');
 const { logAction } = require('../utils/logAction');
 
-const { migrateDateFields } = require('../utils/dbMigrator');
-
 const { DEFAULT_SETTINGS_LIST } = require('./defaultSettings');
 
-mongoose.connect(cfg.MONGO_URI, { dbName: cfg.DB_NAME })
+mongoose.connect(cfg.MONGO_URI, {
+  dbName: cfg.DB_NAME,
+  maxPoolSize: 20,
+  minPoolSize: 2,
+  socketTimeoutMS: 45000,
+  serverSelectionTimeoutMS: 10000,
+  autoIndex: true
+})
   .then(async() => {
     console.log(`   3/5: MongoDB connected → ${cfg.DB_NAME}`);
-    await migrateDateFields();
     console.log(`> Checking Admin User...`);
     await seedAdmin();
     await seedSettings();
@@ -32,18 +36,18 @@ async function seedSettings() {
       await M.Settings.create({ card: d.card, key: d.key, value: d.value, updatedBy: 'system' });
       seeded++;
     } else {
-      // Ensure card matches latest enum & fill any missing keys in value
+      // Ensure card matches latest enum and backfill missing keys
       const updatedVal = { ...d.value, ...(exists.value || {}) };
       await M.Settings.findOneAndUpdate({ key: d.key }, { $set: { card: d.card, value: updatedVal } });
     }
   }
 
-    // ── One-time migration: Convert legacy boolean pages & models to grouped cards ──
+    // Migrate legacy boolean settings into grouped card format
     const legacySettings = await M.Settings.findOne({ key: 'settings' });
     if (legacySettings && legacySettings.value) {
       const leg = legacySettings.value;
       
-      // Migrate Pages
+      // Migrate page visibility settings
       const pagesDoc = await M.Settings.findOne({ key: 'pages' });
       if (pagesDoc) {
         const toTri = (val) => (typeof val === 'string' ? val : (val === false ? 'disabled' : 'enabled'));
@@ -58,7 +62,7 @@ async function seedSettings() {
         await M.Settings.findOneAndUpdate({ key: 'pages' }, { $set: { value: pVal } });
       }
 
-      // Migrate Attendance
+      // Migrate attendance policy settings
       const attDoc = await M.Settings.findOne({ key: 'attendance' });
       if (attDoc) {
         const aVal = {
@@ -70,7 +74,7 @@ async function seedSettings() {
         await M.Settings.findOneAndUpdate({ key: 'attendance' }, { $set: { value: aVal } });
       }
 
-      // Migrate Models
+      // Migrate model feature flags
       const modDoc = await M.Settings.findOne({ key: 'models' });
       if (modDoc) {
         const mVal = {
@@ -88,13 +92,13 @@ async function seedSettings() {
     if (seeded > 0) console.log(`   5/5: Default settings not found, ${seeded} setting(s) added successfully`);
     else console.log(`   5/5: Default Settings Found`);
   
-    // Patch old maintenance record missing affectedRoles / endTime
+    // Set default maintenance fields if missing in legacy records
     await M.Settings.findOneAndUpdate(
       { key: 'maintenance', 'value.affectedRoles': { $exists: false } },
       { $set: { 'value.affectedRoles': ['teacher', 'student'], 'value.endTime': null, 'value.startedAt': null } }
     );
   
-    // Log server start
+    // Log server initialization event
     await logAction(
       null, 'SYSTEM', 'system',
       'Server Started',
@@ -108,7 +112,7 @@ async function seedSettings() {
   }
 
   async function seedAdmin() {
-    // Seed admin account (first-boot only) → both M.Admin and M.User
+    // Seed default admin account in Admin and User collections
     const adminExists = await M.User.findOne({ username: 'admin', role: 'admin' });
     if (adminExists) {
       console.log(`   4/5: Admin User found...`);
@@ -116,7 +120,7 @@ async function seedSettings() {
     else {
       const hash = await bcrypt.hash(cfg.ADMIN_PASSWORD, cfg.BCRYPT_ROUNDS);
       await M.Admin.create({ fullName: 'Administrator', firstName: 'Admin', lastName: '', username: 'admin', password: hash, trackId: 'TR-ADMIN001', isAdmin: true, adminRights: 'all', adminFlag: 'superadmin', mustChangePassword: true });
-      // Shadow entry in User for session tracking
+      // Create shadow User record for unified session tracking
       const userExists = await M.User.findOne({ username: 'admin' });
       if (!userExists) await M.User.create({ username: 'admin', role: 'admin', trackId: 'TR-ADMIN001', status: 'active' });
       console.log(`   4/5: Admin User not found, Created new user successfully`);

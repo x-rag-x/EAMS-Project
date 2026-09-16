@@ -1,9 +1,9 @@
 const rateLimit = require('express-rate-limit');
 
-// ── Rate limiters for sensitive endpoints (SEC-01) ──
+// Rate limiters for sensitive endpoints and operations
 
 const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
+  windowMs: 15 * 60 * 1000,
   max: 5,
   message: { error: 'Too many authentication attempts. Please try again after 15 minutes.' },
   standardHeaders: true,
@@ -42,10 +42,19 @@ const attendanceClearLimiter = rateLimit({
   legacyHeaders: false,
 });
 
+const qrAttendanceLimiter = rateLimit({
+  windowMs: 5 * 60 * 1000, // 5 minutes
+  max: 15,
+  message: { error: 'Too many QR attendance requests. Please wait a moment.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 module.exports = {
   authLimiter,
   deleteAuthLimiter,
   liveSessionMarkLimiter,
   criticalDeleteLimiter,
   attendanceClearLimiter,
+  qrAttendanceLimiter,
 };

@@ -7,7 +7,7 @@ const { decryptLog } = require('../utils/logCrypto');
 const { sanitizeToString } = require('../utils/sanitizeQuery');
 const escapeRegex = s => String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-// ── GET /api/logs/stats — Server-aggregated status cards metrics ──
+// GET /api/logs/stats — Server-aggregated status cards metrics
 router.get('/stats', authMiddleware, logsAdminOnly, async (req, res) => {
   try {
     const todayStart = new Date();
@@ -57,7 +57,7 @@ router.get('/stats', authMiddleware, logsAdminOnly, async (req, res) => {
   }
 });
 
-// ── GET /api/logs — Fetch filtered audit logs with decrypted payload & joined session history ──
+// GET /api/logs — Fetch filtered audit logs with decrypted payload & joined session history
 router.get('/', authMiddleware, logsAdminOnly, async (req, res) => {
   try {
     const limitParam = sanitizeToString(req.query.limit);
@@ -130,12 +130,18 @@ router.get('/', authMiddleware, logsAdminOnly, async (req, res) => {
 
     const logs = await M.Log.find(filter).sort({ createdAt: -1 }).limit(limit).lean();
 
-    // Batch join LoginHistory for session-type logs
-    const sessionLogs = logs.filter(l => l.subType === 'session' && l.sessionId);
+    // Batch join LoginHistory for all logs with sessionId
+    const sessionLogs = logs.filter(l => l.sessionId);
     const trackIdsToFetch = [...new Set(sessionLogs.map(l => l.trackId).filter(Boolean))];
+    const sessionIdsToFetch = [...new Set(sessionLogs.map(l => l.sessionId).filter(Boolean))];
 
-    const loginHistories = trackIdsToFetch.length
-      ? await M.LoginHistory.find({ trackId: { $in: trackIdsToFetch } }).lean()
+    const loginHistories = (trackIdsToFetch.length || sessionIdsToFetch.length)
+      ? await M.LoginHistory.find({
+          $or: [
+            ...(trackIdsToFetch.length ? [{ trackId: { $in: trackIdsToFetch } }] : []),
+            ...(sessionIdsToFetch.length ? [{ "history.sessionId": { $in: sessionIdsToFetch } }] : [])
+          ]
+        }).lean()
       : [];
 
     const historySessionMap = new Map();
@@ -143,6 +149,7 @@ router.get('/', authMiddleware, logsAdminOnly, async (req, res) => {
       (lh.history || []).forEach(sess => {
         if (sess.sessionId) {
           historySessionMap.set(`${lh.trackId}_${sess.sessionId}`, sess);
+          historySessionMap.set(sess.sessionId, sess);
         }
       });
     });
@@ -161,8 +168,10 @@ router.get('/', authMiddleware, logsAdminOnly, async (req, res) => {
       }
 
       let sessionInfo = null;
-      if (l.subType === 'session' && l.sessionId) {
-        const histSess = historySessionMap.get(`${l.trackId}_${l.sessionId}`);
+      let loc = l.location || null;
+
+      if (l.sessionId) {
+        const histSess = historySessionMap.get(`${l.trackId}_${l.sessionId}`) || historySessionMap.get(l.sessionId);
         if (histSess) {
           sessionInfo = {
             sessionId: histSess.sessionId,
@@ -177,7 +186,14 @@ router.get('/', authMiddleware, logsAdminOnly, async (req, res) => {
             os: histSess.os || 'Windows',
             location: histSess.location || { address: '', latitude: null, longitude: null }
           };
+          if (!loc || (!loc.latitude && !loc.address)) {
+            loc = histSess.location || null;
+          }
         }
+      }
+
+      if (!loc) {
+        loc = { address: '', latitude: null, longitude: null, accuracy: null };
       }
 
       const logTrackId = l.logTrackId || `TR-LOG-${String(l._id).slice(-6).toUpperCase()}`;
@@ -192,9 +208,12 @@ router.get('/', authMiddleware, logsAdminOnly, async (req, res) => {
         logTrackId,
         trackId: resolvedTrackId,
         ip: normalizeIp(l.ip),
+        sessionId: l.sessionId || (sessionInfo ? sessionInfo.sessionId : ''),
+        location: loc,
         details: decryptedDetails,
         changes: decryptedChanges,
-        sessionInfo
+        sessionInfo,
+        attendanceClassDaily: l.attendanceClassDaily || undefined
       };
     });
 
@@ -205,7 +224,7 @@ router.get('/', authMiddleware, logsAdminOnly, async (req, res) => {
   }
 });
 
-// ── GET /api/logs/detail/:id — Fetch single log with full decrypted details & session joins ──
+// GET /api/logs/detail/:id — Fetch single log with full decrypted details & session joins
 router.get('/detail/:id', authMiddleware, logsAdminOnly, async (req, res) => {
   try {
     const id = req.params.id;
@@ -237,8 +256,15 @@ router.get('/detail/:id', authMiddleware, logsAdminOnly, async (req, res) => {
     );
 
     let sessionInfo = null;
-    if (log.sessionId && resolvedTrackId) {
-      const lh = await M.LoginHistory.findOne({ trackId: resolvedTrackId }).lean();
+    let loc = log.location || null;
+
+    if (log.sessionId) {
+      const lh = await M.LoginHistory.findOne({
+        $or: [
+          ...(resolvedTrackId ? [{ trackId: resolvedTrackId }] : []),
+          { "history.sessionId": log.sessionId }
+        ]
+      }).lean();
       if (lh) {
         const sess = (lh.history || []).find(h => h.sessionId === log.sessionId);
         if (sess) {
@@ -255,8 +281,15 @@ router.get('/detail/:id', authMiddleware, logsAdminOnly, async (req, res) => {
             os: sess.os || 'Windows',
             location: sess.location || { address: '', latitude: null, longitude: null }
           };
+          if (!loc || (!loc.latitude && !loc.address)) {
+            loc = sess.location || null;
+          }
         }
       }
+    }
+
+    if (!loc) {
+      loc = { address: '', latitude: null, longitude: null, accuracy: null };
     }
 
     res.json({
@@ -264,16 +297,19 @@ router.get('/detail/:id', authMiddleware, logsAdminOnly, async (req, res) => {
       logTrackId,
       trackId: resolvedTrackId,
       ip: normalizeIp(log.ip),
+      sessionId: log.sessionId || (sessionInfo ? sessionInfo.sessionId : ''),
+      location: loc,
       details: decryptedDetails,
       changes: decryptedChanges,
-      sessionInfo
+      sessionInfo,
+      attendanceClassDaily: log.attendanceClassDaily || undefined
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// ── POST /api/logs/page-access — Track client page access ──
+// POST /api/logs/page-access — Track client page access
 router.post('/page-access', authMiddleware, async (req, res) => {
   try {
     const { page, title, module: clientModule } = req.body;
@@ -315,7 +351,7 @@ router.post('/page-access', authMiddleware, async (req, res) => {
   }
 });
 
-// ── POST /api/logs/export — Decrypted CSV export ──
+// POST /api/logs/export — Decrypted CSV export
 router.post('/export', authMiddleware, logsAdminOnly, async (req, res) => {
   try {
     const { module: modFilter, subType, category, severity, role, from, to, search } = req.body;
@@ -387,7 +423,7 @@ router.post('/export', authMiddleware, logsAdminOnly, async (req, res) => {
   }
 });
 
-// ── DELETE /api/logs/all ──
+// DELETE /api/logs/all
 router.delete('/all', authMiddleware, logsAdminOnly, async (req, res) => {
   try {
     await M.Log.deleteMany({});
@@ -409,7 +445,7 @@ router.delete('/all', authMiddleware, logsAdminOnly, async (req, res) => {
   }
 });
 
-// ── DELETE /api/logs/:id ──
+// DELETE /api/logs/:id
 router.delete('/:id', authMiddleware, logsAdminOnly, async (req, res) => {
   try {
     await M.Log.findByIdAndDelete(req.params.id);

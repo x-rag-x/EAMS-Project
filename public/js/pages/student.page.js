@@ -143,7 +143,7 @@ function showView(name) {
   var navEl = document.getElementById('nav-' + name);
   if (navEl) navEl.classList.add('active');
   // Update topbar label
-  var labels = { dashboard: 'Dashboard', profile: 'My Profile', attendance: 'Attendance', leave: 'Apply Leave' };
+  var labels = { dashboard: 'Dashboard', profile: 'My Profile', attendance: 'Attendance', leave: 'Apply Leave', 'rep-att': 'Class Rep Attendance' };
   var tbLabel = document.getElementById('tb-page-label');
   if (tbLabel) tbLabel.textContent = labels[name] || name;
   // If data is ready, render the appropriate view
@@ -152,8 +152,11 @@ function showView(name) {
     else if (name === 'profile') renderProfilePage(_data);
     else if (name === 'attendance') renderAttendancePage(_data);
     else if (name === 'leave') loadLeaveData();
+    else if (name === 'rep-att') loadRepPendingSession();
   } else if (name === 'leave') {
     loadLeaveData();
+  } else if (name === 'rep-att') {
+    loadRepPendingSession();
   }
   closeSidebar();
   window.scrollTo(0, 0);
@@ -184,21 +187,28 @@ function daysSince(str) {
   return days + ' day' + (days !== 1 ? 's' : '') + ' ago';
 }
 
-var _GLOBAL_ACAD = { minAttendance: 75, lowAttendanceThreshold: 65, academicYear: '2026-27' };
+var _GLOBAL_ACAD = { minAttendance: null, lowAttendanceThreshold: null, academicYear: '' };
 var _ACTIVE_YEAR = '';
 
-fetch('/api/settings/public')
+// Load academic parameters strictly from settings
+var _settingsPromise = fetch('/api/settings/public')
   .then(function(r){ return r.json(); })
   .then(function(pub){
     window._pubSettings = pub;
-    if (pub.academic) {
-      _GLOBAL_ACAD = Object.assign(_GLOBAL_ACAD, pub.academic);
+    if (pub && pub.academic) {
+      if (typeof pub.academic.minAttendance === 'number') _GLOBAL_ACAD.minAttendance = pub.academic.minAttendance;
+      else if (pub.academic.minAttendance) _GLOBAL_ACAD.minAttendance = Number(pub.academic.minAttendance);
+
+      if (typeof pub.academic.lowAttendanceThreshold === 'number') _GLOBAL_ACAD.lowAttendanceThreshold = pub.academic.lowAttendanceThreshold;
+      else if (pub.academic.lowAttendanceThreshold) _GLOBAL_ACAD.lowAttendanceThreshold = Number(pub.academic.lowAttendanceThreshold);
+
+      if (pub.academic.academicYear) _GLOBAL_ACAD.academicYear = pub.academic.academicYear;
     }
-    if (pub.institution) {
-      var shortN = pub.institution.institutionShort || 'SIET';
-      document.title = 'EAMS – Student | ' + shortN;
+    if (pub && pub.institution) {
+      var shortN = pub.institution.institutionShort || '';
+      document.title = shortN ? ('EAMS – Student | ' + shortN) : 'EAMS – Student';
     }
-    if (pub.models) {
+    if (pub && pub.models) {
       if (pub.models.modelLeave === false) {
         var el = document.getElementById('nav-leave');
         if (el) el.style.display = 'none';
@@ -211,24 +221,31 @@ fetch('/api/settings/public')
         document.querySelectorAll('.btn-export').forEach(function(b){ b.style.display = 'none'; });
       }
     }
+    return pub;
   }).catch(function(e){ console.warn(e); });
 
 // Fetch active year from yearconfig
-fetch('/api/year/current', { headers: { 'Authorization': 'Bearer ' + TOKEN } })
+var _yearPromise = fetch('/api/year/current', { headers: { 'Authorization': 'Bearer ' + TOKEN } })
   .then(function(r){ return r.ok ? r.json() : null; })
-  .then(function(yr){ if (yr) _ACTIVE_YEAR = yr; })
+  .then(function(yr){ if (yr) _ACTIVE_YEAR = yr; return yr; })
   .catch(function(){});
 
 function getClass(pct, minReq) {
-  var minA = (typeof minReq === 'number') ? minReq : (_GLOBAL_ACAD.minAttendance || 75);
-  var lowA = _GLOBAL_ACAD.lowAttendanceThreshold || 65;
+  var minA = (typeof minReq === 'number')
+    ? minReq
+    : (_GLOBAL_ACAD.minAttendance !== null && _GLOBAL_ACAD.minAttendance !== undefined ? _GLOBAL_ACAD.minAttendance : 75);
+  var lowA = (_GLOBAL_ACAD.lowAttendanceThreshold !== null && _GLOBAL_ACAD.lowAttendanceThreshold !== undefined)
+    ? _GLOBAL_ACAD.lowAttendanceThreshold
+    : (minA - 10);
   if (pct >= minA) return 'ok';
   if (pct >= lowA) return 'warn';
   return 'danger';
 }
 function calcShortage(present, total, minReq) {
   if (total === 0) return 0;
-  var minA = (typeof minReq === 'number') ? minReq : (_GLOBAL_ACAD.minAttendance || 75);
+  var minA = (typeof minReq === 'number')
+    ? minReq
+    : (_GLOBAL_ACAD.minAttendance !== null && _GLOBAL_ACAD.minAttendance !== undefined ? _GLOBAL_ACAD.minAttendance : 75);
   var pct = present / total;
   if (pct * 100 >= minA) return 0;
   return Math.max(0, Math.ceil((minA * total - 100 * present) / (100 - minA)));
@@ -253,7 +270,9 @@ function renderPortal(d) {
   var stu  = d.student || {};
   var att  = d.attendance || { subjects: [], totalPresent: 0, totalAbsent: 0, totalClasses: 0, overall: 0, minRequired: 75 };
   var usr  = d.user || {};
-  var minR = (att && typeof att.minRequired === 'number') ? att.minRequired : (_GLOBAL_ACAD.minAttendance || 75);
+  var minR = (att && typeof att.minRequired === 'number')
+    ? att.minRequired
+    : (_GLOBAL_ACAD.minAttendance !== null && _GLOBAL_ACAD.minAttendance !== undefined ? _GLOBAL_ACAD.minAttendance : 75);
   var oPct = att.overall || 0;
   var oCls = getClass(oPct, minR);
 
@@ -265,6 +284,11 @@ function renderPortal(d) {
   var nameTop = document.getElementById('tb-name'); if (nameTop) nameTop.textContent = displayName;
   var nameSb  = document.getElementById('sb-name'); if (nameSb) nameSb.textContent = displayName;
   var regSb   = document.getElementById('sb-reg'); if (regSb) regSb.textContent = stu.regNo || '—';
+
+  if (stu.isRep || (USER && USER.isRep)) {
+    var navRep = document.getElementById('nav-rep-att');
+    if (navRep) navRep.style.display = 'flex';
+  }
 
   var mustChange = sessionStorage.getItem('eams_mustChangePw') === '1';
   var html = '';
@@ -281,7 +305,7 @@ function renderPortal(d) {
   // Hero
   var badgeClass = oCls === 'ok' ? 'badge-ok' : oCls === 'warn' ? 'badge-warn' : 'badge-danger';
   var badgeText  = oCls === 'ok' ? '✅ On Track' : oCls === 'warn' ? '⚠️ Below Threshold' : '🚨 Critical';
-  var yearToDisplay = _ACTIVE_YEAR || stu.academicYear || _GLOBAL_ACAD.academicYear || '—';
+  var yearToDisplay = _ACTIVE_YEAR || _GLOBAL_ACAD.academicYear || stu.academicYear || '—';
 
   html += '<div class="hero">'
     + '<div class="hero-av">'+initials+'</div>'
@@ -986,9 +1010,14 @@ function renderErrorState(msg) {
 }
 
 function loadStudentData() {
-  api('/api/student/me').then(function(d) {
-    if (d.error) {
-      renderErrorState(d.error);
+  Promise.all([
+    _settingsPromise,
+    _yearPromise,
+    api('/api/student/me')
+  ]).then(function(results) {
+    var d = results[2];
+    if (!d || d.error) {
+      renderErrorState(d ? d.error : 'Failed to load student data');
       return;
     }
     _data = d;
@@ -1324,7 +1353,8 @@ function pollLiveSessionActive() {
 window.submitLiveSession = function() {
   if (!activeLiveSessionId) return;
   var code = document.getElementById('live-passcode').value;
-  if (!code || code.length < 4) { toast('Enter 4-digit passcode', 'warn'); return; }
+  if (!code || code.length < 4) { dbToast('Enter 4-digit passcode', 'warn'); return; }
+  dbToast('Submitting passcode…', 'saving');
   fetch('/api/live-session/mark', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + sessionStorage.getItem('eams_token') },
@@ -1332,14 +1362,337 @@ window.submitLiveSession = function() {
   })
   .then(function(res){ return res.json(); })
   .then(function(d) {
-    if (d.error) { toast(d.error, 'error'); return; }
-    toast('Attendance Self-Marked!', 'success');
+    if (d.error) { dbToast(d.error, 'error'); return; }
+    dbToast('Attendance Self-Marked!', 'success', 'Passcode verified');
     pollLiveSessionActive();
   })
-  .catch(function(e){ toast('Error submitting', 'error'); });
+  .catch(function(e){ dbToast('Error submitting passcode', 'error'); });
 };
 setInterval(pollLiveSessionActive, 10000);
 setTimeout(pollLiveSessionActive, 1500);
+
+// ══ QUICK PASS & REP SHARE POLLING ════════════════════════════════════
+function pollQuickPassActive() {
+  var t = TOKEN || sessionStorage.getItem('eams_token');
+  if (!t) return;
+  fetch('/api/quick-pass/active', {
+    headers: { 'Authorization': 'Bearer ' + t }
+  })
+  .then(function(r) { return r.ok ? r.json() : null; })
+  .then(function(d) {
+    var banner = document.getElementById('st-active-session-banner');
+    if (!banner) return;
+    if (d && d.active && d.session) {
+      banner.style.display = 'flex';
+      var title = document.getElementById('st-banner-title');
+      var desc = document.getElementById('st-banner-desc');
+      if (title) title.textContent = '⚡ Quick Pass Attendance Active: ' + (d.session.subjectName || 'Current Lecture');
+      if (desc) desc.textContent = 'Rotation ' + (d.session.currentRotation || 1) + ' of ' + (d.session.totalRotations || 2) + ' is running. Click to mark your presence.';
+    } else {
+      banner.style.display = 'none';
+    }
+  })
+  .catch(function(){});
+}
+
+var _repSession = null;
+var _repStudents = [];
+var _repMarkings = {}; // trackId -> { status: 'Present', remarks: '' }
+
+function checkRepPendingSession() {
+  var t = TOKEN || sessionStorage.getItem('eams_token');
+  if (!t) return;
+  fetch('/api/rep-share/pending', {
+    headers: { 'Authorization': 'Bearer ' + t }
+  })
+  .then(function(r) { return r.ok ? r.json() : null; })
+  .then(function(d) {
+    var navRep = document.getElementById('nav-rep-att');
+    var badge = document.getElementById('rep-badge');
+    if (d && d.hasPending && d.session) {
+      if (navRep) navRep.style.display = 'flex';
+      if (badge) { badge.style.display = 'inline-block'; badge.textContent = '1'; }
+      if (_currentView === 'rep-att') {
+        renderRepPendingSession(d.session, d.students);
+      }
+    } else {
+      if (badge) badge.style.display = 'none';
+      if (_currentView === 'rep-att' && !_repSession) {
+        var empty = document.getElementById('rep-empty-state');
+        var area = document.getElementById('rep-session-area');
+        if (empty) empty.style.display = 'block';
+        if (area) area.style.display = 'none';
+      }
+    }
+  })
+  .catch(function(){});
+}
+
+function loadRepPendingSession() {
+  var t = TOKEN || sessionStorage.getItem('eams_token');
+  if (!t) return;
+  fetch('/api/rep-share/pending', {
+    headers: { 'Authorization': 'Bearer ' + t }
+  })
+  .then(function(r) { return r.ok ? r.json() : null; })
+  .then(function(d) {
+    if (d && d.hasPending && d.session) {
+      renderRepPendingSession(d.session, d.students);
+    } else {
+      _repSession = null;
+      _repStudents = [];
+      var empty = document.getElementById('rep-empty-state');
+      var area = document.getElementById('rep-session-area');
+      if (empty) empty.style.display = 'block';
+      if (area) area.style.display = 'none';
+    }
+  })
+  .catch(function(e) {
+    toast('Error checking rep delegations: ' + e.message, 'error');
+  });
+}
+
+function renderRepPendingSession(session, students) {
+  _repSession = session;
+  _repStudents = students || [];
+  _repMarkings = {};
+
+  var empty = document.getElementById('rep-empty-state');
+  var area = document.getElementById('rep-session-area');
+  if (empty) empty.style.display = 'none';
+  if (area) area.style.display = 'block';
+
+  // Fill details
+  var elClass = document.getElementById('rep-session-class');
+  if (elClass) elClass.textContent = session.className || 'Class';
+  var elSub = document.getElementById('rep-session-subject');
+  if (elSub) elSub.textContent = session.subjectName || 'Subject';
+  var elTea = document.getElementById('rep-session-teacher');
+  if (elTea) elTea.textContent = session.teacherName || 'Faculty';
+  var elHour = document.getElementById('rep-session-hour');
+  if (elHour) elHour.textContent = 'Period ' + (session.periodNumber || 1) + ' (' + (session.date || '') + ')';
+  var elTopic = document.getElementById('rep-session-topic');
+  if (elTopic) elTopic.textContent = session.topic || '(No topic specified)';
+  var elTime = document.getElementById('rep-session-time');
+  if (elTime) elTime.textContent = 'Delegated: ' + (session.notifiedAt ? new Date(session.notifiedAt).toLocaleTimeString() : 'Just now');
+
+  // Initialize markings default to Present
+  var tbody = document.getElementById('rep-student-tbody');
+  if (!tbody) return;
+
+  var html = '';
+  _repStudents.forEach(function(stu, idx) {
+    var tid = stu.trackId || stu._id;
+    _repMarkings[tid] = {
+      studentId: stu._id,
+      studentTrackId: tid,
+      regNo: stu.registerNo || '',
+      studentName: stu.fullName || '',
+      status: 'Present',
+      remarks: ''
+    };
+
+    html += '<tr id="rep-row-' + tid + '">'
+      + '<td style="text-align:center;font-weight:700;color:var(--tdi);">' + (idx + 1) + '</td>'
+      + '<td style="font-weight:700;font-family:monospace;color:var(--td);">' + (stu.registerNo || '—') + '</td>'
+      + '<td style="font-weight:600;color:var(--td);">' + (stu.fullName || '—') + '</td>'
+      + '<td style="text-align:center;">'
+      + '  <div style="display:inline-flex;background:var(--gP);border-radius:8px;padding:3px;gap:3px;">'
+      + '    <button type="button" id="rep-btn-p-' + tid + '" onclick="setRepStatus(\'' + tid + '\',\'Present\')" class="btn-rep-status act-present" style="padding:4px 10px;font-size:11px;font-weight:800;border:none;border-radius:6px;cursor:pointer;background:#16a34a;color:#fff;">P</button>'
+      + '    <button type="button" id="rep-btn-a-' + tid + '" onclick="setRepStatus(\'' + tid + '\',\'Absent\')" class="btn-rep-status" style="padding:4px 10px;font-size:11px;font-weight:800;border:none;border-radius:6px;cursor:pointer;background:transparent;color:var(--td);">A</button>'
+      + '    <button type="button" id="rep-btn-od-' + tid + '" onclick="setRepStatus(\'' + tid + '\',\'OD\')" class="btn-rep-status" style="padding:4px 10px;font-size:11px;font-weight:800;border:none;border-radius:6px;cursor:pointer;background:transparent;color:var(--td);">OD</button>'
+      + '  </div>'
+      + '</td>'
+      + '<td>'
+      + '  <input type="text" class="fc2" placeholder="Optional remark" value="" onchange="updateRepRemark(\'' + tid + '\', this.value)" style="padding:5px 8px;font-size:11.5px;">'
+      + '</td>'
+      + '</tr>';
+  });
+
+  tbody.innerHTML = html;
+  updateRepStats();
+}
+
+window.setRepStatus = function(tid, status) {
+  if (!_repMarkings[tid]) return;
+  _repMarkings[tid].status = status;
+
+  var btnP = document.getElementById('rep-btn-p-' + tid);
+  var btnA = document.getElementById('rep-btn-a-' + tid);
+  var btnOD = document.getElementById('rep-btn-od-' + tid);
+
+  if (btnP) {
+    btnP.style.background = status === 'Present' ? '#16a34a' : 'transparent';
+    btnP.style.color = status === 'Present' ? '#fff' : 'var(--td)';
+  }
+  if (btnA) {
+    btnA.style.background = status === 'Absent' ? '#dc2626' : 'transparent';
+    btnA.style.color = status === 'Absent' ? '#fff' : 'var(--td)';
+  }
+  if (btnOD) {
+    btnOD.style.background = status === 'OD' ? '#d97706' : 'transparent';
+    btnOD.style.color = status === 'OD' ? '#fff' : 'var(--td)';
+  }
+
+  updateRepStats();
+};
+
+window.updateRepRemark = function(tid, val) {
+  if (_repMarkings[tid]) {
+    _repMarkings[tid].remarks = val.trim();
+  }
+};
+
+window.markAllRep = function(status) {
+  Object.keys(_repMarkings).forEach(function(tid) {
+    window.setRepStatus(tid, status);
+  });
+};
+
+function updateRepStats() {
+  var total = _repStudents.length;
+  var present = 0;
+  var absent = 0;
+
+  Object.keys(_repMarkings).forEach(function(tid) {
+    var s = _repMarkings[tid].status;
+    if (s === 'Present') present++;
+    else if (s === 'Absent') absent++;
+  });
+
+  var elTot = document.getElementById('rep-cnt-total');
+  if (elTot) elTot.textContent = total;
+  var elPres = document.getElementById('rep-cnt-present');
+  if (elPres) elPres.textContent = present;
+  var elAbs = document.getElementById('rep-cnt-absent');
+  if (elAbs) elAbs.textContent = absent;
+
+  var elSummary = document.getElementById('rep-summary-text');
+  if (elSummary) elSummary.textContent = present + ' of ' + total + ' Students Marked Present (' + (total - present) + ' Absent/OD)';
+}
+
+window.openRepConfirmModal = function() {
+  var present = 0;
+  Object.keys(_repMarkings).forEach(function(tid) {
+    if (_repMarkings[tid].status === 'Present') present++;
+  });
+
+  var disp = document.getElementById('rep-verify-marked-display');
+  if (disp) disp.textContent = present;
+
+  var inp = document.getElementById('input-rep-headcount');
+  if (inp) {
+    inp.value = '';
+    inp.style.borderColor = 'var(--br)';
+  }
+
+  var err = document.getElementById('rep-headcount-err');
+  if (err) { err.style.display = 'none'; err.textContent = ''; }
+
+  var btn = document.getElementById('btn-rep-final-submit');
+  if (btn) btn.disabled = true;
+
+  openModal('modal-rep-confirm');
+};
+
+window.validateRepHeadcount = function() {
+  var present = 0;
+  Object.keys(_repMarkings).forEach(function(tid) {
+    if (_repMarkings[tid].status === 'Present') present++;
+  });
+
+  var inp = document.getElementById('input-rep-headcount');
+  var err = document.getElementById('rep-headcount-err');
+  var btn = document.getElementById('btn-rep-final-submit');
+  if (!inp || !err || !btn) return;
+
+  var val = inp.value.trim();
+  if (val === '') {
+    err.style.display = 'none';
+    btn.disabled = true;
+    inp.style.borderColor = 'var(--br)';
+    return;
+  }
+
+  var count = parseInt(val, 10);
+  if (isNaN(count) || count !== present) {
+    err.style.display = 'block';
+    err.textContent = '⚠️ Headcount (' + count + ') does not match marked present count (' + present + ').';
+    inp.style.borderColor = '#dc2626';
+    btn.disabled = true;
+  } else {
+    err.style.display = 'none';
+    inp.style.borderColor = '#16a34a';
+    btn.disabled = false;
+  }
+};
+
+window.submitRepConfirmedAttendance = function() {
+  if (!_repSession) {
+    toast('No active delegation found', 'error');
+    return;
+  }
+
+  var present = 0;
+  var records = [];
+  Object.keys(_repMarkings).forEach(function(tid) {
+    var rec = _repMarkings[tid];
+    if (rec.status === 'Present') present++;
+    records.push(rec);
+  });
+
+  var inp = document.getElementById('input-rep-headcount');
+  var count = parseInt(inp ? inp.value : '', 10);
+  if (isNaN(count) || count !== present) {
+    toast('Anti-fraud check failed: Physical count must match marked present count', 'error');
+    return;
+  }
+
+  var btn = document.getElementById('btn-rep-final-submit');
+  if (btn) { btn.disabled = true; btn.textContent = 'Submitting Attendance…'; }
+
+  var t = TOKEN || sessionStorage.getItem('eams_token');
+  fetch('/api/rep-share/submit/' + (_repSession.sessionTrackId || _repSession._id), {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer ' + t
+    },
+    body: JSON.stringify({
+      records: records,
+      repConfirmedCount: count
+    })
+  })
+  .then(function(res) { return res.json(); })
+  .then(function(data) {
+    if (btn) { btn.disabled = false; btn.textContent = 'Confirm Headcount & Submit Attendance'; }
+    if (data.error) {
+      toast(data.error, 'error');
+      return;
+    }
+    toast('Attendance submitted to teacher for review!', 'success');
+    closeModal('modal-rep-confirm');
+    _repSession = null;
+    _repStudents = [];
+    _repMarkings = {};
+    var empty = document.getElementById('rep-empty-state');
+    var area = document.getElementById('rep-session-area');
+    if (empty) empty.style.display = 'block';
+    if (area) area.style.display = 'none';
+    var badge = document.getElementById('rep-badge');
+    if (badge) badge.style.display = 'none';
+    showView('dashboard');
+  })
+  .catch(function(err) {
+    if (btn) { btn.disabled = false; btn.textContent = 'Confirm Headcount & Submit Attendance'; }
+    toast('Failed to submit: ' + err.message, 'error');
+  });
+};
+
+setInterval(pollQuickPassActive, 10000);
+setTimeout(pollQuickPassActive, 2000);
+setInterval(checkRepPendingSession, 12000);
+setTimeout(checkRepPendingSession, 2500);
 
 // Security
 document.addEventListener('contextmenu', function(e) { e.preventDefault(); });

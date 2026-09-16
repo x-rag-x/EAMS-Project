@@ -1,3 +1,76 @@
+## 🔹 `v2.3.2` — 16 September 2026 *(Complete Attendance Implementation)*
+
+### *Multi-Modal Live Attendance Suite (QR, Quick Pass & Rep Share)*
+- **Dynamic Rotating QR Attendance (`attendance.html`, `routes/qrAttendance.routes.js`, `utils/qrCrypto.js`)**:
+  - Implemented real-time dynamic QR code generation powered by backend buffer encoding (`/api/qr-attendance/generate-qr`).
+  - Cryptographically secured rotating QR tokens generated via HMAC-SHA256 with configurable rotation intervals (default 20s) and a 2-second grace period (`DEFAULT_GRACE_PERIOD_SEC`).
+  - Interactive Teacher Live Session dashboard with animated rotation countdown ring, rotation indicators, and live participant roster with instant "Apply & Save" integration.
+  - Multi-factor verification pipeline for student check-ins (`/api/qr-attendance/submit`): active session validation, token expiration with grace period fallback, strict physical device fingerprinting (`deviceId`) to block proxy attendance on shared phones, and geolocation verification.
+- **12-Character Alphanumeric Quick Pass (`routes/quickPass.routes.js`)**:
+  - Introduced Quick Pass passcode attendance mode generating 12-character uppercase alphanumeric codes (`generate12CharCode`).
+  - Automatic time-based code rotation across customizable rotation windows with live countdown timers.
+  - Campus Wi-Fi & IP restriction enforcement (`college_ips` setting) preventing off-campus check-ins.
+  - Live student attendance counter and classroom headcount synchronization.
+- **Class Representative Attendance Delegation (Rep Share) (`routes/repShare.routes.js`)**:
+  - Teacher can delegate period attendance marking to designated Class Representatives (`isRep: true`).
+  - Automated high-priority notification sent to the student representative with a dedicated Rep Attendance interface in `student.html`.
+  - Anti-fraud verification check: requires the representative to enter a verified physical classroom headcount that must strictly match the count of marked present students before submission.
+  - Complete review & finalize lifecycle: Representative submits draft → Teacher reviews draft roster, adjusts remarks, and finalizes with automatic notification dispatch.
+- **Unified Live Attendance Check-in Portal (`public/attendance.html`)**:
+  - Dedicated, responsive check-in page featuring a clean mode switcher between Quick Pass and QR Scanner.
+  - 12-box auto-advancing OTP input with copy-paste restriction, active session verification banners, and immediate status feedback.
+
+### *Next-Generation Timetable Studio*
+*Current timetable version is not a complete/finished. It is filled with css brakes, broken page, bug filled. The `v2.3.3` will stage the complete version of time table. Currently this is forced commit fot time table.*
+
+### *Institutional Export & Report Center (`public/export.html`, `routes/export.routes.js`, `models/export.model.js`)*
+- **Dedicated Centralized Export Hub**:
+  - Complete standalone reporting and export portal accessible across Admin, Teacher, and Controller portals.
+- **Modular Report Generation**:
+  - **Student Reports**: Student complete dossier, term-wise attendance history, leave & permission logs, and low-attendance defaulters warning letters.
+  - **Class Reports**: Monthly & semester attendance registers, daily period attendance sheets, and consolidated class summaries.
+  - **Subject & Faculty Reports**: Subject attendance registers, period-wise syllabus coverage & teaching notes logs, and faculty workload compliance reports.
+  - **Department Reports**: Department overview, year-wise comparative performance, and institution-wide attendance analytics.
+- **Automation, History & Saved Templates**:
+  - Save custom filter configurations as reusable templates (`ExportTemplate`).
+  - Pre-generation preview calculating estimated record counts and file sizes.
+  - Background export tracking (`ExportHistory`) with unique `TR-EXP-XXXXXX` tracking IDs and direct download endpoints.
+
+### *Performance Optimization & Infrastructure Hardening*
+- **In-Memory Settings Caching (`utils/settingsCache.js`)**:
+  - Introduced an in-memory cache with 60-second TTL for system settings (`pages`, `security`, `attendance`, `maintenance`), reducing database queries by up to 90% across authentication and middleware guards.
+- **Write-Throttled Session Activity Monitoring (`middleware/auth.js`)**:
+  - Throttled database writes to MongoDB `LoginHistory` (at most once every 60 seconds per session), eliminating severe database write pressure and connection lockups.
+- **Transient Connection Resilience**:
+  - Added robust connection error handling in authentication middleware (`MongoServerSelectionError`, `MongoNetworkError`, `ECONNRESET`), responding with clean 503 status codes instead of unhandled crashes.
+- **Database Migration Clean-Up**:
+  - Deprecated legacy string-date migration script in `utils/dbMigrator.js` in favor of standard BSON Date objects across all collections.
+- **Security & CSP Updates (`server.js`)**:
+  - Updated Content Security Policy (CSP) headers in Helmet to permit localhost/127.0.0.1 image sources for local development and offline QR rendering.
+
+### *Portal Refinements & User Experience Enhancements*
+- **Teacher Portal (`public/teacher.html`, `public/js/pages/teacher.page.js`)**:
+  - Added "Attendance Insights" view, "My Leaves & Subs" management, and Export Center shortcut.
+  - Interactive Weekly Timetable Card with visual badges for Theory, Lab, Combined, and Substitute assignments, plus PDF export.
+  - Integrated live multi-method attendance launcher (Manual Roster, Rotating QR, Quick Pass, Rep Share).
+- **Student Portal (`public/student.html`, `public/js/pages/student.page.js`)**:
+  - Added "Mark Attendance" quick action linking to the live attendance portal.
+  - Live Ongoing Session Banner alerting students in real-time when Quick Pass or QR Attendance is active for their class.
+  - Dedicated Class Representative Attendance view for delegated period marking.
+- **Admin Console & Controller Hub (`public/admin.html`, `public/controller.html`)**:
+  - Added direct shortcuts to the Export Center in sidebar navigation.
+  - Added Period Records & Teaching Notes search filtering by topic, syllabus notes, and faculty.
+  - Refined Executive Principal and HOD role management modals.
+- **Manage Page (`public/manage.html`)**:
+  - Added Semester Dates Configuration within the Academic Year modal (defining semester start and end dates for timetable calculations and reporting).
+- **Workspace Hub (`public/selector.html`, `public/js/pages/selector.page.js`)**:
+  - Added Export & Report Center portal card with role-based access checks.
+  - Dynamic institutional branding across headers, page titles, and footers.
+
+### `Total 107 Files changed and updated in v2.3.2`
+
+----------------------------------
+
 ## 🔹 `v2.3.1` — 24 August 2026 *(Features Implementation)*
 
 ### *General Changes & Updates*

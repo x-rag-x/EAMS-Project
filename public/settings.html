@@ -5,11 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>EAMS – System Settings &amp; Security Hub</title>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&family=Playfair+Display:wght@700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/base.css">
   <link rel="stylesheet" href="css/settings.css">
 </head>
 <body>
 
-  <!-- ── SIDEBAR ── -->
+  <!-- SIDEBAR -->
   <nav class="sb">
     <div class="sb-logo">
       <div class="sb-logo-ic">⚙️</div>
@@ -49,7 +50,7 @@
     </div>
   </nav>
 
-  <!-- ── MAIN CONTENT ── -->
+  <!-- MAIN CONTENT -->
   <div class="mc">
 
     <!-- Topbar -->
@@ -64,7 +65,7 @@
       </div>
     </div>
 
-    <!-- ══ TAB 1: INSTITUTION DETAILS ══ -->
+    <!-- TAB 1: INSTITUTION DETAILS -->
     <div class="pg act" id="pg-institution">
       <div class="page-hd">
         <div>
@@ -85,37 +86,37 @@
         <div class="settings-grid">
           <div class="form-group full">
             <label class="form-label">Full Institution Name <span class="key-label">institutionName</span></label>
-            <input type="text" class="form-input" id="inst-name" placeholder="Sri Shakthi Institute of Engineering and Technology">
+            <input type="text" class="form-input" id="inst-name" placeholder="">
           </div>
           <div class="form-group">
             <label class="form-label">Short Name / Acronym <span class="key-label">institutionShort</span></label>
-            <input type="text" class="form-input" id="inst-short" placeholder="SIET">
+            <input type="text" class="form-input" id="inst-short" placeholder="">
           </div>
           <div class="form-group">
             <label class="form-label">Accreditation Tagline <span class="key-label">institutionTagline</span></label>
-            <input type="text" class="form-input" id="inst-tagline" placeholder="Autonomous Institution · Approved by AICTE">
+            <input type="text" class="form-input" id="inst-tagline" placeholder="">
           </div>
           <div class="form-group full">
             <label class="form-label">Campus Address <span class="key-label">institutionAddress</span></label>
-            <input type="text" class="form-input" id="inst-addr" placeholder="Sri Shakthi Nagar, L&T Bypass, Coimbatore - 641062">
+            <input type="text" class="form-input" id="inst-addr" placeholder="">
           </div>
           <div class="form-group">
             <label class="form-label">Official Contact Email <span class="key-label">institutionEmail</span></label>
-            <input type="email" class="form-input" id="inst-email" placeholder="info@siet.ac.in">
+            <input type="email" class="form-input" id="inst-email" placeholder="">
           </div>
           <div class="form-group">
             <label class="form-label">Contact Phone <span class="key-label">institutionPhone</span></label>
-            <input type="text" class="form-input" id="inst-phone" placeholder="+91 422 2369900">
+            <input type="text" class="form-input" id="inst-phone" placeholder="">
           </div>
           <div class="form-group full">
             <label class="form-label">Website URL <span class="key-label">institutionWebsite</span></label>
-            <input type="url" class="form-input" id="inst-web" placeholder="https://www.siet.ac.in">
+            <input type="url" class="form-input" id="inst-web" placeholder="">
           </div>
         </div>
       </div>
     </div>
 
-    <!-- ══ TAB 2: PAGES & PORTALS (TRI-STATE) ══ -->
+    <!-- TAB 2: PAGES & PORTALS (TRI-STATE) -->
     <div class="pg" id="pg-pages">
       <div class="page-hd">
         <div>
@@ -214,7 +215,7 @@
       </div>
     </div>
 
-    <!-- ══ TAB 3: ATTENDANCE POLICY ══ -->
+    <!-- TAB 3: ATTENDANCE POLICY -->
     <div class="pg" id="pg-attendance">
       <div class="page-hd">
         <div>
@@ -240,6 +241,16 @@
           </div>
           <div class="toggle-wrap">
             <label class="toggle"><input type="checkbox" id="att-mark" checked><div class="toggle-track"></div><div class="toggle-thumb"></div></label>
+          </div>
+        </div>
+
+        <div class="toggle-row">
+          <div>
+            <div class="toggle-label">⚡ Quick Pass Attendance <span class="key-label">quickPass</span></div>
+            <div class="toggle-hint">Allow faculty to start rapid 12-character passcode sessions with automatic rotations.</div>
+          </div>
+          <div class="toggle-wrap">
+            <label class="toggle"><input type="checkbox" id="att-quick-pass" checked><div class="toggle-track"></div><div class="toggle-thumb"></div></label>
           </div>
         </div>
 
@@ -294,6 +305,17 @@
             <input type="number" class="form-input" id="att-autolock" min="0" max="72" placeholder="24">
             <span style="font-size:11px;color:var(--tmu);">Hours after period end when attendance is permanently locked.</span>
           </div>
+          <div class="form-group">
+            <label class="form-label">Live Session Rotations <span class="key-label">rotationCount</span></label>
+            <input type="number" class="form-input" id="att-rotation-count" min="1" max="10" placeholder="2">
+            <span style="font-size:11px;color:var(--tmu);">Number of code/QR cycles per session (default: 2 rotations).</span>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Rotation Duration (Seconds) <span class="key-label">rotationTimeSec</span></label>
+            <input type="number" class="form-input" id="att-rotation-time" min="15" max="300" placeholder="60">
+            <span style="font-size:11px;color:var(--tmu);">Countdown duration per rotation cycle for Quick Pass &amp; QR Scan.</span>
+            <input type="hidden" id="att-qr-interval" value="60">
+          </div>
           <div class="form-group full">
             <label class="form-label">System Default Roster State <span class="key-label">defaultAttendanceStatus</span></label>
             <select class="form-input" id="att-default-status">
@@ -306,7 +328,7 @@
       </div>
     </div>
 
-    <!-- ══ TAB 4: MODELS & FEATURES ══ -->
+    <!-- TAB 4: MODELS & FEATURES -->
     <div class="pg" id="pg-models">
       <div class="page-hd">
         <div>
@@ -427,7 +449,7 @@
       </div>
     </div>
 
-    <!-- ══ TAB 5: SECURITY & AUTHENTICATION ══ -->
+    <!-- TAB 5: SECURITY & AUTHENTICATION -->
     <div class="pg" id="pg-security">
       <div class="page-hd">
         <div>
@@ -535,7 +557,7 @@
       </div>
     </div>
 
-    <!-- ══ TAB 6: ACADEMIC CONFIGURATION ══ -->
+    <!-- TAB 6: ACADEMIC CONFIGURATION -->
     <div class="pg" id="pg-academic">
       <div class="page-hd">
         <div>
@@ -586,7 +608,7 @@
       </div>
     </div>
 
-    <!-- ══ TAB 7: BROADCAST DEFAULTS ══ -->
+    <!-- TAB 7: BROADCAST DEFAULTS -->
     <div class="pg" id="pg-broadcast">
       <div class="page-hd">
         <div>
@@ -629,7 +651,7 @@
       </div>
     </div>
 
-    <!-- ══ TAB 8: CHANGE HISTORY & AUDIT LOG ══ -->
+    <!-- TAB 8: CHANGE HISTORY & AUDIT LOG -->
     <div class="pg" id="pg-history">
       <div class="page-hd">
         <div>
@@ -669,7 +691,7 @@
       </div>
     </div>
 
-    <!-- ══ TAB 9: ADVANCED UTILITIES ══ -->
+    <!-- TAB 9: ADVANCED UTILITIES -->
     <div class="pg" id="pg-advanced">
       <div class="page-hd">
         <div>
@@ -744,7 +766,7 @@
 
   </div><!-- end .mc -->
 
-  <!-- ── FLOATING SAVE BAR ── -->
+  <!-- FLOATING SAVE BAR -->
   <div class="floating-save-bar" id="save-bar">
     <div class="save-bar-info">
       <span>⚠️ Unsaved changes detected in settings</span>
@@ -755,7 +777,7 @@
     </div>
   </div>
 
-  <!-- ── RESET SETTINGS CONFIRMATION MODAL ── -->
+  <!-- RESET SETTINGS CONFIRMATION MODAL -->
   <div class="modal-overlay" id="reset-modal">
     <div class="modal-box">
       <div style="font-size:36px;text-align:center;margin-bottom:12px;">⚠️</div>
@@ -774,8 +796,9 @@
     </div>
   </div>
 
-  <!-- ── TOAST ── -->
+  <!-- TOAST -->
   <div class="toast" id="toast"><span id="toast-msg"></span></div>
+  <div id="db-toast"></div>
 
   <script src="js/core/session.js"></script>
   <script src="js/core/api.js"></script>

@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Live Attendance – EAMS</title>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/base.css">
+  <link rel="stylesheet" href="/css/attendance.css">
+</head>
+<body>
+
+  <div class="att-container">
+    <div class="brand-header">
+      <div class="brand-badge">⚡ Live Attendance</div>
+      <div class="brand-title" id="inst-name">EAMS Portal</div>
+      <div class="brand-sub">Fast &amp; Secure Student Check-in</div>
+    </div>
+
+    <!-- MODE SWITCHER -->
+    <div class="mode-switcher" id="mode-switcher">
+      <button class="mode-btn active" id="btn-mode-qp" onclick="switchAttMode('quick-pass')">🔢 Quick Pass</button>
+      <button class="mode-btn" id="btn-mode-qr" onclick="switchAttMode('qr')">📷 QR Scan</button>
+    </div>
+
+    <!-- 1A. QUICK PASS VIEW -->
+    <div id="view-quick-pass" class="view-panel active">
+      <div id="student-pill-qp" class="user-pill" style="display:none;">
+        <div class="user-pill-dot"></div>
+        <span id="student-name-qp">Student</span>
+      </div>
+
+      <div style="font-size:18px;font-weight:800;color:var(--text-main);margin-bottom:6px;">Enter Quick Pass Code</div>
+      <div style="font-size:12px;color:var(--text-muted);margin-bottom:14px;line-height:1.4;">
+        Enter the 12-character passcode displayed on the classroom screen.
+      </div>
+
+      <div id="qp-input-error" class="alert-box" style="display:none;margin-bottom:14px;"></div>
+
+      <div class="otp-group-wrapper">
+        <div class="otp-row">
+          <input type="text" class="otp-box" maxlength="1" inputmode="text" onpaste="return false;" data-idx="0" autofocus>
+          <input type="text" class="otp-box" maxlength="1" inputmode="text" onpaste="return false;" data-idx="1">
+          <input type="text" class="otp-box" maxlength="1" inputmode="text" onpaste="return false;" data-idx="2">
+          <input type="text" class="otp-box" maxlength="1" inputmode="text" onpaste="return false;" data-idx="3">
+        </div>
+        <div class="otp-row">
+          <input type="text" class="otp-box" maxlength="1" inputmode="text" onpaste="return false;" data-idx="4">
+          <input type="text" class="otp-box" maxlength="1" inputmode="text" onpaste="return false;" data-idx="5">
+          <input type="text" class="otp-box" maxlength="1" inputmode="text" onpaste="return false;" data-idx="6">
+          <input type="text" class="otp-box" maxlength="1" inputmode="text" onpaste="return false;" data-idx="7">
+        </div>
+        <div class="otp-row">
+          <input type="text" class="otp-box" maxlength="1" inputmode="text" onpaste="return false;" data-idx="8">
+          <input type="text" class="otp-box" maxlength="1" inputmode="text" onpaste="return false;" data-idx="9">
+          <input type="text" class="otp-box" maxlength="1" inputmode="text" onpaste="return false;" data-idx="10">
+          <input type="text" class="otp-box" maxlength="1" inputmode="text" onpaste="return false;" data-idx="11">
+        </div>
+      </div>
+
+      <button type="button" id="btn-submit-qp" class="btn-primary" onclick="submitQuickPassCode()">
+        <span>✅ Mark Attendance</span>
+      </button>
+
+      <div style="margin-top:14px;font-size:11px;color:var(--text-muted);">
+        Typing is auto-spaced. No copy-pasting permitted.
+      </div>
+    </div>
+
+    <!-- 1B. QR SCAN PROMPT VIEW (When user clicks QR mode without scanned URL) -->
+    <div id="view-qr-prompt" class="view-panel">
+      <div style="font-size:42px;margin-bottom:12px;">📷</div>
+      <div style="font-size:18px;font-weight:800;color:var(--text-main);margin-bottom:8px;">Scan Live QR Code</div>
+      <div style="font-size:12.5px;color:var(--text-muted);margin-bottom:20px;line-height:1.5;">
+        Open your phone's camera or QR scanner app and point it at the QR code projected on the classroom screen.
+      </div>
+      <div style="background:rgba(46,125,50,0.08);border:1px solid rgba(46,125,50,0.2);border-radius:12px;padding:12px 14px;font-size:11.5px;color:#166534;margin-bottom:18px;text-align:left;">
+        💡 <b>Tip:</b> If your phone can't scan QR directly, ask your teacher for the 12-character <b>Quick Pass code</b> and switch to Quick Pass mode.
+      </div>
+      <button class="btn-primary" onclick="switchAttMode('quick-pass')">
+        <span>🔢 Enter Quick Pass Code Instead</span>
+      </button>
+    </div>
+
+    <!-- 2. LOGIN VIEW (For unauthenticated students) -->
+    <div id="view-login" class="view-panel">
+      <div style="font-size:16px;font-weight:800;color:var(--text-main);margin-bottom:6px;">Student Sign In</div>
+      <div style="font-size:12px;color:var(--text-muted);margin-bottom:14px;">Sign in with your student credentials to record attendance</div>
+
+      <div id="login-error" class="alert-box" style="display:none;margin-bottom:12px;"></div>
+
+      <form id="login-form" onsubmit="handleStudentLogin(event)">
+        <div class="form-group">
+          <label class="form-label" for="username">Student Roll / Reg No / Username</label>
+          <input type="text" id="username" class="form-input" placeholder="Enter your roll / username" required autocomplete="username">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="password">Password</label>
+          <input type="password" id="password" class="form-input" placeholder="Enter your password" required autocomplete="current-password">
+        </div>
+
+        <button type="submit" id="btn-login" class="btn-primary">
+          <span>Sign In &amp; Continue</span>
+        </button>
+      </form>
+    </div>
+
+    <!-- 3. VERIFYING VIEW -->
+    <div id="view-verifying" class="view-panel">
+      <div id="student-pill-verifying" class="user-pill" style="display:none;">
+        <div class="user-pill-dot"></div>
+        <span id="student-name-verifying">Student</span>
+      </div>
+
+      <div class="status-icon-wrap verifying">
+        <div class="spinner"></div>
+      </div>
+      <div class="status-title">Verifying Attendance</div>
+      <div class="status-desc">Please wait while the server secures your participation record...</div>
+    </div>
+
+    <!-- 4. SUCCESS / COMPLETED VIEW -->
+    <div id="view-completed" class="view-panel">
+      <div class="status-icon-wrap success">
+        <div class="status-symbol" style="color: var(--success);">&#10003;</div>
+      </div>
+      <div class="status-title success">ATTENDANCE SAVED</div>
+      <div class="status-desc">
+        Your attendance participation has been recorded successfully.<br>
+        The teacher will mark the final attendance for this period.
+      </div>
+
+      <div class="countdown-box">
+        Closing in <span id="countdown-num" class="countdown-val">10</span> seconds...
+      </div>
+      <div id="close-fallback-msg" style="display:none; margin-top:14px; font-size:12px; color:#94a3b8;">
+        Attendance completed. You may close this tab now.
+      </div>
+    </div>
+
+    <!-- 5. PENDING VIEW -->
+    <div id="view-pending" class="view-panel">
+      <div class="status-icon-wrap pending">
+        <div class="status-symbol" style="color: var(--pending);">&#9203;</div>
+      </div>
+      <div class="status-title pending">VERIFICATION PENDING</div>
+      <div class="status-desc">
+        Your attendance attempt has been recorded and is pending verification.<br>
+        The teacher will review and finalize it.
+      </div>
+      <div id="pending-reason-box" style="font-size:12px; color:#f59e0b; background:rgba(245,158,11,0.1); border:1px solid rgba(245,158,11,0.25); border-radius:10px; padding:8px 12px; margin-bottom:16px;">
+        Reason: <span id="pending-reason-txt">Under review</span>
+      </div>
+      <div class="countdown-box" id="pending-countdown-box" style="margin-bottom:16px;">
+        Closing in <span id="pending-countdown-num" class="countdown-val">15</span> seconds...
+      </div>
+      <button class="btn-primary" onclick="retryVerification()" style="background:#334155; box-shadow:none;">
+        <span>Retry Verification</span>
+      </button>
+    </div>
+
+    <!-- 6. ERROR VIEW -->
+    <div id="view-error" class="view-panel">
+      <div class="status-icon-wrap error">
+        <div class="status-symbol" style="color: var(--danger);">&#10007;</div>
+      </div>
+      <div class="status-title error">Attendance Failed</div>
+      <div id="error-desc-txt" class="status-desc">Could not verify attendance session.</div>
+      <button class="btn-primary" onclick="retryVerification()">
+        <span>Try Again</span>
+      </button>
+    </div>
+  </div>
+
+  <script src="/js/core/toast.js"></script>
+  <script>
+    var currentMode = 'quick-pass';
+    var sessionTrackId = '';
+    var qrTrackId = '';
+    var encryptedSid = '';
+    var encryptedQid = '';
+    var encryptedTime = '';
+    var loginTime = null;
+    var countdownTimer = null;
+
+    function getDeviceId() {
+      var id = localStorage.getItem('eams_device_id');
+      if (!id) {
+        id = 'DEV_' + (window.crypto && crypto.randomUUID ? crypto.randomUUID() : (Date.now().toString(36) + Math.random().toString(36).substring(2, 9)));
+        localStorage.setItem('eams_device_id', id);
+      }
+      return id;
+    }
+
+    function getStudentToken() {
+      return sessionStorage.getItem('eams_token') || localStorage.getItem('token') || sessionStorage.getItem('token') || '';
+    }
+
+    function getStudentUser() {
+      try {
+        var raw = sessionStorage.getItem('eams_user') || localStorage.getItem('user') || sessionStorage.getItem('user');
+        return raw ? JSON.parse(raw) : null;
+      } catch (e) {
+        return null;
+      }
+    }
+
+    function showView(viewId) {
+      document.querySelectorAll('.view-panel').forEach(function (el) {
+        el.classList.remove('active');
+      });
+      var target = document.getElementById(viewId);
+      if (target) target.classList.add('active');
+    }
+
+    function switchAttMode(mode) {
+      currentMode = mode;
+      var qpBtn = document.getElementById('btn-mode-qp');
+      var qrBtn = document.getElementById('btn-mode-qr');
+      if (mode === 'quick-pass') {
+        if (qpBtn) qpBtn.classList.add('active');
+        if (qrBtn) qrBtn.classList.remove('active');
+        showQuickPassView();
+      } else {
+        if (qrBtn) qrBtn.classList.add('active');
+        if (qpBtn) qpBtn.classList.remove('active');
+        if (encryptedSid && encryptedQid) {
+          initQrFlow();
+        } else {
+          showView('view-qr-prompt');
+        }
+      }
+    }
+
+    function showQuickPassView() {
+      var user = getStudentUser();
+      var token = getStudentToken();
+      if (!token || !user || user.role !== 'student') {
+        showView('view-login');
+        return;
+      }
+      var pill = document.getElementById('student-pill-qp');
+      var nameSpan = document.getElementById('student-name-qp');
+      if (pill && nameSpan) {
+        nameSpan.textContent = user.name + (user.regNo ? ' (' + user.regNo + ')' : '');
+        pill.style.display = 'inline-flex';
+      }
+      showView('view-quick-pass');
+      var firstBox = document.querySelector('.otp-box[data-idx="0"]');
+      if (firstBox) firstBox.focus();
+    }
+
+    function setupOtpInputs() {
+      var inputs = document.querySelectorAll('.otp-box');
+      inputs.forEach(function(input, idx) {
+        input.addEventListener('paste', function(e) {
+          e.preventDefault();
+          return false;
+        });
+
+        input.addEventListener('input', function() {
+          var val = input.value.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+          input.value = val ? val.slice(-1) : '';
+          if (input.value) {
+            input.classList.add('filled');
+            if (idx < inputs.length - 1) {
+              inputs[idx + 1].focus();
+            }
+          } else {
+            input.classList.remove('filled');
+          }
+        });
+
+        input.addEventListener('keydown', function(e) {
+          if (e.key === 'Backspace') {
+            if (!input.value && idx > 0) {
+              inputs[idx - 1].focus();
+              inputs[idx - 1].value = '';
+              inputs[idx - 1].classList.remove('filled');
+              e.preventDefault();
+            } else {
+              input.value = '';
+              input.classList.remove('filled');
+            }
+          } else if (e.key === 'ArrowLeft' && idx > 0) {
+            inputs[idx - 1].focus();
+          } else if (e.key === 'ArrowRight' && idx < inputs.length - 1) {
+            inputs[idx + 1].focus();
+          } else if (e.key === 'Enter') {
+            submitQuickPassCode();
+          }
+        });
+      });
+    }
+
+    function submitQuickPassCode() {
+      var inputs = document.querySelectorAll('.otp-box');
+      var code = '';
+      inputs.forEach(function(inp) { code += inp.value.trim().toUpperCase(); });
+
+      var errBox = document.getElementById('qp-input-error');
+      if (code.length !== 12) {
+        if (errBox) {
+          errBox.textContent = 'Please fill all 12 characters of the Quick Pass code (' + code.length + '/12 entered)';
+          errBox.style.display = 'block';
+        }
+        return;
+      }
+      if (errBox) errBox.style.display = 'none';
+
+      var token = getStudentToken();
+      var user = getStudentUser();
+      if (!token || !user || user.role !== 'student') {
+        showView('view-login');
+        return;
+      }
+
+      showView('view-verifying');
+      var btn = document.getElementById('btn-submit-qp');
+      if (btn) btn.disabled = true;
+
+      function doSubmit(locationCoords) {
+        var payload = { code: code };
+        if (locationCoords) {
+          payload.latitude = locationCoords.latitude;
+          payload.longitude = locationCoords.longitude;
+          payload.locationAccuracy = locationCoords.accuracy;
+        }
+
+        fetch('/api/quick-pass/mark', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + token,
+            'x-device-id': getDeviceId()
+          },
+          body: JSON.stringify(payload)
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          if (btn) btn.disabled = false;
+          if (data.ok) {
+            showCompletedView();
+          } else {
+            showErrorView(data.error || 'Failed to mark Quick Pass attendance');
+          }
+        })
+        .catch(function(err) {
+          if (btn) btn.disabled = false;
+          showErrorView('Connection error marking attendance. Please retry.');
+        });
+      }
+
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          function(pos) {
+            doSubmit({
+              latitude: pos.coords.latitude,
+              longitude: pos.coords.longitude,
+              accuracy: pos.coords.accuracy
+            });
+          },
+          function() { doSubmit(null); },
+          { enableHighAccuracy: true, timeout: 3500, maximumAge: 60000 }
+        );
+      } else {
+        doSubmit(null);
+      }
+    }
+
+    function handleStudentLogin(e) {
+      if (e) e.preventDefault();
+      var u = document.getElementById('username').value.trim();
+      var p = document.getElementById('password').value;
+      var errBox = document.getElementById('login-error');
+      if (!u || !p) {
+        if (errBox) { errBox.textContent = 'Enter username and password'; errBox.style.display = 'block'; }
+        return;
+      }
+      if (errBox) errBox.style.display = 'none';
+      var btn = document.getElementById('btn-login');
+      if (btn) btn.disabled = true;
+
+      fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: u, password: p })
+      })
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        if (btn) btn.disabled = false;
+        if (data.token && data.user) {
+          if (data.user.role !== 'student') {
+            if (errBox) { errBox.textContent = 'Only students can mark attendance here'; errBox.style.display = 'block'; }
+            return;
+          }
+          sessionStorage.setItem('eams_token', data.token);
+          sessionStorage.setItem('eams_user', JSON.stringify(data.user));
+
+          if (currentMode === 'qr' && encryptedSid && encryptedQid) {
+            initQrFlow();
+          } else {
+            showQuickPassView();
+          }
+        } else {
+          if (errBox) { errBox.textContent = data.error || 'Login failed'; errBox.style.display = 'block'; }
+        }
+      })
+      .catch(function(err) {
+        if (btn) btn.disabled = false;
+        if (errBox) { errBox.textContent = 'Connection error'; errBox.style.display = 'block'; }
+      });
+    }
+
+    function parseQrUrlParams() {
+      var search = new URLSearchParams(window.location.search);
+      encryptedSid = search.get('sid') || search.get('s') || search.get('sessionTrackId') || '';
+      encryptedQid = search.get('qid') || search.get('q') || search.get('qrTrackId') || '';
+      encryptedTime = search.get('t') || '';
+    }
+
+    function executeVerificationFlow(token, studentData) {
+      showView('view-verifying');
+
+      if (studentData && studentData.name) {
+        var pill = document.getElementById('student-pill-verifying');
+        var nameSpan = document.getElementById('student-name-verifying');
+        if (pill && nameSpan) {
+          nameSpan.textContent = studentData.name + (studentData.regNo ? ' (' + studentData.regNo + ')' : '');
+          pill.style.display = 'inline-flex';
+        }
+      }
+
+      var deviceId = getDeviceId();
+
+      function performSubmit(locationCoords) {
+        var payload = {
+          sessionTrackId: sessionTrackId,
+          qrTrackId: qrTrackId,
+          deviceId: deviceId,
+          loginTime: loginTime,
+          t: encryptedTime
+        };
+        if (locationCoords) {
+          payload.latitude = locationCoords.latitude;
+          payload.longitude = locationCoords.longitude;
+          payload.accuracy = locationCoords.accuracy;
+        }
+
+        fetch('/api/qr-attendance/submit', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + token
+          },
+          body: JSON.stringify(payload)
+        })
+        .then(function (r) {
+          return r.json().then(function (data) {
+            data._httpStatus = r.status;
+            return data;
+          });
+        })
+        .then(function (res) {
+          if (res._httpStatus === 401) {
+            showView('view-login');
+            return;
+          }
+
+          if (res.status === 'completed') {
+            showCompletedView();
+          } else if (res.status === 'pending') {
+            showPendingView(res.failReason || res.message);
+          } else {
+            showErrorView(res.error || res.message || 'Verification could not be processed.');
+          }
+        })
+        .catch(function () {
+          showPendingView('Connection timed out or weak signal. Stored as pending for teacher review.');
+        });
+      }
+
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          function (pos) {
+            performSubmit({
+              latitude: pos.coords.latitude,
+              longitude: pos.coords.longitude,
+              accuracy: pos.coords.accuracy
+            });
+          },
+          function () { performSubmit(null); },
+          { enableHighAccuracy: true, timeout: 3500, maximumAge: 60000 }
+        );
+      } else {
+        performSubmit(null);
+      }
+    }
+
+    function initQrFlow() {
+      var token = getStudentToken();
+      var user = getStudentUser();
+
+      if (!token || !user || user.role !== 'student') {
+        showView('view-login');
+        return;
+      }
+
+      showView('view-verifying');
+      fetch('/api/qr-attendance/decrypt-params', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + token
+        },
+        body: JSON.stringify({
+          sid: encryptedSid,
+          qid: encryptedQid,
+          t: encryptedTime
+        })
+      })
+      .then(function (r) {
+        return r.json().then(function (d) {
+          d._httpStatus = r.status;
+          return d;
+        });
+      })
+      .then(function (res) {
+        if (res._httpStatus === 401) {
+          showView('view-login');
+          return;
+        }
+
+        if (res.error || !res.sessionTrackId || !res.qrTrackId) {
+          showErrorView(res.error || 'Failed to decrypt QR attendance parameters.');
+          return;
+        }
+
+        sessionTrackId = res.sessionTrackId;
+        qrTrackId = res.qrTrackId;
+        loginTime = res.loginTime;
+
+        executeVerificationFlow(token, user);
+      })
+      .catch(function () {
+        showErrorView('Connection error decrypting attendance parameters. Please retry.');
+      });
+    }
+
+    function startAutoCloseTimer(seconds, counterElId) {
+      if (countdownTimer) clearInterval(countdownTimer);
+      var remaining = seconds || 12;
+      var counterEl = document.getElementById(counterElId || 'countdown-num');
+      if (counterEl) counterEl.textContent = remaining;
+
+      countdownTimer = setInterval(function () {
+        remaining--;
+        if (counterEl) counterEl.textContent = remaining;
+        if (remaining <= 0) {
+          clearInterval(countdownTimer);
+          try { window.close(); } catch (e) {}
+          var fallback = document.getElementById('close-fallback-msg');
+          if (fallback) fallback.style.display = 'block';
+        }
+      }, 1000);
+    }
+
+    function showCompletedView() {
+      showView('view-completed');
+      startAutoCloseTimer(10, 'countdown-num');
+    }
+
+    function showPendingView(reason) {
+      showView('view-pending');
+      var reasonTxt = document.getElementById('pending-reason-txt');
+      if (reasonTxt) reasonTxt.textContent = reason || 'Awaiting teacher review.';
+      startAutoCloseTimer(15, 'pending-countdown-num');
+    }
+
+    function showErrorView(msg) {
+      showView('view-error');
+      var desc = document.getElementById('error-desc-txt');
+      if (desc) desc.textContent = msg || 'Attendance verification failed.';
+    }
+
+    function retryVerification() {
+      if (currentMode === 'qr' && encryptedSid && encryptedQid) {
+        initQrFlow();
+      } else {
+        showQuickPassView();
+      }
+    }
+
+    // Initialization
+    window.addEventListener('DOMContentLoaded', function () {
+      setupOtpInputs();
+      parseQrUrlParams();
+
+      if (encryptedSid && encryptedQid) {
+        // QR flow triggered by camera scan
+        switchAttMode('qr');
+      } else {
+        // Default to Quick Pass mode
+        switchAttMode('quick-pass');
+      }
+    });
+  </script>
+</body>
+</html>

@@ -93,7 +93,7 @@ function timeAgo(isoDate) {
 // ─── AUTHENTICATION ──────────────────────────────────────────────────────────
 var currentUser = null;
 
-var YEAR_CONFIG = { current: '', batches: [] };
+var YEAR_CONFIG = { current: '', batches: [], all: [] };
 
 
 
@@ -2526,6 +2526,7 @@ function editSubjInline() {
   var subj = DB.get('subjects').find(function (s) { return s._id === currentSubjectId; });
   if (!subj) return;
   document.getElementById('es-nm').value = subj.name || '';
+  if (document.getElementById('es-ssc')) document.getElementById('es-ssc').value = subj.shortName || subj.shortCode || '';
   document.getElementById('es-cd').value = subj.code || '';
   document.getElementById('es-cr').value = subj.credits || 3;
   document.getElementById('es-tp').value = subj.type || 'Theory';
@@ -2536,11 +2537,12 @@ function editSubjInline() {
 function saveEditSubj() {
   if (!currentSubjectId) return;
   var name = getFieldValue('es-nm');
+  var shortName = getFieldValue('es-ssc');
   var code = getFieldValue('es-cd');
   var credits = parseInt(getFieldValue('es-cr')) || 3;
   var type = getFieldValue('es-tp') || 'Theory';
   if (!name || !code) { showToast('Name and code required', 'warn'); return; }
-  apiUpdateSubject(currentSubjectId, { name: name, code: code, credits: credits, type: type }).then(function (d) {
+  apiUpdateSubject(currentSubjectId, { name: name, shortName: shortName, code: code, credits: credits, type: type }).then(function (d) {
     if (!d) return;
     addLog('Subject Updated', '"' + name + '"');
     closeModalBg('m-edit-subj');
@@ -2742,7 +2744,7 @@ function addSubCtx() {
   if (!structureContext.deptId) { showToast('Please select a department first by exploring structure', 'warn'); return; }
   var dept = DB.get('depts').find(function (d) { return d._id === structureContext.deptId; });
   if (DB.get('subjects').find(function (s) { return s.subjectCode === subjectCode; })) { showToast('Subject code already exists', 'warn'); return; }
-  apiAddSubject({ name: name, code: code, credits: credits, type: type, deptId: structureContext.deptId, deptName: dept.name, deptCode: dept.code, subjectCode: subjectCode })
+  apiAddSubject({ name: name, shortName: shortCode, code: code, credits: credits, type: type, deptId: structureContext.deptId, deptName: dept.name, deptCode: dept.code, subjectCode: subjectCode })
     .then(function (newSubject) {
       if (!newSubject || newSubject.error) return;
 
@@ -3020,25 +3022,30 @@ function populateStudentFilterDropdowns() {
   if (!tok) return Promise.resolve();
   return Promise.all([
     fetch('/api/year/current', { headers: { 'Authorization': 'Bearer ' + tok } }).then(function (r) { return r.json(); }),
-    fetch('/api/year/batches', { headers: { 'Authorization': 'Bearer ' + tok } }).then(function (r) { return r.json(); })
+    fetch('/api/year/batches', { headers: { 'Authorization': 'Bearer ' + tok } }).then(function (r) { return r.json(); }),
+    fetch('/api/year', { headers: { 'Authorization': 'Bearer ' + tok } }).then(function (r) { return r.json(); })
   ]).then(function (results) {
     var currentYear = (typeof results[0] === 'string' && results[0]) ? results[0] : (YEAR_CONFIG.current || '');
     var batchList = Array.isArray(results[1]) ? results[1] : (Array.isArray(YEAR_CONFIG.batches) ? YEAR_CONFIG.batches : []);
+    var allYears = Array.isArray(results[2]) ? results[2].map(function (y) { return y.academicYear; }).filter(Boolean) : [];
+    YEAR_CONFIG.current = currentYear;
+    YEAR_CONFIG.batches = batchList;
+    if (allYears.length) YEAR_CONFIG.all = allYears;
+    var yearOptions = (YEAR_CONFIG.all && YEAR_CONFIG.all.length) ? YEAR_CONFIG.all : (currentYear ? [currentYear] : []);
     if (yearEl) {
       yearEl.innerHTML = '<option value="">All Years</option>'
-        + (currentYear ? '<option value="' + currentYear + '">' + currentYear + '</option>' : '');
+        + yearOptions.map(function (y) { return '<option value="' + y + '">' + y + '</option>'; }).join('');
       yearEl.value = '';
     }
     if (batchEl) {
       batchEl.innerHTML = '<option value="">All Batches</option>'
         + batchList.map(function (b) { return '<option value="' + b + '">' + b + '</option>'; }).join('');
     }
-    YEAR_CONFIG.current = currentYear;
-    YEAR_CONFIG.batches = batchList;
   }).catch(function () {
     if (yearEl) {
+      var fallbackYears = (YEAR_CONFIG.all && YEAR_CONFIG.all.length) ? YEAR_CONFIG.all : (YEAR_CONFIG.current ? [YEAR_CONFIG.current] : []);
       yearEl.innerHTML = '<option value="">All Years</option>'
-        + (YEAR_CONFIG.current ? '<option value="' + YEAR_CONFIG.current + '">' + YEAR_CONFIG.current + '</option>' : '');
+        + fallbackYears.map(function (y) { return '<option value="' + y + '">' + y + '</option>'; }).join('');
       yearEl.value = '';
     }
     if (batchEl) {
@@ -3529,15 +3536,30 @@ function _populateAndShowStuEditModal(student) {
     }
   }());
 
-  var yearOptions = YEAR_CONFIG.current ? [YEAR_CONFIG.current] : [];
-  if (student.academicYear && yearOptions.indexOf(student.academicYear) === -1) {
-    yearOptions.push(student.academicYear);
+  var yearOptions = (YEAR_CONFIG.all && YEAR_CONFIG.all.length)
+    ? YEAR_CONFIG.all.slice()
+    : (YEAR_CONFIG.current ? [YEAR_CONFIG.current] : []);
+
+  // Determine matching academic year strictly from YearConfig
+  var selectedYear = '';
+  if (student.academicYear) {
+    if (yearOptions.indexOf(student.academicYear) !== -1) {
+      selectedYear = student.academicYear;
+    } else {
+      var expanded = student.academicYear.replace(/^(\d{4})-(\d{2})$/, function (_, y1, y2) {
+        return y1 + '-' + y1.slice(0, 2) + y2;
+      });
+      selectedYear = yearOptions.indexOf(expanded) !== -1 ? expanded : (YEAR_CONFIG.current || yearOptions[0] || '');
+    }
+  } else {
+    selectedYear = YEAR_CONFIG.current || yearOptions[0] || '';
   }
+
   var editYearEl = document.getElementById('edit-year');
   if (editYearEl) {
     editYearEl.innerHTML = yearOptions.length
       ? yearOptions.map(function (y) {
-        return '<option' + (y === student.academicYear ? ' selected' : '') + '>' + y + '</option>';
+        return '<option value="' + y + '"' + (y === selectedYear ? ' selected' : '') + '>' + y + '</option>';
       }).join('')
       : '<option value="">— No current academic year set —</option>';
   }
@@ -4829,7 +4851,9 @@ function populateAdminDropdowns() {
   var depts = DB.get('depts');
   var classes = DB.get('classes');
 
-  var years = YEAR_CONFIG.current ? [YEAR_CONFIG.current] : [];
+  var years = (YEAR_CONFIG.all && YEAR_CONFIG.all.length)
+    ? YEAR_CONFIG.all
+    : (YEAR_CONFIG.current ? [YEAR_CONFIG.current] : []);
   var batch = Array.isArray(YEAR_CONFIG.batches) ? YEAR_CONFIG.batches : [];
 
   ['stu-year', 'edit-year'].forEach(function (id) {
@@ -5267,12 +5291,18 @@ function syncYearConfig() {
   if (!tok) return Promise.resolve(YEAR_CONFIG);
   return Promise.all([
     apiCall('GET', '/year/current'),
-    apiCall('GET', '/year/batches')
+    apiCall('GET', '/year/batches'),
+    apiCall('GET', '/year')
   ]).then(function (results) {
     var current = results[0];
     var batches = results[1];
+    var allYears = Array.isArray(results[2]) ? results[2] : [];
     YEAR_CONFIG.current = (typeof current === 'string' && current) ? current : '';
     YEAR_CONFIG.batches = Array.isArray(batches) ? batches : [];
+    YEAR_CONFIG.all = allYears.map(function (y) { return y.academicYear; }).filter(Boolean);
+    if (YEAR_CONFIG.current && YEAR_CONFIG.all.indexOf(YEAR_CONFIG.current) === -1) {
+      YEAR_CONFIG.all.unshift(YEAR_CONFIG.current);
+    }
     return YEAR_CONFIG;
   }).catch(function () { return YEAR_CONFIG; });
 }

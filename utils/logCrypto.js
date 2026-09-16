@@ -2,8 +2,8 @@ const crypto = require('crypto');
 const cfg = require('../config');
 
 const ALGORITHM = 'aes-256-gcm';
-// Derive a 32-byte key from JWT_SECRET or fallback
-const KEY = crypto.createHash('sha256').update(cfg.JWT_SECRET || 'eams-secure-master-key-2026').digest();
+// Derive a 32-byte key strictly from LOG_ENCRYPTION_KEY (no fallback)
+const KEY = cfg.LOG_ENCRYPTION_KEY ? crypto.createHash('sha256').update(cfg.LOG_ENCRYPTION_KEY).digest() : null;
 
 /**
  * Encrypt a string or JSON object using AES-256-GCM.
@@ -11,6 +11,10 @@ const KEY = crypto.createHash('sha256').update(cfg.JWT_SECRET || 'eams-secure-ma
  */
 function encryptLog(data) {
   if (data === null || data === undefined || data === '') return '';
+  if (!KEY) {
+    console.error('[logCrypto] Encryption failed: LOG_ENCRYPTION_KEY environment variable is not defined.');
+    return typeof data === 'string' ? data : JSON.stringify(data);
+  }
   try {
     const str = typeof data === 'string' ? data : JSON.stringify(data);
     const iv = crypto.randomBytes(12);
@@ -30,7 +34,7 @@ function encryptLog(data) {
  * Automatically parses JSON if valid, else returns string.
  */
 function decryptLog(cipherText) {
-  if (!cipherText || typeof cipherText !== 'string' || !cipherText.includes(':')) {
+  if (!cipherText || typeof cipherText !== 'string' || !cipherText.includes(':') || !KEY) {
     return cipherText;
   }
   try {

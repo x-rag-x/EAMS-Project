@@ -1,5 +1,5 @@
-# EAMS — Electronic Attendance Management System
-### Sri Shakthi Institute of Engineering & Technology
+# EAMS — Educational Activity & Attendance Management System
+### Enterprise Academic Management Platform
 
 > A full-stack web application for managing student attendance, teacher assignments, departments, classes, and academic records. Built with Node.js, Express, MongoDB Atlas, and vanilla HTML/CSS/JS.
 
@@ -265,4 +265,4 @@ All uploads accept `.xlsx`, `.xls`, or `.csv`.
 
 ---
 
-*Built for Sri Shakthi Institute of Engineering and Technology, Coimbatore.*
+*Built for Educational Institutions & Universities.*
