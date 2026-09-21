@@ -10,7 +10,15 @@ router.get('/', authMiddleware, async (req, res) => {
   try {
     const filter = {};
     if (req.query.deptId) filter.deptId = sanitizeToString(req.query.deptId);
-    if (req.query.batch) filter.batch = sanitizeToString(req.query.batch);
+    if (req.query.batch) {
+      const b = sanitizeToString(req.query.batch);
+      const altB = b.includes('-') && b.length === 9
+        ? b.replace(/-(\d{4})$/, function (_, y) { return '-' + y.slice(-2); })
+        : (b.includes('-') && b.length === 7
+          ? b.replace(/^(\d{4})-(\d{2})$/, function (_, y1, y2) { return y1 + '-' + y1.slice(0, 2) + y2; })
+          : b);
+      filter.batch = { $in: [b, altB] };
+    }
     const classes = await M.Class.find(filter).sort({ name: 1 }).lean();
     // Attach studentCount per class via aggregate to avoid client-side full scan
     const classIds = classes.map(function (c) { return c._id; });

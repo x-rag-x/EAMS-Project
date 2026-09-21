@@ -2,7 +2,13 @@ const crypto = require('crypto');
 const cfg = require('../config');
 
 const ALGORITHM = 'aes-256-gcm';
-const RAW_KEY = cfg.LOG_ENCRYPTION_KEY || cfg.JWT_SECRET || 'eams_fallback_default_encryption_key_32_bytes!';
+const RAW_KEY = cfg.LOG_ENCRYPTION_KEY || process.env.LOG_ENCRYPTION_KEY;
+if (!RAW_KEY) {
+  throw new Error('[FATAL] LOG_ENCRYPTION_KEY environment variable must be set. Refusing to start with no log encryption key.');
+}
+if (cfg.JWT_SECRET && RAW_KEY === cfg.JWT_SECRET) {
+  console.warn('[SECURITY WARNING] LOG_ENCRYPTION_KEY is identical to JWT_SECRET. Using separate keys is strongly recommended.');
+}
 const KEY = crypto.createHash('sha256').update(RAW_KEY).digest();
 
 const DEFAULT_QR_INTERVAL_SEC = 20;
@@ -53,8 +59,10 @@ function decryptQrPayload(cipherText) {
  * Deterministically generates a 16-character QR track ID for a specific session + window index
  */
 function generateQrTrackId(qrSecret, windowIndex) {
-  const secret = qrSecret || 'eams_default_qr_secret';
-  return 'QR_' + crypto.createHmac('sha256', secret)
+  if (!qrSecret || typeof qrSecret !== 'string') {
+    throw new Error('[FATAL] Valid qrSecret must be provided to generate QR track ID.');
+  }
+  return 'QR_' + crypto.createHmac('sha256', qrSecret)
     .update(`WIN_${windowIndex}`)
     .digest('hex')
     .substring(0, 12)
@@ -92,6 +100,23 @@ function getQrWindowInfo(qrSecret, intervalSec = DEFAULT_QR_INTERVAL_SEC, graceS
  * Verify a submitted QR track ID against the active window and 5-second grace window
  */
 function verifyQrToken(submittedQrTrackId, qrSecret, intervalSec = DEFAULT_QR_INTERVAL_SEC, graceSec = DEFAULT_GRACE_PERIOD_SEC, serverTime = Date.now()) {
+  if (!qrSecret || typeof qrSecret !== 'string') {
+    return {
+      valid: false,
+      type: 'invalid',
+      inGracePeriod: false,
+      reason: 'Session QR secret is missing or invalid',
+      intervalSec,
+      graceSec,
+      currentWindowIndex: 0,
+      currentQrTrackId: '',
+      previousWindowIndex: 0,
+      previousQrTrackId: '',
+      windowElapsedSec: 0,
+      expiresInMs: 0,
+      serverTime,
+    };
+  }
   const info = getQrWindowInfo(qrSecret, intervalSec, graceSec, serverTime);
 
   if (!submittedQrTrackId || typeof submittedQrTrackId !== 'string') {
@@ -148,71 +173,79 @@ function verifyQrToken(submittedQrTrackId, qrSecret, intervalSec = DEFAULT_QR_IN
 }
 
 function getSidKey() {
-  const rawKey = cfg.SID_ENCRYPTION_KEY || process.env.SID_ENCRYPTION_KEY || '8450edd18faa5e99f951388830b248f1';
+  const rawKey = cfg.SID_ENCRYPTION_KEY || process.env.SID_ENCRYPTION_KEY;
+  if (!rawKey) throw new Error('[FATAL] SID_ENCRYPTION_KEY environment variable must be set.');
   return crypto.createHash('sha256').update(rawKey).digest();
 }
 
 function getQidKey() {
-  const rawKey = cfg.QRID_ENCRYPTION_KEY || process.env.QRID_ENCRYPTION_KEY || '796c4a131b72bc524a0926a89cd1c909';
+  const rawKey = cfg.QRID_ENCRYPTION_KEY || process.env.QRID_ENCRYPTION_KEY;
+  if (!rawKey) throw new Error('[FATAL] QRID_ENCRYPTION_KEY environment variable must be set.');
   return crypto.createHash('sha256').update(rawKey).digest();
 }
 
-function encryptWithAesCbc(text, keyBuffer) {
+function encryptWithAesGcm(text, keyBuffer) {
   if (!text) return '';
-  const iv = crypto.randomBytes(16);
-  const cipher = crypto.createCipheriv('aes-256-cbc', keyBuffer, iv);
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv('aes-256-gcm', keyBuffer, iv);
   let encrypted = cipher.update(String(text), 'utf8', 'hex');
   encrypted += cipher.final('hex');
-  return `${iv.toString('hex')}.${encrypted}`;
+  const tag = cipher.getAuthTag().toString('hex');
+  return `gcm.${iv.toString('hex')}.${tag}.${encrypted}`;
 }
 
-function decryptWithAesCbc(cipherText, keyBuffer) {
+function decryptWithAes(cipherText, keyBuffer) {
   if (!cipherText || typeof cipherText !== 'string') return '';
   try {
     const parts = cipherText.split('.');
-    if (parts.length !== 2) {
-      return cipherText;
+    if (parts.length === 4 && parts[0] === 'gcm') {
+      const [, ivHex, tagHex, encHex] = parts;
+      const decipher = crypto.createDecipheriv('aes-256-gcm', keyBuffer, Buffer.from(ivHex, 'hex'));
+      decipher.setAuthTag(Buffer.from(tagHex, 'hex'));
+      let decrypted = decipher.update(encHex, 'hex', 'utf8');
+      decrypted += decipher.final('utf8');
+      return decrypted;
     }
-    const [ivHex, encHex] = parts;
-    const iv = Buffer.from(ivHex, 'hex');
-    const decipher = crypto.createDecipheriv('aes-256-cbc', keyBuffer, iv);
-    let decrypted = decipher.update(encHex, 'hex', 'utf8');
-    decrypted += decipher.final('utf8');
-    return decrypted;
+    // Legacy CBC fallback (2 parts: ivHex.encHex)
+    if (parts.length === 2) {
+      const [ivHex, encHex] = parts;
+      const iv = Buffer.from(ivHex, 'hex');
+      const decipher = crypto.createDecipheriv('aes-256-cbc', keyBuffer, iv);
+      let decrypted = decipher.update(encHex, 'hex', 'utf8');
+      decrypted += decipher.final('utf8');
+      return decrypted;
+    }
+    return '';
   } catch (err) {
-    return cipherText;
+    return '';
   }
 }
 
 function encryptSid(sessionTrackId) {
-  return encryptWithAesCbc(sessionTrackId, getSidKey());
+  return encryptWithAesGcm(sessionTrackId, getSidKey());
 }
 
 function decryptSid(encrypted) {
-  return decryptWithAesCbc(encrypted, getSidKey());
+  return decryptWithAes(encrypted, getSidKey());
 }
 
 function encryptQid(qrTrackId) {
-  return encryptWithAesCbc(qrTrackId, getQidKey());
+  return encryptWithAesGcm(qrTrackId, getQidKey());
 }
 
 function decryptQid(encrypted) {
-  return decryptWithAesCbc(encrypted, getQidKey());
+  return decryptWithAes(encrypted, getQidKey());
 }
 
 function encryptTime(timestamp) {
-  return encryptWithAesCbc(String(timestamp), getSidKey());
+  return encryptWithAesGcm(String(timestamp), getSidKey());
 }
 
 function decryptTime(encrypted) {
   if (!encrypted) return null;
-  const dec = decryptWithAesCbc(encrypted, getSidKey());
-  if (dec && dec !== encrypted) return dec;
-  try {
-    const b64 = Buffer.from(encrypted, 'base64').toString('utf8');
-    if (b64 && !isNaN(Number(b64))) return b64;
-  } catch (e) {}
-  return encrypted;
+  const dec = decryptWithAes(encrypted, getSidKey());
+  if (dec && !isNaN(Number(dec))) return dec;
+  return null;
 }
 
 module.exports = {

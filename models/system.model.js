@@ -163,26 +163,34 @@ LogSchema.index({ module: 1, subType: 1, createdAt: -1 });
 LogSchema.index({ 'attendanceSummary.studentTrackId': 1, 'attendanceSummary.date': 1 });
 LogSchema.index({ 'attendanceClassDaily.classId': 1, 'attendanceClassDaily.date': 1 });
 
+const crypto = require('crypto');
+
 const LiveSessionSchema = new mongoose.Schema({
-  trackId:        { type: String, default: () => 'TR_LS_' + Math.random().toString(36).substr(2, 9).toUpperCase() },
+  trackId:        { type: String, default: () => 'TR_LS_' + crypto.randomBytes(6).toString('hex').toUpperCase() },
   teacherId:      { type: mongoose.Schema.Types.ObjectId, ref: 'Teacher' },
   teacherTrackId: { type: String, default: '' },
   classId:        { type: mongoose.Schema.Types.ObjectId, ref: 'Class', required: true },
   subjectId:      { type: mongoose.Schema.Types.ObjectId, ref: 'Subject', required: true },
   date:           { type: String, required: true },
-  passcode:       { type: String, required: true },
+  passcode:       { type: String, default: null },
   attendanceMode: { type: String, enum: ['code', 'qr'], default: 'code' },
   qrSecret:       { type: String, default: '' },
   qrIntervalSec:  { type: Number, default: 20 },
   expiresAt:      { type: Date, required: true },
   active:         { type: Boolean, default: true },
+  latitude:       { type: Number, default: null },
+  longitude:      { type: Number, default: null },
+  maxRadiusMeters:{ type: Number, default: 200 },
   markedStudents: [{
     studentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Student' },
     regNo:     { type: String },
     time:      { type: Date, default: Date.now },
-    ip:        { type: String }
+    ip:        { type: String },
+    deviceId:  { type: String, default: '' },
+    source:    { type: String, enum: ['code', 'qr', 'passcode'], default: 'code' }
   }]
 }, { timestamps: true });
+
 
 const ManageAdminSchema = new mongoose.Schema({
   trackId    : { type: String, required: true, unique: true},

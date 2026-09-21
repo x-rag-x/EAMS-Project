@@ -1,5 +1,11 @@
 require('dotenv').config();
 
+const dns = require('dns');
+try {
+  dns.setDefaultResultOrder('ipv4first');
+  dns.setServers(['8.8.8.8', '8.8.4.4', '1.1.1.1']);
+} catch (e) {}
+
 const mongoose = require('mongoose');
 const cfg = require('./index');
 const bcrypt = require('bcryptjs');
@@ -14,7 +20,8 @@ mongoose.connect(cfg.MONGO_URI, {
   maxPoolSize: 20,
   minPoolSize: 2,
   socketTimeoutMS: 45000,
-  serverSelectionTimeoutMS: 10000,
+  connectTimeoutMS: 30000,
+  serverSelectionTimeoutMS: 30000,
   autoIndex: true
 })
   .then(async() => {
@@ -118,7 +125,12 @@ async function seedSettings() {
       console.log(`   4/5: Admin User found...`);
     }
     else {
-      const hash = await bcrypt.hash(cfg.ADMIN_PASSWORD, cfg.BCRYPT_ROUNDS);
+      const adminPass = cfg.ADMIN_PASSWORD || process.env.adminPassword;
+      if (!adminPass) {
+        console.warn('   [WARNING] ADMIN_PASSWORD/adminPassword not set in environment. Skipping default admin seed to prevent insecure account.');
+        return;
+      }
+      const hash = await bcrypt.hash(adminPass, cfg.BCRYPT_ROUNDS);
       await M.Admin.create({ fullName: 'Administrator', firstName: 'Admin', lastName: '', username: 'admin', password: hash, trackId: 'TR-ADMIN001', isAdmin: true, adminRights: 'all', adminFlag: 'superadmin', mustChangePassword: true });
       // Create shadow User record for unified session tracking
       const userExists = await M.User.findOne({ username: 'admin' });
@@ -133,7 +145,12 @@ async function seedSettings() {
     if(autoSeedData && autoSeedData.value && autoSeedData.value.autoSeedData) {
       const stdExists = await M.User.findOne({ role: 'student' });
       if (!stdExists) {
-        const hash = await bcrypt.hash(cfg.STUDENT_PASSWORD, cfg.BCRYPT_ROUNDS);
+        const studentPass = cfg.STUDENT_PASSWORD || process.env.studentPassword;
+        if (!studentPass) {
+          console.warn('   [WARNING] STUDENT_PASSWORD not set. Skipping test student seed.');
+          return;
+        }
+        const hash = await bcrypt.hash(studentPass, cfg.BCRYPT_ROUNDS);
         const dept = await M.Department.findOne();
         await M.Student.create({fullName: 'Test Student', password: hash, username: 'student', trackId: 'TRSTD001', regNo: '2022A7PS0203P', deptId: dept ? dept._id : undefined});
         await M.User.create({ username: 'student', role: 'student', trackId: 'TR-STD001', status: 'active' });
@@ -155,7 +172,12 @@ async function seedSettings() {
     if(autoSeedData && autoSeedData.value && autoSeedData.value.autoSeedData) {
       const tecExists = await M.User.findOne({ role: 'teacher' });
       if (!tecExists) {
-        const hash = await bcrypt.hash(cfg.TEACHER_PASSWORD, cfg.BCRYPT_ROUNDS);
+        const teacherPass = cfg.TEACHER_PASSWORD || process.env.teacherPassword;
+        if (!teacherPass) {
+          console.warn('   [WARNING] TEACHER_PASSWORD not set. Skipping test teacher seed.');
+          return;
+        }
+        const hash = await bcrypt.hash(teacherPass, cfg.BCRYPT_ROUNDS);
         const dept = await M.Department.findOne();
         await M.Teacher.create({fullName: 'Test Teacher', password: hash, username: 'teacher', trackId: 'TRTEC001', empId: 'EMP001', deptId: dept ? dept._id : undefined});
         await M.User.create({ username: 'teacher', role: 'teacher', trackId: 'TR-TEC001', status: 'active' });

@@ -34,7 +34,11 @@ function getRoleModel(role) {
 
 // Authenticate request using JWT and validate active session
 async function authMiddleware(req, res, next) {
-  const header = req.headers.authorization || (req.query && req.query.token ? `Bearer ${req.query.token}` : null);
+  if (req.query && req.query.token) {
+    return res.status(401).json({ error: 'Tokens via query parameters are not permitted for security reasons. Use Authorization header.' });
+  }
+
+  const header = req.headers.authorization;
 
   if (!header) { return res.status(401).json({ error: 'No token' }); }
 
@@ -233,4 +237,13 @@ function requireRight(...rights) {
   };
 }
 
-module.exports = { authMiddleware, adminOnly, logsAdminOnly, requireRight, getRoleModel, getSessionLocation };
+function requireRole(...roles) {
+  return function (req, res, next) {
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+    if (roles.includes(req.user.role)) return next();
+    return res.status(403).json({ error: `Access denied. Required role: ${roles.join(' or ')}` });
+  };
+}
+
+module.exports = { authMiddleware, adminOnly, logsAdminOnly, requireRight, requireRole, getRoleModel, getSessionLocation };
+

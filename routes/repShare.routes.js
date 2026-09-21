@@ -1,13 +1,18 @@
 const express = require('express');
 const router = express.Router();
+const crypto = require('crypto');
 const mongoose = require('mongoose');
 const M = require('../models');
 const { authMiddleware } = require('../middleware/auth');
+const { verifyTeacherAssignment } = require('../utils/assignmentAuth');
 
 const isValidObjId = (id) => typeof id === 'string' && mongoose.Types.ObjectId.isValid(id) && id.length === 24;
 
 // 1. Get Class Reps for a Class (Teacher)
 router.get('/reps/:classId', authMiddleware, async (req, res) => {
+  if (req.user.role !== 'teacher' && req.user.role !== 'admin') {
+    return res.status(403).json({ error: 'Only teachers and admins can view class reps' });
+  }
   try {
     const { classId } = req.params;
     const filter = {};
@@ -59,6 +64,12 @@ router.post('/request', authMiddleware, async (req, res) => {
       return res.status(400).json({ error: 'Class, Subject, Date, and Representative are required' });
     }
 
+    // Verify teacher assignment (A3)
+    const assignCheck = await verifyTeacherAssignment(req.user, classId, subjectId);
+    if (!assignCheck.allowed) {
+      return res.status(403).json({ error: assignCheck.reason });
+    }
+
     // Fetch details
     const [cls, sub, rep, teacher] = await Promise.all([
       M.Class.findById(classId).lean(),
@@ -77,7 +88,8 @@ router.post('/request', authMiddleware, async (req, res) => {
       { $set: { status: 'rejected' } }
     );
 
-    const sessionTrackId = 'REP_' + Math.random().toString(36).substring(2, 9).toUpperCase();
+    const sessionTrackId = 'REP_' + crypto.randomBytes(6).toString('hex').toUpperCase();
+
 
     const session = await M.RepShareSession.create({
       sessionTrackId,
@@ -183,6 +195,15 @@ router.get('/session/:sessionId', authMiddleware, async (req, res) => {
       return res.status(404).json({ error: 'Rep share session not found' });
     }
 
+    const isAssignedRep = (session.repStudentTrackId && req.user.trackId && String(req.user.trackId) === String(session.repStudentTrackId)) ||
+      (session.repStudentId && (String(req.user._id) === String(session.repStudentId) || String(req.user.roleId) === String(session.repStudentId)));
+    const isAssigningTeacher = (session.teacherTrackId && req.user.trackId && String(req.user.trackId) === String(session.teacherTrackId)) ||
+      (session.teacherId && (String(req.user._id) === String(session.teacherId) || String(req.user.roleId) === String(session.teacherId)));
+
+    if (!isAssignedRep && !isAssigningTeacher && req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'Access denied to this session' });
+    }
+
     return res.json({ success: true, session });
   } catch (err) {
     return res.status(500).json({ error: err.message || 'Failed to fetch session' });
@@ -202,6 +223,13 @@ router.post('/submit/:sessionId', authMiddleware, async (req, res) => {
     const session = await M.RepShareSession.findOne(query);
     if (!session) {
       return res.status(404).json({ error: 'Rep share session not found' });
+    }
+
+    const isAssignedRep = (session.repStudentTrackId && req.user.trackId && String(req.user.trackId) === String(session.repStudentTrackId)) ||
+      (session.repStudentId && (String(req.user._id) === String(session.repStudentId) || String(req.user.roleId) === String(session.repStudentId)));
+
+    if (!isAssignedRep) {
+      return res.status(403).json({ error: 'Only the assigned class representative can submit attendance' });
     }
 
     if (session.status === 'submitted' || session.status === 'finalized') {
@@ -287,6 +315,13 @@ router.get('/draft/:sessionId', authMiddleware, async (req, res) => {
       return res.status(404).json({ error: 'Rep share session not found' });
     }
 
+    const isAssigningTeacher = (session.teacherTrackId && req.user.trackId && String(req.user.trackId) === String(session.teacherTrackId)) ||
+      (session.teacherId && (String(req.user._id) === String(session.teacherId) || String(req.user.roleId) === String(session.teacherId)));
+
+    if (req.user.role !== 'admin' && !isAssigningTeacher) {
+      return res.status(403).json({ error: 'Only the assigning teacher can review drafts' });
+    }
+
     return res.json({
       success: true,
       session,
@@ -299,13 +334,29 @@ router.get('/draft/:sessionId', authMiddleware, async (req, res) => {
 
 // 7. Cancel / Reject session
 router.post('/cancel/:sessionId', authMiddleware, async (req, res) => {
+  if (req.user.role !== 'teacher' && req.user.role !== 'admin') {
+    return res.status(403).json({ error: 'Only teachers and admins can cancel sessions' });
+  }
   try {
     const { sessionId } = req.params;
     const query = isValidObjId(sessionId)
       ? { _id: new mongoose.Types.ObjectId(sessionId) }
       : { sessionTrackId: sessionId };
 
-    await M.RepShareSession.updateOne(query, { $set: { status: 'rejected' } });
+    const session = await M.RepShareSession.findOne(query);
+    if (!session) {
+      return res.status(404).json({ error: 'Rep share session not found' });
+    }
+
+    const isAssigningTeacher = (session.teacherTrackId && req.user.trackId && String(req.user.trackId) === String(session.teacherTrackId)) ||
+      (session.teacherId && (String(req.user._id) === String(session.teacherId) || String(req.user.roleId) === String(session.teacherId)));
+
+    if (req.user.role !== 'admin' && !isAssigningTeacher) {
+      return res.status(403).json({ error: 'Only the assigning teacher can cancel this session' });
+    }
+
+    session.status = 'rejected';
+    await session.save();
     return res.json({ success: true, message: 'Session cancelled' });
   } catch (err) {
     return res.status(500).json({ error: err.message || 'Failed to cancel session' });

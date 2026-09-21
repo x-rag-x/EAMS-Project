@@ -4,10 +4,11 @@ const mongoose = require('mongoose');
 const M = require('../models');
 const { authMiddleware, adminOnly, requireRight } = require('../middleware/auth');
 const { controllerAuth } = require('../middleware/hodAuth');
-const { logAction } = require('../utils/logAction');
 const { sanitizeToString, sanitizeToObjectId } = require('../utils/sanitizeQuery');
 const { getSetting } = require('../utils/settingsCache');
 const { criticalDeleteLimiter } = require('../utils/rateLimiters');
+const { computeStudentAttendance } = require('../utils/attendanceCalculator');
+
 
 // Helper to get next export track ID
 async function getNextExportTrackId() {
@@ -388,10 +389,19 @@ router.post('/class/defaulters', authMiddleware, async (req, res) => {
 
     // Get students with low attendance
     const students = await M.Student.find(filter)
-      .select('fullName registerNo attendancePercentage deptId year section')
+      .select('fullName registerNo attendancePercentage deptId year section classId trackId')
       .lean();
 
-    const defaulters = students.filter(s => (s.attendancePercentage || 0) < thresholdValue);
+    // Ensure attendance percentage is accurately populated
+    for (const s of students) {
+      if (s.attendancePercentage === undefined || s.attendancePercentage === null) {
+        const stats = await computeStudentAttendance(s.trackId || String(s._id), s.classId);
+        s.attendancePercentage = stats ? stats.overallPercentage : 100;
+      }
+    }
+
+    const defaulters = students.filter(s => (s.attendancePercentage ?? 100) < thresholdValue);
+
 
     // Create export history record
     const exportTrackId = await getNextExportTrackId();
@@ -563,11 +573,28 @@ router.get('/download/:trackId', authMiddleware, async (req, res) => {
       if (reportType.includes('defaulter') || reportType.includes('shortage')) {
         csvContent = 'Register No,Student Name,Department,Year,Section,Total Classes,Classes Attended,Attendance %,Eligibility\n';
         const students = await M.Student.find().limit(200).lean();
+        const studentTrackIds = students.map(s => s.trackId || String(s._id));
+        const attDocs = await M.StudentAttendance.find({ studentTrackId: { $in: studentTrackIds } }).lean();
+        const attMap = new Map();
+        attDocs.forEach(a => attMap.set(a.studentTrackId, a));
+
         students.forEach(s => {
-          const pct = s.attendancePercentage ?? 68;
-          csvContent += `"${s.registerNo || ''}","${s.fullName || ''}","${s.deptName || s.department || ''}","${s.year || ''}","${s.section || ''}",120,${Math.round(120*pct/100)},${pct}%,"${pct < 75 ? 'Shortage (Not Eligible)' : 'Eligible'}"\n`;
+          const track = s.trackId || String(s._id);
+          const att = attMap.get(track);
+          let totalHeld = 0;
+          let totalAttended = 0;
+          if (att && Array.isArray(att.records)) {
+            totalHeld = att.records.reduce((acc, r) => acc + (r.classesHeld || 0), 0);
+            totalAttended = att.records.reduce((acc, r) => acc + (r.classesAttended || 0), 0);
+          }
+          const pct = att && att.overallPercentage !== undefined
+            ? att.overallPercentage
+            : (s.attendancePercentage !== undefined ? s.attendancePercentage : (totalHeld > 0 ? Math.round((totalAttended / totalHeld) * 100) : 100));
+
+          csvContent += `"${s.registerNo || ''}","${s.fullName || ''}","${s.deptName || s.department || ''}","${s.year || ''}","${s.section || ''}",${totalHeld},${totalAttended},${pct}%,"${pct < 75 ? 'Shortage (Not Eligible)' : 'Eligible'}"\n`;
         });
       } else if (reportType.includes('student')) {
+
         csvContent = 'Register No,Student Name,Subject Code,Subject Name,Staff,Total Hours,Attended Hours,Percentage,Status\n';
         const students = await M.Student.find().limit(50).lean();
         students.forEach(s => {

@@ -34,7 +34,7 @@ function getClientDetails(req) {
 
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: cfg.NODE_ENV === 'development' ? Number.MAX_SAFE_INTEGER : 10, // Limit each IP to 10 requests per 15 minutes (disabled in development)
+  max: cfg.NODE_ENV === 'development' ? 100 : 10, // Reasonable floor for dev (100) instead of MAX_SAFE_INTEGER
   message: { error: 'Too many login attempts from this IP, please try again after 15 minutes.' },
   standardHeaders: true,
   legacyHeaders: false,
@@ -114,7 +114,13 @@ router.post('/verify-credentials', loginLimiter, async (req, res) => {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
-    res.json({ valid: true, username: shadowUser.username, role });
+    const locationToken = jwt.sign(
+      { username: shadowUser.username, role, trackId: shadowUser.trackId, purpose: 'location-verify' },
+      cfg.JWT_SECRET,
+      { expiresIn: '5m' }
+    );
+
+    res.json({ valid: true, username: shadowUser.username, role, locationToken });
   } catch (err) {
     console.error('[Verify Credentials Exception]:', err);
     res.status(500).json({ error: 'Verification failed' });
@@ -122,9 +128,9 @@ router.post('/verify-credentials', loginLimiter, async (req, res) => {
 });
 
 // Record location permission rejection and enforce 1-minute timeout lockout
-router.post('/location-denied', async (req, res) => {
+router.post('/location-denied', loginLimiter, async (req, res) => {
   try {
-    const { username, role, reason } = req.body;
+    const { username, role, reason, locationToken, password } = req.body;
     if (!username) return res.status(400).json({ error: 'Username required' });
 
     const cleanUsername = username.toLowerCase().trim();
@@ -132,6 +138,31 @@ router.post('/location-denied', async (req, res) => {
 
     if (!shadowUser) {
       return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Verify caller is authentic: require valid locationToken or correct password
+    let authorized = false;
+    if (locationToken) {
+      try {
+        const decoded = jwt.verify(locationToken, cfg.JWT_SECRET);
+        if (decoded && decoded.purpose === 'location-verify' && decoded.username === cleanUsername && decoded.role === role) {
+          authorized = true;
+        }
+      } catch (tokenErr) {}
+    }
+    if (!authorized && password) {
+      const model = getRoleModel(role);
+      if (model) {
+        const userDoc = await model.findOne({ username: cleanUsername }).select('+password');
+        if (userDoc && await bcrypt.compare(password, userDoc.password)) {
+          authorized = true;
+        }
+      }
+    }
+
+    if (!authorized) {
+      await logAction(null, cleanUsername, role, 'Location Denied Unauthorized Attempt', 'Unauthorized lockout attempt without valid verification token', 'security', 'warning', req.ip, '', { module: 'system', subType: 'auth-fail' });
+      return res.status(401).json({ error: 'Unauthorized location rejection request. Valid pre-authentication token or credentials required.' });
     }
 
     const isAdmin = role === 'admin' || shadowUser.role === 'admin';

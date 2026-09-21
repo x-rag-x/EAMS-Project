@@ -36,11 +36,29 @@ router.get('/', authMiddleware, async (req, res) => {
 
 router.post('/', authMiddleware, async (req, res) => {
   try {
+    const rawMessage = String(req.body.message || '').trim();
+    if (!rawMessage || rawMessage.length > 500) {
+      return res.status(400).json({ error: 'Message is required and must not exceed 500 characters.' });
+    }
+
+    // Strip HTML tags server-side as defense-in-depth
+    const cleanMessage = rawMessage.replace(/<[^>]*>/g, '');
+    if (!cleanMessage) {
+      return res.status(400).json({ error: 'Message contains invalid content.' });
+    }
+
+    // Restrict student access to admin queue (unaddressed notifications land in admin queue)
+    const isToTeacher = req.body.toTeacherId || req.body.toTeacherTrackId;
+    const isToStudent = req.body.toStudentId || req.body.toStudentTrackId;
+    if (!isToTeacher && !isToStudent && req.user.role === 'student') {
+      return res.status(403).json({ error: 'Students cannot send notifications directly to the admin queue.' });
+    }
+
     const notif = await M.Notification.create({
       type:          req.body.type || 'request',
       from:          req.user.name || req.user.username,   // forced from JWT
       fromRole:      req.user.role,                        // forced from JWT
-      message:       req.body.message,
+      message:       cleanMessage,
       priority:      req.body.priority || 'Normal',
       toTeacherId:   req.body.toTeacherId || null,
       toTeacherTrackId: req.body.toTeacherTrackId || '',

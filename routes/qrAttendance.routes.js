@@ -21,11 +21,24 @@ const {
   decryptTime
 } = require('../utils/qrCrypto');
 
+function haversineDistance(lat1, lon1, lat2, lon2) {
+  const R = 6371000; // Earth radius in meters
+  const toRad = (deg) => (deg * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
 /**
  * GET /api/qr-attendance/generate-qr
  * Generate QR code image from text data
  */
-router.get('/generate-qr', async (req, res) => {
+router.get('/generate-qr', authMiddleware, qrAttendanceLimiter, async (req, res) => {
   try {
     const { data, size } = req.query;
 
@@ -48,11 +61,11 @@ router.get('/generate-qr', async (req, res) => {
     });
 
     res.setHeader('Content-Type', 'image/png');
-    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
     res.send(qrImage);
   } catch (err) {
-    console.error('[QR Generate Error]:', err);
-    res.status(500).json({ error: 'Failed to generate QR code' });
+    console.error('[Generate QR Error]:', err);
+    res.status(500).json({ error: 'Failed to generate QR code image' });
   }
 });
 
@@ -294,6 +307,23 @@ router.post('/submit', qrAttendanceLimiter, authMiddleware, checkLiveSessionGuar
       return res.status(400).json({ error: 'Session and QR tracking tokens are required' });
     }
 
+    if (typeof rawSessionTrackId !== 'string' || rawSessionTrackId.length > 300 ||
+        typeof rawQrTrackId !== 'string' || rawQrTrackId.length > 300) {
+      return res.status(400).json({ error: 'Invalid token payload format' });
+    }
+
+    if (deviceId && (typeof deviceId !== 'string' || deviceId.length > 150)) {
+      return res.status(400).json({ error: 'Invalid device identifier (max 150 characters)' });
+    }
+
+    if (latitude !== undefined && latitude !== null && (isNaN(Number(latitude)) || Math.abs(Number(latitude)) > 90)) {
+      return res.status(400).json({ error: 'Latitude must be a valid coordinate between -90 and 90' });
+    }
+
+    if (longitude !== undefined && longitude !== null && (isNaN(Number(longitude)) || Math.abs(Number(longitude)) > 180)) {
+      return res.status(400).json({ error: 'Longitude must be a valid coordinate between -180 and 180' });
+    }
+
     // Resolve student document
     let student = null;
     if (req.user.trackId) student = await M.Student.findOne({ trackId: req.user.trackId });
@@ -388,9 +418,12 @@ router.post('/submit', qrAttendanceLimiter, authMiddleware, checkLiveSessionGuar
       await existingRecord.save();
     }
 
-    // ==========================================
-    // SERVER-SIDE VERIFICATION SEQUENCE
-    // ==========================================
+    // Geolocation verification
+    let locationOk = false;
+    if (latitude !== undefined && longitude !== undefined && latitude !== null && longitude !== null && !isNaN(Number(latitude)) && !isNaN(Number(longitude))) {
+      locationOk = true;
+    }
+
     const verification = {
       authOk: true,
       sessionOk: false,
@@ -398,8 +431,8 @@ router.post('/submit', qrAttendanceLimiter, authMiddleware, checkLiveSessionGuar
       expiryOk: false,
       deviceOk: false,
       duplicateOk: true,
-      locationOk: latitude !== undefined && longitude !== undefined,
-      failReason: ''
+      locationOk: locationOk,
+      failReason: locationOk ? '' : 'Valid device geolocation (latitude and longitude) is required for QR attendance'
     };
 
     // 1. Session check
@@ -416,6 +449,21 @@ router.post('/submit', qrAttendanceLimiter, authMiddleware, checkLiveSessionGuar
         verification.failReason = 'Live session does not belong to your enrolled class';
       } else {
         verification.sessionOk = true;
+      }
+    }
+
+    // Geolocation radius check against session coordinates if configured
+    if (verification.locationOk && liveSession) {
+      const sessionLat = liveSession.latitude ?? liveSession.location?.latitude ?? liveSession.location?.lat;
+      const sessionLng = liveSession.longitude ?? liveSession.location?.longitude ?? liveSession.location?.lng;
+      const maxRadiusM = liveSession.maxRadiusMeters || 200;
+
+      if (sessionLat !== undefined && sessionLat !== null && sessionLng !== undefined && sessionLng !== null) {
+        const distance = haversineDistance(Number(latitude), Number(longitude), Number(sessionLat), Number(sessionLng));
+        if (distance > maxRadiusM) {
+          verification.locationOk = false;
+          verification.failReason = `Location too far from classroom (${Math.round(distance)}m away, max allowed: ${maxRadiusM}m)`;
+        }
       }
     }
 
@@ -438,11 +486,11 @@ router.post('/submit', qrAttendanceLimiter, authMiddleware, checkLiveSessionGuar
 
     // 3. Cross-device and One-device Restriction check
     if (verification.sessionOk && verification.qrOk) {
-      if (deviceId) {
+      if (deviceId && String(deviceId).trim()) {
         // Prevent another student from marking attendance on the same physical device in the same live session
         const proxyCheck = await M.LiveSessionsAtt.findOne({
           sessionTrackId,
-          deviceId: String(deviceId),
+          deviceId: String(deviceId).trim(),
           studentId: { $ne: student._id },
           status: 'completed'
         });
@@ -454,8 +502,9 @@ router.post('/submit', qrAttendanceLimiter, authMiddleware, checkLiveSessionGuar
           verification.deviceOk = true;
         }
       } else {
-        // If deviceId wasn't provided, permit as standard session bound to user login
-        verification.deviceOk = true;
+        // deviceId is mandatory to prevent proxy attendance
+        verification.deviceOk = false;
+        verification.failReason = 'Device identification is required for QR attendance verification';
       }
     }
 
@@ -466,7 +515,8 @@ router.post('/submit', qrAttendanceLimiter, authMiddleware, checkLiveSessionGuar
       verification.qrOk &&
       verification.expiryOk &&
       verification.deviceOk &&
-      verification.duplicateOk;
+      verification.duplicateOk &&
+      verification.locationOk;
 
     existingRecord.qrWindowIndex = qrVerification.matchedWindowIndex;
     existingRecord.qrWindowType = qrVerification.type || 'invalid';
@@ -493,7 +543,9 @@ router.post('/submit', qrAttendanceLimiter, authMiddleware, checkLiveSessionGuar
               studentId: student._id,
               regNo: regNo,
               time: new Date(),
-              ip: req.ip
+              ip: req.ip,
+              deviceId: deviceId ? String(deviceId) : '',
+              source: 'qr'
             }
           }
         }
@@ -566,6 +618,21 @@ router.get('/participation/:sessionTrackId', authMiddleware, async (req, res) =>
     }
 
     const sessionTrackId = req.params.sessionTrackId;
+
+    // Verify session ownership (A15)
+    if (req.user.role !== 'admin') {
+      const session = await M.LiveSession.findOne({ trackId: sessionTrackId }).lean() ||
+                      await M.ScanLiveSession.findOne({ sessionTrackId }).lean();
+      if (session) {
+        const teacherTrackId = req.user.trackId || String(req.user._id);
+        const isOwner = (session.teacherTrackId && session.teacherTrackId === teacherTrackId) ||
+                        (session.teacherId && (String(session.teacherId) === String(req.user._id) || String(session.teacherId) === String(req.user.roleId)));
+        if (!isOwner) {
+          return res.status(403).json({ error: 'You can only view participation records for your own sessions' });
+        }
+      }
+    }
+
     const records = await M.LiveSessionsAtt.find({ sessionTrackId })
       .sort({ markedAt: 1 })
       .lean();
@@ -587,5 +654,6 @@ router.get('/participation/:sessionTrackId', authMiddleware, async (req, res) =>
     res.status(500).json({ error: 'Failed to retrieve participation records' });
   }
 });
+
 
 module.exports = router;

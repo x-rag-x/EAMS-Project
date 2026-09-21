@@ -1,3 +1,57 @@
+## 🔹 `v2.3.3` — 21 September 2026 *(Security Hardening & Authorization Overhaul)*
+
+### *Encryption & Security*
+- **Stronger Encryption (`utils/qrCrypto.js`)**: Upgraded encryption from AES-256-CBC to AES-256-GCM, which also verifies data hasn't been tampered with. Old encrypted data is still readable through automatic backward compatibility.
+- **No More Default Keys**: Removed all hardcoded fallback encryption keys. `LOG_ENCRYPTION_KEY`, `SID_ENCRYPTION_KEY`, and `QRID_ENCRYPTION_KEY` must now be set in environment variables — the server won't start without them.
+- **No Hardcoded QR Secret**: Removed the static `'eams_default_qr_secret'` fallback. All QR code generation now strictly requires an active, random session secret.
+- **Secure ID Generation**: Session track IDs now use proper cryptographic random generation instead of `Math.random()`, making them unpredictable.
+
+### *Authorization & Access Control*
+- **Role Checks on Attendance APIs**: Attendance marking and updating endpoints now only allow teachers and admins — students can no longer directly call these APIs.
+- **Teacher-Subject Verification**: Before marking or editing attendance, the system now checks that the teacher is actually assigned to that class and subject (admins are exempt).
+- **Token Query String Blocked (`middleware/auth.js`)**: Tokens must now only be passed in `Authorization: Bearer` headers; query parameters (`?token=`) are rejected to prevent sensitive tokens from leaking into browser history or logs.
+- **Location-Denied Protection (`routes/auth.routes.js`)**: The `/api/auth/location-denied` endpoint now requires a verified pre-authentication token or valid password before locking an account, closing the denial-of-service lockout vulnerability.
+- **Attendance Edit Lock**: Institutions can now set a time window (e.g., 6 hours) after which attendance records automatically lock and can't be edited by teachers.
+- **Period Author Verification**: Only the teacher who originally marked a period can edit it, unless the other teacher is also assigned to that class.
+- **Privilege Escalation Protection (`routes/users.routes.js`)**: Teacher-admins can no longer grant themselves more admin rights or special designations — only full admins can change these fields.
+- **New `requireRole` Middleware (`middleware/auth.js`)**: A reusable middleware to check user roles at the route level.
+- **Timetable Edit Protection (`routes/timetable.routes.js`)**: Only coordinators and admins can create, edit, or delete timetable slots.
+
+### *Live Session & QR Attendance Security*
+- **Device ID Required**: Both passcode and QR attendance now require a device identifier — without it, the request is rejected. This prevents one student marking attendance for another.
+- **Input Bounds & Coordinate Validation**: Added string length caps and latitude/longitude range limits (-90 to 90, -180 to 180) across all live attendance submission endpoints.
+- **Location Radius Check (`routes/qrAttendance.routes.js`)**: QR attendance now checks if the student's GPS location is within 200 meters (configurable) of the classroom. If too far, attendance is rejected.
+- **Location is Now Mandatory**: Previously, missing location data was silently allowed. Now it fails the verification.
+- **Mode Mismatch Blocked**: If a session is set to passcode mode, QR submissions are rejected and vice versa.
+- **Session Ownership Checks (IDOR Fixes)**:
+  - Teachers can only view status, end, or see participation for their own live sessions.
+  - Quick Pass end and save-draft now verify the teacher owns that session.
+  - Rep Share view, submit, draft review, and cancel all check that the user is the assigned teacher or rep.
+- **QR Image Generation Now Protected**: The QR code image endpoint now requires login and rate limiting — it was previously open to anyone.
+- **Live Session Model Updates (`models/system.model.js`)**: Added location fields (`latitude`, `longitude`, `maxRadiusMeters`) for classroom geofencing. Each marked student now tracks `deviceId` and `source` (whether they used code, QR, or passcode).
+
+### *XSS Prevention & Server Headers*
+- **HTML Escaping (`public/js/core/session.js`)**: Added a global `escapeHtml()` function that sanitizes special characters before inserting user content into the page, preventing script injection attacks. Added to all portal pages.
+- **Grievance Content Sanitized (`teacher.page.js`)**: Grievance subject, status, category, and detail text are now properly escaped before display.
+- **Hardened Server Security Headers (`server.js`)**: Removed `'unsafe-eval'` from CSP script sources, restricted resource sharing to `same-origin`, and made reverse proxy trust conditional (`TRUST_PROXY` or production environment).
+
+### *Rate Limiting & Defensive Controls*
+- **Attendance Marking**: Limited to 60 requests per 5 minutes per IP address.
+- **Attendance Updates**: Limited to 60 requests per 5 minutes per IP address.
+- **Login & Location Rate Limiting**: Added `loginLimiter` protection to `/location-denied` and established a reasonable 100-request development floor.
+- **Database Backup Protection**: Applied critical rate limiting to system database backups.
+
+### *Data Model & Performance*
+- **Attendance Model (`models/attendance.model.js`)**: Added `overallPercentage` field and faster database indexes on class and date combinations.
+- **Batch Support in Student Routes (`routes/students.routes.js`)**: Creating and editing students now supports the `batch` field alongside `batchTrackId`. If batch isn't provided, it's automatically pulled from the class. Filtering students by batch now searches across multiple related fields.
+- **Student Period Notes (`routes/attendance.routes.js`)**: Students can now view period notes, but only for their own class — they can't see other classes' data.
+- **Location Cache (`utils/reverseGeocode.js`)**: Added an in-memory cache (up to 500 entries) for location lookups, so the same area doesn't trigger repeated external API calls.
+- **Settings Query Sanitization (`routes/settings.routes.js`)**: Bounded pagination (`page`, `limit` capped at 100) and escaped search query characters.
+- **Safe Database Seeding (`config/db.js`)**: Added safety guards to prevent crashes or insecure accounts if default passwords are not configured in `.env`.
+
+### `Total 43 Files changed and updated in v2.3.3`
+
+
 ## 🔹 `v2.3.2` — 16 September 2026 *(Complete Attendance Implementation)*
 
 ### *Multi-Modal Live Attendance Suite (QR, Quick Pass & Rep Share)*

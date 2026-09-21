@@ -16,7 +16,12 @@ require('./config/db');
 require('./utils/serverState');
 
 const app = express();
-app.set('trust proxy', 1);
+// Only trust reverse proxy if explicitly enabled via environment or when running in production
+if (process.env.TRUST_PROXY === 'true' || (cfg.NODE_ENV === 'production' && process.env.TRUST_PROXY !== 'false')) {
+  app.set('trust proxy', 1);
+} else {
+  app.set('trust proxy', false);
+}
 const upload = multer({ storage: multer.memoryStorage() });
 
 // Configure global application middleware
@@ -24,7 +29,7 @@ app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc:    ["'self'"],
-      scriptSrc:     ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://cdnjs.cloudflare.com"],
+      scriptSrc:     ["'self'", "'unsafe-inline'", "https://cdnjs.cloudflare.com"],
       scriptSrcElem: ["'self'", "'unsafe-inline'", "https://cdnjs.cloudflare.com"],
       scriptSrcAttr: ["'unsafe-inline'"],
       styleSrc:      ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
@@ -36,7 +41,7 @@ app.use(helmet({
       upgradeInsecureRequests: null,
     },
   },
-  crossOriginResourcePolicy: { policy: "cross-origin" },
+  crossOriginResourcePolicy: { policy: "same-origin" },
 }));
 app.use(cors({origin: cfg.CORS_ORIGIN,credentials: true}));
 app.use(express.json({ limit: '1mb' }));

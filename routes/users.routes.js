@@ -274,18 +274,21 @@ router.put('/:id', authMiddleware, async (req, res) => {
         // Update role-specific fields
         if (user.role === 'admin') {
           if (employeeNo !== undefined) roleDoc.employeeNo = employeeNo.trim();
-          if (adminRights !== undefined) roleDoc.adminRights = adminRights;
+          if (adminRights !== undefined && req.user.role === 'admin') roleDoc.adminRights = adminRights;
         } else if (user.role === 'teacher') {
           if (designation !== undefined) roleDoc.designation = designation.trim();
           if (employeeNo !== undefined) roleDoc.employeeNo = employeeNo.trim();
-          if (userIsAdmin !== undefined) roleDoc.isAdmin = !!userIsAdmin;
-          if (adminRights !== undefined) roleDoc.adminRights = adminRights;
+          // Only true admins can grant/revoke admin status, admin rights, or special designations
+          if (req.user.role === 'admin') {
+            if (userIsAdmin !== undefined) roleDoc.isAdmin = !!userIsAdmin;
+            if (adminRights !== undefined) roleDoc.adminRights = adminRights;
+            if (specials !== undefined && Array.isArray(specials)) {
+              roleDoc.specials = specials;
+            }
+          }
           if (defaultAttendanceStatus !== undefined) {
             if (!roleDoc.preferences) roleDoc.preferences = {};
             roleDoc.preferences.defaultAttendanceStatus = defaultAttendanceStatus;
-          }
-          if (specials !== undefined && Array.isArray(specials)) {
-            roleDoc.specials = specials;
           }
         } else if (user.role === 'student') {
           if (registerNo !== undefined) roleDoc.registerNo = registerNo.trim();

@@ -65,12 +65,14 @@ const StudentSchema = new mongoose.Schema({
   deptId:       { type: mongoose.Schema.Types.ObjectId, ref: 'Department', required: true },
   admissionYear: { type: String, default: '' },
   batchTrackId:  { type: String, default: '', trim: true },
+  batch:         { type: String, default: '', trim: true },
   manageId:      { type: mongoose.Schema.Types.ObjectId, ref: 'DataManagement' },
   email:        { type: String, default: '', lowercase: true, trim: true },
   username:     { type: String, required: true, unique: true, trim: true, lowercase: true },
   password:     { type: String, required: true, select: false },
   trackId:      { type: String, trim: true, required:true },
   isRep:        { type: Boolean, default: false },
+  attendancePercentage: { type: Number, default: 100 },
   mustChangePassword:   { type: Boolean, default: true },
   passwordHistory:      { type: [{ hash: { type: String, required: true }, changedAt: { type: Date, default: Date.now } }], select: false, default: [] },
 }, { timestamps: true });
@@ -78,9 +80,12 @@ const StudentSchema = new mongoose.Schema({
 StudentSchema.index({ deptId: 1 });
 StudentSchema.index({ deptId: 1, classId: 1 });
 StudentSchema.index({ deptId: 1, batchTrackId: 1 });
+StudentSchema.index({ batch: 1 });
 StudentSchema.index({ classId: 1, section: 1 });
 StudentSchema.index({ fullName: 1 });
 StudentSchema.index({ registerNo: 1 });
+StudentSchema.index({ attendancePercentage: 1 });
+
 
 // Base shadow user schema for session and status tracking
 const UserSchema = new mongoose.Schema({

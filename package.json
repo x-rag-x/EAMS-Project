@@ -5,7 +5,8 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "setup": "node scripts/start.js"
+    "setup": "node dev/start.js",
+    "att": "node dev/attendanceDev.js"
   },
   "engines": {
     "node": ">=18.0.0"

@@ -25,11 +25,14 @@ const ClassAttendanceSchema = new mongoose.Schema({
     updatedAt:      { type: Date, default: Date.now }
 });
 
+ClassAttendanceSchema.index({ classId: 1, date: 1 });
+
 const StudentAttendanceSchema = new mongoose.Schema({
-    studentTrackId: { type: String, required: true, unique: true },
-    batch:          { type: String, required: true },
-    departmentCode: { type: String, required: true },
-    classId:        { type: String, required: true },
+    studentTrackId:    { type: String, required: true, unique: true },
+    batch:             { type: String, required: true },
+    departmentCode:    { type: String, required: true },
+    classId:           { type: String, required: true },
+    overallPercentage: { type: Number, default: 100 },
     records: [{
         subjectTrackId:   { type: String, required: true },
         sem:              { type: Number, required: true },
@@ -38,6 +41,10 @@ const StudentAttendanceSchema = new mongoose.Schema({
         updatedAt:        { type: Date, required: true }
     }]
 });
+
+StudentAttendanceSchema.index({ overallPercentage: 1 });
+StudentAttendanceSchema.index({ classId: 1 });
+
 
 const ExamAttendanceSchema = new mongoose.Schema({
     examTrackId:    { type: String, required: true },

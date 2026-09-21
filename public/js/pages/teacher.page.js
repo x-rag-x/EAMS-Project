@@ -1,3 +1,13 @@
+function escapeHtml(str) {
+  if (str === null || str === undefined) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 // State
 var _memStore = {};
   const DB = {
@@ -3309,11 +3319,11 @@ var _memStore = {};
         + '<div class="gic ' + icClass + '">' + iconCode + '</div>'
         + '<div style="flex:1;">'
         + '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px;">'
-        + '<div style="font-size:13px;font-weight:700;color:var(--td);">' + grievance.subject + '</div>'
-        + '<span class="spill ' + pillClass + '" ' + pillStyle + '>' + grievance.status + '</span>'
-        + '<span class="bge">' + grievance.category + '</span>'
+        + '<div style="font-size:13px;font-weight:700;color:var(--td);">' + escapeHtml(grievance.subject) + '</div>'
+        + '<span class="spill ' + pillClass + '" ' + pillStyle + '>' + escapeHtml(grievance.status) + '</span>'
+        + '<span class="bge">' + escapeHtml(grievance.category) + '</span>'
         + '</div>'
-        + '<div style="font-size:11.5px;color:var(--tmu);line-height:1.5;">' + grievance.detail + '</div>'
+        + '<div style="font-size:11.5px;color:var(--tmu);line-height:1.5;">' + escapeHtml(grievance.detail) + '</div>'
         + '<div style="font-size:10px;color:var(--tdi);margin-top:5px;">' + formatDateLong(grievance.createdAt.split('T')[0]) + ' · Sent to Admin</div>'
         + statusNote
         + '</div></div>';

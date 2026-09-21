@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const M = require('../models');
-const { authMiddleware, adminOnly } = require('../middleware/auth');
+const { authMiddleware, adminOnly, requireRole } = require('../middleware/auth');
 const { logAction } = require('../utils/logAction');
 const { sanitizeToString } = require('../utils/sanitizeQuery');
 const { checkModuleGuard } = require('../middleware/portalGuard');
@@ -13,13 +13,29 @@ router.get('/', authMiddleware, async (req, res) => {
     if (req.query.date)           filter.date           = new Date(sanitizeToString(req.query.date) + 'T00:00:00');
     if (req.query.teacherTrackId) filter.teacherTrackId = sanitizeToString(req.query.teacherTrackId);
     if (req.query.hallNo)         filter.hallNo         = sanitizeToString(req.query.hallNo);
-    const records = await M.ExamAttendance.find(filter).sort({ markedAt: -1 });
+
+    // Students can only see their own exam attendance records
+    if (req.user.role === 'student') {
+      filter['records.studentTrackId'] = req.user.trackId;
+    }
+
+    const records = await M.ExamAttendance.find(filter).sort({ markedAt: -1 }).lean();
+
+    // If student, filter each document's records array to only include their own entry
+    if (req.user.role === 'student') {
+      const studentRecords = records.map(r => ({
+        ...r,
+        records: (r.records || []).filter(rec => String(rec.studentTrackId) === String(req.user.trackId))
+      }));
+      return res.json(studentRecords);
+    }
+
     res.json(records);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // GET /api/exam-attendance/halls-today  — summary per hall for a date
-router.get('/halls-today', authMiddleware, async (req, res) => {
+router.get('/halls-today', authMiddleware, requireRole('teacher', 'admin'), async (req, res) => {
   try {
     const { examTrackId, date } = req.query;
     if (!examTrackId) return res.status(400).json({ error: 'examTrackId required' });
@@ -33,14 +49,22 @@ router.get('/halls-today', authMiddleware, async (req, res) => {
 // GET /api/exam-attendance/:id
 router.get('/:id', authMiddleware, async (req, res) => {
   try {
-    const rec = await M.ExamAttendance.findById(req.params.id);
+    const rec = await M.ExamAttendance.findById(req.params.id).lean();
     if (!rec) return res.status(404).json({ error: 'Not found' });
+
+    if (req.user.role === 'student') {
+      const ownRecord = (rec.records || []).find(r => String(r.studentTrackId) === String(req.user.trackId));
+      if (!ownRecord) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+      rec.records = [ownRecord];
+    }
     res.json(rec);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // POST /api/exam-attendance  — upsert by (examTrackId, date, hallNo, teacherTrackId)
-router.post('/', authMiddleware, checkModuleGuard('modelExams', 'Exams Module'), async (req, res) => {
+router.post('/', authMiddleware, requireRole('teacher', 'admin'), checkModuleGuard('modelExams', 'Exams Module'), async (req, res) => {
   try {
     const { examTrackId, date, hallNo, records, isFinalized } = req.body;
     if (!examTrackId || !date || !hallNo) return res.status(400).json({ error: 'examTrackId, date, hallNo required' });

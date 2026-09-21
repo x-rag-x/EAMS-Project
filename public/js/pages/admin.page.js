@@ -1,3 +1,13 @@
+function escapeHtml(str) {
+  if (str === null || str === undefined) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 var _memStore = {};
 
 // ─── DATABASE HELPER ────────────────────────────────────────────────────────
@@ -1361,10 +1371,10 @@ function renderNotificationsMain() {
     return '<div class="notif-item ' + highlight + '" onclick="markNotificationRead(\'' + n._id + '\')">'
       + '<div class="notif-icon-row">'
       + '<div class="notif-ic ' + (n.type === 'error' ? 'error' : 'request') + '">' + icon + '</div>'
-      + '<div class="notif-from">' + n.from + '</div>'
+      + '<div class="notif-from">' + escapeHtml(n.from) + '</div>'
       + statusBadge + unreadDot
       + '</div>'
-      + '<div class="notif-msg">' + n.message + '</div>'
+      + '<div class="notif-msg">' + escapeHtml(n.message) + '</div>'
       + '<div class="notif-time">' + timeAgo(n.time) + '</div>'
       + actionBtns
       + '</div>';
@@ -1393,8 +1403,8 @@ function renderNotificationDropdown() {
     return '<div class="nd-item' + (!n.read ? ' unread' : '') + '" onclick="markNotificationRead(\'' + n._id + '\');toggleNotificationDropdown()">'
       + '<div style="font-size:20px;flex-shrink:0;">' + (n.type === 'error' ? '❌' : '📩') + '</div>'
       + '<div style="flex:1;min-width:0;">'
-      + '<div class="nd-from">' + n.from + unreadDot + statusChip + '<span class="' + tagClass + '" style="margin-left:auto;">' + n.type + '</span></div>'
-      + '<div class="nd-msg">' + n.message + '</div>'
+      + '<div class="nd-from">' + escapeHtml(n.from) + unreadDot + statusChip + '<span class="' + tagClass + '" style="margin-left:auto;">' + escapeHtml(n.type) + '</span></div>'
+      + '<div class="nd-msg">' + escapeHtml(n.message) + '</div>'
       + '<div class="nd-tm">' + timeAgo(n.time) + '</div>'
       + '</div></div>';
   }).join('');
@@ -1429,9 +1439,9 @@ function renderNotificationsAll() {
     return '<div class="m-item" onclick="markNotificationRead(\'' + n._id + '\')">'
       + '<div class="m-ic" style="background:' + (n.type === 'error' ? 'rgba(239,68,68,.08)' : 'rgba(245,158,11,.08)') + '">' + (n.type === 'error' ? '❌' : '📩') + '</div>'
       + '<div class="m-body" style="flex:1;">'
-      + '<div class="m-name" style="display:flex;align-items:center;gap:7px;">' + n.from
-      + '<span class="' + tagClass + '">' + n.type + '</span>' + unreadDot + statusChip + '</div>'
-      + '<div class="m-sub">' + n.message + '</div>'
+      + '<div class="m-name" style="display:flex;align-items:center;gap:7px;">' + escapeHtml(n.from)
+      + '<span class="' + tagClass + '">' + escapeHtml(n.type) + '</span>' + unreadDot + statusChip + '</div>'
+      + '<div class="m-sub">' + escapeHtml(n.message) + '</div>'
       + '<div style="font-size:10px;color:var(--tdi);margin-top:3px;">' + new Date(n.time).toLocaleString('en-IN') + '</div>'
       + actionBtns
       + '</div></div>';
@@ -3189,7 +3199,7 @@ function _renderStudentTable(data, append) {
       + '<td>' + absIdx + '</td>'
       + '<td class="b">' + (student.name || '—') + '</td>'
       + '<td>' + (student.regNo || '—') + '</td>'
-      + '<td>' + (student.academicYear || '—') + '</td>'
+      + '<td>' + (student.batch || '—') + '</td>'
       + '<td>' + (student.courseType || '—') + '</td>'
       + '<td>' + (student.branch || student.deptName || '—') + '</td>'
       + '<td>' + (student.deptName || '—') + '</td>'
@@ -3297,7 +3307,8 @@ function filterStudentsLive(query) {
   var filtered = _studentData.filter(function (s) {
     if (!_studentSearchQuery) return true;
     return (s.name || '').toLowerCase().indexOf(_studentSearchQuery) !== -1
-      || (s.regNo || '').toLowerCase().indexOf(_studentSearchQuery) !== -1;
+      || (s.regNo || '').toLowerCase().indexOf(_studentSearchQuery) !== -1
+      || (s.batch || '').toLowerCase().indexOf(_studentSearchQuery) !== -1;
   });
   var countEl = document.getElementById('scb');
   var tbody = document.getElementById('stb');
@@ -3315,7 +3326,7 @@ function filterStudentsLive(query) {
           + '<td>' + (idx + 1) + '</td>'
           + '<td class="b">' + (student.name || '—') + '</td>'
           + '<td>' + (student.regNo || '—') + '</td>'
-          + '<td>' + (student.academicYear || '—') + '</td>'
+          + '<td>' + (student.batch || '—') + '</td>'
           + '<td>' + (student.courseType || '—') + '</td>'
           + '<td>' + (student.branch || student.deptName || '—') + '</td>'
           + '<td>' + (student.deptName || '—') + '</td>'

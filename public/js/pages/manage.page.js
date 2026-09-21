@@ -1,3 +1,13 @@
+function escapeHtml(str) {
+  if (str === null || str === undefined) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 var currentUser  = null;
 var deptsData    = [];
 var examsData    = [];
@@ -259,13 +269,12 @@ function loadOverview() {
 
   }).catch(function(){ renderCalGrid({} , m, y, 'ov-cal-grid', true); });
 
-  apiCall('GET','/exams?status=upcoming&status=ongoing').then(function(data){
-    renderUpcomingExams(Array.isArray(data)?data:[]);
-  }).catch(function(){});
-
   apiCall('GET','/exams/active').then(function(data){
     renderUpcomingExams(Array.isArray(data)?data:[]);
-  }).catch(function(){});
+  }).catch(function(){
+    var cont = document.getElementById('ov-exams-list');
+    if (cont) cont.innerHTML = '<div style="text-align:center;padding:24px;color:var(--tdi);font-size:12px;">No upcoming exams.</div>';
+  });
 }
 
 function renderUpcomingExams(exams) {
@@ -1265,9 +1274,12 @@ function loadYears() {
     populateExamFilterAcYears();
     renderCurrentYear();
     renderYearsTable();
-  }).catch(function() {
+  }).catch(function(err) {
+    console.error('Error loading academic years:', err);
     var cont = document.getElementById('current-year-display');
-    if (cont) cont.innerHTML = '<div style="text-align:center;color:#dc2626;padding:20px;font-size:12px;">Failed to load</div>';
+    if (cont) cont.innerHTML = '<div style="text-align:center;color:#dc2626;padding:20px;font-size:12px;">Failed to load academic years.</div>';
+    var tbody = document.getElementById('years-tbody');
+    if (tbody) tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#dc2626;padding:24px;">Failed to load academic years.</td></tr>';
   });
 }
 
@@ -1275,11 +1287,15 @@ function renderCurrentYear() {
   var cont = document.getElementById('current-year-display');
   if (!cont) return;
   var currentYear = yearsData.find(function(y) { return y.isCurrent; });
+  if (!currentYear) {
+    cont.innerHTML = '<div style="text-align:center;color:var(--tdi);padding:24px 16px;font-size:13px;">No active academic year set. Click <strong style="color:var(--gD);cursor:pointer;" onclick="openYearModal(null)">+ Add Academic Year</strong> to configure one.</div>';
+    return;
+  }
   
   var html = '<div style="background:var(--gLt);border:2px solid var(--gM);border-radius:12px;padding:16px;">';
-  html += '<div style="font-size:20px;font-weight:800;color:var(--gD);margin-bottom:12px;">📚 ' + currentYear.academicYear + '</div>';
+  html += '<div style="font-size:20px;font-weight:800;color:var(--gD);margin-bottom:12px;">📚 ' + (currentYear.academicYear || '—') + '</div>';
   html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;">';
-  currentYear.batches.forEach(function(b) {
+  (currentYear.batches || []).forEach(function(b) {
     var idx = ROMAN_ORDER.indexOf(b.currentSem);
     var pct = idx >= 0 ? Math.round(((idx + 1) / ROMAN_ORDER.length) * 100) : 0;
     html += '<div class="yr-batch-card">';
@@ -1298,11 +1314,9 @@ function renderCurrentYear() {
 
 function renderYearsTable() {
   var tbody = document.getElementById('years-tbody');
-  var currentYear = yearsData.find(function(y) { return y.isCurrent; });
-
   if (!tbody) return;
   if (!yearsData.length) {
-    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--tdi);padding:24px;">No academic years. Click <strong>+ Add Academic Year</strong>.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--tdi);padding:24px;">No academic years configured. Click <strong>+ Add Academic Year</strong>.</td></tr>';
     return;
   }
 
@@ -1314,7 +1328,7 @@ function renderYearsTable() {
 
   var html = '';
   sorted.forEach(function(y) {
-    var batchPills = y.batches.map(function(b) {
+    var batchPills = (y.batches || []).map(function(b) {
       return '<span class="yr-batch-pill">' + b.batch + '<span class="yr-badge yr-badge-' + b.currentYear + '" style="padding:1px 6px;">' + b.currentYear + '·' + b.currentSem + '</span></span>';
     }).join('');
     var currentBadge = y.isCurrent ? '<span class="bge bgg">🎯 Current</span>' : '<span class="bge bggy">—</span>';

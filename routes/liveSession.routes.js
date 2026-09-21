@@ -1,29 +1,33 @@
 const express = require('express');
 const router = express.Router();
+const crypto = require('crypto');
+const mongoose = require('mongoose');
 const M = require('../models');
 const { authMiddleware, adminOnly } = require('../middleware/auth');
 const { liveSessionMarkLimiter } = require('../utils/rateLimiters');
 const { checkLiveSessionGuard } = require('../middleware/portalGuard');
-
-const mongoose = require('mongoose');
+const { verifyTeacherAssignment } = require('../utils/assignmentAuth');
+const { isCampusIpAllowed } = require('../utils/ipCheck');
 
 function generate12CharCode() {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   let code = '';
   for (let i = 0; i < 12; i++) {
-    code += chars.charAt(Math.floor(Math.random() * chars.length));
+    code += chars.charAt(crypto.randomInt(0, chars.length));
   }
   return code;
 }
 
 router.post('/start', authMiddleware, checkLiveSessionGuard, async (req, res) => {
-  if (req.user.role !== 'teacher') return res.status(403).json({ error: 'Only teachers can start live sessions' });
+  if (req.user.role !== 'teacher' && req.user.role !== 'admin') {
+    return res.status(403).json({ error: 'Only teachers can start live sessions' });
+  }
   try {
     const { classId, subjectId, date, attendanceMode = 'code', periodNumber = 1 } = req.body;
     if (!classId || !subjectId || !date) return res.status(400).json({ error: 'classId, subjectId, date required' });
 
     const teacherTrackId = req.user.trackId || String(req.user._id);
-    const trackId = 'TR_LS_' + Math.random().toString(36).substr(2, 9).toUpperCase();
+    const trackId = 'TR_LS_' + crypto.randomBytes(6).toString('hex').toUpperCase();
 
     const isValidObjId = (id) => typeof id === 'string' && mongoose.Types.ObjectId.isValid(id) && id.length === 24;
 
@@ -41,6 +45,12 @@ router.post('/start', authMiddleware, checkLiveSessionGuard, async (req, res) =>
     const sub = await M.Subject.findOne({ $or: subQueries }).lean();
     if (sub) targetSubjectId = sub._id;
 
+    // Verify teacher assignment to this class and subject (A3)
+    const assignCheck = await verifyTeacherAssignment(req.user, targetClassId, targetSubjectId);
+    if (!assignCheck.allowed) {
+      return res.status(403).json({ error: assignCheck.reason });
+    }
+
     // Close any existing active sessions for this teacher/class
     await M.LiveSession.updateMany({
       $or: [{ teacherId: req.user._id }, { teacherTrackId }, { classId: targetClassId }],
@@ -52,10 +62,10 @@ router.post('/start', authMiddleware, checkLiveSessionGuard, async (req, res) =>
       active: true
     }, { active: false });
 
-    // 12-character alphanumeric passcode
-    const passcode = generate12CharCode();
+    // 12-character alphanumeric passcode only generated for code mode (A6)
+    const isCodeMode = attendanceMode !== 'qr';
+    const passcode = isCodeMode ? generate12CharCode() : null;
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes from now
-    const crypto = require('crypto');
     const qrSecret = crypto.randomBytes(24).toString('hex');
 
     // Fetch dynamic rotation settings from system settings
@@ -132,7 +142,21 @@ router.get('/active', authMiddleware, checkLiveSessionGuard, async (req, res) =>
 
 router.post('/mark', liveSessionMarkLimiter, authMiddleware, checkLiveSessionGuard, async (req, res) => {
   if (req.user.role !== 'student') return res.status(403).json({ error: 'Students only' });
-  const { sessionId, passcode } = req.body;
+  const { sessionId, passcode, deviceId } = req.body;
+
+  const cleanSessionId = String(sessionId || '').trim();
+  const cleanPasscode = String(passcode || '').trim();
+  const cleanDeviceId = String(deviceId || '').trim();
+
+  if (!cleanSessionId || cleanSessionId.length > 50) {
+    return res.status(400).json({ error: 'Valid session ID required' });
+  }
+  if (!cleanPasscode || cleanPasscode.length > 50) {
+    return res.status(400).json({ error: 'Valid passcode required' });
+  }
+  if (!cleanDeviceId || cleanDeviceId.length > 150) {
+    return res.status(400).json({ error: 'Device identification (max 150 chars) is required to mark attendance.' });
+  }
 
   try {
     let student = null;
@@ -141,26 +165,38 @@ router.post('/mark', liveSessionMarkLimiter, authMiddleware, checkLiveSessionGua
     if (!student && req.user._id) student = await M.Student.findById(req.user._id);
     if (!student) return res.status(404).json({ error: 'Student profile not found' });
 
-    const session = await M.LiveSession.findById(sessionId);
+    const session = await M.LiveSession.findById(cleanSessionId);
     if (!session || !session.active || session.expiresAt < new Date()) {
       return res.status(400).json({ error: 'Session is no longer active' });
     }
 
-    // IP Check
-    const settings = await M.Settings.findOne({ key: 'college_ips' });
-    const allowed = settings ? settings.value : [];
-    let isAllowed = allowed.length === 0; // if empty, allow all
-    if (!isAllowed) {
-      for (const ip of allowed) {
-        if (req.ip.startsWith(ip) || (ip === '::1' && req.ip === '::1') || (ip === '127.0.0.1' && req.ip === '127.0.0.1') || req.ip.includes(ip)) {
-          isAllowed = true; break;
-        }
-      }
+    // Gate on attendanceMode: QR-mode sessions must not accept passcode submissions (A6)
+    if (session.attendanceMode !== 'code') {
+      return res.status(400).json({ error: 'This session does not accept passcode submissions. Please scan the live QR code.' });
     }
-    if (!isAllowed) return res.status(403).json({ error: 'Must connect via College Wi-Fi' });
+
+    // Device identification and proxy check (A5)
+    const cleanDeviceId = deviceId ? String(deviceId).trim() : '';
+    if (!cleanDeviceId) {
+      return res.status(400).json({ error: 'Device identification is required to mark attendance.' });
+    }
+
+    const deviceAlreadyUsed = session.markedStudents.some(
+      s => s.deviceId && s.deviceId === cleanDeviceId && String(s.studentId) !== String(student._id)
+    );
+    if (deviceAlreadyUsed) {
+      return res.status(403).json({ error: 'This physical device was already used by another student for this session.' });
+    }
+
+    // IP Check using shared CIDR-aware helper (A8)
+    const settings = await M.Settings.findOne({ key: 'college_ips' }).lean();
+    const allowedIps = settings ? settings.value : [];
+    if (!isCampusIpAllowed(req.ip, allowedIps)) {
+      return res.status(403).json({ error: 'Must connect via College Wi-Fi network' });
+    }
 
     // Passcode Check
-    if (session.passcode !== passcode) {
+    if (!session.passcode || session.passcode !== passcode) {
       return res.status(400).json({ error: 'Incorrect Passcode' });
     }
 
@@ -172,7 +208,9 @@ router.post('/mark', liveSessionMarkLimiter, authMiddleware, checkLiveSessionGua
       studentId: student._id,
       regNo: student.registerNo || student.regNo,
       time: new Date(),
-      ip: req.ip
+      ip: req.ip,
+      deviceId: cleanDeviceId,
+      source: 'passcode'
     });
     await session.save();
 
@@ -180,8 +218,8 @@ router.post('/mark', liveSessionMarkLimiter, authMiddleware, checkLiveSessionGua
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-router.get('/status/:id', authMiddleware, async (req, res) => {
-  if (req.user.role !== 'teacher') return res.status(403).json({ error: 'Teachers only' });
+router.get('/status/:id', authMiddleware, checkLiveSessionGuard, async (req, res) => {
+  if (req.user.role !== 'teacher' && req.user.role !== 'admin') return res.status(403).json({ error: 'Teachers only' });
   try {
     const teacherTrackId = req.user.trackId || String(req.user._id);
     const idParam = req.params.id;
@@ -189,12 +227,13 @@ router.get('/status/:id', authMiddleware, async (req, res) => {
     if (typeof idParam === 'string' && mongoose.Types.ObjectId.isValid(idParam) && idParam.length === 24) {
       idQueries.unshift({ _id: idParam });
     }
-    const session = await M.LiveSession.findOne({
-      $and: [
-        { $or: idQueries },
+    const query = { $or: idQueries };
+    if (req.user.role !== 'admin') {
+      query.$and = [
         { $or: [{ teacherId: req.user._id }, { teacherTrackId }] }
-      ]
-    });
+      ];
+    }
+    const session = await M.LiveSession.findOne(query);
     if (!session) return res.status(404).json({ error: 'Session not found' });
     
     const qrParticipation = await M.LiveSessionsAtt.find({
@@ -203,7 +242,7 @@ router.get('/status/:id', authMiddleware, async (req, res) => {
 
     res.json({
       active: session.active,
-      passcode: session.passcode,
+      passcode: session.attendanceMode === 'code' ? session.passcode : null, // Omit passcode for QR mode (A6)
       attendanceMode: session.attendanceMode || 'code',
       qrIntervalSec: session.qrIntervalSec || 15,
       trackId: session.trackId,
@@ -217,8 +256,8 @@ router.get('/status/:id', authMiddleware, async (req, res) => {
   }
 });
 
-router.post('/end/:id', authMiddleware, async (req, res) => {
-  if (req.user.role !== 'teacher') return res.status(403).json({ error: 'Teachers only' });
+router.post('/end/:id', authMiddleware, checkLiveSessionGuard, async (req, res) => {
+  if (req.user.role !== 'teacher' && req.user.role !== 'admin') return res.status(403).json({ error: 'Teachers only' });
   try {
     const teacherTrackId = req.user.trackId || String(req.user._id);
     const idParam = req.params.id;
@@ -226,18 +265,20 @@ router.post('/end/:id', authMiddleware, async (req, res) => {
     if (typeof idParam === 'string' && mongoose.Types.ObjectId.isValid(idParam) && idParam.length === 24) {
       idQueries.unshift({ _id: idParam });
     }
+    const teacherFilter = req.user.role === 'admin' ? {} : { $or: [{ teacherId: req.user._id }, { teacherTrackId }] };
+
     await Promise.all([
       M.LiveSession.findOneAndUpdate({
         $and: [
           { $or: idQueries },
-          { $or: [{ teacherId: req.user._id }, { teacherTrackId }] }
-        ]
+          teacherFilter
+        ].filter(q => Object.keys(q).length > 0)
       }, { active: false }),
       M.ScanLiveSession.findOneAndUpdate({
         $and: [
           { $or: [{ sessionTrackId: idParam }, { _id: idParam }] },
-          { $or: [{ teacherId: req.user._id }, { teacherTrackId }] }
-        ]
+          teacherFilter
+        ].filter(q => Object.keys(q).length > 0)
       }, { active: false, endedAt: new Date() })
     ]);
     res.json({ success: true });
@@ -247,4 +288,4 @@ router.post('/end/:id', authMiddleware, async (req, res) => {
   }
 });
 
-module.exports = router;
+module.exports = router;

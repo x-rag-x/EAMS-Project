@@ -2,11 +2,11 @@ const express = require('express');
 const router = express.Router();
 const mongoose = require('mongoose');
 const M = require('../models');
-const { authMiddleware, adminOnly } = require('../middleware/auth');
-const { logAction } = require('../utils/logAction');
-const { attendanceClearLimiter } = require('../utils/rateLimiters');
+const { authMiddleware, adminOnly, requireRole } = require('../middleware/auth');
+const { attendanceClearLimiter, attendanceMarkLimiter, attendanceUpdateLimiter } = require('../utils/rateLimiters');
 const { sanitizeToString } = require('../utils/sanitizeQuery');
 const { checkAttendanceMarkGuard, getCachedSettings } = require('../middleware/portalGuard');
+const { verifyTeacherAssignment } = require('../utils/assignmentAuth');
 
 function parseYearNum(val) {
   if (typeof val === 'number') return val;
@@ -39,61 +39,16 @@ function normalizeStatus(status) {
   return 'AB';
 }
 
+const { computeStudentAttendance } = require('../utils/attendanceCalculator');
+
 async function syncStudentAttendanceCounters(studentTrackId, targetClassId) {
   try {
-    const studentQuery = [];
-    if (mongoose.isValidObjectId(studentTrackId)) {
-      studentQuery.push({ _id: studentTrackId });
-    }
-    studentQuery.push({ trackId: studentTrackId });
-    const student = await M.Student.findOne({ $or: studentQuery }).select('-password').lean();
-    if (!student) return;
-
-    const classId = targetClassId || student.classId || student.class;
-    const classQuery = [classId];
-    if (student.classId) classQuery.push(String(student.classId));
-    if (student.class) classQuery.push(student.class);
-    const uniqueClassIds = [...new Set(classQuery)];
-
-    const classAttDocs = await M.ClassAttendance.find({ classId: { $in: uniqueClassIds } }).lean();
-
-    const subjectStats = {}; // subjectTrackId -> { sem, classesHeld, classesAttended }
-    for (const doc of classAttDocs) {
-      for (const period of doc.periods || []) {
-        const sid = period.subjectTrackId;
-        if (!sid) continue;
-        if (!subjectStats[sid]) {
-          subjectStats[sid] = { subjectTrackId: sid, sem: doc.sem || 1, classesHeld: 0, classesAttended: 0 };
-        }
-        subjectStats[sid].classesHeld += 1;
-        const stuRec = (period.records || []).find(r => r.studentTrackId === studentTrackId);
-        if (stuRec && stuRec.status === 'P') {
-          subjectStats[sid].classesAttended += 1;
-        }
-      }
-    }
-
-    const records = Object.values(subjectStats).map(st => ({
-      ...st,
-      updatedAt: new Date()
-    }));
-
-    await M.StudentAttendance.findOneAndUpdate(
-      { studentTrackId },
-      {
-        $set: {
-          batch: student.batch,
-          departmentCode: student.deptCode || student.department,
-          classId: String(classId),
-          records
-        }
-      },
-      { upsert: true, returnDocument: 'after' }
-    );
+    await computeStudentAttendance(studentTrackId, targetClassId);
   } catch (err) {
     console.error('Error syncing student attendance counter:', err);
   }
 }
+
 
 // GET /api/attendance - Query attendance records with search, filters, and pagination
 router.get('/', authMiddleware, async (req, res) => {
@@ -110,7 +65,29 @@ router.get('/', authMiddleware, async (req, res) => {
     const limit = (limitParam === '0' || limitParam === 'all') ? 0 : Math.max(1, parseInt(limitParam || '50', 10));
 
     const filter = {};
-    if (qClassId && qClassId !== 'all') {
+    let studentCaller = null;
+    if (req.user.role === 'student') {
+      const studentQueries = [{ trackId: req.user.trackId }, { username: req.user.username }];
+      if (typeof req.user._id === 'string' && mongoose.Types.ObjectId.isValid(req.user._id)) {
+        studentQueries.push({ _id: req.user._id });
+      }
+      studentCaller = await M.Student.findOne({ $or: studentQueries }).lean();
+      if (!studentCaller || (!studentCaller.classId && !studentCaller.class)) {
+        return res.json([]);
+      }
+      const studentClassId = studentCaller.classId || studentCaller.class;
+      const classQuery = [{ _id: studentClassId }, { classTrackId: studentClassId }, { name: studentClassId }];
+      if (mongoose.Types.ObjectId.isValid(studentClassId)) {
+        classQuery.unshift({ _id: new mongoose.Types.ObjectId(studentClassId) });
+      }
+      const cls = await M.Class.findOne({ $or: classQuery }).lean();
+      const validClassIds = [String(studentClassId)];
+      if (cls) {
+        validClassIds.push(String(cls._id));
+        if (cls.classTrackId) validClassIds.push(cls.classTrackId);
+      }
+      filter.classId = { $in: validClassIds };
+    } else if (qClassId && qClassId !== 'all') {
       filter.$or = [{ classId: qClassId }];
       const classQuery = [];
       if (mongoose.isValidObjectId(qClassId)) {
@@ -209,6 +186,12 @@ router.get('/', authMiddleware, async (req, res) => {
 
         for (let rIdx = 0; rIdx < (period.records || []).length; rIdx++) {
           const rec = period.records[rIdx];
+          if (studentCaller) {
+            const isOwn = rec.studentTrackId === studentCaller.trackId ||
+                          String(rec.studentTrackId) === String(studentCaller._id) ||
+                          rec.studentTrackId === studentCaller.registerNo;
+            if (!isOwn) continue;
+          }
           const stuObj = studentMap.get(rec.studentTrackId);
           const studentId = stuObj ? String(stuObj._id) : rec.studentTrackId;
           const studentName = stuObj ? stuObj.fullName : rec.studentTrackId;
@@ -295,7 +278,28 @@ router.get('/period-notes', authMiddleware, async (req, res) => {
     const qSearch = sanitizeToString(req.query.search);
 
     const filter = {};
-    if (qClassId && qClassId !== 'all') {
+    if (req.user.role === 'student') {
+      const studentQueries = [{ trackId: req.user.trackId }, { username: req.user.username }];
+      if (typeof req.user._id === 'string' && mongoose.Types.ObjectId.isValid(req.user._id)) {
+        studentQueries.push({ _id: req.user._id });
+      }
+      const studentCaller = await M.Student.findOne({ $or: studentQueries }).lean();
+      if (!studentCaller || (!studentCaller.classId && !studentCaller.class)) {
+        return res.json([]);
+      }
+      const studentClassId = studentCaller.classId || studentCaller.class;
+      const classQuery = [{ _id: studentClassId }, { classTrackId: studentClassId }, { name: studentClassId }];
+      if (mongoose.Types.ObjectId.isValid(studentClassId)) {
+        classQuery.unshift({ _id: new mongoose.Types.ObjectId(studentClassId) });
+      }
+      const cls = await M.Class.findOne({ $or: classQuery }).lean();
+      const validClassIds = [String(studentClassId)];
+      if (cls) {
+        validClassIds.push(String(cls._id));
+        if (cls.classTrackId) validClassIds.push(cls.classTrackId);
+      }
+      filter.classId = { $in: validClassIds };
+    } else if (qClassId && qClassId !== 'all') {
       filter.classId = qClassId;
     }
     if (qFrom || qTo) {
@@ -484,10 +488,19 @@ async function appendAttendanceChangeToDailyLog(classId, dateStr, periodNum, stu
 }
 
 // POST /api/attendance/update - Update an individual attendance record
-router.post('/update/:id?', authMiddleware, async (req, res) => {
+router.post('/update/:id?', attendanceUpdateLimiter, authMiddleware, requireRole('teacher', 'admin'), checkAttendanceMarkGuard, async (req, res) => {
   try {
     const { status, remarks, studentTrackId, date, periodNumber } = req.body;
     const idParam = req.params.id;
+
+    // Check institutional attendance editing policy
+    const settingsDoc = await M.Settings.findOne({ key: 'attendance' }).lean();
+    const attConfig = settingsDoc?.value || {};
+    if (req.user.role !== 'admin') {
+      if (attConfig.allowAttendanceEdit === false) {
+        return res.status(403).json({ error: 'Attendance editing has been locked by institution policy.' });
+      }
+    }
 
     // Support composite ID: {docId}_{pIdx}_{rIdx}
     let classAttDoc = null;
@@ -501,7 +514,32 @@ router.post('/update/:id?', authMiddleware, async (req, res) => {
       rIdx = parseInt(parts[2], 10);
       classAttDoc = await M.ClassAttendance.findById(docId);
       if (classAttDoc && classAttDoc.periods && classAttDoc.periods[pIdx] && classAttDoc.periods[pIdx].records && classAttDoc.periods[pIdx].records[rIdx]) {
-        const rec = classAttDoc.periods[pIdx].records[rIdx];
+        const period = classAttDoc.periods[pIdx];
+
+        // Policy & assignment check for non-admins
+        if (req.user.role !== 'admin') {
+          const autoLockHours = Number(attConfig.autoLockAttendanceHours);
+          if (autoLockHours > 0) {
+            const classDate = classAttDoc.date ? new Date(classAttDoc.date) : (period.markedAt ? new Date(period.markedAt) : null);
+            if (classDate) {
+              const lockThreshold = new Date(Date.now() - autoLockHours * 3600 * 1000);
+              if (classDate < lockThreshold) {
+                return res.status(403).json({ error: `Attendance is locked. Edits are only permitted within ${autoLockHours} hours of the class.` });
+              }
+            }
+          }
+
+          const teacherTrackId = req.user.trackId || String(req.user._id);
+          const isPeriodAuthor = period.teacherTrackId === teacherTrackId;
+          if (!isPeriodAuthor) {
+            const assignCheck = await verifyTeacherAssignment(req.user, classAttDoc.classId, period.subjectTrackId);
+            if (!assignCheck.allowed) {
+              return res.status(403).json({ error: 'You are not authorized to edit this attendance period.' });
+            }
+          }
+        }
+
+        const rec = period.records[rIdx];
         if (status) rec.status = normalizeStatus(status);
         if (remarks !== undefined) rec.remarks = remarks;
         classAttDoc.periods[pIdx].records[rIdx] = rec;
@@ -510,7 +548,7 @@ router.post('/update/:id?', authMiddleware, async (req, res) => {
 
         if (rec.studentTrackId) {
           syncStudentAttendanceCounters(rec.studentTrackId, classAttDoc.classId).catch(() => {});
-          const pNum = classAttDoc.periods[pIdx].periodNumber || (pIdx + 1);
+          const pNum = period.periodNumber || (pIdx + 1);
           const dStr = classAttDoc.date ? new Date(classAttDoc.date).toISOString().split('T')[0] : (date || '');
           appendAttendanceChangeToDailyLog(classAttDoc.classId, dStr, pNum, rec.studentTrackId, rec.status, req).catch(() => {});
         }
@@ -533,6 +571,28 @@ router.post('/update/:id?', authMiddleware, async (req, res) => {
         if (periodNumber && p.periodNumber !== Number(periodNumber)) continue;
         const rec = p.records.find(r => r.studentTrackId === effectiveStudentTrackId);
         if (rec) {
+          if (req.user.role !== 'admin') {
+            const autoLockHours = Number(attConfig.autoLockAttendanceHours);
+            if (autoLockHours > 0) {
+              const classDate = attDoc.date ? new Date(attDoc.date) : (p.markedAt ? new Date(p.markedAt) : null);
+              if (classDate) {
+                const lockThreshold = new Date(Date.now() - autoLockHours * 3600 * 1000);
+                if (classDate < lockThreshold) {
+                  return res.status(403).json({ error: `Attendance is locked. Edits are only permitted within ${autoLockHours} hours of the class.` });
+                }
+              }
+            }
+
+            const teacherTrackId = req.user.trackId || String(req.user._id);
+            const isPeriodAuthor = p.teacherTrackId === teacherTrackId;
+            if (!isPeriodAuthor) {
+              const assignCheck = await verifyTeacherAssignment(req.user, attDoc.classId, p.subjectTrackId);
+              if (!assignCheck.allowed) {
+                return res.status(403).json({ error: 'You are not authorized to edit this attendance period.' });
+              }
+            }
+          }
+
           if (status) rec.status = normalizeStatus(status);
           if (remarks !== undefined) rec.remarks = remarks;
           matchedRec = rec;
@@ -558,7 +618,7 @@ router.post('/update/:id?', authMiddleware, async (req, res) => {
 });
 
 // POST /api/attendance - Save or batch update class attendance records
-router.post('/', authMiddleware, checkAttendanceMarkGuard, async (req, res) => {
+router.post('/', attendanceMarkLimiter, authMiddleware, requireRole('teacher', 'admin'), checkAttendanceMarkGuard, async (req, res) => {
   try {
     const isBatch = Array.isArray(req.body.records);
     const rawRecords = isBatch ? req.body.records : [req.body];
@@ -627,6 +687,13 @@ router.post('/', authMiddleware, checkAttendanceMarkGuard, async (req, res) => {
 
     const sub = await M.Subject.findOne({ $or: subjectQuery }).lean();
     const targetSubjectTrackId = sub ? (sub.subjectTrackId || sub.subjectCode || String(sub._id)) : subjectIdInput;
+
+    // Verify teacher assignment to this class and subject (skip for admin)
+    const assignCheck = await verifyTeacherAssignment(req.user, targetClassId, targetSubjectTrackId);
+    if (!assignCheck.allowed) {
+      return res.status(403).json({ error: assignCheck.reason });
+    }
+
 
     // Resolve Teacher
     const teacherTrackId = req.user.trackId || String(req.user._id);

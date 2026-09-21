@@ -50,6 +50,22 @@ const qrAttendanceLimiter = rateLimit({
   legacyHeaders: false,
 });
 
+const attendanceMarkLimiter = rateLimit({
+  windowMs: 5 * 60 * 1000, // 5 minutes
+  max: 60,
+  message: { error: 'Too many attendance marking requests. Please slow down.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const attendanceUpdateLimiter = rateLimit({
+  windowMs: 5 * 60 * 1000, // 5 minutes
+  max: 60,
+  message: { error: 'Too many attendance update requests. Please slow down.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 module.exports = {
   authLimiter,
   deleteAuthLimiter,
@@ -57,4 +73,7 @@ module.exports = {
   criticalDeleteLimiter,
   attendanceClearLimiter,
   qrAttendanceLimiter,
+  attendanceMarkLimiter,
+  attendanceUpdateLimiter,
 };
+

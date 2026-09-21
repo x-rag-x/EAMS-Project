@@ -194,17 +194,18 @@
     }
 
     function getStudentToken() {
-      return sessionStorage.getItem('eams_token') || localStorage.getItem('token') || sessionStorage.getItem('token') || '';
+      return sessionStorage.getItem('eams_token') || sessionStorage.getItem('token') || '';
     }
 
     function getStudentUser() {
       try {
-        var raw = sessionStorage.getItem('eams_user') || localStorage.getItem('user') || sessionStorage.getItem('user');
+        var raw = sessionStorage.getItem('eams_user') || sessionStorage.getItem('user');
         return raw ? JSON.parse(raw) : null;
       } catch (e) {
         return null;
       }
     }
+
 
     function showView(viewId) {
       document.querySelectorAll('.view-panel').forEach(function (el) {

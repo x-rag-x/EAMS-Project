@@ -258,7 +258,8 @@ function verifyAndShowLocationModal(usernameInput, passwordInput, role) {
       pendingAuth = {
         username: usernameInput,
         password: passwordInput,
-        role: role
+        role: role,
+        locationToken: verifyData.locationToken
       };
 
       openLocationGuidanceModal();
@@ -457,10 +458,18 @@ function handleLocationDenied(usernameInput, role, reason) {
   var signInButton = document.getElementById('lbn');
   var isAdmin = role === 'admin';
 
+  var payload = {
+    username: usernameInput,
+    role: role,
+    reason: reason,
+    locationToken: (pendingAuth && pendingAuth.locationToken) ? pendingAuth.locationToken : undefined,
+    password: (pendingAuth && pendingAuth.password) ? pendingAuth.password : undefined
+  };
+
   fetch('/api/auth/location-denied', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ username: usernameInput, role: role, reason: reason })
+    body: JSON.stringify(payload)
   })
     .then(function (r) { return r.json(); })
     .then(function (data) {

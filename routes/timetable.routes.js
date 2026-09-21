@@ -502,6 +502,9 @@ router.get('/', authMiddleware, async (req, res) => {
 });
 
 router.post('/', authMiddleware, async (req, res) => {
+  if (!canEditTT(req.user)) {
+    return res.status(403).json({ error: 'Timetable editing requires coordinator or admin privileges' });
+  }
   try {
     const slot = await M.Timetable.create({
       ...req.body,
@@ -526,11 +529,17 @@ router.post('/', authMiddleware, async (req, res) => {
 });
 
 router.put('/:id', authMiddleware, async (req, res) => {
+  if (!canEditTT(req.user)) {
+    return res.status(403).json({ error: 'Timetable editing requires coordinator or admin privileges' });
+  }
   const slot = await M.Timetable.findByIdAndUpdate(req.params.id, req.body, { returnDocument: 'after' });
   res.json(slot);
 });
 
 router.delete('/:id', authMiddleware, async (req, res) => {
+  if (!canEditTT(req.user)) {
+    return res.status(403).json({ error: 'Timetable deletion requires coordinator or admin privileges' });
+  }
   await M.Timetable.findByIdAndDelete(req.params.id);
   res.json({ deleted: true });
 });

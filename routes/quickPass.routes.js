@@ -1,16 +1,19 @@
 const express = require('express');
 const router = express.Router();
+const crypto = require('crypto');
 const mongoose = require('mongoose');
 const M = require('../models');
 const { authMiddleware } = require('../middleware/auth');
 const { liveSessionMarkLimiter } = require('../utils/rateLimiters');
 const { checkLiveSessionGuard } = require('../middleware/portalGuard');
+const { verifyTeacherAssignment, verifySessionOwner } = require('../utils/assignmentAuth');
+const { isCampusIpAllowed } = require('../utils/ipCheck');
 
 function generate12CharCode() {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   let code = '';
   for (let i = 0; i < 12; i++) {
-    code += chars.charAt(Math.floor(Math.random() * chars.length));
+    code += chars.charAt(crypto.randomInt(0, chars.length));
   }
   return code;
 }
@@ -44,6 +47,13 @@ router.post('/start', authMiddleware, checkLiveSessionGuard, async (req, res) =>
     if (isValidObjId(subjectId)) subQueries.unshift({ _id: subjectId });
     const sub = await M.Subject.findOne({ $or: subQueries }).lean();
     if (sub) targetSubjectId = sub._id;
+
+    // Verify teacher assignment (A3)
+    const assignCheck = await verifyTeacherAssignment(req.user, targetClassId, targetSubjectId);
+    if (!assignCheck.allowed) {
+      return res.status(403).json({ error: assignCheck.reason });
+    }
+
 
     // Close any prior active QuickPassSession for this teacher or class
     await M.QuickPassSession.updateMany({
@@ -102,6 +112,9 @@ router.post('/start', authMiddleware, checkLiveSessionGuard, async (req, res) =>
 
 // 2. Poll Quick Pass status (Teacher)
 router.get('/status/:sessionId', authMiddleware, async (req, res) => {
+  if (req.user.role !== 'teacher' && req.user.role !== 'admin') {
+    return res.status(403).json({ error: 'Only teachers and admins can view Quick Pass session status' });
+  }
   try {
     const { sessionId } = req.params;
     const query = isValidObjId(sessionId)
@@ -110,6 +123,10 @@ router.get('/status/:sessionId', authMiddleware, async (req, res) => {
 
     const session = await M.QuickPassSession.findOne(query);
     if (!session) return res.status(404).json({ error: 'Quick Pass session not found' });
+
+    if (!verifySessionOwner(session, req.user)) {
+      return res.status(403).json({ error: 'You can only view your own Quick Pass sessions' });
+    }
 
     const now = new Date();
     let currentCodeObj = session.codes[session.codes.length - 1];
@@ -174,6 +191,9 @@ router.get('/status/:sessionId', authMiddleware, async (req, res) => {
 
 // 3. Rotate code manually / triggered (Teacher)
 router.post('/rotate/:sessionId', authMiddleware, async (req, res) => {
+  if (req.user.role !== 'teacher' && req.user.role !== 'admin') {
+    return res.status(403).json({ error: 'Only teachers and admins can rotate Quick Pass codes' });
+  }
   try {
     const { sessionId } = req.params;
     const query = isValidObjId(sessionId)
@@ -182,6 +202,10 @@ router.post('/rotate/:sessionId', authMiddleware, async (req, res) => {
 
     const session = await M.QuickPassSession.findOne(query);
     if (!session) return res.status(404).json({ error: 'Quick Pass session not found' });
+
+    if (!verifySessionOwner(session, req.user)) {
+      return res.status(403).json({ error: 'You can only rotate codes for your own Quick Pass sessions' });
+    }
 
     if (!session.active) return res.status(400).json({ error: 'Session is no longer active' });
 
@@ -231,6 +255,13 @@ router.post('/mark', liveSessionMarkLimiter, authMiddleware, checkLiveSessionGua
       return res.status(400).json({ error: 'Quick Pass code must be exactly 12 characters' });
     }
 
+    if (latitude !== undefined && latitude !== null && (isNaN(Number(latitude)) || Math.abs(Number(latitude)) > 90)) {
+      return res.status(400).json({ error: 'Invalid latitude coordinate' });
+    }
+    if (longitude !== undefined && longitude !== null && (isNaN(Number(longitude)) || Math.abs(Number(longitude)) > 180)) {
+      return res.status(400).json({ error: 'Invalid longitude coordinate' });
+    }
+
     // Resolve student record
     let student = null;
     if (req.user.trackId) student = await M.Student.findOne({ trackId: req.user.trackId });
@@ -238,16 +269,11 @@ router.post('/mark', liveSessionMarkLimiter, authMiddleware, checkLiveSessionGua
     if (!student && req.user._id) student = await M.Student.findById(req.user._id);
     if (!student) return res.status(404).json({ error: 'Student profile not found' });
 
-    // College Wi-Fi / IP check
+    // College Wi-Fi / IP check (A8)
     const ipSettings = await M.Settings.findOne({ key: 'college_ips' }).lean();
     const allowedIps = ipSettings ? ipSettings.value : [];
-    if (Array.isArray(allowedIps) && allowedIps.length > 0) {
-      const clientIp = req.ip || '';
-      const isAllowed = allowedIps.some(ip =>
-        clientIp.startsWith(ip) || clientIp.includes(ip) ||
-        (ip === '127.0.0.1' && (clientIp === '127.0.0.1' || clientIp === '::1'))
-      );
-      if (!isAllowed) return res.status(403).json({ error: 'Must connect via College Wi-Fi network' });
+    if (!isCampusIpAllowed(req.ip, allowedIps)) {
+      return res.status(403).json({ error: 'Must connect via College Wi-Fi network' });
     }
 
     // Find active QuickPassSession for this student's class
@@ -362,6 +388,9 @@ router.get('/active', authMiddleware, async (req, res) => {
 
 // 6. End Quick Pass session manually (Teacher)
 router.post('/end/:sessionId', authMiddleware, async (req, res) => {
+  if (req.user.role !== 'teacher' && req.user.role !== 'admin') {
+    return res.status(403).json({ error: 'Only teachers and admins can end Quick Pass sessions' });
+  }
   try {
     const { sessionId } = req.params;
     const query = isValidObjId(sessionId)
@@ -370,6 +399,10 @@ router.post('/end/:sessionId', authMiddleware, async (req, res) => {
 
     const session = await M.QuickPassSession.findOne(query);
     if (!session) return res.status(404).json({ error: 'Quick Pass session not found' });
+
+    if (!verifySessionOwner(session, req.user)) {
+      return res.status(403).json({ error: 'You can only end your own Quick Pass sessions' });
+    }
 
     session.active = false;
     session.endedAt = new Date();
@@ -383,6 +416,9 @@ router.post('/end/:sessionId', authMiddleware, async (req, res) => {
 
 // 7. Save Draft / Finalize
 router.post('/save-draft/:sessionId', authMiddleware, async (req, res) => {
+  if (req.user.role !== 'teacher' && req.user.role !== 'admin') {
+    return res.status(403).json({ error: 'Only teachers and admins can save drafts' });
+  }
   try {
     const { sessionId } = req.params;
     const query = isValidObjId(sessionId)
@@ -391,6 +427,10 @@ router.post('/save-draft/:sessionId', authMiddleware, async (req, res) => {
 
     const session = await M.QuickPassSession.findOne(query);
     if (!session) return res.status(404).json({ error: 'Session not found' });
+
+    if (!verifySessionOwner(session, req.user)) {
+      return res.status(403).json({ error: 'You can only save drafts for your own Quick Pass sessions' });
+    }
 
     session.isFinalSaved = false;
     await session.save();

@@ -1607,31 +1607,51 @@
     }
 
     .tabs {
-      display: flex;
-      gap: 3px;
+      display: inline-flex;
+      align-items: center;
+      width: fit-content;
+      max-width: 100%;
+      gap: 4px;
       background: var(--gLt);
-      border-radius: 11px;
-      padding: 3px;
+      border-radius: 12px;
+      padding: 4px;
       margin-bottom: 18px;
     }
 
     .tab {
-      padding: 6px 14px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 7px 16px;
       border-radius: 8px;
-      font-size: 14px;
+      font-size: 13.5px;
       font-weight: 500;
+      line-height: 1.2;
       cursor: pointer;
       color: var(--tmu);
-      transition: all .2s;
+      transition: all .2s ease;
       border: none;
       background: transparent;
       font-family: 'Poppins', sans-serif;
+      vertical-align: middle;
+      white-space: nowrap;
     }
 
     .tab.act {
       background: #fff;
       color: var(--gD);
       font-weight: 700;
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+    }
+
+    .tab-ic {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      line-height: 1;
+      flex-shrink: 0;
     }
 
     .emst {

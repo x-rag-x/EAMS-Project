@@ -1,6 +1,9 @@
+const geoCache = new Map();
+const MAX_CACHE_SIZE = 500;
+
 /**
  * Reverse Geocode helper to convert (latitude, longitude) to readable location address.
- * Uses OpenStreetMap Nominatim with a short timeout and graceful fallback.
+ * Uses OpenStreetMap Nominatim with an in-memory LRU-like cache, short timeout, and graceful fallback.
  */
 async function reverseGeocode(latitude, longitude) {
   if (latitude === null || latitude === undefined || longitude === null || longitude === undefined) {
@@ -12,6 +15,11 @@ async function reverseGeocode(latitude, longitude) {
   if (isNaN(latNum) || isNaN(lngNum)) return '';
 
   const fallback = `${latNum.toFixed(4)}, ${lngNum.toFixed(4)}`;
+  const cacheKey = `${latNum.toFixed(2)},${lngNum.toFixed(2)}`;
+
+  if (geoCache.has(cacheKey)) {
+    return geoCache.get(cacheKey);
+  }
 
   try {
     const controller = new AbortController();
@@ -37,7 +45,14 @@ async function reverseGeocode(latitude, longitude) {
           addr.state,
           addr.country
         ].filter(Boolean);
-        return parts.length > 0 ? parts.join(', ') : data.display_name;
+        const resolved = parts.length > 0 ? parts.join(', ') : data.display_name;
+
+        if (geoCache.size >= MAX_CACHE_SIZE) {
+          const oldestKey = geoCache.keys().next().value;
+          geoCache.delete(oldestKey);
+        }
+        geoCache.set(cacheKey, resolved);
+        return resolved;
       }
     }
   } catch (err) {
@@ -46,5 +61,6 @@ async function reverseGeocode(latitude, longitude) {
 
   return fallback;
 }
+
 
 module.exports = { reverseGeocode };

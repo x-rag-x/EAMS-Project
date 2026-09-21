@@ -28,7 +28,37 @@ router.get('/', authMiddleware, async (req, res) => {
           : yr);
       filter.admissionYear = { $in: [yr, altYr] };
     }
-    if (req.query.batch)        filter.batchTrackId = sanitizeToString(req.query.batch);
+    if (req.query.batch) {
+      const b = sanitizeToString(req.query.batch);
+      const altB = b.includes('-') && b.length === 9
+        ? b.replace(/-(\d{4})$/, function (_, y) { return '-' + y.slice(-2); })
+        : (b.includes('-') && b.length === 7
+          ? b.replace(/^(\d{4})-(\d{2})$/, function (_, y1, y2) { return y1 + '-' + y1.slice(0, 2) + y2; })
+          : b);
+
+      const m = b.match(/^(\d{4})-(\d{2,4})$/);
+      const trackId = m ? ('TR-BATCH-' + m[1].slice(-2) + m[2].slice(-2)) : '';
+      const batchValues = [b, altB, trackId].filter(Boolean);
+
+      const matchingClasses = await M.Class.find({ batch: { $in: [b, altB] } }).select('_id').lean();
+      const matchingClassIds = matchingClasses.map(function (c) { return c._id; });
+
+      const batchConditions = [
+        { batchTrackId: { $in: batchValues } },
+        { batch: { $in: [b, altB] } }
+      ];
+      if (matchingClassIds.length > 0) {
+        batchConditions.push({ classId: { $in: matchingClassIds } });
+      }
+
+      if (filter.$or) {
+        filter.$and = filter.$and || [];
+        filter.$and.push({ $or: filter.$or }, { $or: batchConditions });
+        delete filter.$or;
+      } else {
+        filter.$or = batchConditions;
+      }
+    }
     if (req.query.courseType)   filter.courseType   = sanitizeToString(req.query.courseType);
 
     // Lightweight roster mode — only name + regNo, no shadow user join
@@ -139,7 +169,7 @@ router.get('/exam-search', authMiddleware, async (req, res) => {
 
 router.post('/', authMiddleware, adminOnly, requireRight('adderModules'), async (req, res) => {
   try {
-    const { name, regNo, academicYear, courseType, branch, deptId, deptName, classId, className, section, email, username, password, isRep, batchTrackId } = req.body;
+    const { name, regNo, academicYear, courseType, branch, deptId, deptName, classId, className, section, email, username, password, isRep, batch, batchTrackId } = req.body;
     
     // Check if student exists
     const exists = await M.Student.findOne({ registerNo: regNo });
@@ -152,6 +182,17 @@ router.post('/', authMiddleware, adminOnly, requireRight('adderModules'), async 
 
     const generatedUsername = username || regNo.toLowerCase();
 
+    let resolvedBatch = (batch || '').trim();
+    let resolvedBatchTrackId = (batchTrackId || '').trim();
+    if (!resolvedBatch && classId) {
+      const clsDoc = await M.Class.findById(classId).lean();
+      if (clsDoc && clsDoc.batch) resolvedBatch = clsDoc.batch;
+    }
+    if (!resolvedBatchTrackId && resolvedBatch) {
+      const m = resolvedBatch.match(/^(\d{4})-(\d{2,4})$/);
+      if (m) resolvedBatchTrackId = 'TR-BATCH-' + m[1].slice(-2) + m[2].slice(-2);
+    }
+
     const stu = await M.Student.create({
       fullName: name,
       registerNo: regNo,
@@ -163,7 +204,8 @@ router.post('/', authMiddleware, adminOnly, requireRight('adderModules'), async 
       department: deptName || '',
       deptId,
       admissionYear: academicYear || '',
-      batchTrackId: batchTrackId || '',
+      batch: resolvedBatch,
+      batchTrackId: resolvedBatchTrackId,
       email: email || '',
       username: generatedUsername,
       password: hash,
@@ -199,7 +241,7 @@ router.post('/', authMiddleware, adminOnly, requireRight('adderModules'), async 
 
 router.put('/:id', authMiddleware, adminOnly, async (req, res) => {
   try {
-    const { name, regNo, academicYear, courseType, branch, deptId, deptName, classId, className, section, email, username, password, isRep, active, status, batchTrackId } = req.body;
+    const { name, regNo, academicYear, courseType, branch, deptId, deptName, classId, className, section, email, username, password, isRep, active, status, batch, batchTrackId } = req.body;
     
     const stu = await M.Student.findById(req.params.id);
     if (!stu) return res.status(404).json({ error: 'Student not found' });
@@ -219,7 +261,13 @@ router.put('/:id', authMiddleware, adminOnly, async (req, res) => {
     if (deptName !== undefined) stu.department = deptName;
     if (deptId !== undefined) stu.deptId = deptId;
     if (academicYear !== undefined) stu.admissionYear = academicYear;
-    if (batchTrackId !== undefined) stu.batchTrackId = batchTrackId;
+    if (batch !== undefined) stu.batch = batch.trim();
+    if (batchTrackId !== undefined) {
+      stu.batchTrackId = batchTrackId.trim();
+    } else if (batch !== undefined && !stu.batchTrackId) {
+      const m = (batch || '').match(/^(\d{4})-(\d{2,4})$/);
+      if (m) stu.batchTrackId = 'TR-BATCH-' + m[1].slice(-2) + m[2].slice(-2);
+    }
     if (email !== undefined) stu.email = email;
     if (username) stu.username = username.toLowerCase().trim();
     if (isRep !== undefined) stu.isRep = isRep;

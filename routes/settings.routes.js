@@ -32,10 +32,11 @@ router.get('/public', async (req, res) => {
 // GET /api/settings/history — Change history audit log
 router.get('/history', authMiddleware, requireRight('settingsPage', 'settingsModule', 'controlPage'), async (req, res) => {
   try {
-    const page = parseInt(req.query.page || '1', 10);
-    const limit = parseInt(req.query.limit || '50', 10);
-    const card = req.query.card || '';
-    const search = req.query.search || '';
+    const page = Math.max(1, parseInt(req.query.page || '1', 10) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit || '50', 10) || 50));
+    const card = typeof req.query.card === 'string' ? req.query.card.trim() : '';
+    const rawSearch = typeof req.query.search === 'string' ? req.query.search.trim() : '';
+    const search = rawSearch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
     const query = {};
     if (card && card !== 'all') query.card = card;

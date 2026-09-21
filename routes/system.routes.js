@@ -11,7 +11,7 @@ const { sanitizeToString } = require('../utils/sanitizeQuery');
 const { checkModuleGuard } = require('../middleware/portalGuard');
 
 // POST /api/system/backup - Create full database snapshot backup
-router.post('/backup', authMiddleware, adminOnly, requireRight('controlPage'), checkModuleGuard('modelBackup', 'Database Backup'), async (req, res) => {
+router.post('/backup', authMiddleware, adminOnly, requireRight('controlPage'), criticalDeleteLimiter, checkModuleGuard('modelBackup', 'Database Backup'), async (req, res) => {
   try {
     const [students, teachers, departments, classes, subjects, classAttendance, studentAttendance, assignments] = await Promise.all([
       M.Student.find().lean(),

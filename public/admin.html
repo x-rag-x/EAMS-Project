@@ -433,8 +433,8 @@
           <div id="sv-cs" style="display:none">
             <div style="display:flex;align-items:center;gap:8px;margin-bottom:18px;">
               <div class="tabs" style="margin-bottom:0;margin-top:18px;">
-                <button class="tab act" onclick="sst('classes')">🏫 Classes</button>
-                <button class="tab" onclick="sst('subjects')">📚 Subjects</button>
+                <button class="tab act" onclick="sst('classes')"><span class="tab-ic">🏫</span> Classes</button>
+                <button class="tab" onclick="sst('subjects')"><span class="tab-ic">📚</span> Subjects</button>
               </div>
               <div style="margin-left:auto;display:flex;gap:4px;">
                 <button type="button" class="t-vt-btn act" id="cs-vt-grid" onclick="toggleClassView('grid')" title="Grid view">▦</button>
@@ -495,12 +495,7 @@
         </div>
         <div class="card" style="margin-bottom:16px;">
           <div class="card-body-p">
-            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:12px;">
-              <div class="fg"><label class="fl">Acad. Year</label>
-                <select class="fc" id="sf-ay" onchange="onStudentYearChange()">
-                  <option value="">All Years</option>
-                </select>
-              </div>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(140px, 1fr));gap:10px;margin-bottom:12px;">
               <div class="fg"><label class="fl">Batch</label>
                 <select class="fc" id="sf-batch" onchange="onStudentBatchChange()">
                   <option value="">All Batches</option>
@@ -555,7 +550,7 @@
                       class="sort-ind" data-sort="fullName"></span></th>
                   <th onclick="sortStudentsBy('regNo')" style="cursor:pointer;user-select:none;">Reg. Number <span
                       class="sort-ind" data-sort="regNo"></span></th>
-                  <th>Acad. Year</th>
+                  <th>Batch</th>
                   <th>Course Type</th>
                   <th>Branch</th>
                   <th>Department</th>
@@ -675,10 +670,10 @@
           </div>
 
           <!-- Role Tabs Navigation -->
-          <div class="tabs" style="margin-bottom:18px;">
-            <button class="tab act" id="rtab-btn-principal" onclick="switchRoleTab('principal')">🏫 Principal</button>
-            <button class="tab" id="rtab-btn-hod" onclick="switchRoleTab('hod')">🏛️ Department HODs</button>
-            <button class="tab" id="rtab-btn-subadmin" onclick="switchRoleTab('subadmin')">⚡ Sub-Administrators</button>
+          <div class="tabs" style="display:inline-flex;width:fit-content;margin-bottom:18px;">
+            <button class="tab act" id="rtab-btn-principal" onclick="switchRoleTab('principal')"><span class="tab-ic">🏫</span> Principal</button>
+            <button class="tab" id="rtab-btn-hod" onclick="switchRoleTab('hod')"><span class="tab-ic">🏛️</span> Department HODs</button>
+            <button class="tab" id="rtab-btn-subadmin" onclick="switchRoleTab('subadmin')"><span class="tab-ic">⚡</span> Sub-Administrators</button>
           </div>
 
           <!-- 1. Principal Section -->
@@ -688,7 +683,7 @@
                 <div class="card-title">🏫 College Principal (Institutional Executive)</div>
                 <span class="bge bgg" id="principal-status-badge">Active</span>
               </div>
-              <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px;padding:12px 0;" id="principal-details-card">
+              <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px;padding:16px 24px 20px;" id="principal-details-card">
                 <div style="display:flex;align-items:center;gap:14px;">
                   <div style="width:50px;height:50px;border-radius:14px;background:#eef2ff;color:#4f46e5;display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:700;">🏫</div>
                   <div>
