@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EAMS – Activity Logs &amp; Audit Trail | Sri Shakthi</title>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&family=Playfair+Display:wght@700&family=JetBrains+Mono:wght@400;600;700&display=swap"
+    rel="stylesheet">
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/logs.css">
+</head>
+
+<body>
+
+  <!-- APP SHELL -->
+  <div id="app-shell">
+
+    <!-- Mobile Sidebar Backdrop -->
+    <div id="sb-backdrop" style="position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:45;display:none;" onclick="toggleSidebar()"></div>
+
+    <!-- ── SIDEBAR NAVIGATION ── -->
+    <nav class="sb" id="sidebar">
+      <div class="sb-logo">
+        <div>
+          <div class="sb-brand">EAMS Logs</div>
+          <div class="sb-sub">AUDIT &amp; ACTIVITY LOGS</div>
+        </div>
+      </div>
+      <div class="sb-nav-section">
+        <div class="sb-section-label">Audit Sections</div>
+        <button class="sb-item act" data-section="overview" onclick="switchSection('overview')">
+          <span class="sbi-ic">📊</span>Overview
+          <span class="sb-badge" id="badge-overview-count">0</span>
+        </button>
+        <button class="sb-item" data-section="admin" onclick="switchSection('admin')">
+          <span class="sbi-ic">👑</span>Admin Logs
+          <span class="sb-badge" id="badge-admin-count">0</span>
+        </button>
+        <button class="sb-item" data-section="teacher" onclick="switchSection('teacher')">
+          <span class="sbi-ic">👩‍🏫</span>Teacher Logs
+          <span class="sb-badge" id="badge-teacher-count">0</span>
+        </button>
+        <button class="sb-item" data-section="student" onclick="switchSection('student')">
+          <span class="sbi-ic">🎓</span>Student Logs
+          <span class="sb-badge" id="badge-student-count">0</span>
+        </button>
+        <button class="sb-item" data-section="system" onclick="switchSection('system')">
+          <span class="sbi-ic">🤖</span>System Logs
+          <span class="sb-badge" id="badge-system-count">0</span>
+        </button>
+
+        <div class="sb-section-label" style="margin-top:10px;">Quick Links</div>
+        <button class="sb-item" onclick="window.location.href='admin.html'">
+          <span class="sbi-ic">🏛️</span>Admin Portal
+        </button>
+        <button class="sb-item" onclick="window.location.href='control.html'">
+          <span class="sbi-ic">⚙️</span>Control Panel
+        </button>
+        <button class="sb-item" onclick="window.location.href='settings.html'">
+          <span class="sbi-ic">🔐</span>Settings Hub
+        </button>
+        <button class="sb-item" onclick="window.location.href='export.html'">
+          <span class="sbi-ic">📊</span>Export Center
+        </button>
+      </div>
+
+      <div class="sb-bottom">
+        <div class="sb-user">
+          <div class="sb-uav" id="sb-user-avatar">A</div>
+          <div>
+            <div class="sb-uname" id="sb-user-name">Administrator</div>
+            <div class="sb-urole" id="sb-user-role">Admin</div>
+          </div>
+        </div>
+        <button class="sb-back-btn" id="btn-back-hub" onclick="goBackHub()" style="margin-bottom:8px;">← Back to Dashboard</button>
+        <button class="sb-logout-btn" onclick="doLogout()" title="Logout">
+          <div class="logout-sign">
+            <svg viewBox="0 0 512 512">
+              <path
+                d="M377.9 105.9L500.7 228.7c7.2 7.2 11.3 17.1 11.3 27.3s-4.1 20.1-11.3 27.3L377.9 406.1c-6.4 6.4-15 9.9-24 9.9c-18.7 0-33.9-15.2-33.9-33.9l0-62.1-128 0c-17.7 0-32-14.3-32-32l0-64c0-17.7 14.3-32 32-32l128 0 0-62.1c0-18.7 15.2-33.9 33.9-33.9c9 0 17.6 3.6 24 9.9zM160 96L96 96c-17.7 0-32 14.3-32 32l0 256c0 17.7 14.3 32 32 32l64 0c17.7 0 32 14.3 32 32s-14.3 32-32 32l-64 0c-53 0-96-43-96-96L0 128C0 75 43 32 96 32l64 0c17.7 0 32 14.3 32 32s-14.3 32-32 32z">
+              </path>
+            </svg>
+          </div>
+          <div class="logout-text">Logout</div>
+        </button>
+      </div>
+    </nav>
+
+    <!-- ── MAIN CONTENT ── -->
+    <main class="mc">
+
+      <!-- Topbar Header -->
+      <header class="topbar">
+        <div class="topbar-left">
+          <button class="mobile-menu-btn" onclick="toggleSidebar()">☰</button>
+          <div class="topbar-title"><span>📋</span> Activity Logs &amp; Audit Trail</div>
+        </div>
+
+        <div class="topbar-right">
+          <div class="live-badge">
+            <div class="live-pulse"></div>
+            <span>Live Sync</span>
+          </div>
+        </div>
+      </header>
+
+      <!-- Scrollable Container -->
+      <div class="scroll-wrap">
+
+        <!-- ── PAGE HEADER (EAMS STANDARD) ── -->
+        <div class="page-hd">
+          <div>
+            <div class="page-title" id="page-section-title">System Audit Overview</div>
+            <div class="page-sub" id="page-section-desc">Real-time audit trail of every session, edit, deletion, and security event.</div>
+          </div>
+          <div class="page-actions">
+            <button class="btn-out" onclick="refreshCurrentLogs()" title="Refresh Logs">🔄 Refresh</button>
+            <button class="btn-pri" onclick="exportFilteredCSV()">⬇️ Export CSV</button>
+            <button class="btn-out" id="btn-clear-all" onclick="openClearLogsModal()" style="display:none;color:var(--danger);border-color:var(--danger-br);">🗑️ Clear Logs</button>
+          </div>
+        </div>
+
+        <!-- ── STATUS CARDS ── -->
+        <section class="stats-grid" id="status-cards-container">
+          <!-- Populated dynamically via logs.page.js -->
+        </section>
+
+        <!-- ── FILTER CONTROLS ── -->
+        <section class="filter-card">
+          <!-- Sub-filter chips row -->
+          <div class="subfilter-chips-row" id="subfilter-chips-container">
+            <!-- Populated dynamically per section -->
+          </div>
+
+          <!-- Search & Filter inputs -->
+          <div class="filter-inputs-grid">
+            <div class="input-box-wrap">
+              <span class="search-ic">🔍</span>
+              <input type="text" class="input-ctrl" id="filter-search" placeholder="Search by TR-LOG-ID, User, Action, IP…" oninput="onSearchInput()">
+            </div>
+
+            <div>
+              <input type="date" class="input-ctrl" id="filter-from-date" onchange="onFilterChange()" title="From Date">
+            </div>
+
+            <div>
+              <input type="date" class="input-ctrl" id="filter-to-date" onchange="onFilterChange()" title="To Date">
+            </div>
+
+            <div>
+              <select class="input-ctrl" id="filter-severity" onchange="onFilterChange()">
+                <option value="all">⚡ All Severities</option>
+                <option value="info">ℹ️ Info</option>
+                <option value="warning">⚠️ Warning</option>
+                <option value="critical">🚨 Critical</option>
+              </select>
+            </div>
+          </div>
+        </section>
+
+        <!-- ── LOG FEED ── -->
+        <section class="log-feed-wrap" id="log-feed-container">
+          <!-- Populated dynamically -->
+        </section>
+
+        <!-- Load More Button -->
+        <div id="load-more-wrap" style="text-align:center;padding:16px 0;display:none;">
+          <button class="btn-out" id="btn-load-more" onclick="loadMoreLogs()">Load More Activities ↓</button>
+        </div>
+
+      </div><!-- /scroll-wrap -->
+    </main>
+
+  </div><!-- /app-shell -->
+
+  <!-- ══════════════════════════════════════════════════════════════ -->
+  <!-- ── CLEAR LOGS CONFIRMATION MODAL ── -->
+  <!-- ══════════════════════════════════════════════════════════════ -->
+  <div class="modal-overlay" id="m-clear-logs" onclick="if(event.target===this)closeClearLogsModal()">
+    <div class="modal-card" style="max-width:440px;">
+      <div class="modal-header" style="background:#fef2f2;border-bottom-color:#fecaca;">
+        <div class="modal-title-group">
+          <span style="font-size:22px;">🗑️</span>
+          <div>
+            <div class="modal-title" style="color:var(--danger);">Clear All Audit Logs</div>
+            <div style="font-size:11.5px;color:var(--tmu);margin-top:2px;">Irreversible Database Action</div>
+          </div>
+        </div>
+        <button class="modal-close-btn" onclick="closeClearLogsModal()">✕</button>
+      </div>
+
+      <div class="modal-body" style="padding:22px 24px;">
+        <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:12px;padding:14px;color:#991b1b;font-size:13px;line-height:1.5;">
+          <b>⚠️ WARNING:</b> Are you sure you want to permanently purge all activity logs from the database? This action cannot be undone.
+        </div>
+      </div>
+
+      <div class="modal-actions" style="padding:14px 24px 20px 24px;display:flex;justify-content:flex-end;gap:10px;border-top:1px solid var(--brl);">
+        <button type="button" class="btn-out" onclick="closeClearLogsModal()">Cancel</button>
+        <button type="button" class="btn-pri" id="btn-confirm-clear-logs" onclick="confirmClearLogs()" style="background:var(--danger);border-color:var(--danger);box-shadow:0 4px 14px rgba(220,38,38,.25);">🗑️ Yes, Clear All Logs</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════ -->
+  <!-- ── LOG DETAIL MODAL ── -->
+  <!-- ══════════════════════════════════════════════════════════════ -->
+  <div class="modal-overlay" id="m-log-detail" onclick="if(event.target===this)closeDetailModal()">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div class="modal-title-group">
+          <span style="font-size:20px;" id="modal-type-icon">📋</span>
+          <div>
+            <div class="modal-title" id="modal-action-title">Log Activity Detail</div>
+            <div style="font-size:11.5px;color:var(--tmu);display:flex;align-items:center;gap:8px;margin-top:2px;">
+              <span class="log-track-id" id="modal-track-id">TR-LOG-000000</span>
+              <span id="modal-timestamp">—</span>
+            </div>
+          </div>
+        </div>
+        <button class="modal-close-btn" onclick="closeDetailModal()">✕</button>
+      </div>
+
+      <div class="modal-body" id="modal-body-content">
+        <!-- Injected dynamically based on log type -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Box -->
+  <div class="toast-box" id="app-toast">
+    <span id="toast-icon">ℹ️</span>
+    <span id="toast-text">Notification message</span>
+  </div>
+
+  <script src="js/pages/logs.page.js"></script>
+</body>
+
+</html>

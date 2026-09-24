@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EAMS – Sign In</title>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&family=Playfair+Display:wght@700&display=swap"
+    rel="stylesheet">
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/login.css">
+</head>
+<body>
+
+  <div class="lc">
+    <div class="ll">
+      <img src="assets/logo.png" alt="Logo" height=60 class="center-img">
+      <span class="lb" id="login-inst-name">EAMS</span>
+    </div>
+    <div class="lh" id="login-heading">EAMS Login</div>
+
+    <!-- ROLE SELECTOR — tabs hidden dynamically if blocked by maintenance -->
+    <div class="rtabs" style="gap:6px;flex-wrap:wrap;" id="rtabs-wrap">
+      <div class="rtab" id="tab-student" onclick="pickRole('student')" style="padding:7px 14px;">
+        Student
+      </div>
+      <div class="rtab" id="tab-teacher" onclick="pickRole('teacher')" style="padding:7px 14px;">
+        Teacher
+      </div>
+      <div class="rtab sel" id="tab-admin" onclick="pickRole('admin')" style="padding:7px 14px;">
+        Admin
+      </div>
+    </div>
+
+    <!-- ADMIN SUB-MODE SELECTOR (Nested under Admin role) -->
+    <div id="admin-sub-toggle" class="admin-sub-wrap">
+      <button type="button" class="admin-sub-btn sel" id="sub-mode-admin" onclick="switchAdminLoginMode('admin')">
+        <span>👤</span> Administrator
+      </button>
+      <button type="button" class="admin-sub-btn" id="sub-mode-board" onclick="switchAdminLoginMode('board')">
+        <span>📺</span> Smart Board Kiosk
+      </button>
+    </div>
+
+    <!-- Shown when some roles are blocked by maintenance -->
+    <div id="maint-notice"
+      style="display:none;background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.35);border-radius:10px;padding:10px 14px;font-size:12px;color:#92400e;margin-bottom:14px;position:relative;z-index:1;line-height:1.5;">
+      🔧 <b>Maintenance in progress</b> — some logins are restricted. Only available roles are shown above.
+    </div>
+
+    <div class="le" id="lerr">Invalid credentials. Please try again.</div>
+
+    <div class="lf2"><label id="lbl-u">Username</label><input type="text" id="lu" placeholder="Enter username"
+        autocomplete="username" autofocus></div>
+    <div class="lf2"><label id="lbl-p">Password</label>
+      <div class="pw-wrap"><input type="password" id="lp" placeholder="Enter password"
+          autocomplete="current-password"><button type="button" class="pw-eye" onclick="togglePw('lp',this)"
+          tabindex="-1" title="Show password">👁</button></div>
+    </div>
+
+    <button class="lbn" id="lbn" onclick="doSignIn()"><span id="lbn-txt">Sign In</span></button>
+  </div>
+
+  <!-- LOCATION PERMISSION GUIDANCE MODAL -->
+  <div id="m-loc-guide" class="loc-modal-overlay" onclick="if(event.target===this)closeLocationModal()">
+    <div class="loc-modal-card">
+      <div class="loc-modal-header">
+        <div class="loc-icon-circle">📍</div>
+        <div class="loc-modal-title">Location Permission Required</div>
+        <div class="loc-modal-sub">Mandatory verification for attendance integrity &amp; audit security</div>
+      </div>
+
+      <div class="loc-modal-body">
+        <div class="loc-step-item">
+          <div class="loc-step-num">1</div>
+          <div class="loc-step-txt">
+            <b>Click the button below</b> to trigger the browser's location permission prompt.
+          </div>
+        </div>
+
+        <div class="loc-step-item">
+          <div class="loc-step-num">2</div>
+          <div class="loc-step-txt">
+            When your browser prompts <i>"Know your location"</i>, select:
+            <div class="loc-select-box">
+              👉 <b>"Allow while visiting the site"</b> (or <b>"Allow"</b>)
+            </div>
+          </div>
+        </div>
+
+        <div class="loc-step-item warning-box">
+          <div class="loc-step-num warn">⚠️</div>
+          <div class="loc-step-txt" style="color:#991b1b;">
+            <b>Strict Security Policy:</b> If permission is denied or dismissed, accounts will be <b>locked for 1 hour</b> immediately (Admin is exempt from lockout).
+          </div>
+        </div>
+      </div>
+
+      <div class="loc-modal-actions">
+        <button type="button" class="btn-loc-proceed" id="btn-loc-proceed" onclick="confirmAndRequestLocation()">📍 Allow Location &amp; Sign In</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="msg-toast">
+    <div id="msg-toast-bar"></div>
+    <div id="msg-toast-text"></div>
+    <button id="msg-toast-close" onclick="hideMsgToast()">✕</button>
+  </div>
+
+  <script src="js/pages/login.page.js"></script>
+</body>
+</html>

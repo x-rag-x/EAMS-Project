@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EAMS – Bulk Upload</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<link rel="stylesheet" href="css/base.css">
+<link rel="stylesheet" href="css/bulk.css">
+</head>
+<body>
+
+  <!-- APP SHELL -->
+  <div id="app-shell" class="vis">
+    <div class="sb-overlay" id="sb-overlay" onclick="toggleBulkSidebar()"></div>
+
+    <!-- ── SIDEBAR TOGGLE BUTTON ───────────────────── -->
+    <button class="sb-toggle-btn" id="sbtoggle" onclick="toggleBulkSidebar()" title="Toggle menu">✖</button>
+
+    <!-- ── SIDEBAR ───────────────────────────────────────────── -->
+    <nav class="sb">
+      <div class="sb-logo">
+        <div class="sb-brand">EAMS Admin</div>
+      </div>
+
+      <div class="nav-section" style="flex:1;overflow-y:auto;padding:6px 0;">
+        <button class="sb-item" onclick="goBack()"><span class="sbi-ic">📊</span>Dashboard</button>
+        <button class="sb-item bulk-tab" onclick="bulkTab(this,'wizard')" id="wz-tab-wizard" style="display:none;"></button>
+
+        <div class="sb-section-label">Add</div>
+        <button class="sb-item bulk-tab act" onclick="bulkTab(this,'dept')" id="wz-tab-dept"><span
+            class="sbi-ic">🏛️</span>Department</button>
+        <button class="sb-item bulk-tab" onclick="bulkTab(this,'teacher')" id="wz-tab-teacher"><span
+            class="sbi-ic">👩‍🏫</span>Teacher</button>
+        <button class="sb-item bulk-tab" onclick="bulkTab(this,'class')" id="wz-tab-class"><span
+            class="sbi-ic">🏫</span>Class</button>
+        <button class="sb-item bulk-tab" onclick="bulkTab(this,'subject')" id="wz-tab-subject"><span
+            class="sbi-ic">📚</span>Subject</button>
+        <button class="sb-item bulk-tab" onclick="bulkTab(this,'student')" id="wz-tab-student"><span
+            class="sbi-ic">👨‍🎓</span>Students</button>
+        <button class="sb-item" onclick="window.location.href='export.html'"><span
+            class="sbi-ic">📊</span>Export Center</button>
+      </div>
+
+      <div class="sb-bottom">
+        <div class="sb-user">
+          <div class="sb-uav" id="sb-av">A</div>
+          <div>
+            <div class="sb-uname" id="sb-name">Administrator</div>
+            <div class="sb-urole">Admin</div>
+          </div>
+        </div>
+        <button class="sb-back-btn" onclick="goBack()">← Back to Dashboard</button>
+        <button class="sb-logout-btn" onclick="doLogout()" title="Logout">
+          <div class="logout-sign">
+            <svg viewBox="0 0 512 512"><path d="M377.9 105.9L500.7 228.7c7.2 7.2 11.3 17.1 11.3 27.3s-4.1 20.1-11.3 27.3L377.9 406.1c-6.4 6.4-15 9.9-24 9.9c-18.7 0-33.9-15.2-33.9-33.9l0-62.1-128 0c-17.7 0-32-14.3-32-32l0-64c0-17.7 14.3-32 32-32l128 0 0-62.1c0-18.7 15.2-33.9 33.9-33.9c9 0 17.6 3.6 24 9.9zM160 96L96 96c-17.7 0-32 14.3-32 32l0 256c0 17.7 14.3 32 32 32l64 0c17.7 0 32 14.3 32 32s-14.3 32-32 32l-64 0c-53 0-96-43-96-96L0 128C0 75 43 32 96 32l64 0c17.7 0 32 14.3 32 32s-14.3 32-32 32z"></path></svg>
+          </div>
+          <div class="logout-text">Logout</div>
+        </button>
+      </div>
+    </nav>
+
+    <!-- ── MAIN CONTENT ──────────────────────────────────────── -->
+    <div class="mc">
+
+      <!-- TOPBAR -->
+      <div class="topbar">
+        <div class="topbar-left" style="display: flex;align-items: center;gap: 10px;">
+          <div style="width:32px;"></div>
+          <div class="topbar-title"
+            style="font-family:'Playfair Display',serif;font-size:16px;font-weight:700;color:var(--td);">
+            📤 Bulk Upload
+          </div>
+        </div>
+        <div class="topbar-right">
+          <span id="wizard-badge"
+            style="display:none;font-size:11px;font-weight:700;padding:4px 14px;border-radius:20px;background:linear-gradient(135deg,#14a429,#69ce77);color:#fff;animation:badge-pulse 2s infinite;">🧙
+            Setup Wizard Active</span>
+        </div>
+      </div>
+
+      <div class="main" style="max-width:860px;margin:0 auto;padding:24px 20px 56px;">
+
+        <!-- WIZARD PAGE -->
+        <div id="bulk-wizard" class="bulk-panel pg" style="display:none;">
+          <div class="shd">
+            <div class="stl">
+              <span class="sdo"></span>Setup Wizard
+            </div>
+            <div>
+              <button class="btn-out" onclick="dismissWizard()">Skip</button>
+            </div>
+          </div>
+
+          <div class="card fixed-card" style="margin-top:20px;">
+            <div class="card-body">
+
+              <!-- TOP INTRO -->
+              <div class="wizard-banner" id="wizard-banner">
+                <div class="wiz-top">
+                  <div style="font-size:40px;">🧙‍♂️</div>
+                  <div style="flex:1;">
+                    <div style="font-size:17px;font-weight:800;margin-bottom:3px;">
+                      Welcome! Let's set up your institution.
+                    </div>
+                    <div style="font-size:12.5px;opacity:.85;">
+                      Follow all 5 steps to complete setup.
+                    </div>
+                  </div>
+                </div>
+
+                <!-- STEPS -->
+                <div class="wiz-steps" id="wiz-steps-row"></div>
+
+                <!-- PROGRESS -->
+                <div class="wiz-progress">
+                  <div class="wiz-bar-bg">
+                    <div class="wiz-bar-fill" id="wiz-bar-fill"></div>
+                  </div>
+                  <div class="wiz-bar-lbl" id="wiz-bar-lbl">
+                    Step 0 of 5 complete
+                  </div>
+                </div>
+              </div>
+
+              <!-- STEP CONTENT -->
+              <div id="wizard-content" style="margin-top:20px;"></div>
+              <div style="margin-top:20px; display:flex; gap:10px;">
+                <button class="btn-out" onclick="wizGoTo('dept')">
+                  Start Setup →
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- DEPT -->
+        <div id="bulk-dept" class="bulk-panel pg" style="display:none;">
+          <div class="shd">
+            <div class="stl"><span class="sdo"></span>Add Department</div>
+            <div style="display:flex;gap:8px;">
+              <button class="btn-out" onclick="dlTemplate('dept')">⬇ Template</button>
+              <button class="btn-out" onclick="dlUploaded('depts')">⬇ Exported</button>
+            </div>
+          </div>
+          <div class="card fixed-card" style="margin-top:20px;">
+            <div class="card-body">
+              <div style="margin-bottom: 20px; font-size: 13px; color: var(--tmu);">
+                <b>Required Columns:</b> DeptName | Code | Icon (optional)
+              </div>
+              <div class="uz" onclick="document.getElementById('uf-dept').click()"
+                ondragover="event.preventDefault();this.classList.add('dg')"
+                ondragleave="this.classList.remove('dg')"
+                ondrop="hd(event,'dept')">
+                <input type="file" id="uf-dept" accept=".xlsx,.xls,.csv" onchange="hu(this,'dept')">
+                <span class="uz-icon">🏛️</span>
+                <div class="uz-title">Click or drag &amp; drop your file here</div>
+                <div class="uz-sub">.xlsx · .xls · .csv</div>
+              </div>
+              <div id="dept-up" style="margin-top:14px;"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- TEACHERS -->
+        <div id="bulk-teacher" class="bulk-panel pg" style="display:none;">
+          <div class="shd">
+            <div class="stl"><span class="sdo"></span>Add Teacher</div>
+            <div style="display:flex;gap:8px;">
+              <button class="btn-out" onclick="dlTemplate('teacher')">⬇ Template</button>
+              <button class="btn-out" onclick="dlUploaded('teacher')">⬇ Exported</button>
+            </div>
+          </div>
+          <div class="card fixed-card" style="margin-top:20px;">
+            <div class="card-body">
+              <div style="margin-bottom: 20px; font-size: 13px; color: var(--tmu);">
+                <b>Required Columns:</b> Name | EmployeeID | Department | Designation | Username | Password
+              </div>
+              <div class="uz" onclick="document.getElementById('uf-tc').click()"
+                ondragover="event.preventDefault();this.classList.add('dg')"
+                ondragleave="this.classList.remove('dg')"
+                ondrop="hd(event,'teachers')">
+                <input type="file" id="uf-tc" accept=".xlsx,.xls,.csv" onchange="hu(this,'teachers')">
+                <span class="uz-icon">👩‍🏫</span>
+                <div class="uz-title">Click or drag &amp; drop your file here</div>
+                <div class="uz-sub">.xlsx · .xls · .csv</div>
+              </div>
+              <div id="tcup" style="margin-top:14px;"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- CLASSES -->
+        <div id="bulk-class" class="bulk-panel pg" style="display:none;">
+          <div class="shd">
+            <div class="stl"><span class="sdo"></span>Add Class</div>
+            <div style="display:flex;gap:8px;">
+              <button class="btn-out" onclick="dlTemplate('class')">⬇ Template</button>
+              <button class="btn-out" onclick="dlUploaded('classes')">⬇ Exported</button>
+            </div>
+          </div>
+          <div class="card fixed-card" style="margin-top:20px;">
+            <div class="card-body">
+              <div style="margin-bottom: 20px; font-size: 13px; color: var(--tmu);">
+                <b>Required Columns:</b> Department | HallNo | Year | Semester | Section | Batch — ClassName auto-generated as DEPTCODE-SEM-SECTION. Batch must match an active batch under the current Academic Year.
+              </div>
+              <div class="uz" onclick="document.getElementById('uf-cls').click()"
+                ondragover="event.preventDefault();this.classList.add('dg')"
+                ondragleave="this.classList.remove('dg')"
+                ondrop="hd(event,'struct')">
+                <input type="file" id="uf-cls" accept=".xlsx,.xls,.csv" onchange="hu(this,'struct')">
+                <span class="uz-icon">🏫</span>
+                <div class="uz-title">Click or drag &amp; drop your file here</div>
+                <div class="uz-sub">.xlsx · .xls · .csv</div>
+              </div>
+              <div id="sup" style="margin-top:14px;"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- SUBJECTS -->
+        <div id="bulk-subject" class="bulk-panel pg" style="display:none;">
+          <div class="shd">
+            <div class="stl"><span class="sdo"></span>Add Subject</div>
+            <div style="display:flex;gap:8px;">
+              <button class="btn-out" onclick="dlTemplate('subject')">⬇ Template</button>
+              <button class="btn-out" onclick="dlUploaded('subjects')">⬇ Exported</button>
+            </div>
+          </div>
+          <div class="card fixed-card" style="margin-top:20px;">
+            <div class="card-body">
+              <div style="margin-bottom: 20px; font-size: 13px; color: var(--tmu);">
+                <b>Required Columns:</b> Name | Code | Department | Credits | Type — SubjectCode is auto-generated as DEPTCODE-CODE
+              </div>
+              <div class="uz" onclick="document.getElementById('uf-subj').click()"
+                ondragover="event.preventDefault();this.classList.add('dg')"
+                ondragleave="this.classList.remove('dg')"
+                ondrop="hd(event,'subjects')">
+                <input type="file" id="uf-subj" accept=".xlsx,.xls,.csv" onchange="hu(this,'subjects')">
+                <span class="uz-icon">📚</span>
+                <div class="uz-title">Click or drag &amp; drop your file here</div>
+                <div class="uz-sub">.xlsx · .xls · .csv</div>
+              </div>
+              <div id="subup" style="margin-top:14px;"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- STUDENTS -->
+        <div id="bulk-student" class="bulk-panel pg" style="display:none;">
+          <div class="shd">
+            <div class="stl"><span class="sdo"></span>Add Student</div>
+            <div style="display:flex;gap:8px;">
+              <button class="btn-out" onclick="dlTemplate('student')">⬇ Template</button>
+              <button class="btn-out" onclick="dlUploaded('students')">⬇ Exported</button>
+            </div>
+          </div>
+          <div class="card fixed-card" style="margin-top:20px;">
+            <div class="card-body">
+              <div style="margin-bottom: 20px; font-size: 13px; color: var(--tmu);">
+                <b>Required Columns:</b> FullName | RegisterNo | AcademicYear | CourseType | Branch | Department | Year | Class | Section | Email | Username | Password
+              </div>
+              <div class="uz" onclick="document.getElementById('uf-t').click()"
+                ondragover="event.preventDefault();this.classList.add('dg')"
+                ondragleave="this.classList.remove('dg')"
+                ondrop="hd(event,'students')">
+                <input type="file" id="uf-t" accept=".xlsx,.xls,.csv" onchange="hu(this,'students')">
+                <span class="uz-icon">👨‍🎓</span>
+                <div class="uz-title">Click or drag &amp; drop your file here</div>
+                <div class="uz-sub">.xlsx · .xls · .csv</div>
+              </div>
+              <div id="tup" style="margin-top:14px;"></div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- NEXT-STEP POPUP -->
+  <div id="next-step-popup">
+    <div class="nsp-icon" id="nsp-icon">✅</div>
+    <div class="nsp-top" id="nsp-top">Step complete!</div>
+    <div class="nsp-sub" id="nsp-sub">Ready to move to the next step?</div>
+    <div class="nsp-btns">
+      <button class="nsp-go" id="nsp-go-btn">Continue →</button>
+      <button class="nsp-stay" onclick="closeNextStepPopup()">Stay Here</button>
+    </div>
+  </div>
+
+  <!-- CONFLICT DIALOG -->
+  <div class="modal-overlay" id="bulk-conflict-overlay">
+    <div class="modal-box">
+      <div class="modal-head">
+        <h3>⚠️ Data Conflict Found</h3>
+        <button class="modal-x" onclick="resolveConflict('cancel')">✕</button>
+      </div>
+      <div class="modal-sub" id="conflict-msg"></div>
+      <div class="compare-grid" id="conflict-compare-wrap" style="display:none;">
+        <div class="cmp-col db">
+          <div class="cmp-title">📦 Data in Database</div>
+          <div id="conflict-db-data"></div>
+        </div>
+        <div class="cmp-col up">
+          <div class="cmp-title">📄 Uploaded Data</div>
+          <div id="conflict-upload-data"></div>
+        </div>
+      </div>
+      <div class="diff-summary" id="conflict-diff-list" style="display:none;"></div>
+      <div class="apply-row">
+        <label class="apply-label">
+          <input type="checkbox" id="conflict-apply-all" style="accent-color:var(--gD);width:14px;height:14px;">
+          Apply this choice to all remaining conflicts in this upload
+        </label>
+      </div>
+      <div class="modal-actions">
+        <button class="btn-skip" onclick="resolveConflict('skip')">⏭ Skip — Keep Existing</button>
+        <button class="btn-replace" onclick="resolveConflict('replace')">🔄 Replace with Uploaded</button>
+        <button class="btn-cancel-up" onclick="resolveConflict('cancel')">✕ Cancel Upload</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script src="js/core/session.js"></script>
+  <script src="js/core/api.js"></script>
+  <script src="js/core/toast.js"></script>
+  <script src="js/pages/bulk.page.js"></script>
+</body>
+</html>

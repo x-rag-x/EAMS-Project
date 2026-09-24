@@ -1,0 +1,821 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EAMS – Campus Facilities &amp; Smart Board Hub</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
+
+  <!-- Base & EAMS Core Admin Stylesheets -->
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/admin.css">
+  <link rel="stylesheet" href="css/rooms.css">
+
+  <!-- Leaflet CDN for Geolocation & Geofencing Map Pickers -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+</head>
+<body>
+
+  <!-- EAMS THREE-BODY PAGE LOADER -->
+  <div id="page-loader">
+    <div class="loader-brand">🌿 EAMS Facilities</div>
+    <div class="three-body">
+      <div class="three-body__dot"></div>
+      <div class="three-body__dot"></div>
+      <div class="three-body__dot"></div>
+    </div>
+    <div class="loader-msg" id="loader-msg">Loading Campus Facilities…</div>
+    <div class="loader-eta" id="loader-eta"></div>
+    <div class="loader-steps">
+      <div class="loader-step active" id="lstep-0"></div>
+      <div class="loader-step" id="lstep-1"></div>
+      <div class="loader-step" id="lstep-2"></div>
+      <div class="loader-step" id="lstep-3"></div>
+      <div class="loader-step" id="lstep-4"></div>
+    </div>
+  </div>
+
+  <!-- APP SHELL -->
+  <div id="app-shell">
+    <div class="sb-overlay" id="sb-overlay" onclick="toggleAdminSidebar()"></div>
+
+    <!-- SIDEBAR TOGGLE BUTTON -->
+    <button class="sb-toggle-btn" id="sbtoggle" onclick="toggleAdminSidebar()" title="Toggle menu">✖</button>
+
+    <!-- SIDEBAR -->
+    <nav class="sb" id="sidebar">
+      <div class="sb-logo">
+        <div class="sb-brand">🌿 EAMS Admin</div>
+        <button class="btn-pri" onclick="refreshFacilitiesData()">Refresh</button>
+      </div>
+
+      <div class="nav-section" style="flex:1;overflow-y:auto;padding:6px 0;" id="sb-nav">
+        <div class="sb-section-label">Facilities Hub</div>
+        <button class="sb-item act" id="tab-btn-explorer" onclick="switchMainTab('explorer')">
+          <span class="sbi-ic">🏢</span>Blocks Explorer
+        </button>
+        <button class="sb-item" id="tab-btn-maintenance" onclick="switchMainTab('maintenance')">
+          <span class="sbi-ic">🔧</span>Maintenance Blocks
+        </button>
+        <button class="sb-item" id="tab-btn-boards" onclick="switchMainTab('boards')">
+          <span class="sbi-ic">📺</span>Smart Board Center
+        </button>
+        <button class="sb-item" id="tab-btn-audit" onclick="switchMainTab('audit')">
+          <span class="sbi-ic">📋</span>Facility Audit Trail
+        </button>
+
+        <div class="sb-section-label" style="margin-top:16px;">Navigation</div>
+        <button class="sb-item" onclick="location.href='admin.html'">
+          <span class="sbi-ic">🏛️</span>Admin Dashboard
+        </button>
+        <button class="sb-item" onclick="location.href='timetable.html'">
+          <span class="sbi-ic">🗓️</span>Timetable Workspace
+        </button>
+        <button class="sb-item" onclick="location.href='board.html'">
+          <span class="sbi-ic">📺</span>Smart Board Kiosk
+        </button>
+        <button class="sb-item" onclick="location.href='manage.html'">
+          <span class="sbi-ic">📤</span>Manage System
+        </button>
+      </div>
+
+      <div class="sb-bottom">
+        <div class="sb-user">
+          <div class="sb-uav" id="sb-av">A</div>
+          <div>
+            <div class="sb-uname" id="sb-name">Administrator</div>
+            <div class="sb-urole">Admin</div>
+          </div>
+        </div>
+        <button class="sb-back-btn" id="admin-hub-back-btn" onclick="location.href='admin.html'">← Back to Admin</button>
+        <button class="sb-logout-btn" onclick="doLogout()" title="Logout">
+          <div class="logout-sign">
+            <svg viewBox="0 0 512 512">
+              <path d="M377.9 105.9L500.7 228.7c7.2 7.2 11.3 17.1 11.3 27.3s-4.1 20.1-11.3 27.3L377.9 406.1c-6.4 6.4-15 9.9-24 9.9c-18.7 0-33.9-15.2-33.9-33.9l0-62.1-128 0c-17.7 0-32-14.3-32-32l0-64c0-17.7 14.3-32 32-32l128 0 0-62.1c0-18.7 15.2-33.9 33.9-33.9c9 0 17.6 3.6 24 9.9zM160 96L96 96c-17.7 0-32 14.3-32 32l0 256c0 17.7 14.3 32 32 32l64 0c17.7 0 32 14.3 32 32s-14.3 32-32 32l-64 0c-53 0-96-43-96-96L0 128C0 75 43 32 96 32l64 0c17.7 0 32 14.3 32 32s-14.3 32-32 32z"></path>
+            </svg>
+          </div>
+          <div class="logout-text">Logout</div>
+        </button>
+      </div>
+    </nav>
+
+    <!-- MAIN CONTENT -->
+    <div class="mc" id="mc">
+      <!-- TOPBAR -->
+      <div class="topbar">
+        <div class="topbar-left">
+          <div style="width:32px;"></div><!-- spacer for toggle btn -->
+          <div style="font-size:11px;color:var(--tmu);background:var(--gLt);padding:4px 12px;border-radius:12px;border:1px solid var(--br);font-weight:600;white-space:nowrap;" id="topbar-tag">
+            🌿 EAMS &bull; Facilities &amp; Smart Board Hub
+          </div>
+        </div>
+        <div class="topbar-right">
+          <button class="btn-out btn-sm" onclick="refreshFacilitiesData()" title="Reload Data">🔄 Refresh</button>
+          <button class="btn-pri btn-sm" id="btn-topbar-primary" onclick="openAddBlockModal()">➕ Add Block</button>
+          <div class="tb-icon" onclick="location.href='admin.html'" title="Admin Dashboard">⚙️</div>
+        </div>
+      </div>
+
+      <!-- MAIN CONTAINER: ALL PAGES ARE LIKE ADMIN PAGE'S SUB PAGE -->
+      <div class="pg act" style="padding:22px 24px;">
+        <div class="page-wrap">
+
+          <!-- PAGE HEADER (ADMIN SUBPAGE STYLE) -->
+          <div class="page-hd">
+            <div>
+              <div class="page-title">Campus Facilities &amp; Blocks</div>
+              <div class="page-sub">Manage blocks, floors, classrooms, seminar halls, and smart displays across all departments.</div>
+            </div>
+            <div class="page-actions">
+              <button class="btn-pri" onclick="openAddBlockModal()">+ Add Block</button>
+              <button class="btn-out" onclick="switchMainTab('maintenance')">🔧 Maintenance Blocks</button>
+              <button class="btn-out" onclick="exportFacilityReport()">📤 Export Excel</button>
+            </div>
+          </div>
+
+          <!-- 6-COLUMN KPI DASHBOARD MATRIX (2 ROWS × 3 COLUMNS) -->
+          <div class="stats-row facilities-kpi-row">
+            <!-- Row 1 -->
+            <div class="stat-card primary" onclick="setViewFilter('all')">
+              <div class="sc-top">
+                <span class="sc-label">Total Blocks</span>
+                <div class="sc-arrow">🏢</div>
+              </div>
+              <div class="sc-val" id="kpi-total-blocks">0</div>
+              <div class="sc-trend" id="kpi-total-blocks-sub">All campus buildings</div>
+            </div>
+
+            <div class="stat-card" onclick="filterByUnitType('Room')">
+              <div class="sc-top">
+                <span class="sc-label">Total Class Rooms</span>
+                <div class="sc-arrow" style="color:var(--gB);">🏛️</div>
+              </div>
+              <div class="sc-val" id="kpi-total-rooms" style="color:var(--gK);">0</div>
+              <div class="sc-trend" id="kpi-total-rooms-sub" style="color:var(--gD);background:var(--gLt);">Lecture &amp; theory spaces</div>
+            </div>
+
+            <div class="stat-card" onclick="filterByUnitType('Lab')">
+              <div class="sc-top">
+                <span class="sc-label">Total Labs</span>
+                <div class="sc-arrow" style="color:var(--purple);">🔬</div>
+              </div>
+              <div class="sc-val" id="kpi-total-labs" style="color:var(--purple);">0</div>
+              <div class="sc-trend" id="kpi-total-labs-sub" style="color:var(--purple);background:rgba(139,92,246,0.1);">Computer &amp; science labs</div>
+            </div>
+
+            <!-- Row 2 -->
+            <div class="stat-card" onclick="setViewFilter('Academic')">
+              <div class="sc-top">
+                <span class="sc-label">Academic Blocks</span>
+                <div class="sc-arrow" style="color:var(--gD);">🎓</div>
+              </div>
+              <div class="sc-val" id="kpi-academic-blocks" style="color:var(--gD);">0</div>
+              <div class="sc-trend" id="kpi-academic-sub" style="color:var(--gD);background:var(--gLt);">Teaching faculties</div>
+            </div>
+
+            <div class="stat-card" onclick="setViewFilter('Hostel')">
+              <div class="sc-top">
+                <span class="sc-label">Hostel Blocks</span>
+                <div class="sc-arrow" style="color:var(--teal);">🏠</div>
+              </div>
+              <div class="sc-val" id="kpi-hostel-blocks" style="color:var(--teal);">0</div>
+              <div class="sc-trend" id="kpi-hostel-sub" style="color:var(--teal);background:rgba(0,137,123,0.1);">Student residences</div>
+            </div>
+
+            <div class="stat-card" onclick="setViewFilter('Other')">
+              <div class="sc-top">
+                <span class="sc-label">Others</span>
+                <div class="sc-arrow" style="color:var(--amber);">🏛️</div>
+              </div>
+              <div class="sc-val" id="kpi-other-blocks" style="color:var(--warn);">0</div>
+              <div class="sc-trend" id="kpi-other-sub" style="color:var(--warn);background:var(--warn-lt);">Admin, sports &amp; amenities</div>
+            </div>
+          </div>
+
+          <!-- ══════════════════════════════════════════════════════ -->
+          <!-- MAIN TAB 1: FILE EXPLORER WORKSPACE                   -->
+          <!-- ══════════════════════════════════════════════════════ -->
+          <div id="tab-view-explorer" class="facilities-main-tab act">
+
+            <!-- QUICK VIEW SELECTOR & ACTIONS -->
+            <div class="view-selector-bar">
+              <div class="view-pills">
+                <span class="view-label">VIEW:</span>
+                <button class="v-pill act" data-view="all" onclick="setViewFilter('all')">Total Blocks</button>
+                <button class="v-pill" data-view="Academic" onclick="setViewFilter('Academic')">Academic Blocks</button>
+                <button class="v-pill" data-view="Hostel" onclick="setViewFilter('Hostel')">Hostel Blocks</button>
+                <button class="v-pill" data-view="Other" onclick="setViewFilter('Other')">Others</button>
+              </div>
+              <div class="view-actions">
+                <button class="btn-pri btn-sm" onclick="openAddBlockModal()">+ Add Block</button>
+              </div>
+            </div>
+
+            <!-- SINGLE-LINE UNIFIED SEARCH & FILTER TOOLBAR -->
+            <div class="card slf-card" style="margin-bottom:16px;">
+              <div class="single-line-filter-bar">
+                <div class="slf-search-box">
+                  <span class="slf-search-icon">🔍</span>
+                  <input type="text" id="filter-search" class="slf-search-input" placeholder="Search Block name, Room name, Hall name, Lab name…" oninput="onFilterChange()">
+                  <button class="slf-clear-btn" id="filter-search-clear" onclick="clearSearch()" style="display:none;" title="Clear search">✖</button>
+                </div>
+                <div class="slf-dropdowns">
+                  <div class="slf-field">
+                    <select id="filter-block" class="slf-select" onchange="onBlockFilterChange()">
+                      <option value="">All Blocks</option>
+                    </select>
+                  </div>
+                  <div class="slf-field">
+                    <select id="filter-floor" class="slf-select" onchange="onFilterChange()">
+                      <option value="">All Floors</option>
+                    </select>
+                  </div>
+                  <div class="slf-field">
+                    <select id="filter-type" class="slf-select" onchange="onFilterChange()">
+                      <option value="">All Types (Room, Halls, Lab)</option>
+                      <option value="Room">Class Rooms</option>
+                      <option value="Hall">Special Halls</option>
+                      <option value="Lab">Laboratories</option>
+                    </select>
+                  </div>
+                  <div class="slf-field slf-status-group">
+                    <button class="slf-status-btn act" data-status="" onclick="setStatusFilter('')">All</button>
+                    <button class="slf-status-btn" data-status="Active" onclick="setStatusFilter('Active')">Active</button>
+                    <button class="slf-status-btn" data-status="Inactive" onclick="setStatusFilter('Inactive')">Inactive</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- FILE EXPLORER BREADCRUMB NAVIGATION BAR -->
+            <div class="explorer-breadcrumb-bar" id="explorer-breadcrumbs">
+              <div class="eb-crumb active" onclick="navExplorer(0)" title="Root Blocks Overview">
+                <span class="eb-icon">📁</span> Blocks
+              </div>
+              <div class="eb-crumb" id="eb-crumb-block" style="display:none;" onclick="navExplorer(1)">
+                <span class="eb-sep">›</span>
+                <span class="eb-icon">🏢</span>
+                <span id="eb-label-block">Block Name</span>
+              </div>
+              <div class="eb-crumb" id="eb-crumb-floor" style="display:none;" onclick="navExplorer(2)">
+                <span class="eb-sep">›</span>
+                <span class="eb-icon">📶</span>
+                <span id="eb-label-floor">Floor 1</span>
+              </div>
+              <div class="eb-crumb eb-leaf" id="eb-crumb-unit" style="display:none;">
+                <span class="eb-sep">›</span>
+                <span class="eb-icon" id="eb-icon-unit">🚪</span>
+                <span id="eb-label-unit">Unit Name</span>
+              </div>
+            </div>
+
+            <!-- ── LEVEL 0: CAMPUS BLOCKS OVERVIEW GRID ── -->
+            <div id="exp-view-blocks" class="exp-viewport act">
+              <div class="blocks-grid" id="blocks-container">
+                <div class="empty-state">Loading campus blocks…</div>
+              </div>
+            </div>
+
+            <!-- ── LEVEL 1: BLOCK VIEW (BLOCKS > BLOCK NAME) ── -->
+            <div id="exp-view-floors" class="exp-viewport" style="display:none;">
+              <div class="exp-header-card">
+                <div class="ehc-left">
+                  <div class="ehc-title" id="exp-block-name">Block Name</div>
+                  <div class="ehc-sub" id="exp-block-subname">Sub name</div>
+                  <div class="ehc-meta" id="exp-block-meta">
+                    <span id="exp-block-floors-cnt">0 Floors</span> &bull; <span id="exp-block-rooms-cnt">0 Total Rooms</span> &bull; <span id="exp-block-capacity-cnt">0 Total Seating Capacity</span>
+                  </div>
+                </div>
+                <div class="ehc-actions">
+                  <button class="btn-pri btn-sm" onclick="openAddFloorModal()">+ Add Floor</button>
+                  <button class="btn-out btn-sm" onclick="navExplorer(0)">← Back to Blocks</button>
+                </div>
+              </div>
+
+              <div class="floors-grid" id="floors-container">
+                <!-- Dynamically rendered floor cards -->
+              </div>
+            </div>
+
+            <!-- ── LEVEL 2: FLOOR VIEW (BLOCKS > BLOCK NAME > FLOOR NAME) ── -->
+            <div id="exp-view-units" class="exp-viewport" style="display:none;">
+              <div class="exp-header-card">
+                <div class="ehc-left">
+                  <div class="ehc-title" id="exp-floor-name">Floor Name</div>
+                  <div class="ehc-meta" id="exp-floor-meta">
+                    <span id="exp-floor-labs-cnt">0 Total Labs</span> &bull; <span id="exp-floor-halls-cnt">0 Total Halls</span> &bull; <span id="exp-floor-rooms-cnt">0 Total Rooms</span> &bull; <span id="exp-floor-capacity-cnt">0 Total Seating Capacity</span>
+                  </div>
+                </div>
+                <div class="ehc-actions">
+                  <button class="btn-pri btn-sm" onclick="openAddUnitModal()">+ Add Hall / Room / Lab</button>
+                  <button class="btn-out btn-sm" onclick="navExplorer(1)">← Back to Floors</button>
+                </div>
+              </div>
+
+              <div class="units-grid" id="units-container">
+                <!-- Dynamically rendered Room / Hall / Lab cards -->
+              </div>
+            </div>
+
+            <!-- ── LEVEL 3: UNIT INSPECTION & TELEMETRY SHEET ── -->
+            <div id="exp-view-unit-detail" class="exp-viewport" style="display:none;">
+              <div class="unit-inspection-sheet" id="unit-detail-card">
+                <!-- Dynamically rendered detailed inspection sheet -->
+              </div>
+            </div>
+
+          </div>
+
+          <!-- ══════════════════════════════════════════════════════ -->
+          <!-- MAIN TAB 2: MAINTENANCE BLOCKS                        -->
+          <!-- ══════════════════════════════════════════════════════ -->
+          <div id="tab-view-maintenance" class="facilities-main-tab" style="display:none;">
+            <div class="exp-header-card" style="margin-bottom:18px;">
+              <div class="ehc-left">
+                <div class="ehc-title">🔧 Maintenance &amp; Offline Facilities</div>
+                <div class="ehc-sub">Units and smart displays currently marked under maintenance, repair, or temporarily unavailable.</div>
+              </div>
+              <div class="ehc-actions">
+                <button class="btn-out btn-sm" onclick="switchMainTab('explorer')">← Back to Explorer</button>
+              </div>
+            </div>
+
+            <div class="tbl-wrap">
+              <table class="tbl" id="tbl-maintenance-list">
+                <thead>
+                  <tr>
+                    <th>Unit / Hall</th>
+                    <th>Category</th>
+                    <th>Block &amp; Floor</th>
+                    <th>Status</th>
+                    <th>IP Address</th>
+                    <th>Reason / Issue</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody id="tbody-maintenance-list">
+                  <tr><td colspan="7" class="td-empty">Loading maintenance status…</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- ══════════════════════════════════════════════════════ -->
+          <!-- MAIN TAB 3: SMART BOARD CENTER                        -->
+          <!-- ══════════════════════════════════════════════════════ -->
+          <div id="tab-view-boards" class="facilities-main-tab" style="display:none;">
+            <div class="exp-header-card" style="margin-bottom:18px;">
+              <div class="ehc-left">
+                <div class="ehc-title">📺 Smart Board Center</div>
+                <div class="ehc-sub">Manage autonomous smart classroom displays, device keys, and installation points.</div>
+              </div>
+              <div class="ehc-actions">
+                <button class="btn-pri btn-sm" onclick="openRegisterBoardModal()">+ Register Smart Board</button>
+                <button class="btn-out btn-sm" onclick="location.href='board.html'">Open Board Kiosk Display →</button>
+              </div>
+            </div>
+
+            <div class="tbl-wrap">
+              <table class="tbl" id="tbl-boards-list">
+                <thead>
+                  <tr>
+                    <th>Board Name</th>
+                    <th>Device ID</th>
+                    <th>Installed Room</th>
+                    <th>Block</th>
+                    <th>IP / Network</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="tbody-boards-list">
+                  <tr><td colspan="7" class="td-empty">Loading smart boards…</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- ══════════════════════════════════════════════════════ -->
+          <!-- MAIN TAB 4: FACILITY AUDIT TRAIL                      -->
+          <!-- ══════════════════════════════════════════════════════ -->
+          <div id="tab-view-audit" class="facilities-main-tab" style="display:none;">
+            <div class="exp-header-card" style="margin-bottom:18px;">
+              <div class="ehc-left">
+                <div class="ehc-title">📋 Linked Facility Activity Logs</div>
+                <div class="ehc-sub">Cryptographically audited history of room creations, capacity revisions, maintenance toggles, and hall bookings.</div>
+              </div>
+              <div class="ehc-actions">
+                <button class="btn-out btn-sm" onclick="location.href='logs.html'">Open Master Audit Center →</button>
+              </div>
+            </div>
+
+            <div class="tbl-wrap">
+              <table class="tbl" id="tbl-audit-logs">
+                <thead>
+                  <tr>
+                    <th>Log ID</th>
+                    <th>Timestamp</th>
+                    <th>Actor</th>
+                    <th>Action</th>
+                    <th>Target Entity</th>
+                    <th>IP</th>
+                  </tr>
+                </thead>
+                <tbody id="tbody-audit-logs">
+                  <tr><td colspan="6" class="td-empty">Loading audit records…</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+        </div><!-- /.page-wrap -->
+      </div><!-- /.pg -->
+    </div><!-- /.mc -->
+  </div><!-- /#app-shell -->
+
+  <!-- ══════════════════════════════════════════════════════ -->
+  <!-- MODAL POPUPS (ZERO-ALERT ENGINE)                       -->
+  <!-- ══════════════════════════════════════════════════════ -->
+
+  <!-- MODAL 1: ADD / EDIT BLOCK -->
+  <div class="modal-bg" id="modal-block">
+    <div class="modal modal-md">
+      <div class="modal-hd">
+        <div>
+          <div class="modal-title" id="block-modal-title">🏢 Add Campus Block</div>
+          <div class="modal-sub">Define building name, sub-name, code, gateway IP, and total floor capacity.</div>
+        </div>
+        <div class="modal-close" onclick="closeModal('modal-block')">✖</div>
+      </div>
+      <div class="mbody">
+        <input type="hidden" id="block-edit-id">
+        <div class="form-grid form-grid-2">
+          <div class="fg">
+            <label class="fl">Block Name<span style="color:var(--red);">*</span></label>
+            <input type="text" class="fc2" id="block-input-name" placeholder="e.g. Main Academic Block" required>
+          </div>
+          <div class="fg">
+            <label class="fl">Sub Name / Details</label>
+            <input type="text" class="fc2" id="block-input-subname" placeholder="e.g. Engineering &amp; Technology Complex">
+          </div>
+        </div>
+
+        <div class="form-grid form-grid-3" style="margin-top:10px;">
+          <div class="fg">
+            <label class="fl">Block Code<span style="color:var(--red);">*</span> (Unique)</label>
+            <input type="text" class="fc2" id="block-input-code" placeholder="e.g. MB" style="text-transform:uppercase;" required>
+          </div>
+          <div class="fg">
+            <label class="fl">Category Type</label>
+            <select class="fc2" id="block-input-type">
+              <option value="Academic">Academic</option>
+              <option value="Hostel">Hostel</option>
+              <option value="Laboratory">Laboratory</option>
+              <option value="Administrative">Administrative</option>
+              <option value="Sports">Sports</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+          <div class="fg">
+            <label class="fl">Total Floors<span style="color:var(--red);">*</span></label>
+            <input type="number" class="fc2" id="block-input-floors" value="4" min="1" max="50" required>
+          </div>
+        </div>
+
+        <div class="form-grid form-grid-2" style="margin-top:10px;">
+          <div class="fg">
+            <label class="fl">Gateway / Subnet IP</label>
+            <input type="text" class="fc2" id="block-input-ip" placeholder="e.g. 192.168.10.1">
+          </div>
+          <div class="fg">
+            <label class="fl">Campus</label>
+            <input type="text" class="fc2" id="block-input-campus" value="Main Campus">
+          </div>
+        </div>
+
+        <div class="fg" style="margin-top:10px;">
+          <label class="fl">Status</label>
+          <select class="fc2" id="block-input-status">
+            <option value="Active">Active</option>
+            <option value="Inactive">Inactive</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-actions">
+        <button type="button" class="btn-out" onclick="closeModal('modal-block')">Cancel</button>
+        <button type="button" class="btn-pri" id="btn-save-block" onclick="saveBlockForm()">💾 Save Block</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL 2: ADD FLOOR -->
+  <div class="modal-bg" id="modal-floor">
+    <div class="modal modal-sm">
+      <div class="modal-hd">
+        <div>
+          <div class="modal-title">📶 Add Floor to Block</div>
+          <div class="modal-sub" id="floor-modal-block-name">Selected Block</div>
+        </div>
+        <div class="modal-close" onclick="closeModal('modal-floor')">✖</div>
+      </div>
+      <div class="mbody">
+        <input type="hidden" id="floor-block-id">
+        <div class="fg">
+          <label class="fl">Floor Level Number<span style="color:var(--red);">*</span></label>
+          <input type="number" class="fc2" id="floor-input-number" min="0" max="50" placeholder="e.g. 1, 2, 3">
+        </div>
+        <div class="fg" style="margin-top:10px;">
+          <label class="fl">Floor Label / Name</label>
+          <input type="text" class="fc2" id="floor-input-label" placeholder="e.g. Floor 1 (First Floor)">
+        </div>
+      </div>
+      <div class="form-actions">
+        <button type="button" class="btn-out" onclick="closeModal('modal-floor')">Cancel</button>
+        <button type="button" class="btn-pri" onclick="saveFloorForm()">+ Add Floor</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL 3: ADD / EDIT UNIT (ROOM, SPECIAL HALL, LAB) -->
+  <div class="modal-bg" id="modal-unit">
+    <div class="modal modal-md">
+      <div class="modal-hd">
+        <div>
+          <div class="modal-title" id="unit-modal-title">🚪 Add Facility Unit</div>
+          <div class="modal-sub">Create classroom, seminar hall, or laboratory with network and telemetry specifications.</div>
+        </div>
+        <div class="modal-close" onclick="closeModal('modal-unit')">✖</div>
+      </div>
+      <div class="mbody">
+        <input type="hidden" id="unit-edit-id">
+        <div class="unit-type-pills">
+          <label class="fl" style="width:100%;">Unit Category<span style="color:var(--red);">*</span></label>
+          <button type="button" class="ut-pill act" data-cat="Room" onclick="selectUnitCategory('Room')">🏛️ Class Room</button>
+          <button type="button" class="ut-pill" data-cat="Hall" onclick="selectUnitCategory('Hall')">🎭 Special Hall</button>
+          <button type="button" class="ut-pill" data-cat="Lab" onclick="selectUnitCategory('Lab')">🔬 Laboratory</button>
+        </div>
+
+        <div class="form-grid form-grid-2" style="margin-top:14px;">
+          <div class="fg">
+            <label class="fl">Hall / Unit Number<span style="color:var(--red);">*</span></label>
+            <input type="text" class="fc2" id="unit-input-hallno" placeholder="e.g. LH-101, SH-204, LAB-03" required>
+          </div>
+          <div class="fg">
+            <label class="fl">Display Name</label>
+            <input type="text" class="fc2" id="unit-input-name" placeholder="e.g. Seminar Hall 204">
+          </div>
+        </div>
+
+        <div class="form-grid form-grid-3" style="margin-top:10px;">
+          <div class="fg">
+            <label class="fl">Block<span style="color:var(--red);">*</span></label>
+            <select class="fc2" id="unit-select-building" onchange="onUnitBuildingChange()"></select>
+          </div>
+          <div class="fg">
+            <label class="fl">Floor<span style="color:var(--red);">*</span></label>
+            <select class="fc2" id="unit-select-floor"></select>
+          </div>
+          <div class="fg">
+            <label class="fl">Total Seats / Capacity<span style="color:var(--red);">*</span></label>
+            <input type="number" class="fc2" id="unit-input-capacity" value="60" min="1" max="2000" required>
+          </div>
+        </div>
+
+        <!-- Telemetry & Network Row -->
+        <div class="form-grid form-grid-3" style="margin-top:10px;">
+          <div class="fg">
+            <label class="fl">IP Address</label>
+            <input type="text" class="fc2" id="unit-input-ip" placeholder="e.g. 192.168.10.101">
+          </div>
+          <div class="fg">
+            <label class="fl">Wi-Fi Speed Level</label>
+            <input type="text" class="fc2" id="unit-input-wifi" placeholder="e.g. 250 Mbps - High">
+          </div>
+          <div class="fg">
+            <label class="fl">Mobile Network Speed</label>
+            <input type="text" class="fc2" id="unit-input-mobile" placeholder="e.g. 5G Ultra">
+          </div>
+        </div>
+
+        <div class="form-grid form-grid-2" style="margin-top:10px;">
+          <div class="fg">
+            <label class="fl">Assigned Department</label>
+            <select class="fc2" id="unit-select-dept"></select>
+          </div>
+          <div class="fg">
+            <label class="fl">Operational Status</label>
+            <select class="fc2" id="unit-select-status">
+              <option value="Available">Available</option>
+              <option value="Reserved">Reserved</option>
+              <option value="Maintenance">Maintenance</option>
+              <option value="Inactive">Inactive</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Conditional: Special Hall Incharge -->
+        <div id="unit-field-hall-incharge" style="margin-top:12px;display:none;background:var(--gLt);padding:12px;border-radius:10px;border:1px solid var(--br);">
+          <div style="font-weight:700;font-size:12px;color:var(--gD);margin-bottom:8px;">🎭 Special Hall Incharge Details</div>
+          <div class="form-grid form-grid-3">
+            <div class="fg">
+              <label class="fl">Incharge Name</label>
+              <input type="text" class="fc2" id="unit-incharge-name" placeholder="Dr. Faculty Name">
+            </div>
+            <div class="fg">
+              <label class="fl">Email Address</label>
+              <input type="email" class="fc2" id="unit-incharge-email" placeholder="faculty@campus.edu">
+            </div>
+            <div class="fg">
+              <label class="fl">Phone / Extension</label>
+              <input type="text" class="fc2" id="unit-incharge-phone" placeholder="Ext 4012 / Phone">
+            </div>
+          </div>
+        </div>
+
+        <!-- Conditional: Lab Specs -->
+        <div id="unit-field-lab-specs" style="margin-top:12px;display:none;background:rgba(139,92,246,0.08);padding:12px;border-radius:10px;border:1px solid rgba(139,92,246,0.2);">
+          <div style="font-weight:700;font-size:12px;color:var(--purple);margin-bottom:8px;">🔬 Laboratory Specifications</div>
+          <div class="form-grid form-grid-2">
+            <div class="fg">
+              <label class="fl">Workstations / Computer Count</label>
+              <input type="number" class="fc2" id="unit-lab-workstations" placeholder="e.g. 45" min="0">
+            </div>
+            <div class="fg">
+              <label class="fl">Lab Availability Status</label>
+              <select class="fc2" id="unit-lab-status">
+                <option value="Available">Available for Sessions</option>
+                <option value="In-Use">Occupied / In-Use</option>
+                <option value="Maintenance">Under Maintenance</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+      </div>
+      <div class="form-actions">
+        <button type="button" class="btn-out" onclick="closeModal('modal-unit')">Cancel</button>
+        <button type="button" class="btn-pri" id="btn-save-unit" onclick="saveUnitForm()">💾 Save Unit</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL 4: LINK SMART BOARD POPUP WINDOW -->
+  <div class="modal-bg" id="modal-link-board">
+    <div class="modal modal-md">
+      <div class="modal-hd">
+        <div>
+          <div class="modal-title">📺 Link Smart Board to Facility</div>
+          <div class="modal-sub" id="link-board-target-info">Connecting device to room</div>
+        </div>
+        <div class="modal-close" onclick="closeModal('modal-link-board')">✖</div>
+      </div>
+      <div class="mbody">
+        <input type="hidden" id="link-board-room-id">
+        <div class="fg">
+          <label class="fl">Select Smart Board Device<span style="color:var(--red);">*</span></label>
+          <select class="fc2" id="link-board-select">
+            <option value="">— Select an unassigned Smart Board —</option>
+          </select>
+        </div>
+        <div id="link-board-preview" style="margin-top:14px;background:var(--gLt);padding:12px;border-radius:10px;display:none;">
+          <!-- Shows selected board details & live status -->
+        </div>
+        <div class="fg" style="margin-top:12px;">
+          <label class="fl">Installation / Assignment Note</label>
+          <input type="text" class="fc2" id="link-board-reason" placeholder="e.g. Initial installation for lecture hall">
+        </div>
+      </div>
+      <div class="form-actions">
+        <button type="button" class="btn-out" onclick="closeModal('modal-link-board')">Cancel</button>
+        <button type="button" class="btn-pri" onclick="submitLinkBoard()">⚡ Link &amp; Connect Board</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL 5: SMART BOARD LOGS & TELEMETRY POPUP -->
+  <div class="modal-bg" id="modal-board-logs">
+    <div class="modal modal-md">
+      <div class="modal-hd">
+        <div>
+          <div class="modal-title" id="board-logs-title">📡 Smart Board Connection Logs</div>
+          <div class="modal-sub" id="board-logs-sub">Device telemetry, ping and network status</div>
+        </div>
+        <div class="modal-close" onclick="closeModal('modal-board-logs')">✖</div>
+      </div>
+      <div class="mbody">
+        <div class="diag-grid" id="board-logs-metrics">
+          <!-- Filled by JS -->
+        </div>
+        <div style="font-size:11.5px;font-weight:700;color:var(--gD);margin:14px 0 6px;">TELEMETRY &amp; IP HISTORY</div>
+        <div class="board-logs-box" id="board-logs-content">
+          Loading board logs…
+        </div>
+      </div>
+      <div class="form-actions">
+        <button type="button" class="btn-pri" onclick="closeModal('modal-board-logs')">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL 6: PRE-BOOK SPECIAL HALL -->
+  <div class="modal-bg" id="modal-prebook-hall">
+    <div class="modal modal-md">
+      <div class="modal-hd">
+        <div>
+          <div class="modal-title">📅 Pre-Book Special Hall</div>
+          <div class="modal-sub" id="prebook-hall-title">Reserve seminar hall or auditorium</div>
+        </div>
+        <div class="modal-close" onclick="closeModal('modal-prebook-hall')">✖</div>
+      </div>
+      <div class="mbody">
+        <input type="hidden" id="prebook-hall-id">
+        <div class="fg">
+          <label class="fl">Event Title / Purpose<span style="color:var(--red);">*</span></label>
+          <input type="text" class="fc2" id="prebook-input-title" placeholder="e.g. AI &amp; Robotics Guest Lecture" required>
+        </div>
+        <div class="form-grid form-grid-2" style="margin-top:10px;">
+          <div class="fg">
+            <label class="fl">Organizer / Department</label>
+            <input type="text" class="fc2" id="prebook-input-organizer" placeholder="e.g. Dept of Computer Science">
+          </div>
+          <div class="fg">
+            <label class="fl">Reservation Date<span style="color:var(--red);">*</span></label>
+            <input type="date" class="fc2" id="prebook-input-date" required>
+          </div>
+        </div>
+        <div class="form-grid form-grid-2" style="margin-top:10px;">
+          <div class="fg">
+            <label class="fl">Start Time<span style="color:var(--red);">*</span></label>
+            <input type="time" class="fc2" id="prebook-input-start" required>
+          </div>
+          <div class="fg">
+            <label class="fl">End Time<span style="color:var(--red);">*</span></label>
+            <input type="time" class="fc2" id="prebook-input-end" required>
+          </div>
+        </div>
+        <div class="fg" style="margin-top:10px;">
+          <label class="fl">Notes / AV Requirements</label>
+          <input type="text" class="fc2" id="prebook-input-notes" placeholder="e.g. Smart board projector and 2 lapel mics required">
+        </div>
+      </div>
+      <div class="form-actions">
+        <button type="button" class="btn-out" onclick="closeModal('modal-prebook-hall')">Cancel</button>
+        <button type="button" class="btn-pri" onclick="submitPreBookHall()">Confirm Booking</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL 7: CUSTOM EAMS CONFIRMATION POPUP (NO WINDOW.CONFIRM) -->
+  <div class="modal-bg" id="modal-confirm">
+    <div class="modal modal-sm">
+      <div class="modal-hd">
+        <div>
+          <div class="modal-title" id="confirm-modal-title">⚠️ Confirm Action</div>
+          <div class="modal-sub" id="confirm-modal-sub">Please confirm to proceed</div>
+        </div>
+        <div class="modal-close" onclick="closeModal('modal-confirm')">✖</div>
+      </div>
+      <div class="mbody" id="confirm-modal-msg" style="font-size:13.5px;color:var(--td);line-height:1.5;">
+        Are you sure you want to proceed?
+      </div>
+      <div class="form-actions">
+        <button type="button" class="btn-out" onclick="closeModal('modal-confirm')">Cancel</button>
+        <button type="button" class="btn-pri text-danger" id="confirm-modal-btn" onclick="executeConfirmCallback()">Proceed</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL 8: CUSTOM EAMS ALERT POPUP (NO WINDOW.ALERT) -->
+  <div class="modal-bg" id="modal-alert">
+    <div class="modal modal-sm">
+      <div class="modal-hd">
+        <div>
+          <div class="modal-title" id="alert-modal-title">Notification</div>
+        </div>
+        <div class="modal-close" onclick="closeModal('modal-alert')">✖</div>
+      </div>
+      <div class="mbody" id="alert-modal-msg" style="font-size:13.5px;color:var(--td);line-height:1.5;">
+        Message content
+      </div>
+      <div class="form-actions">
+        <button type="button" class="btn-pri" onclick="closeModal('modal-alert')">OK</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- TOAST NOTIFICATIONS -->
+  <div id="toast" class="toast"></div>
+  <div id="db-toast"></div>
+
+  <!-- CORE SCRIPTS -->
+  <script src="js/core/session.js"></script>
+  <script src="js/core/modal.js"></script>
+  <script src="js/core/toast.js"></script>
+
+  <!-- PAGE LOGIC -->
+  <script src="js/pages/rooms.page.js"></script>
+</body>
+</html>

@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EAMS – System Maintenance</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/base.css">
+<link rel="stylesheet" href="css/maintenance.css">
+</head>
+<body>
+
+<!-- Animated background -->
+<div class="gears-wrap">
+  <div class="gear gear-1">⚙️</div>
+  <div class="gear gear-2">⚙️</div>
+  <div class="gear gear-3">⚙️</div>
+</div>
+<div class="orb orb-1"></div>
+<div class="orb orb-2"></div>
+<div class="orb orb-3"></div>
+
+<div class="card">
+  <div class="icon-ring">🔧</div>
+
+  <span class="brand" id="maint-brand">EAMS</span>
+  <h1>System Maintenance</h1>
+  <p class="subtitle" id="maint-subtitle">We're making improvements to serve you better.<br>Please check back soon.</p>
+
+  <!-- Status pills -->
+  <div class="status-row">
+    <span class="status-pill"><span class="dot"></span><span id="pill-status">Maintenance Active</span></span>
+    <span class="status-pill role-pill" id="pill-role-wrap" style="display:none;"><span class="dot"></span><span id="pill-role"></span></span>
+    <span class="status-pill time-pill" id="pill-time-wrap" style="display:none;"><span class="dot"></span><span id="pill-time"></span></span>
+  </div>
+
+  <!-- Info box -->
+  <div class="info-box" id="info-box">
+    <div class="info-row">
+      <span class="info-ic">🕐</span>
+      <div class="info-body">
+        <div class="info-label">Started At</div>
+        <div class="info-val" id="info-started">—</div>
+      </div>
+    </div>
+    <div class="info-row" id="end-row" style="display:none;">
+      <span class="info-ic">🏁</span>
+      <div class="info-body">
+        <div class="info-label">Expected End</div>
+        <div class="info-val" id="info-end">—</div>
+      </div>
+    </div>
+    <div class="info-row" id="affected-row" style="display:none;">
+      <span class="info-ic">👥</span>
+      <div class="info-body">
+        <div class="info-label">Affected Users</div>
+        <div class="info-val" id="info-affected">—</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Countdown timer -->
+  <div class="countdown-wrap" id="countdown-wrap" style="display:none;">
+    <div class="countdown-label">⏳ Estimated time remaining</div>
+    <div class="countdown-row">
+      <div class="countdown-unit">
+        <span class="countdown-num" id="cd-h">00</span>
+        <div class="countdown-unit-label">Hours</div>
+      </div>
+      <span class="countdown-sep">:</span>
+      <div class="countdown-unit">
+        <span class="countdown-num" id="cd-m">00</span>
+        <div class="countdown-unit-label">Minutes</div>
+      </div>
+      <span class="countdown-sep">:</span>
+      <div class="countdown-unit">
+        <span class="countdown-num" id="cd-s">00</span>
+        <div class="countdown-unit-label">Seconds</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Progress bar -->
+  <div class="progress-wrap" id="progress-wrap" style="display:none;">
+    <div class="progress-label">
+      <span>Progress</span>
+      <span id="progress-pct">—</span>
+    </div>
+    <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
+  </div>
+
+  <!-- Admin message -->
+  <div class="msg-box" id="msg-box">
+    💬 &nbsp;<span id="maint-message">System is currently under scheduled maintenance. We apologize for the inconvenience.</span>
+  </div>
+
+  <a href="index.html" class="back-btn">← Back to Login</a>
+
+  <p class="auto-refresh">Auto-refreshes every <b id="refresh-secs">30</b>s &nbsp;·&nbsp; <span id="next-refresh">checking...</span></p>
+  <p class="contact-note">For urgent matters, contact your system administrator.</p>
+</div>
+
+<script src="js/pages/maintenance.page.js"></script>
+</body>
+</html>

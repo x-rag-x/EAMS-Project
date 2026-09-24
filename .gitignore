@@ -1,0 +1,10 @@
+.env
+node_modules/
+tracker/
+docs/
+.claude/
+CLAUDE.md
+dev/
+.agents/
+scratch/
+AGENTS.md

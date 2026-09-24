@@ -1,0 +1,829 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EAMS – Manage Page</title>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/manage.css">
+</head>
+<body>
+
+<!-- Page loader overlay shown until initial database sync completes -->
+  <div id="page-loader">
+    <div class="loader-brand">🌿 EAMS Admin</div>
+    <div class="three-body">
+      <div class="three-body__dot"></div>
+      <div class="three-body__dot"></div>
+      <div class="three-body__dot"></div>
+    </div>
+    <div class="loader-msg" id="loader-msg">Initializing EAMS…</div>
+    <div class="loader-steps">
+      <div class="loader-step active" id="lstep-0"></div>
+      <div class="loader-step" id="lstep-1"></div>
+      <div class="loader-step" id="lstep-2"></div>
+      <div class="loader-step" id="lstep-3"></div>
+      <div class="loader-step" id="lstep-4"></div>
+    </div>
+  </div>
+
+<div id="db-toast"></div>
+
+<div class="toast" id="toast"></div>
+
+<div id="app-shell">
+
+<div class="sb-overlay" id="sb-overlay" onclick="toggleSidebar()"></div>
+
+<!-- SIDEBAR TOGGLE -->
+<button class="sb-toggle-btn" id="sbtoggle" onclick="toggleSidebar()" title="Toggle">✖</button>
+
+<!-- SIDEBAR -->
+<nav class="sb">
+  <div class="sb-logo">
+    <div class="sb-logo-mark">📅</div>
+    <div>
+      <div class="sb-logo-text">Manage</div>
+      <div class="sb-logo-sub">EAMS Portal</div>
+    </div>
+  </div>
+
+  <div class="sb-nav">
+    <button class="sb-item act" data-page="overview"  onclick="nav('overview')"><span class="sbi-ic">📊</span>Overview</button>
+    <div class="sb-section">Academic</div>
+    <button class="sb-item" data-page="years"     onclick="nav('years')"><span class="sbi-ic">📚</span>Years</button>
+    <button class="sb-item" data-page="calendar"  onclick="nav('calendar')"><span class="sbi-ic">📅</span>College Days</button>
+    <button class="sb-item" data-page="exam"      onclick="nav('exam')"><span class="sbi-ic">📝</span>Exam</button>
+    <div class="sb-section">Admin</div>
+    <button class="sb-item" data-page="settings"  onclick="nav('settings')"><span class="sbi-ic">⚙️</span>Settings</button>
+    <button class="sb-item" onclick="window.location.href='export.html'"><span class="sbi-ic">📊</span>Export Center</button>
+  </div>
+
+  <div class="sb-bottom">
+    <div class="sb-user">
+      <div class="sb-uav" id="sb-av">A</div>
+      <div>
+        <div class="sb-uname" id="sb-name">Administrator</div>
+        <div class="sb-urole">Admin</div>
+      </div>
+    </div>
+    <button class="sb-back-btn" onclick="goBack()">← Back to Dashboard</button>
+    <button class="sb-logout-btn" onclick="doLogout('manual', 'success', '7000')" title="Logout">
+      <div class="logout-sign">
+        <svg viewBox="0 0 512 512"><path d="M377.9 105.9L500.7 228.7c7.2 7.2 11.3 17.1 11.3 27.3s-4.1 20.1-11.3 27.3L377.9 406.1c-6.4 6.4-15 9.9-24 9.9c-18.7 0-33.9-15.2-33.9-33.9l0-62.1-128 0c-17.7 0-32-14.3-32-32l0-64c0-17.7 14.3-32 32-32l128 0 0-62.1c0-18.7 15.2-33.9 33.9-33.9c9 0 17.6 3.6 24 9.9zM160 96L96 96c-17.7 0-32 14.3-32 32l0 256c0 17.7 14.3 32 32 32l64 0c17.7 0 32 14.3 32 32s-14.3 32-32 32l-64 0c-53 0-96-43-96-96L0 128C0 75 43 32 96 32l64 0c17.7 0 32 14.3 32 32s-14.3 32-32 32z"></path></svg>
+      </div>
+      <div class="logout-text">Logout</div>
+    </button>
+  </div>
+</nav>
+
+<!-- MAIN -->
+<div class="mc">
+  <div class="topbar">
+    <div class="topbar-left">
+      <div style="width:28px;"></div>
+      <div class="tb-date" id="tdt-label"></div>
+    </div>
+    <div class="topbar-right">
+      <div class="tb-profile">
+        <div class="tb-av" id="topbar-av">A</div>
+        <div class="tb-name" id="topbar-name">Administrator</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PAGE: OVERVIEW -->
+  <div class="pg act" id="pg-overview">
+    <div class="page-hd">
+      <div>
+        <div class="page-title">📊 Overview</div>
+        <div class="page-sub">Quick snapshot of the current month's schedule.</div>
+      </div>
+      <button class="btn-pri" onclick="nav('calendar')">Edit Calendar →</button>
+    </div>
+
+    <!-- Stats row -->
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px;">
+      <div class="ov-stat"><div class="ov-stat-dot" style="background:var(--gK);"></div><div><div class="ov-stat-num" id="ov-working">—</div><div class="ov-stat-label">Working Days</div></div></div>
+      <div class="ov-stat"><div class="ov-stat-dot" style="background:#dc2626;"></div><div><div class="ov-stat-num" id="ov-leave">—</div><div class="ov-stat-label">Leave</div></div></div>
+      <div class="ov-stat"><div class="ov-stat-dot" style="background:#b45309;"></div><div><div class="ov-stat-num" id="ov-exam">—</div><div class="ov-stat-label">Exam Days</div></div></div>
+      <div class="ov-stat"><div class="ov-stat-dot" style="background:var(--tdi);"></div><div><div class="ov-stat-num" id="ov-total">—</div><div class="ov-stat-label">Total Days</div></div></div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:2fr 1fr;gap:16px;">
+      <!-- Read-only calendar -->
+      <div class="card">
+        <div class="card-hd">
+          <div class="card-title" id="ov-month-label">—</div>
+          <div style="display:flex;gap:5px;flex-wrap:wrap;">
+            <span style="background:#f0fdf4;border:1.5px solid #86efac;color:var(--gK);font-size:9.5px;font-weight:700;padding:2px 8px;border-radius:9px;">● Working</span>
+            <span style="background:#fef2f2;border:1.5px solid #fca5a5;color:#dc2626;font-size:9.5px;font-weight:700;padding:2px 8px;border-radius:9px;">● Leave</span>
+            <span style="background:#fffbeb;border:1.5px solid #fcd34d;color:#b45309;font-size:9.5px;font-weight:700;padding:2px 8px;border-radius:9px;">● Exam</span>
+          </div>
+        </div>
+        <div class="card-body-p">
+          <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px;margin-bottom:5px;text-align:center;">
+            <div style="font-size:12.5px;font-weight:700;color:var(--tmu);">Mon</div><div style="font-size:12.5px;font-weight:700;color:var(--tmu);">Tue</div>
+            <div style="font-size:12.5px;font-weight:700;color:var(--tmu);">Wed</div><div style="font-size:12.5px;font-weight:700;color:var(--tmu);">Thu</div>
+            <div style="font-size:12.5px;font-weight:700;color:var(--tmu);">Fri</div><div style="font-size:12.5px;font-weight:700;color:#b45309;">Sat</div>
+            <div style="font-size:12.5px;font-weight:700;color:#dc2626;">Sun</div>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:7px;" id="ov-cal-grid">
+            <div style="grid-column:span 7;text-align:center;padding:16px;color:var(--tdi);font-size:14px;">Loading… This may take few seconds.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Upcoming exams -->
+      <div>
+        <div class="card">
+          <div class="card-hd">
+            <div class="card-title">📋 Upcoming Exams</div>
+            <button class="btn-out btn-xs" onclick="nav('exam')">View All</button>
+          </div>
+          <div id="ov-exams-list" style="max-height:360px;overflow-y:auto;">
+            <div style="text-align:center;padding:24px;color:var(--tdi);font-size:12px;">Loading…</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PAGE: COLLEGE DAYS -->
+  <div class="pg" id="pg-calendar">
+    <div class="page-hd">
+      <div>
+        <div class="page-title">📅 College Days</div>
+        <div class="page-sub">Mark working days, leaves and daily timings.</div>
+      </div>
+      <div class="page-actions">
+        <button class="btn-pri btn-sm" onclick="deleteCalendarMonth()" id="delete-month-btn" title="Delete all saved days for this month from database">🗑️ Delete Month (DB)</button>
+        <button class="btn-out btn-sm" onclick="clearCalendarDraft()" id="clear-draft-btn" style="display:none;">🗑️ Clear Draft</button>
+        <button class="btn-pri" onclick="generateMonthDefaults()">⚙️ Auto-Fill</button>
+        <button class="btn-out" onclick="loadCalendar()">🔄 Sync DB</button>
+      </div>
+    </div>
+
+    <!-- Controls -->
+    <div style="padding:15px 15px 20px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:20px;">
+        <!-- Left: Month Name & Navigation -->
+        <div style="display:flex;align-items:center;gap:12px;">
+          <div class="page-title" id="month-label" style="font-size:28px;">—</div>
+          <div style="display:flex;gap:8px;">
+            <button class="btn-out btn-sm" onclick="prevMonth()">‹ Prev</button>
+            <button class="btn-out btn-sm" onclick="nextMonth()">Next ›</button>
+          </div>
+        </div>
+        
+        <!-- Right: Modern Filters -->
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+          <div class="fg" style="min-width:140px;">
+            <label class="fl">Month</label>
+            <select class="fc" id="cal-month-sel" onchange="loadCalendar()">
+              <option value="1">January</option><option value="2">February</option><option value="3">March</option>
+              <option value="4">April</option><option value="5">May</option><option value="6">June</option>
+              <option value="7">July</option><option value="8">August</option><option value="9">September</option>
+              <option value="10">October</option><option value="11">November</option><option value="12">December</option>
+            </select>
+          </div>
+          <div class="fg" style="min-width:110px;">
+            <label class="fl">Year</label>
+            <input type="number" class="fc" id="cal-year-inp" min="2020" max="2040" onchange="loadCalendar()">
+          </div>
+          <div class="fg" style="min-width:130px;">
+            <label class="fl">Year Filter</label>
+            <select class="fc" id="cal-year-filter" onchange="loadCalendar()">
+              <option value="">All Years</option>
+              <option value="I">Year I</option><option value="II">Year II</option>
+              <option value="III">Year III</option><option value="IV">Year IV</option>
+            </select>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Stats -->
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:12px;">
+      <div class="ov-stat"><div class="ov-stat-dot" style="background:var(--gK);"></div><div><div class="ov-stat-num" id="cs-working">—</div><div class="ov-stat-label">Working</div></div></div>
+      <div class="ov-stat"><div class="ov-stat-dot" style="background:#dc2626;"></div><div><div class="ov-stat-num" id="cs-leave">—</div><div class="ov-stat-label">Leave</div></div></div>
+      <div class="ov-stat"><div class="ov-stat-dot" style="background:#b45309;"></div><div><div class="ov-stat-num" id="cs-exam">—</div><div class="ov-stat-label">Exam Days</div></div></div>
+      <div class="ov-stat"><div class="ov-stat-dot" style="background:var(--tdi);"></div><div><div class="ov-stat-num" id="cs-total">—</div><div class="ov-stat-label">Total</div></div></div>
+    </div>
+
+    <!-- Calendar grid -->
+    <div class="card">
+      <div class="card-hd">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <div class="card-title" style="font-size:14px;" id="cal-month-label">—</div>
+          <span style="font-size:13px;color:var(--tmu);">-</span>
+          <span id="cal-finalized-badge" style="font-size:13px;font-weight:700;"></span>
+        </div>
+        <div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center;">
+          <span style="background:#f0fdf4;border:1.5px solid #86efac;color:var(--gK);font-size:9.5px;font-weight:700;padding:2px 8px;border-radius:9px;">● Working</span>
+          <span style="background:#fef2f2;border:1.5px solid #fca5a5;color:#dc2626;font-size:9.5px;font-weight:700;padding:2px 8px;border-radius:9px;">● Leave</span>
+          <span style="background:#fffbeb;border:1.5px solid #fcd34d;color:#b45309;font-size:9.5px;font-weight:700;padding:2px 8px;border-radius:9px;">● Exam</span>
+          <span style="background:#fdf4ff;border:1.5px solid #d8b4fe;color:#7c3aed;font-size:9.5px;font-weight:700;padding:2px 8px;border-radius:9px;">● Half Day</span>
+        </div>
+      </div>
+      <div class="card-body-p">
+        <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px;margin-bottom:5px;text-align:center;">
+          <div style="font-size:14px;font-weight:700;color:var(--tmu);">Mon</div><div style="font-size:14px;font-weight:700;color:var(--tmu);">Tue</div>
+          <div style="font-size:14px;font-weight:700;color:var(--tmu);">Wed</div><div style="font-size:14px;font-weight:700;color:var(--tmu);">Thu</div>
+          <div style="font-size:14px;font-weight:700;color:var(--tmu);">Fri</div><div style="font-size:14px;font-weight:700;color:#b45309;">Sat</div>
+          <div style="font-size:14px;font-weight:700;color:#dc2626;">Sun</div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:7px;" id="cal-grid">
+          <div style="grid-column:span 7;text-align:center;padding:20px;color:var(--tdi);font-size:16px;">Loading… This may take few seconds.</div>
+        </div>
+      </div>
+      <div class="page-actions" style="padding:0 16px 14px;">
+          <button class="btn-pri" onclick="saveCalendarMonth(false)">📝 Save Draft</button>
+          <button class="btn-out" onclick="saveCalendarMonth(true)">✅ Save & Finalize</button>
+      </div>
+    </div>
+    <div style="margin-top:8px;font-size:10.5px;color:var(--tdi);text-align:center;">💡 Default: Sundays = Leave &nbsp;|&nbsp; 1st &amp; 3rd Saturdays = Leave &nbsp;|&nbsp; 2nd &amp; 4th Saturdays = Working &nbsp;|&nbsp; Click any day to edit.</div>
+  </div>
+
+  <!-- PAGE: EXAM -->
+  <div class="pg" id="pg-exam">
+    <div class="page-hd">
+      <div>
+        <div class="page-title">📝 Exam</div>
+        <div class="page-sub">Schedule exams and track hall-wise attendance.</div>
+      </div>
+    </div>
+
+    <div class="tab-bar">
+      <button class="tab-btn act" id="est-dates-btn"  onclick="examSubTab('dates')">📋 Exam Dates</button>
+      <button class="tab-btn"     id="est-att-btn"    onclick="examSubTab('attendance')">✅ Exam Attendance</button>
+    </div>
+
+    <!-- EXAM DATES -->
+    <div id="est-dates-panel">
+      <div class="card" style="margin-bottom:12px;">
+        <div class="card-body-p">
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr auto;gap:9px;align-items:end;">
+            <div class="fg">
+              <label class="fl">Type</label>
+              <select class="fc" id="ef-type" onchange="loadExams()">
+                <option value="">All Types</option>
+                <option value="Internal 1">Internal 1</option><option value="Internal 2">Internal 2</option>
+                <option value="Practicals">Practicals</option><option value="Semester">Semester</option>
+              </select>
+            </div>
+            <div class="fg">
+              <label class="fl">Semester</label>
+              <select class="fc" id="ef-year" onchange="loadExams()">
+                <option value="">All</option>
+                <option value="I">Semester I</option><option value="II">Semester II</option>
+                <option value="III">Semester III</option><option value="IV">Semester IV</option>
+                <option value="V">Semester V</option><option value="VI">Semester VI</option>
+                <option value="VII">Semester VII</option><option value="VIII">Semester VIII</option>
+              </select>
+            </div>
+            <div class="fg">
+              <label class="fl">Status</label>
+              <select class="fc" id="ef-status" onchange="loadExams()">
+                <option value="">All</option>
+                <option value="upcoming">Upcoming</option><option value="ongoing">Ongoing</option>
+                <option value="completed">Completed</option><option value="cancelled">Cancelled</option>
+              </select>
+            </div>
+            <div class="fg">
+              <label class="fl">Acad. Year</label>
+              <select class="fc" id="ef-acyear" onchange="loadExams()">
+                <option value="">All Academic Years</option>
+              </select>
+            </div>
+            <button class="btn-pri" onclick="openExamModal(null)" style="white-space:nowrap;">+ Add Exam</button>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-hd">
+          <div class="card-title">📋 Scheduled Exams</div>
+          <button class="btn-out" onclick="loadExams()">🔄 Refresh</button>
+        </div>
+        <div class="tw">
+          <table class="tbl">
+            <thead><tr><th>#</th><th>Title</th><th>Type</th><th>Sem</th><th>Dept</th><th>Start</th><th>End</th><th>Timing</th><th>Status</th><th>Actions</th></tr></thead>
+            <tbody id="exams-tbody"><tr><td colspan="10" style="text-align:center;color:var(--tdi);padding:24px;">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- EXAM ATTENDANCE -->
+    <div id="est-att-panel" style="display:none;">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+        <!-- Left: form -->
+        <div style="display:flex;flex-direction:column;gap:12px;">
+          <div class="card">
+            <div class="card-hd" style="padding-bottom:8px;"><div class="card-title">🔖 Step 1 — Select Exam &amp; Hall</div></div>
+            <div class="card-body-p" style="padding-top:8px;">
+              <div class="fg" style="margin-bottom:9px;">
+                <label class="fl">Active Exam</label>
+                <select class="fc2" id="ea-exam-sel" onchange="onExamSelChange()"><option value="">— Select —</option></select>
+              </div>
+              <div class="fg" style="margin-bottom:9px;">
+                <label class="fl">Date</label>
+                <select class="fc2" id="ea-date-sel" onchange="onExamDateChange()"><option value="">— Select Date —</option></select>
+              </div>
+              <div class="fg">
+                <label class="fl">Your Hall No</label>
+                <input type="text" class="fc2" id="ea-hall-inp" placeholder="e.g. Hall A, Room 201, Lab 3" autocomplete="off">
+                <div style="font-size:10px;color:var(--tdi);margin-top:3px;">Enter the hall where you are invigilating.</div>
+              </div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-hd" style="padding-bottom:8px;"><div class="card-title">🏛️ Step 2 — Depts in Your Hall</div></div>
+            <div class="card-body-p" style="padding-top:6px;">
+              <div style="font-size:11px;color:var(--tmu);margin-bottom:8px;">Select all departments whose students are in your hall.</div>
+              <div id="ea-dept-wrap" style="display:flex;flex-wrap:wrap;gap:7px;">
+                <div style="color:var(--tdi);font-size:11.5px;">Loading…</div>
+              </div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-hd" style="padding-bottom:8px;"><div class="card-title">🔍 Step 3 — Enter Register No</div></div>
+            <div class="card-body-p" style="padding-top:8px;">
+              <div class="fg" style="margin-bottom:8px;">
+                <label class="fl">Student Year</label>
+                <select class="fc2" id="ea-year-filter">
+                  <option value="">All Years</option>
+                  <option value="I">Year I</option><option value="II">Year II</option>
+                  <option value="III">Year III</option><option value="IV">Year IV</option>
+                </select>
+              </div>
+              <div class="fg">
+                <label class="fl">Register No</label>
+                <div style="position:relative;">
+                  <input type="text" class="fc2" id="ea-regno-inp" placeholder="Type register no (min 3 chars)…" oninput="searchStudentByRegno(this.value)" autocomplete="off">
+                  <div class="srch-dd" id="ea-search-dd"></div>
+                </div>
+                <div style="font-size:10px;color:var(--tdi);margin-top:3px;">Type → click student to add to list.</div>
+              </div>
+            </div>
+          </div>
+          <div class="banner-yellow">
+            <strong>📌 Instructions</strong><br>
+            1. Select exam and date.<br>2. Enter your hall number.<br>
+            3. Tick which depts are in your hall.<br>4. Type reg no → click to add student.<br>
+            5. Toggle Absent for no-shows.<br>6. Submit when done.
+          </div>
+        </div>
+        <!-- Right: student list -->
+        <div>
+          <div class="card" style="height:100%;display:flex;flex-direction:column;">
+            <div class="card-hd">
+              <div class="card-title">📋 Students in Hall</div>
+              <div style="display:flex;gap:7px;align-items:center;">
+                <span id="ea-count-pill" style="background:var(--gLt);color:var(--gD);font-size:11px;font-weight:700;padding:2px 9px;border-radius:10px;">0 students</span>
+                <button class="btn-out btn-xs" onclick="clearExamList()">Clear</button>
+              </div>
+            </div>
+            <div style="flex:1;overflow-y:auto;min-height:200px;max-height:360px;border-top:1px solid var(--brl);" id="ea-student-list">
+              <div style="text-align:center;color:var(--tdi);font-size:11.5px;padding:32px 0;">No students added yet.</div>
+            </div>
+            <div style="border-top:1px solid var(--brl);padding:10px 14px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">
+              <div style="font-size:12px;color:var(--tmu);">
+                Present: <strong id="ea-present-count" style="color:var(--gK);">0</strong>
+                &nbsp;|&nbsp; Absent: <strong id="ea-absent-count" style="color:#dc2626;">0</strong>
+              </div>
+              <button class="btn-pri" onclick="submitExamAttendance()" id="ea-submit-btn" disabled style="opacity:.5;cursor:not-allowed;">✅ Submit</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- Hall summary -->
+      <div class="card" style="margin-top:14px;">
+        <div class="card-hd">
+          <div class="card-title">🏛️ Today's Hall Submissions</div>
+          <button class="btn-out" onclick="loadHallSummary()">🔄 Refresh</button>
+        </div>
+        <div class="tw">
+          <table class="tbl">
+            <thead><tr><th>Hall No</th><th>Teacher</th><th>Exam</th><th>Date</th><th>Present</th><th>Absent</th><th>Submitted</th><th>View</th></tr></thead>
+            <tbody id="hall-summary-tbody"><tr><td colspan="8" style="text-align:center;color:var(--tdi);padding:18px;">Select exam to view submissions.</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PAGE: YEARS -->
+  <div class="pg" id="pg-years">
+    <div class="page-hd">
+      <div>
+        <div class="page-title">📚 Years</div>
+        <div class="page-sub">Manage academic years and batch progress.</div>
+      </div>
+      <button class="btn-pri" onclick="openYearModal(null)">+ Add Academic Year</button>
+    </div>
+
+    <!-- Current Year -->
+    <div class="card" style="margin-bottom:16px;">
+      <div class="card-hd">
+        <div class="card-title">🎯 Current Academic Year</div>
+        <button class="btn-out" onclick="loadYears()">🔄 Refresh</button>
+      </div>
+      <div id="current-year-display" style="padding:14px 16px;">
+        <div style="text-align:center;color:var(--tdi);padding:20px;font-size:16px;">Loading… This may take few seconds.</div>
+      </div>
+    </div>
+
+    <!-- All Years -->
+    <div class="card">
+      <div class="card-hd">
+        <div class="card-title">📋 All Academic Years</div>
+      </div>
+      <div class="tw">
+        <table class="tbl">
+          <thead><tr><th>Academic Year</th><th>Batches</th><th>Current</th><th>Created By</th><th>Created At</th><th>Actions</th></tr></thead>
+          <tbody id="years-tbody"><tr><td colspan="6" style="text-align:center;color:var(--tdi);padding:24px;">Loading…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- PAGE: SETTINGS -->
+  <div class="pg" id="pg-settings">
+    <div class="page-hd">
+      <div>
+        <div class="page-title">⚙️ Settings</div>
+        <div class="page-sub">Manage users who can access this portal.</div>
+      </div>
+    </div>
+
+    <div class="card" style="max-width:760px;">
+      <div class="card-hd">
+        <div class="card-title">👤 Manage Portal Admins</div>
+        <button class="btn-pri" onclick="openAdminModal(null)">+ Add Admin</button>
+      </div>
+      <div style="font-size:11.5px;color:var(--tmu);padding:0 16px 12px;border-bottom:1px solid var(--brl);">Users below can log in to the Manage portal. Full admins always have access.</div>
+      <div id="manage-admins-list" style="padding:14px 16px;">
+        <div style="text-align:center;color:var(--tdi);padding:20px;font-size:16px;">Loading… This may take few seconds.</div>
+      </div>
+    </div>
+  </div>
+</div><!-- /mc -->
+</div><!-- /app-shell -->
+
+
+<!-- MODAL: DAY DETAIL -->
+<div class="modal-bg" id="day-modal-bg" onclick="if(event.target===this)closeModal('day-modal-bg')">
+  <div class="modal">
+    <div class="modal-hd">
+      <div>
+        <div class="modal-title" id="dm-title">Edit Day</div>
+        <div class="modal-sub" id="dm-sub">Set status, timing, and year-specific rules</div>
+      </div>
+      <div class="modal-close" onclick="closeModal('day-modal-bg')">✕</div>
+    </div>
+    <input type="hidden" id="dm-date">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--brl);margin-bottom:12px;">
+      <div>
+        <div style="font-size:13px;font-weight:700;color:var(--td);">Working Day?</div>
+        <div style="font-size:10.5px;color:var(--tmu);margin-top:2px;">Turn off for leaves</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;cursor:pointer;" onclick="toggleDmWorking()">
+        <div class="toggle-track on" id="dm-toggle"><div class="toggle-thumb"></div></div>
+        <span style="font-size:12.5px;font-weight:600;color:var(--td);" id="dm-toggle-label">Yes</span>
+      </div>
+    </div>
+    <div style="margin-bottom:12px;">
+      <div class="fl" style="margin-bottom:7px;">Day Type</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:20px;">
+        <div class="dt-pill sel"    id="dt-working"  onclick="selDayType('working')">📗 Working</div>
+        <div class="dt-pill lv"     id="dt-leave"    onclick="selDayType('leave')">📕 Leave</div>
+        <div class="dt-pill ex"     id="dt-exam"     onclick="selDayType('exam')">📝 Exam</div>
+        <div class="dt-pill hf"     id="dt-half-day" onclick="selDayType('half-day')">🟣 Half Day</div>
+      </div>
+    </div>
+    <div class="fgrid fg2" style="margin-bottom:12px;">
+      <div class="fg"><label class="fl">Start Time</label><input type="time" class="fc2" id="dm-start" value="08:30"></div>
+      <div class="fg"><label class="fl">End Time</label><input type="time" class="fc2" id="dm-end" value="16:30"></div>
+    </div>
+    <div style="margin-bottom:12px;">
+      <div class="fl" style="margin-bottom:7px;">Applies To</div>
+      <div style="display:flex;gap:7px;flex-wrap:wrap;" id="dm-years-wrap">
+        <label class="dept-cb-wrap" id="dm-yr-all"><input type="checkbox" id="dm-year-all" onchange="toggleAllYrs(this)"> All Years</label>
+        <label class="dept-cb-wrap"><input type="checkbox" class="dm-yr-cb" value="I"> Year I</label>
+        <label class="dept-cb-wrap"><input type="checkbox" class="dm-yr-cb" value="II"> Year II</label>
+        <label class="dept-cb-wrap"><input type="checkbox" class="dm-yr-cb" value="III"> Year III</label>
+        <label class="dept-cb-wrap"><input type="checkbox" class="dm-yr-cb" value="IV"> Year IV</label>
+      </div>
+    </div>
+    <div class="fg" style="margin-bottom:14px;">
+      <label class="fl">Notes</label>
+      <input type="text" class="fc2" id="dm-notes" placeholder="e.g. Pongal Holiday, Internal 1…">
+    </div>
+    <div class="banner-yellow" id="dm-exam-warn" style="margin-bottom:12px;display:none;">📝 Marked as <strong>Exam Day</strong>. Consider adding an Exam record under the Exam tab for hall attendance.</div>
+    <div class="form-actions">
+      <button class="btn-form-ghost" onclick="closeModal('day-modal-bg')">Cancel</button>
+      <button class="btn-form-pri" onclick="saveDayModal()">💾 Save Day</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: ADD / EDIT EXAM -->
+<div class="modal-bg" id="exam-modal-bg" onclick="if(event.target===this)closeModal('exam-modal-bg')">
+  <div class="modal modal-lg">
+    <div class="modal-hd">
+      <div>
+        <div class="modal-title" id="exam-modal-title">Add Exam</div>
+        <div class="modal-sub">Schedule a new exam and auto-mark calendar dates.</div>
+      </div>
+      <div class="modal-close" onclick="closeModal('exam-modal-bg')">✕</div>
+    </div>
+    <input type="hidden" id="em-id">
+    <div class="fgrid fg2" style="margin-bottom:12px;">
+      <div class="fg" style="grid-column:span 2;"><label class="fl">Title *</label><input type="text" class="fc2" id="em-title" placeholder="e.g. Internal 1 — CSE Year III"></div>
+      <div class="fg"><label class="fl">Exam Type *</label>
+        <select class="fc2" id="em-type"><option value="">— Select —</option>
+          <option value="Internal 1">Internal 1</option><option value="Internal 2">Internal 2</option>
+          <option value="Practicals">Practicals</option><option value="Semester">Semester</option></select></div>
+      <div class="fg"><label class="fl">Academic Year *</label>
+        <select class="fc2" id="em-acyear" onchange="onEmAcYearChange()">
+          <option value="">— Select Academic Year —</option>
+        </select>
+      </div>
+      <div class="fg"><label class="fl">Batch *</label>
+        <select class="fc2" id="em-batch" onchange="onEmBatchChange()">
+          <option value="">— Select Batch —</option>
+        </select>
+      </div>
+      <div class="fg"><label class="fl">Student Year *</label>
+        <select class="fc2" id="em-year" onchange="onEmYearChange()">
+          <option value="">— Select Year —</option>
+          <option value="I">Year I</option>
+          <option value="II">Year II</option>
+          <option value="III">Year III</option>
+          <option value="IV">Year IV</option>
+          <option value="All">All Years</option>
+        </select>
+      </div>
+      <div class="fg"><label class="fl">Semester *</label>
+        <select class="fc2" id="em-semester" onchange="onEmSemChange()"><option value="">— Select —</option>
+          <option value="I">Semester I</option><option value="II">Semester II</option>
+          <option value="III">Semester III</option><option value="IV">Semester IV</option>
+          <option value="V">Semester V</option><option value="VI">Semester VI</option>
+          <option value="VII">Semester VII</option><option value="VIII">Semester VIII</option></select></div>
+      <div class="fg"><label class="fl">Department</label>
+        <select class="fc2" id="em-dept"><option value="">All Departments</option></select></div>
+      <div class="fg"><label class="fl">Start Date *</label><input type="date" class="fc2" id="em-start"></div>
+      <div class="fg"><label class="fl">End Date *</label><input type="date" class="fc2" id="em-end"></div>
+      <div class="fg"><label class="fl">Exam Start Time</label><input type="time" class="fc2" id="em-t-start" value="09:00"></div>
+      <div class="fg"><label class="fl">Exam End Time</label><input type="time" class="fc2" id="em-t-end" value="16:00"></div>
+      <div class="fg" style="grid-column:span 2;"><label class="fl">Status</label>
+        <select class="fc2" id="em-status"><option value="upcoming">Upcoming</option><option value="ongoing">Ongoing</option>
+          <option value="completed">Completed</option><option value="cancelled">Cancelled</option></select></div>
+      <div class="fg" style="grid-column:span 2;"><label class="fl">Notes</label><textarea class="fc2" id="em-notes" rows="2" placeholder="Optional notes…"></textarea></div>
+    </div>
+    <div class="banner-green" style="margin-bottom:14px;">📅 Dates in the range will be auto-marked as <strong>Exam Days</strong> on the calendar for the selected student year.</div>
+    <div class="form-actions">
+      <button class="btn-form-del" id="em-delete-btn" style="display:none;" onclick="deleteExam()">🗑 Delete</button>
+      <button class="btn-form-ghost" onclick="closeModal('exam-modal-bg')">Cancel</button>
+      <button class="btn-form-pri" onclick="saveExam()">💾 Save Exam</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: VIEW HALL ATTENDANCE -->
+<div class="modal-bg" id="view-att-bg" onclick="if(event.target===this)closeModal('view-att-bg')">
+  <div class="modal modal-lg">
+    <div class="modal-hd">
+      <div><div class="modal-title" id="vam-title">Hall Attendance</div><div class="modal-sub" id="vam-sub"></div></div>
+      <div style="display:flex;gap:7px;align-items:center;">
+        <button class="btn-out btn-sm" onclick="window.print()">🖨️ Print</button>
+        <div class="modal-close" onclick="closeModal('view-att-bg')">✕</div>
+      </div>
+    </div>
+    <div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:12px;font-size:11.5px;color:var(--tmu);" id="vam-meta"></div>
+    <div class="tw">
+      <table class="tbl">
+        <thead><tr><th>#</th><th>Register No</th><th>Name</th><th>Department</th><th>Year</th><th>Status</th></tr></thead>
+        <tbody id="vam-tbody"></tbody>
+      </table>
+    </div>
+    <div style="display:flex;justify-content:flex-end;gap:14px;margin-top:12px;font-size:12.5px;font-weight:700;">
+      <span style="color:var(--gK);" id="vam-present-total"></span>
+      <span style="color:#dc2626;" id="vam-absent-total"></span>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: GRANT MANAGE ACCESS -->
+<div class="modal-bg" id="admin-modal-bg" onclick="if(event.target===this)closeModal('admin-modal-bg')">
+  <div class="modal">
+    <div class="modal-hd">
+      <div>
+        <div class="modal-title" id="am-title">Grant Manage Access</div>
+        <div class="modal-sub">Grant Manage portal access to an existing faculty member.</div>
+      </div>
+      <div class="modal-close" onclick="closeModal('admin-modal-bg')">✕</div>
+    </div>
+    <input type="hidden" id="am-id">
+    <input type="hidden" id="am-teacher-id">
+    
+    <div class="fg" style="margin-bottom:14px;" id="am-teacher-sel-wrap">
+      <label class="fl">Select Faculty / Teacher <span style="color:#dc2626;">*</span></label>
+      <select class="fc2" id="am-teacher-select" onchange="onAdminTeacherSelect()">
+        <option value="">-- Choose Faculty Member --</option>
+      </select>
+    </div>
+
+    <!-- Selected Faculty Preview Card -->
+    <div id="am-teacher-preview" style="display:none;background:var(--bg3);border:1px solid var(--br);border-radius:8px;padding:12px;margin-bottom:14px;">
+      <div style="font-size:11px;font-weight:700;color:var(--tmu);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px;">Faculty Details</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12px;">
+        <div><span style="color:var(--tmu);">Name:</span> <strong id="am-prev-name" style="color:var(--td);"></strong></div>
+        <div><span style="color:var(--tmu);">Username:</span> <strong id="am-prev-user" style="color:var(--td);"></strong></div>
+        <div><span style="color:var(--tmu);">Department:</span> <span id="am-prev-dept" style="color:var(--td);"></span></div>
+        <div><span style="color:var(--tmu);">Email:</span> <span id="am-prev-email" style="color:var(--td);"></span></div>
+      </div>
+      <div style="margin-top:8px;font-size:11px;color:#2563eb;background:#eff6ff;padding:6px 10px;border-radius:6px;border:1px solid #bfdbfe;">
+        🔑 Uses their existing faculty account credentials to log in.
+      </div>
+    </div>
+
+    <div class="fg" style="margin-bottom:14px;">
+      <label class="fl">Permissions</label>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;" id="am-perms-wrap">
+        <label class="dept-cb-wrap checked" id="perm-calendar"><input type="checkbox" value="calendar" checked> 📅 Calendar</label>
+        <label class="dept-cb-wrap checked" id="perm-exam"><input type="checkbox" value="exam" checked> 📝 Exam</label>
+        <label class="dept-cb-wrap checked" id="perm-attendance"><input type="checkbox" value="attendance" checked> ✅ Attendance</label>
+        <label class="dept-cb-wrap checked" id="perm-settings"><input type="checkbox" value="settings" checked> ⚙️ Settings</label>
+      </div>
+    </div>
+
+    <div class="form-actions">
+      <button class="btn-form-del" id="am-delete-btn" style="display:none;" onclick="deleteManageAdmin()">🗑 Revoke Access</button>
+      <button class="btn-form-ghost" onclick="closeModal('admin-modal-bg')">Cancel</button>
+      <button class="btn-form-pri" id="am-save-btn" onclick="saveManageAdmin()">💾 Grant Access</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: ADD / EDIT ACADEMIC YEAR -->
+<div class="modal-bg" id="year-modal-bg" onclick="if(event.target===this)closeModal('year-modal-bg')">
+  <div class="modal modal-lg">
+    <div class="modal-hd">
+      <div>
+        <div class="modal-title" id="ym-title">📚 Add Academic Year</div>
+        <div class="modal-sub" id="ym-sub">Create a new academic year with batch configurations</div>
+      </div>
+      <div class="modal-close" onclick="closeModal('year-modal-bg')">✕</div>
+    </div>
+    <input type="hidden" id="ym-id">
+
+    <!-- Auto-fill bar (new years only) -->
+    <div class="ym-autofill-bar" id="ym-autofill-bar" style="display:none;">
+      <div style="font-size:11.5px;color:#5b21b6;line-height:1.5;">✨ <strong>Auto-fill available</strong> — pull last year's batches forward, advanced by one semester, plus a fresh Year I intake.</div>
+      <button type="button" class="magic-btn" onclick="autoFillFromCurrentYear()" style="white-space:nowrap;">🪄 Auto-fill</button>
+    </div>
+
+    <!-- Academic Year & Current Status -->
+    <div style="display:grid;grid-template-columns:1.5fr 1fr;gap:12px;margin-bottom:14px;">
+      <div class="fg">
+        <label class="fl">Academic Year <span style="color:#dc2626;">*</span></label>
+        <input type="text" class="fc2" id="ym-acad-year" placeholder="e.g. 2026-2027" oninput="validateYearInput()">
+        <div class="field-check" id="ym-acad-check"><span style="color:var(--tdi);font-weight:500;">Format: YYYY-YYYY (e.g., 2026-2027)</span></div>
+      </div>
+      <div class="fg">
+        <label class="fl">Set as Current Year</label>
+        <div class="ym-current-card" id="ym-current-card" onclick="toggleYmCurrent()">
+          <div class="toggle-track" id="ym-current-toggle"><div class="toggle-thumb"></div></div>
+          <span style="font-size:13px;font-weight:600;color:var(--td);" id="ym-current-label">No</span>
+        </div>
+        <div class="field-check" id="ym-current-warn"></div>
+      </div>
+    </div>
+
+    <!-- Batches Section -->
+    <div style="border-top:1px solid var(--brl);padding-top:14px;margin-bottom:12px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px;">
+        <div>
+          <div class="fl">Batch Configurations <span style="color:#dc2626;">*</span> <span class="batch-preview" id="ym-batch-count" style="margin-left:6px;">0 batches</span></div>
+          <div style="font-size:10px;color:var(--tmu);margin-top:2px;">Add all batches studying in this academic year</div>
+        </div>
+        <button type="button" class="btn-out btn-xs" onclick="addBatchRow()" style="white-space:nowrap;">+ Add Batch</button>
+      </div>
+
+      <div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-bottom:12px;">
+        <span style="font-size:10px;color:var(--tmu);font-weight:600;text-transform:uppercase;letter-spacing:.4px;">Quick add:</span>
+        <button type="button" class="qa-chip" onclick="quickAddBatch('I')">+ Year I</button>
+        <button type="button" class="qa-chip" onclick="quickAddBatch('II')">+ Year II</button>
+        <button type="button" class="qa-chip" onclick="quickAddBatch('III')">+ Year III</button>
+        <button type="button" class="qa-chip" onclick="quickAddBatch('IV')">+ Year IV</button>
+      </div>
+
+      <div id="ym-batch-rows" style="display:flex;flex-direction:column;gap:8px;">
+        <!-- Batch rows will be added here dynamically -->
+      </div>
+    </div>
+
+    <!-- Semester Dates Section -->
+    <div style="border-top:1px solid var(--brl);padding-top:14px;margin-bottom:12px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px;">
+        <div>
+          <div class="fl">Semester Dates <span style="color:var(--tmu);font-weight:400;">(Optional)</span> <span class="batch-preview" id="ym-sem-count" style="margin-left:6px;">0 semesters</span></div>
+          <div style="font-size:10px;color:var(--tmu);margin-top:2px;">Set start/end dates for each semester (used by Export Center)</div>
+        </div>
+        <button type="button" class="btn-out btn-xs" onclick="addSemesterDateRow()" style="white-space:nowrap;">+ Add Semester</button>
+      </div>
+
+      <div id="ym-semester-rows" style="display:flex;flex-direction:column;gap:8px;">
+        <!-- Semester date rows will be added here dynamically -->
+      </div>
+    </div>
+
+    <div class="banner-blue" style="margin-bottom:12px;font-size:11px;">
+      💡 <strong>Quick Guide:</strong> Batch name and Track ID auto-fill as you type — type the entry-year range (e.g. <strong>2026-2030</strong>) and the Track ID fills in automatically. Picking a Current Year also narrows the Semester options to the two that belong to it.
+    </div>
+
+    <div class="form-actions">
+      <button class="btn-form-del" id="ym-delete-btn" style="display:none;" onclick="deleteYear()">🗑 Delete Year</button>
+      <button class="btn-form-ghost" onclick="closeModal('year-modal-bg')">Cancel</button>
+      <button class="btn-form-pri" id="ym-save-btn" onclick="saveYear()" disabled style="opacity:.5;cursor:not-allowed;">💾 Save Year</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: EDIT BATCH -->
+<div class="modal-bg" id="batch-modal-bg" onclick="if(event.target===this)closeModal('batch-modal-bg')">
+  <div class="modal">
+    <div class="modal-hd">
+      <div>
+        <div class="modal-title" id="bm-title">Edit Batch</div>
+        <div class="modal-sub" id="bm-sub">Update current year and semester</div>
+      </div>
+      <div class="modal-close" onclick="closeModal('batch-modal-bg')">✕</div>
+    </div>
+    <input type="hidden" id="bm-year-id">
+    <input type="hidden" id="bm-batch-track-id">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+      <span class="batch-preview" id="bm-preview">Year I • Sem I</span>
+      <button type="button" class="qa-chip" id="bm-advance-btn" onclick="advanceBatchModalSem()">⏭ Advance to Next Sem</button>
+    </div>
+    <div class="fgrid fg2" style="margin-bottom:12px;">
+      <div class="fg">
+        <label class="fl">Current Year *</label>
+        <select class="fc2" id="bm-current-year" onchange="onBmYearChange()">
+          <option value="I">Year I</option>
+          <option value="II">Year II</option>
+          <option value="III">Year III</option>
+          <option value="IV">Year IV</option>
+        </select>
+      </div>
+      <div class="fg">
+        <label class="fl">Current Semester *</label>
+        <select class="fc2" id="bm-current-sem" onchange="updateBmPreview()">
+          <option value="I">Semester I</option>
+          <option value="II">Semester II</option>
+        </select>
+      </div>
+    </div>
+    <div class="banner-blue" style="margin-bottom:12px;">📊 This will update the batch progress for all students in this batch.</div>
+    <div class="form-actions">
+      <button class="btn-form-ghost" onclick="closeModal('batch-modal-bg')">Cancel</button>
+      <button class="btn-form-pri" onclick="saveBatch()">💾 Save Batch</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: DELETE MONTH CONFIRMATION -->
+<div class="modal-bg" id="delete-month-modal-bg" onclick="if(event.target===this)closeModal('delete-month-modal-bg')">
+  <div class="modal" style="max-width:480px;">
+    <div class="modal-hd">
+      <div>
+        <div class="modal-title">🗑️ Delete Month from Database</div>
+        <div class="modal-sub">This action cannot be undone</div>
+      </div>
+      <div class="modal-close" onclick="closeModal('delete-month-modal-bg')">✕</div>
+    </div>
+    <div style="margin-bottom:16px;">
+      <div style="font-size:13px;color:var(--tmu);line-height:1.7;margin-bottom:14px;">
+        Are you sure you want to delete all saved days for <strong id="dmm-month-label" style="color:var(--td);">October 2026</strong> from the database?
+      </div>
+      <div class="banner-yellow" style="font-size:12px;">
+        ⚠️ <strong>Warning:</strong> This will reset the month to unsaved default state. All saved day configurations will be permanently removed.
+      </div>
+    </div>
+    <div class="form-actions">
+      <button class="btn-form-ghost" onclick="closeModal('delete-month-modal-bg')">Cancel</button>
+      <button class="btn-form-del" onclick="confirmDeleteCalendarMonth()">🗑 Delete Month</button>
+    </div>
+  </div>
+</div>
+
+<script src="js/core/session.js"></script>
+<script src="js/core/modal.js"></script>
+<script src="js/core/toast.js"></script>
+<script src="js/core/api.js"></script>
+<script src="js/pages/manage.page.js"></script>
+</body>
+</html>

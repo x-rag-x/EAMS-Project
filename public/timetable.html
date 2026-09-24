@@ -1,0 +1,241 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>EAMS · Timetable Workspace</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&family=Playfair+Display:wght@700&family=DM+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/timetable.css">
+</head>
+<body>
+
+  <!-- AUTH GATE -->
+  <div id="auth-gate" style="display:none">
+    <div class="ag-icon">🔒</div>
+    <div style="font-size:22px;font-weight:800;color:var(--td)">Access Denied</div>
+    <div style="font-size:14px;color:var(--tmu)">You don't have permission to view or manage timetables.</div>
+    <button class="btn-out" onclick="goHome()" style="margin-top:16px;">← Back to Dashboard</button>
+  </div>
+
+  <!-- EAMS THREE-BODY PAGE LOADER -->
+  <div id="page-loader">
+    <div class="loader-brand">🌿 EAMS Timetable Workspace</div>
+    <div class="three-body">
+      <div class="three-body__dot"></div>
+      <div class="three-body__dot"></div>
+      <div class="three-body__dot"></div>
+    </div>
+    <div class="loader-msg" id="loader-msg">Loading Timetable Workspace…</div>
+    <div class="loader-eta" id="loader-eta"></div>
+    <div class="loader-steps">
+      <div class="loader-step active" id="lstep-0"></div>
+      <div class="loader-step" id="lstep-1"></div>
+      <div class="loader-step" id="lstep-2"></div>
+      <div class="loader-step" id="lstep-3"></div>
+    </div>
+  </div>
+
+  <!-- APP SHELL -->
+  <div class="app-shell" id="app-shell" style="display:none">
+    
+    <!-- SIDEBAR -->
+    <aside class="sb" id="sidebar">
+      <div class="sb-logo">
+        <div class="sb-brand">🌿 EAMS</div>
+        <div class="sb-sub">Timetable Workspace</div>
+        <span class="badge" id="ws-role">Coordinator</span>
+      </div>
+
+      <div class="sb-nav" id="main-nav">
+        <div class="sb-section-label">Workspace Views</div>
+        <button class="sb-item act" data-view="production"><span class="sbi-ic">▦</span>Production<span class="sb-badge live">LIVE</span></button>
+        <button class="sb-item" data-view="editor"><span class="sbi-ic">✎</span>Draft Editor<span class="sb-badge draft">DRAFT</span></button>
+        <button class="sb-item" data-view="workload"><span class="sbi-ic">◒</span>Workload Analytics</button>
+        <button class="sb-item" data-view="faculty"><span class="sbi-ic">♙</span>Faculty Schedule</button>
+        <button class="sb-item" data-view="free"><span class="sbi-ic">⊙</span>Free Slots Finder</button>
+        <button class="sb-item" data-view="rooms"><span class="sbi-ic">⌗</span>Room Allocations</button>
+        <button class="sb-item" data-view="overview"><span class="sbi-ic">▥</span>Department Overview</button>
+        <button class="sb-item" data-view="exports"><span class="sbi-ic">⇩</span>Export Center</button>
+
+        <div class="sb-section-label">Management &amp; Audit</div>
+        <button class="sb-item" data-view="approvals"><span class="sbi-ic">◇</span>Conflict &amp; Approvals<span class="sb-badge alert" id="approval-count"></span></button>
+        <button class="sb-item" data-view="presets"><span class="sbi-ic">▤</span>Layout Presets</button>
+        <button class="sb-item" data-view="history"><span class="sbi-ic">◷</span>Version History</button>
+        <button class="sb-item" data-view="attendance"><span class="sbi-ic">◉</span>Attendance Insights</button>
+        <button class="sb-item" onclick="window.location.href='rooms.html'"><span class="sbi-ic">🏛️</span>Rooms &amp; Facilities</button>
+      </div>
+
+      <div class="sb-bottom">
+        <div class="sb-user">
+          <div class="sb-uav" id="user-avatar">?</div>
+          <div class="sb-uinfo">
+            <div class="sb-uname" id="user-name">—</div>
+            <div class="sb-urole" id="user-role">—</div>
+          </div>
+        </div>
+
+        <button class="sb-back-btn" onclick="goHome()">← Back to Dashboard</button>
+        
+        <button class="sb-logout-btn" onclick="doLogout()" title="Logout">
+          <div class="logout-sign">
+            <svg viewBox="0 0 512 512">
+              <path d="M377.9 105.9L500.7 228.7c7.2 7.2 11.3 17.1 11.3 27.3s-4.1 20.1-11.3 27.3L377.9 406.1c-6.4 6.4-15 9.9-24 9.9c-18.7 0-33.9-15.2-33.9-33.9l0-62.1-128 0c-17.7 0-32-14.3-32-32l0-64c0-17.7 14.3-32 32-32l128 0 0-62.1c0-18.7 15.2-33.9 33.9-33.9c9 0 17.6 3.6 24 9.9zM160 96L96 96c-17.7 0-32 14.3-32 32l0 256c0 17.7 14.3 32 32 32l64 0c17.7 0 32 14.3 32 32s-14.3 32-32 32l-64 0c-53 0-96-43-96-96L0 128C0 75 43 32 96 32l64 0c17.7 0 32 14.3 32 32s-14.3 32-32 32z"></path>
+            </svg>
+          </div>
+          <div class="logout-text">Logout</div>
+        </button>
+      </div>
+    </aside>
+
+    <!-- MAIN CONTENT -->
+    <main class="mc">
+      <header class="topbar">
+        <div class="topbar-left">
+          <h2 class="topbar-view-title" id="crumb-current">Production Timetable</h2>
+          <div class="mode-toggle">
+            <button class="mode active" data-mode="development">Development</button>
+            <button class="mode" data-mode="production">Production</button>
+          </div>
+        </div>
+
+        <div class="topbar-right">          
+          <div class="profile-chip" onclick="goHome()" title="User Profile">
+            <div class="profile-av" id="topbar-avatar">?</div>
+            <div class="profile-info">
+              <span class="profile-name" id="topbar-name">—</span>
+              <span class="profile-role" id="topbar-role">—</span>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <!-- INSTITUTIONAL PRINT HEADER -->
+      <div class="print-header" id="print-header">
+        <div class="ph-brand">🌿 EAMS · Educational Attendance Management System</div>
+        <div class="ph-title">Institutional Academic Timetable</div>
+        <div class="ph-meta" id="print-meta">Official Class Schedule &amp; Allocations</div>
+      </div>
+
+      <section class="page" id="page-content"></section>
+    </main>
+  </div>
+
+  <!-- TOAST -->
+  <div class="toast" id="toast"></div>
+
+  <!-- ENTRY MODAL (EAMS STANDARD MODAL) -->
+  <div class="modal-bg" id="slot-modal">
+    <div class="modal modal-lg">
+      <div class="modal-hd">
+        <div>
+          <span class="modal-eyebrow">TIMETABLE ENTRY</span>
+          <h2 class="modal-title" id="modal-title">Add Timetable Entry</h2>
+          <div class="modal-sub">Allocate teaching faculty, room, and period duration for the selected section.</div>
+        </div>
+        <button type="button" class="modal-close close-modal" aria-label="Close dialog">×</button>
+      </div>
+      <div class="modal-body form-grid"></div>
+      <div class="modal-note">
+        ℹ Changes are saved to the server draft. Production remains read-only until a validated draft is published.
+      </div>
+      <div class="modal-ft">
+        <button type="button" class="btn-out close-modal">Cancel</button>
+        <button type="button" class="btn-out" id="copy-slot">Copy</button>
+        <button type="button" class="btn-out" id="delete-slot" style="color:var(--red,#dc2626);border-color:rgba(220,38,38,0.3);">Delete</button>
+        <button type="button" class="btn-pri" id="save-slot">Save Entry</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- LAYOUT PRESET EDIT MODAL -->
+  <div class="modal-bg" id="preset-modal">
+    <div class="modal modal-lg">
+      <div class="modal-hd">
+        <div>
+          <span class="modal-eyebrow">LAYOUT PRESET &amp; TIMING SET</span>
+          <h2 class="modal-title" id="preset-modal-title">Edit Layout Preset</h2>
+          <div class="modal-sub">Configure scheduling template, applicable years, and lab durations.</div>
+        </div>
+        <button type="button" class="modal-close close-preset-modal" aria-label="Close dialog">×</button>
+      </div>
+      <div class="modal-body form-grid" id="preset-form-grid"></div>
+      <div class="modal-note">
+        ℹ Presets are saved to the EAMS database and provide standardized scheduling templates.
+      </div>
+      <div class="modal-ft">
+        <button type="button" class="btn-out close-preset-modal">Cancel</button>
+        <button type="button" class="btn-pri" id="save-preset">Save Preset</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- SLOT COMMENT POPUP MODAL -->
+  <div class="modal-bg" id="comment-modal">
+    <div class="modal modal-comment">
+      <div class="modal-hd">
+        <div>
+          <span class="modal-eyebrow">SLOT REMARK</span>
+          <h2 class="modal-title">Slot Comment</h2>
+          <div class="modal-sub" id="comment-modal-sub">Add remarks, lab requirements, or substitute instructions.</div>
+        </div>
+        <button type="button" class="modal-close" id="close-comment-modal" aria-label="Close dialog">×</button>
+      </div>
+      <div class="modal-body" style="padding-top:14px;">
+        <div class="fg" style="margin-bottom:0;">
+          <label class="fl" id="comment-modal-label" for="slot-comment-input" style="font-weight:600;font-size:12.5px;color:var(--td);display:block;margin-bottom:8px;">
+            Comment for this timetable slot:
+          </label>
+          <textarea id="slot-comment-input" rows="3" placeholder="e.g. Special lab session, guest lecture, bring laptops…" style="width:100%;resize:vertical;font-family:inherit;padding:10px 12px;border-radius:10px;border:1px solid var(--br);background:var(--bg);color:var(--td);font-size:13px;outline:none;box-sizing:border-box;line-height:1.45;"></textarea>
+        </div>
+      </div>
+      <div class="modal-ft" style="display:flex;justify-content:flex-end;gap:10px;margin-top:18px;">
+        <button type="button" class="btn-out" id="cancel-comment-btn">Cancel</button>
+        <button type="button" class="btn-pri" id="save-comment-btn">Save Comment</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ACTION / DELETE CONFIRMATION POPUP MODAL -->
+  <div class="modal-bg" id="confirm-modal">
+    <div class="modal modal-confirm">
+      <div class="modal-hd">
+        <div>
+          <span class="modal-eyebrow" id="confirm-modal-eyebrow" style="color:var(--red,#dc2626);">DELETE CONFIRMATION</span>
+          <h2 class="modal-title" id="confirm-modal-title">Delete Timetable Slot</h2>
+          <div class="modal-sub" id="confirm-modal-sub">This action will modify your timetable draft.</div>
+        </div>
+        <button type="button" class="modal-close" id="close-confirm-modal" aria-label="Close dialog">×</button>
+      </div>
+      <div class="modal-body" style="padding:16px 0 6px 0;">
+        <div style="display:flex;gap:14px;align-items:flex-start;">
+          <div class="confirm-icon-box" id="confirm-modal-icon">
+            🗑️
+          </div>
+          <div style="flex:1;">
+            <div class="confirm-msg" id="confirm-modal-message">
+              Delete Data Structures and Algorithms on Thursday P3?
+            </div>
+            <div class="confirm-hint" id="confirm-modal-hint">
+              This slot will be removed from your timetable draft.
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-ft" style="display:flex;justify-content:flex-end;gap:10px;margin-top:20px;">
+        <button type="button" class="btn-out" id="cancel-confirm-btn">Cancel</button>
+        <button type="button" class="btn-pri" id="accept-confirm-btn" style="background:#dc2626;border-color:#dc2626;color:#ffffff;">Delete Slot</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Shared EAMS runtime: session -> api -> toast -> modal -> timetable.page.js -->
+  <script src="js/core/session.js"></script>
+  <script src="js/core/api.js"></script>
+  <script src="js/core/toast.js"></script>
+  <script src="js/core/modal.js"></script>
+  <script src="js/pages/timetable.page.js"></script>
+</body>
+</html>

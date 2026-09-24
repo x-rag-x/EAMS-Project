@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Workspace Hub · EAMS</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700;800&family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/selector.css">
+</head>
+
+<body>
+  <!-- PAGE LOADER 
+  <div id="page-loader">
+    <div class="loader-brand">EAMS Hub</div>
+    <div class="three-body">
+      <div class="three-body__dot"></div>
+      <div class="three-body__dot"></div>
+      <div class="three-body__dot"></div>
+    </div>
+    <div class="loader-msg" id="loader-msg">Loading Workspace Hub…</div>
+    <div class="loader-steps">
+      <div class="loader-step active" id="lstep-0"></div>
+      <div class="loader-step" id="lstep-1"></div>
+      <div class="loader-step" id="lstep-2"></div>
+      <div class="loader-step" id="lstep-3"></div>
+    </div>
+  </div>  -->
+
+  <!-- Toast -->
+  <div id="toast" class="toast"></div>
+
+  <!-- DB Toast -->
+  <div id="db-toast"></div>
+
+  <div id="app-shell" class="sel-shell">
+    <!-- Topbar -->
+    <header class="sel-topbar">
+      <div class="sel-brand">
+        <div class="sel-logo">⚡</div>
+        <div class="sel-brand-text">
+          <span class="sel-brand-title">EAMS Portals</span>
+          <span class="sel-brand-sub" id="sel-inst-sub">Educational Activity Management System</span>
+        </div>
+      </div>
+
+      <div class="sel-topbar-center">
+      </div>
+
+      <div class="sel-topbar-right">
+        <div class="profile-chip" id="profile-chip">
+          <div class="profile-av" id="u-av">T</div>
+          <div class="profile-info">
+            <div class="name" id="u-name">Loading...</div>
+            <div class="email" id="u-role">Faculty Member</div>
+          </div>
+        </div>
+
+        <button class="sb-logout-btn" onclick="doLogout('manual', 'success', '7000')" title="Sign Out">
+          <div class="logout-sign">
+            <svg viewBox="0 0 512 512">
+              <path d="M377.9 105.9L500.7 228.7c7.2 7.2 11.3 17.1 11.3 27.3s-4.1 20.1-11.3 27.3L377.9 406.1c-6.4 6.4-15 9.9-24 9.9c-18.7 0-33.9-15.2-33.9-33.9l0-62.1-128 0c-17.7 0-32-14.3-32-32l0-64c0-17.7 14.3-32 32-32l128 0 0-62.1c0-18.7 15.2-33.9 33.9-33.9c9 0 17.6 3.6 24 9.9zM160 96L96 96c-17.7 0-32 14.3-32 32l0 256c0 17.7 14.3 32 32 32l64 0c17.7 0 32 14.3 32 32s-14.3 32-32 32l-64 0c-53 0-96-43-96-96L0 128C0 75 43 32 96 32l64 0c17.7 0 32 14.3 32 32s-14.3 32-32 32z"></path>
+            </svg>
+          </div>
+          <div class="logout-text">Logout</div>
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="sel-main">
+      <div class="sel-hero">
+        <h1 class="sel-hero-title" id="welcome-title">Select a Workspace</h1>
+        <p class="sel-hero-desc">Access authorized academic portals, attendance dashboards, timetable scheduling, or administration tools configured for your account.</p>
+        
+        <div class="sel-tags-bar" id="role-tags-bar">
+          <!-- Dynamically populated with active roles -->
+        </div>
+      </div>
+
+      <!-- Cards Grid -->
+      <div class="sel-grid" id="portal-cards">
+        <!-- Injected dynamically by selector.page.js based on rights -->
+      </div>
+    </main>
+
+    <footer class="sel-footer">
+      <div class="sel-footer-content">
+        <span id="sel-footer-inst">EAMS</span>
+        <span class="footer-sep">·</span>
+        <span class="footer-badge">v2.4 Enterprise</span>
+      </div>
+    </footer>
+  </div>
+
+  <script src="js/core/session.js"></script>
+  <script src="js/core/toast.js"></script>
+  <script src="js/pages/selector.page.js"></script>
+</body>
+
+</html>

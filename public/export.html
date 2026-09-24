@@ -1,0 +1,935 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EAMS – Export Center</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/export.css">
+</head>
+<body>
+
+  <!-- APP SHELL (Matching admin.html) -->
+  <div id="app-shell" class="vis">
+    <div class="sb-overlay" id="sb-overlay" onclick="toggleExportSidebar()"></div>
+
+    <!-- SIDEBAR TOGGLE BUTTON (as in admin.html) -->
+    <button class="sb-toggle-btn" id="sbtoggle" onclick="toggleExportSidebar()" title="Toggle menu">✖</button>
+
+    <!-- SIDEBAR (Matching admin.html, clean main menu only) -->
+    <nav class="sb">
+      <div class="sb-logo">
+        <div class="sb-brand">EAMS Export</div>
+        <button class="btn-pri" onclick="location.reload()" style="font-size:11px;padding:4px 10px;">Refresh</button>
+      </div>
+
+      <div class="nav-section" style="flex:1;overflow-y:auto;padding:6px 0;">
+        <div class="sb-section-label">Overview</div>
+        <button class="sb-item act" data-page="dash" onclick="nav('dash')">
+          <span class="sbi-ic">📊</span>Dashboard
+        </button>
+
+        <div class="sb-section-label">Report Modules</div>
+        <button class="sb-item" data-page="student" onclick="nav('student')">
+          <span class="sbi-ic">👨‍🎓</span>Student Reports
+        </button>
+        <button class="sb-item" data-page="class" onclick="nav('class')">
+          <span class="sbi-ic">🏫</span>Class Reports
+        </button>
+        <button class="sb-item" data-page="subject" onclick="nav('subject')">
+          <span class="sbi-ic">📚</span>Subject Reports
+        </button>
+        <button class="sb-item" data-page="teacher" onclick="nav('teacher')">
+          <span class="sbi-ic">👨‍🏫</span>Teacher Reports
+        </button>
+        <button class="sb-item" data-page="dept" onclick="nav('dept')">
+          <span class="sbi-ic">🏢</span>Department Reports
+        </button>
+        <button class="sb-item" data-page="bulk" onclick="nav('bulk')">
+          <span class="sbi-ic">📦</span>Bulk Export
+        </button>
+
+        <div class="sb-section-label">Automation &amp; Archive</div>
+        <button class="sb-item" data-page="scheduled" onclick="nav('scheduled')">
+          <span class="sbi-ic">📅</span>Scheduled Reports
+        </button>
+        <button class="sb-item" data-page="templates" onclick="nav('templates')">
+          <span class="sbi-ic">⭐</span>Saved Templates
+          <span class="sb-badge" id="sb-tmpl-count">0</span>
+        </button>
+        <button class="sb-item" data-page="history" onclick="nav('history')">
+          <span class="sbi-ic">🕒</span>Export History
+          <span class="sb-badge" id="sb-hist-count">0</span>
+        </button>
+      </div>
+
+      <!-- SIDEBAR BOTTOM (User Profile, Back Button, Animated Logout Button as in admin.html) -->
+      <div class="sb-bottom">
+        <div class="sb-user">
+          <div class="sb-uav" id="sb-av">A</div>
+          <div>
+            <div class="sb-uname" id="sb-name">Administrator</div>
+            <div class="sb-urole" id="sb-role">Admin</div>
+          </div>
+        </div>
+        <button class="sb-back-btn" id="export-back-btn" onclick="goHome()">← Back to Dashboard</button>
+        <button class="sb-logout-btn" onclick="doLogout()" title="Logout">
+          <div class="logout-sign">
+            <svg viewBox="0 0 512 512">
+              <path d="M377.9 105.9L500.7 228.7c7.2 7.2 11.3 17.1 11.3 27.3s-4.1 20.1-11.3 27.3L377.9 406.1c-6.4 6.4-15 9.9-24 9.9c-18.7 0-33.9-15.2-33.9-33.9l0-62.1-128 0c-17.7 0-32-14.3-32-32l0-64c0-17.7 14.3-32 32-32l128 0 0-62.1c0-18.7 15.2-33.9 33.9-33.9c9 0 17.6 3.6 24 9.9zM160 96L96 96c-17.7 0-32 14.3-32 32l0 256c0 17.7 14.3 32 32 32l64 0c17.7 0 32 14.3 32 32s-14.3 32-32 32l-64 0c-53 0-96-43-96-96L0 128C0 75 43 32 96 32l64 0c17.7 0 32 14.3 32 32s-14.3 32-32 32z"></path>
+            </svg>
+          </div>
+          <div class="logout-text">Logout</div>
+        </button>
+      </div>
+    </nav>
+
+    <!-- MAIN CONTENT (mc as in admin.html) -->
+    <div class="mc">
+
+      <!-- TOPBAR (as in admin.html) -->
+      <div class="topbar">
+        <div class="topbar-left">
+          <div style="width:32px;"></div><!-- spacer for toggle btn -->
+          <div style="font-size:11px;color:var(--tmu);background:var(--gLt);padding:4px 12px;border-radius:12px;border:1px solid var(--br);font-weight:500;white-space:nowrap;" id="tdt-label"></div>
+        </div>
+        <div class="topbar-right">
+          <div class="profile-chip" id="user-display" onclick="goHome()" title="Click to go to your home dashboard" style="cursor:pointer;">
+            <div class="profile-av" id="topbar-av">A</div>
+            <div class="profile-info">
+              <div class="name" id="topbar-name">Administrator</div>
+              <div class="email" id="topbar-role">Admin Portal</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- MAIN PAGE CONTENT (Tabbed .pg structure matching admin.html) -->
+      <main class="main-content">
+
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+        <!-- 1. DASHBOARD PAGE (REDUCED & COMPACT)                           -->
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+        <div class="pg act" id="pg-dash">
+          <div class="page-hd">
+            <div>
+              <div class="page-title">📊 Export Center Dashboard</div>
+              <div class="page-sub">Central reporting hub, institutional exports, and backup analytics overview.</div>
+            </div>
+            <div class="page-actions">
+              <button class="btn-secondary" onclick="nav('history')">🕒 View History</button>
+              <button class="btn-pri" onclick="openReportConfig('class-defaulters')">⚡ Quick Export</button>
+            </div>
+          </div>
+
+          <!-- Compact Stats Row -->
+          <div class="ec-stats-row" style="margin-bottom:24px;">
+            <div class="ec-stat-card" onclick="nav('history')" style="cursor:pointer;">
+              <div class="stat-icon-wrap" style="background:#e8f5e9;color:#2e7d32;">📁</div>
+              <div class="stat-content">
+                <div class="stat-value" id="stat-total-exports">0</div>
+                <div class="stat-label">Total Exports Generated</div>
+              </div>
+            </div>
+            <div class="ec-stat-card">
+              <div class="stat-icon-wrap" style="background:#e0f2fe;color:#0284c7;">📅</div>
+              <div class="stat-content">
+                <div class="stat-value" id="stat-exports-month">0</div>
+                <div class="stat-label">Exports This Month</div>
+              </div>
+            </div>
+            <div class="ec-stat-card" onclick="nav('templates')" style="cursor:pointer;">
+              <div class="stat-icon-wrap" style="background:#fef3c7;color:#b45309;">⭐</div>
+              <div class="stat-content">
+                <div class="stat-value" id="stat-templates">0</div>
+                <div class="stat-label">Saved Custom Templates</div>
+              </div>
+            </div>
+            <div class="ec-stat-card">
+              <div class="stat-icon-wrap" style="background:#f3e8ff;color:#7e22ce;">🏆</div>
+              <div class="stat-content">
+                <div class="stat-value stat-value-sm" id="stat-popular-type">—</div>
+                <div class="stat-label">Most Frequent Report</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Quick Navigation Cards to Key Modules -->
+          <div class="section-hd">
+            <div>
+              <h3 class="section-title">⚡ Quick Report Shortcuts</h3>
+              <div class="section-sub">Instantly launch popular academic reports or navigate to dedicated modules.</div>
+            </div>
+          </div>
+          <div class="ec-report-grid" style="margin-bottom:28px;">
+            <div class="ec-report-card" onclick="openReportConfig('class-defaulters')">
+              <div class="card-top">
+                <div class="report-icon" style="background:#fee2e2;">⚠️</div>
+                <span class="card-badge badge-warn">&lt; 75% Shortage</span>
+              </div>
+              <h4 class="report-name">Low Attendance Defaulters</h4>
+              <p class="report-desc">Instant list of students with low attendance for notices and correspondence.</p>
+              <div class="card-footer">
+                <button class="btn-generate" onclick="event.stopPropagation(); openReportConfig('class-defaulters')">Configure &amp; Export →</button>
+              </div>
+            </div>
+
+            <div class="ec-report-card" onclick="openReportConfig('class-daily-register')">
+              <div class="card-top">
+                <div class="report-icon" style="background:#e0f2fe;">📅</div>
+                <span class="card-badge badge-all">All Formats</span>
+              </div>
+              <h4 class="report-name">Daily Attendance Register</h4>
+              <p class="report-desc">College daily muster register showing period-wise attendance on any date.</p>
+              <div class="card-footer">
+                <button class="btn-generate" onclick="event.stopPropagation(); openReportConfig('class-daily-register')">Configure &amp; Export →</button>
+              </div>
+            </div>
+
+            <div class="ec-report-card" onclick="openReportConfig('student-complete')">
+              <div class="card-top">
+                <div class="report-icon" style="background:#e8f5e9;">📋</div>
+                <span class="card-badge badge-pdf">PDF / Excel</span>
+              </div>
+              <h4 class="report-name">Complete Student Report</h4>
+              <p class="report-desc">Full profile with subject breakdown, percentages, and performance stats.</p>
+              <div class="card-footer">
+                <button class="btn-generate" onclick="event.stopPropagation(); openReportConfig('student-complete')">Configure &amp; Export →</button>
+              </div>
+            </div>
+
+            <div class="ec-report-card" onclick="openReportConfig('bulk-hod-pack')">
+              <div class="card-top">
+                <div class="report-icon" style="background:#fef3c7;">📑</div>
+                <span class="card-badge badge-gold">HOD Executive</span>
+              </div>
+              <h4 class="report-name">HOD Executive Pack</h4>
+              <p class="report-desc">Consolidated analytics, faculty workload, room utilization, and audit logs.</p>
+              <div class="card-footer">
+                <button class="btn-generate" onclick="event.stopPropagation(); openReportConfig('bulk-hod-pack')">Configure &amp; Export →</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Search & Filter Bar (Compact on dashboard) -->
+          <div class="ec-search-section" style="margin-bottom:24px;">
+            <div class="search-panel">
+              <div class="ec-search-wrap">
+                <span class="search-icon">🔍</span>
+                <input type="search" id="export-search" placeholder="Search any report across all modules..." class="ec-search-input">
+              </div>
+              <div class="ec-filters-row">
+                <select id="filter-department" class="ec-filter-select">
+                  <option value="">🏛️ All Departments</option>
+                </select>
+                <select id="filter-year" class="ec-filter-select">
+                  <option value="">🎓 All Years</option>
+                </select>
+                <select id="filter-section" class="ec-filter-select">
+                  <option value="">🏷️ All Sections</option>
+                </select>
+                <select id="filter-subject" class="ec-filter-select">
+                  <option value="">📚 All Subjects</option>
+                </select>
+                <button id="btn-clear-filters" class="btn-secondary" title="Reset all filters">
+                  ↺ Reset
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Live Search Results (Shown dynamically when searching) -->
+          <div id="dashboard-search-results" style="display:none;margin-bottom:28px;">
+            <div class="section-hd">
+              <div>
+                <h3 class="section-title">🔍 Search Results</h3>
+                <div class="section-sub" id="search-results-count">Matching reports found</div>
+              </div>
+            </div>
+            <div class="ec-report-grid" id="search-results-grid"></div>
+          </div>
+
+          <!-- Recent Downloads -->
+          <div class="ec-recent-section" id="section-recent-exports">
+            <div class="section-hd">
+              <div>
+                <h3 class="section-title">⚡ Recent Downloads</h3>
+                <div class="section-sub">Quickly re-download recently generated reports.</div>
+              </div>
+            </div>
+            <div class="ec-recent-list" id="recent-exports-list">
+              <div class="ec-empty-state">No recent exports.</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+        <!-- 2. STUDENT REPORTS PAGE                                         -->
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+        <div class="pg" id="pg-student">
+          <div class="page-hd">
+            <div>
+              <div class="page-title">👨‍🎓 Student Academic Reports</div>
+              <div class="page-sub">Individualized attendance summaries, subject rosters, and formal parent documentation.</div>
+            </div>
+          </div>
+
+          <div class="ec-report-grid">
+            <div class="ec-report-card" data-report="student-complete" onclick="openReportConfig('student-complete')">
+              <div class="card-top">
+                <div class="report-icon" style="background:#e8f5e9;">📋</div>
+                <span class="card-badge badge-pdf">PDF / Excel</span>
+              </div>
+              <h4 class="report-name">Complete Student Report</h4>
+              <p class="report-desc">Full academic profile with attendance history, subject-wise breakdown, percentage stats, and performance summary.</p>
+              <div class="card-footer">
+                <button class="btn-generate" onclick="event.stopPropagation(); openReportConfig('student-complete')">Configure &amp; Export →</button>
+              </div>
+            </div>
+
+            <div class="ec-report-card" data-report="student-summary" onclick="openReportConfig('student-summary')">
+              <div class="card-top">
+                <div class="report-icon" style="background:#e0f2fe;">📊</div>
+                <span class="card-badge badge-all">All Formats</span>
+              </div>
+              <h4 class="report-name">Attendance Summary</h4>
+              <p class="report-desc">Quick overview of overall attendance percentage, days present/absent, and per-subject attendance percentages.</p>
+              <div class="card-footer">
+                <button class="btn-generate" onclick="event.stopPropagation(); openReportConfig('student-summary')">Configure &amp; Export →</button>
+              </div>
+            </div>
+
+            <div class="ec-report-card" data-report="student-subject-history" onclick="openReportConfig('student-subject-history')">
+              <div class="card-top">
+                <div class="report-icon" style="background:#fef3c7;">📚</div>
+                <span class="card-badge badge-excel">Excel / CSV</span>
+              </div>
+              <h4 class="report-name">Subject-wise History</h4>
+              <p class="report-desc">Detailed attendance breakdown for each subject with session timestamps, faculty names, and period-wise presence.</p>
+              <div class="card-footer">
+                <button class="btn-generate" onclick="event.stopPropagation(); openReportConfig('student-subject-history')">Configure &amp; Export →</button>
+              </div>
+            </div>
+
+            <div class="ec-report-card" data-report="student-parent-report" onclick="openReportConfig('student-parent-report')">
+              <div class="card-top">
+                <div class="report-icon" style="background:#f3e8ff;">👪</div>
+                <span class="card-badge badge-pdf">PDF Document</span>
+              </div>
+              <h4 class="report-name">Parent Official Report</h4>
+              <p class="report-desc">Parent-friendly official college correspondence report with institutional letterhead, attendance status, and remarks.</p>
+              <div class="card-footer">
+                <button class="btn-generate" onclick="event.stopPropagation(); openReportConfig('student-parent-report')">Configure &amp; Export →</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+        <!-- 3. CLASS REPORTS PAGE                                           -->
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+        <div class="pg" id="pg-class">
+          <div class="page-hd">
+            <div>
+              <div class="page-title">🏫 Class &amp; Section Registers</div>
+              <div class="page-sub">Official section musters, monthly registers, semester consolidations, and defaulters.</div>
+            </div>
+          </div>
+
+          <div class="ec-report-grid">
+            <div class="ec-report-card" data-report="class-daily-register" onclick="openReportConfig('class-daily-register')">
+              <div class="card-top">
+                <div class="report-icon" style="background:#e0f2fe;">📅</div>
+                <span class="card-badge badge-all">All Formats</span>
+              </div>
+              <h4 class="report-name">Daily Attendance Register</h4>
+              <p class="report-desc">Traditional college daily muster register showing period-wise attendance for all students on a chosen date.</p>
+              <div class="card-footer">
+                <button class="btn-generate" onclick="event.stopPropagation(); openReportConfig('class-daily-register')">Configure &amp; Export →</button>
+              </div>
+            </div>
+
+            <div class="ec-report-card" data-report="class-monthly-register" onclick="openReportConfig('class-monthly-register')">
+              <div class="card-top">
+                <div class="report-icon" style="background:#e8f5e9;">📆</div>
+                <span class="card-badge badge-excel">Excel Grid</span>
+              </div>
+              <h4 class="report-name">Monthly Class Register</h4>
+              <p class="report-desc">Month-wise grid showing working day columns (1–31) with P/A status, total working days, and monthly percentage.</p>
+              <div class="card-footer">
+                <button class="btn-generate" onclick="event.stopPropagation(); openReportConfig('class-monthly-register')">Configure &amp; Export →</button>
+              </div>
+            </div>
+
+            <div class="ec-report-card" data-report="class-semester" onclick="openReportConfig('class-semester')">
+              <div class="card-top">
+                <div class="report-icon" style="background:#f3e8ff;">📖</div>
+                <span class="card-badge badge-pdf">PDF / Excel</span>
+              </div>
+              <h4 class="report-name">Semester Consolidated Report</h4>
+              <p class="report-desc">Cumulative class performance across the full semester with subject-wise hours attended, total periods, and eligibility.</p>
+              <div class="card-footer">
+                <button class="btn-generate" onclick="event.stopPropagation(); openReportConfig('class-semester')">Configure &amp; Export →</button>
+              </div>
+            </div>
+
+            <div class="ec-report-card" data-report="class-defaulters" onclick="openReportConfig('class-defaulters')">
+              <div class="card-top">
+                <div class="report-icon" style="background:#fee2e2;">⚠️</div>
+                <span class="card-badge badge-warn">&lt; 75% Shortage</span>
+              </div>
+              <h4 class="report-name">Low Attendance Defaulters</h4>
+              <p class="report-desc">Instant list of students falling below attendance threshold (e.g. 75%), shortage hours calculation, and contact details.</p>
+              <div class="card-footer">
+                <button class="btn-generate" onclick="event.stopPropagation(); openReportConfig('class-defaulters')">Configure &amp; Export →</button>
+              </div>
+            </div>
+
+            <div class="ec-report-card" data-report="class-perfect-attendance" onclick="openReportConfig('class-perfect-attendance')">
+              <div class="card-top">
+                <div class="report-icon" style="background:#fef3c7;">🏆</div>
+                <span class="card-badge badge-gold">100% Honors</span>
+              </div>
+              <h4 class="report-name">100% Perfect Attendance</h4>
+              <p class="report-desc">Students with 100% flawless attendance records for merit commendation, academic appreciation, and awards.</p>
+              <div class="card-footer">
+                <button class="btn-generate" onclick="event.stopPropagation(); openReportConfig('class-perfect-attendance')">Configure &amp; Export →</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+        <!-- 4. SUBJECT REPORTS PAGE                                         -->
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+        <div class="pg" id="pg-subject">
+          <div class="page-hd">
+            <div>
+              <div class="page-title">📚 Subject &amp; Curriculum Reports</div>
+              <div class="page-sub">Curriculum hour tracking, session logs, student subject performance, and trends.</div>
+            </div>
+          </div>
+
+          <div class="ec-report-grid">
+            <div class="ec-report-card" data-report="subject-summary" onclick="openReportConfig('subject-summary')">
+              <div class="card-top">
+                <div class="report-icon" style="background:#e0f2fe;">📝</div>
+                <span class="card-badge badge-all">All Formats</span>
+              </div>
+              <h4 class="report-name">Subject-wise Summary</h4>
+              <p class="report-desc">Overall subject metrics: total periods conducted, syllabus class hours, class average attendance, and enrolment stats.</p>
+              <div class="card-footer">
+                <button class="btn-generate" onclick="event.stopPropagation(); openReportConfig('subject-summary')">Configure &amp; Export →</button>
+              </div>
+            </div>
+
+            <div class="ec-report-card" data-report="subject-performance" onclick="openReportConfig('subject-performance')">
+              <div class="card-top">
+                <div class="report-icon" style="background:#e8f5e9;">📈</div>
+                <span class="card-badge badge-excel">Excel</span>
+              </div>
+              <h4 class="report-name">Student Subject Performance</h4>
+              <p class="report-desc">Detailed roster of all students taking a specific subject with individual attendance percentage and lab hours compliance.</p>
+              <div class="card-footer">
+                <button class="btn-generate" onclick="event.stopPropagation(); openReportConfig('subject-performance')">Configure &amp; Export →</button>
+              </div>
+            </div>
+
+            <div class="ec-report-card" data-report="subject-trend" onclick="openReportConfig('subject-trend')">
+              <div class="card-top">
+                <div class="report-icon" style="background:#fef3c7;">📉</div>
+                <span class="card-badge badge-pdf">Analytics</span>
+              </div>
+              <h4 class="report-name">Curriculum Attendance Trend</h4>
+              <p class="report-desc">Month-over-month engagement trends, day-of-week attendance patterns, and period-wise peak absence analysis.</p>
+              <div class="card-footer">
+                <button class="btn-generate" onclick="event.stopPropagation(); openReportConfig('subject-trend')">Configure &amp; Export →</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+        <!-- 5. TEACHER REPORTS PAGE                                         -->
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+        <div class="pg" id="pg-teacher">
+          <div class="page-hd">
+            <div>
+              <div class="page-title">👨‍🏫 Faculty &amp; Teaching Hours Reports</div>
+              <div class="page-sub">Faculty teaching workload, sessions conducted, and attendance marking compliance.</div>
+            </div>
+          </div>
+
+          <div class="ec-report-grid">
+            <div class="ec-report-card" data-report="teacher-summary" onclick="openReportConfig('teacher-summary')">
+              <div class="card-top">
+                <div class="report-icon" style="background:#f3e8ff;">🎓</div>
+                <span class="card-badge badge-all">All Formats</span>
+              </div>
+              <h4 class="report-name">Faculty Teaching Summary</h4>
+              <p class="report-desc">Weekly teaching workload, theory classes conducted, lab hours handled, and attendance recording compliance.</p>
+              <div class="card-footer">
+                <button class="btn-generate" onclick="event.stopPropagation(); openReportConfig('teacher-summary')">Configure &amp; Export →</button>
+              </div>
+            </div>
+
+            <div class="ec-report-card" data-report="teacher-classes" onclick="openReportConfig('teacher-classes')">
+              <div class="card-top">
+                <div class="report-icon" style="background:#e0f2fe;">📊</div>
+                <span class="card-badge badge-excel">Excel / CSV</span>
+              </div>
+              <h4 class="report-name">Classes Conducted Log</h4>
+              <p class="report-desc">Comprehensive log of scheduled vs. conducted sessions, substitution classes taken, and live attendance timestamps.</p>
+              <div class="card-footer">
+                <button class="btn-generate" onclick="event.stopPropagation(); openReportConfig('teacher-classes')">Configure &amp; Export →</button>
+              </div>
+            </div>
+
+            <div class="ec-report-card" data-report="teacher-attendance-analysis" onclick="openReportConfig('teacher-attendance-analysis')">
+              <div class="card-top">
+                <div class="report-icon" style="background:#e8f5e9;">📑</div>
+                <span class="card-badge badge-pdf">Analysis PDF</span>
+              </div>
+              <h4 class="report-name">Attendance Analysis</h4>
+              <p class="report-desc">Detailed evaluation of faculty-conducted class attendance distributions, punctual marking metrics, and anomaly logs.</p>
+              <div class="card-footer">
+                <button class="btn-generate" onclick="event.stopPropagation(); openReportConfig('teacher-attendance-analysis')">Configure &amp; Export →</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+        <!-- 6. DEPARTMENT REPORTS PAGE                                      -->
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+        <div class="pg" id="pg-dept">
+          <div class="page-hd">
+            <div>
+              <div class="page-title">🏢 Department Academic Reports</div>
+              <div class="page-sub">Department-wide attendance aggregates, inter-class comparisons, and syllabus audit dossiers.</div>
+            </div>
+          </div>
+
+          <div class="ec-report-grid">
+            <div class="ec-report-card" data-report="dept-summary" onclick="openReportConfig('dept-summary')">
+              <div class="card-top">
+                <div class="report-icon" style="background:#e0f2fe;">🏛️</div>
+                <span class="card-badge badge-all">All Formats</span>
+              </div>
+              <h4 class="report-name">Department Summary</h4>
+              <p class="report-desc">Comprehensive department-level metrics: overall attendance percentages, total student intake, faculty count, and lab usage.</p>
+              <div class="card-footer">
+                <button class="btn-generate" onclick="event.stopPropagation(); openReportConfig('dept-summary')">Configure &amp; Export →</button>
+              </div>
+            </div>
+
+            <div class="ec-report-card" data-report="dept-class-comparison" onclick="openReportConfig('dept-class-comparison')">
+              <div class="card-top">
+                <div class="report-icon" style="background:#fef3c7;">📊</div>
+                <span class="card-badge badge-excel">Excel Grid</span>
+              </div>
+              <h4 class="report-name">Class Comparison</h4>
+              <p class="report-desc">Side-by-side attendance and engagement benchmark across 1st, 2nd, 3rd, and final year sections of the department.</p>
+              <div class="card-footer">
+                <button class="btn-generate" onclick="event.stopPropagation(); openReportConfig('dept-class-comparison')">Configure &amp; Export →</button>
+              </div>
+            </div>
+
+            <div class="ec-report-card" data-report="dept-subject-comparison" onclick="openReportConfig('dept-subject-comparison')">
+              <div class="card-top">
+                <div class="report-icon" style="background:#e8f5e9;">📚</div>
+                <span class="card-badge badge-pdf">PDF / Excel</span>
+              </div>
+              <h4 class="report-name">Subject Comparison</h4>
+              <p class="report-desc">Comparative analysis of attendance performance across core theory subjects, electives, and practical laboratory sessions.</p>
+              <div class="card-footer">
+                <button class="btn-generate" onclick="event.stopPropagation(); openReportConfig('dept-subject-comparison')">Configure &amp; Export →</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+        <!-- 7. BULK EXPORT PAGE                                             -->
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+        <div class="pg" id="pg-bulk">
+          <div class="page-hd">
+            <div>
+              <div class="page-title">📦 Institutional Bulk Packs</div>
+              <div class="page-sub">Batch archive packages, bulk parent letters, and comprehensive accreditation packs.</div>
+            </div>
+          </div>
+
+          <div class="ec-report-grid">
+            <div class="ec-report-card" data-report="bulk-parent-pack" onclick="openReportConfig('bulk-parent-pack')">
+              <div class="card-top">
+                <div class="report-icon" style="background:#e8f5e9;">📁</div>
+                <span class="card-badge badge-zip">ZIP Archive</span>
+              </div>
+              <h4 class="report-name">Parent PDF Pack (Batch ZIP)</h4>
+              <p class="report-desc">Generates one individualized PDF per student for an entire section, bundled in a single organized ZIP package.</p>
+              <div class="card-footer">
+                <button class="btn-generate" onclick="event.stopPropagation(); openReportConfig('bulk-parent-pack')">Configure &amp; Export →</button>
+              </div>
+            </div>
+
+            <div class="ec-report-card" data-report="bulk-class-pack" onclick="openReportConfig('bulk-class-pack')">
+              <div class="card-top">
+                <div class="report-icon" style="background:#e0f2fe;">🗂️</div>
+                <span class="card-badge badge-zip">Full Class Pack</span>
+              </div>
+              <h4 class="report-name">Complete Class Dossier</h4>
+              <p class="report-desc">Master bundle containing class register, monthly sheets, defaulters list, and subject breakdown in one download.</p>
+              <div class="card-footer">
+                <button class="btn-generate" onclick="event.stopPropagation(); openReportConfig('bulk-class-pack')">Configure &amp; Export →</button>
+              </div>
+            </div>
+
+            <div class="ec-report-card" data-report="bulk-hod-pack" onclick="openReportConfig('bulk-hod-pack')">
+              <div class="card-top">
+                <div class="report-icon" style="background:#fef3c7;">📑</div>
+                <span class="card-badge badge-gold">HOD Executive</span>
+              </div>
+              <h4 class="report-name">HOD Department Executive Pack</h4>
+              <p class="report-desc">Department-wide consolidated analytics, faculty workload reports, room utilization stats, and accreditation files.</p>
+              <div class="card-footer">
+                <button class="btn-generate" onclick="event.stopPropagation(); openReportConfig('bulk-hod-pack')">Configure &amp; Export →</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+        <!-- 8. SCHEDULED REPORTS PAGE                                       -->
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+        <div class="pg" id="pg-scheduled">
+          <div class="page-hd">
+            <div>
+              <div class="page-title">📅 Scheduled Recurring Reports</div>
+              <div class="page-sub">Automated cron job reporting, recurring weekly digests, and term backup schedules.</div>
+            </div>
+          </div>
+
+          <div class="ec-report-grid">
+            <div class="ec-report-card" data-report="scheduled-weekly-attendance" onclick="openReportConfig('scheduled-weekly-attendance')">
+              <div class="card-top">
+                <div class="report-icon" style="background:#e8f5e9;">⏰</div>
+                <span class="card-badge badge-pdf">Weekly Cron</span>
+              </div>
+              <h4 class="report-name">Weekly Attendance Dispatch</h4>
+              <p class="report-desc">Automated weekly digest sent to academic coordinators and HODs summarizing section-wise attendance trends.</p>
+              <div class="card-footer">
+                <button class="btn-generate" onclick="event.stopPropagation(); openReportConfig('scheduled-weekly-attendance')">Configure &amp; Export →</button>
+              </div>
+            </div>
+
+            <div class="ec-report-card" data-report="scheduled-monthly-defaulters" onclick="openReportConfig('scheduled-monthly-defaulters')">
+              <div class="card-top">
+                <div class="report-icon" style="background:#fee2e2;">🚨</div>
+                <span class="card-badge badge-warn">Monthly</span>
+              </div>
+              <h4 class="report-name">Monthly Defaulters Notice</h4>
+              <p class="report-desc">Auto-generated monthly shortage notification document formatted for college notice boards and parental correspondence.</p>
+              <div class="card-footer">
+                <button class="btn-generate" onclick="event.stopPropagation(); openReportConfig('scheduled-monthly-defaulters')">Configure &amp; Export →</button>
+              </div>
+            </div>
+
+            <div class="ec-report-card" data-report="scheduled-semester-archive" onclick="openReportConfig('scheduled-semester-archive')">
+              <div class="card-top">
+                <div class="report-icon" style="background:#f3e8ff;">💾</div>
+                <span class="card-badge badge-zip">Term Archive</span>
+              </div>
+              <h4 class="report-name">Semester End Cloud Backup</h4>
+              <p class="report-desc">End-of-term archival package preserving all daily registers, timetable audit trails, and student profiles for accreditation.</p>
+              <div class="card-footer">
+                <button class="btn-generate" onclick="event.stopPropagation(); openReportConfig('scheduled-semester-archive')">Configure &amp; Export →</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+        <!-- 9. SAVED TEMPLATES PAGE                                         -->
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+        <div class="pg" id="pg-templates">
+          <div class="page-hd">
+            <div>
+              <div class="page-title">⭐ Saved Custom Templates</div>
+              <div class="page-sub">Quickly load or manage your personal saved configuration presets.</div>
+            </div>
+          </div>
+
+          <div class="ec-templates-list" id="templates-list">
+            <div class="ec-empty-state">
+              <div class="empty-icon">⭐</div>
+              <div class="empty-title">No saved templates yet</div>
+              <div class="empty-desc">Configure any report in the modules and provide a template name to quickly regenerate it anytime.</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+        <!-- 10. EXPORT HISTORY PAGE                                         -->
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+        <div class="pg" id="pg-history">
+          <div class="page-hd">
+            <div>
+              <div class="page-title">🕒 Export History &amp; Download Archive</div>
+              <div class="page-sub">Complete audit log of all generated documents and instant re-downloads.</div>
+            </div>
+            <div class="page-actions">
+              <button class="btn-secondary" onclick="loadHistory(1)">↺ Refresh Log</button>
+            </div>
+          </div>
+
+          <div class="ec-history-container">
+            <div class="table-wrap">
+              <table class="ec-history-table" id="history-table">
+                <thead>
+                  <tr>
+                    <th>Date &amp; Time</th>
+                    <th>Track ID</th>
+                    <th>Report Type</th>
+                    <th>Format</th>
+                    <th>Records</th>
+                    <th>Status</th>
+                    <th style="text-align:right;">Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="history-list">
+                  <tr>
+                    <td colspan="7" class="ec-empty-state">Loading export history…</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="ec-pagination">
+              <button id="btn-history-prev" class="btn-pagination" disabled>← Previous</button>
+              <span id="history-page-info" class="page-info-txt">Page 1 of 1</span>
+              <button id="btn-history-next" class="btn-pagination" disabled>Next →</button>
+            </div>
+          </div>
+        </div>
+
+      </main>
+
+    </div>
+  </div>
+
+  <!-- Report Configuration Modal -->
+  <div class="modal-bg" id="modal-report-config">
+    <div class="modal modal-md">
+      <div class="modal-header">
+        <div>
+          <h3 id="config-report-title">Configure Report</h3>
+          <div class="modal-subtitle" id="config-report-subtitle">Select parameters, filters, and output format.</div>
+        </div>
+        <button class="btn-close" onclick="closeModal('modal-report-config')">✕</button>
+      </div>
+      <div class="modal-body">
+        <form id="form-report-config" onsubmit="handleConfigFormSubmit(event)">
+          <input type="hidden" id="config-report-type" value="">
+
+          <!-- Student Selection (for student-specific reports) -->
+          <div class="form-group" id="group-student-select" style="display: none;">
+            <label for="config-student">Target Student <span class="req-star">*</span></label>
+            <select id="config-student" class="form-control">
+              <option value="">— Select Student —</option>
+            </select>
+          </div>
+
+          <!-- Date Range Selection -->
+          <div class="form-group">
+            <label>Date Range Period</label>
+            <div class="daterange-buttons" id="daterange-buttons">
+              <button type="button" class="btn-daterange" data-range="today">Today</button>
+              <button type="button" class="btn-daterange" data-range="week">This Week</button>
+              <button type="button" class="btn-daterange active" data-range="month">This Month</button>
+              <button type="button" class="btn-daterange" data-range="semester">Semester</button>
+              <button type="button" class="btn-daterange" data-range="year">Academic Year</button>
+              <button type="button" class="btn-daterange" data-range="custom">Custom Range</button>
+            </div>
+          </div>
+
+          <div class="form-row" id="group-custom-dates">
+            <div class="form-group">
+              <label for="config-date-from">From Date</label>
+              <input type="date" id="config-date-from" class="form-control">
+            </div>
+            <div class="form-group">
+              <label for="config-date-to">To Date</label>
+              <input type="date" id="config-date-to" class="form-control">
+            </div>
+          </div>
+
+          <!-- Academic Scope Filters -->
+          <div class="form-group">
+            <label for="config-department">Department Scope</label>
+            <select id="config-department" class="form-control">
+              <option value="">All Departments</option>
+            </select>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="config-year">Year Level</label>
+              <select id="config-year" class="form-control">
+                <option value="">All Years</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="config-section">Class Section</label>
+              <select id="config-section" class="form-control">
+                <option value="">All Sections</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-group" id="group-subject-select" style="display: none;">
+            <label for="config-subject">Subject Filter</label>
+            <select id="config-subject" class="form-control">
+              <option value="">All Subjects</option>
+            </select>
+          </div>
+
+          <!-- Threshold (for defaulters report) -->
+          <div class="form-group" id="group-threshold" style="display: none;">
+            <label for="config-threshold">Attendance Shortage Threshold (%)</label>
+            <div style="display:flex;align-items:center;gap:12px;">
+              <input type="number" id="config-threshold" class="form-control" value="75" min="1" max="100" style="max-width:120px;">
+              <span style="font-size:12px;color:var(--tmu);">Default AICTE minimum requirement is 75%</span>
+            </div>
+          </div>
+
+          <!-- Format Selection -->
+          <div class="form-group">
+            <label>Output File Format</label>
+            <div class="format-buttons">
+              <label class="format-option">
+                <input type="radio" name="format" value="pdf" checked>
+                <span class="format-card">
+                  <span class="format-icon">📄</span>
+                  <span class="format-name">PDF Document</span>
+                  <span class="format-sub">Formatted &amp; Printable</span>
+                </span>
+              </label>
+              <label class="format-option">
+                <input type="radio" name="format" value="excel">
+                <span class="format-card">
+                  <span class="format-icon">📊</span>
+                  <span class="format-name">Excel Sheet</span>
+                  <span class="format-sub">Raw Data &amp; Formulas</span>
+                </span>
+              </label>
+              <label class="format-option">
+                <input type="radio" name="format" value="csv">
+                <span class="format-card">
+                  <span class="format-icon">📋</span>
+                  <span class="format-name">CSV File</span>
+                  <span class="format-sub">Lightweight &amp; Universal</span>
+                </span>
+              </label>
+            </div>
+          </div>
+
+          <!-- Save as Template Option -->
+          <div class="form-group">
+            <label for="config-template-name">Save configuration as reusable template (optional)</label>
+            <input type="text" id="config-template-name" class="form-control" placeholder="e.g. Monthly CSE 3rd Year Defaulters">
+          </div>
+
+          <!-- Actions -->
+          <div class="modal-actions">
+            <button type="button" class="btn-modal-ghost" onclick="closeModal('modal-report-config')">Cancel</button>
+            <button type="button" class="btn-modal-secondary" id="btn-preview" onclick="handlePreviewClick()">👁️ Preview Count</button>
+            <button type="submit" class="btn-modal-primary" id="btn-generate">🚀 Generate &amp; Download</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Preview Counts Modal -->
+  <div class="modal-bg" id="modal-preview-counts">
+    <div class="modal modal-sm">
+      <div class="modal-header">
+        <div>
+          <h3>Export Pre-Flight Summary</h3>
+          <div class="modal-subtitle">Verify estimated scope before generating document.</div>
+        </div>
+        <button class="btn-close" onclick="closeModal('modal-preview-counts')">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="preview-info" id="preview-counts-container">
+          <div class="preview-row">
+            <span class="preview-label">Target Report</span>
+            <span class="preview-value" id="preview-type">—</span>
+          </div>
+          <div class="preview-row">
+            <span class="preview-label">Estimated Records</span>
+            <span class="preview-value" id="preview-records">—</span>
+          </div>
+          <div class="preview-row">
+            <span class="preview-label">Date Range Scope</span>
+            <span class="preview-value" id="preview-daterange">—</span>
+          </div>
+          <div class="preview-row">
+            <span class="preview-label">Estimated File Size</span>
+            <span class="preview-value" id="preview-size">—</span>
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn-modal-ghost" onclick="closeModal('modal-preview-counts')">Back</button>
+          <button type="button" class="btn-modal-primary" onclick="closeModal('modal-preview-counts'); executeGenerateFromModal();">
+            Continue to Export →
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Delete Template Confirmation Modal -->
+  <div class="modal-bg" id="modal-delete-template">
+    <div class="modal modal-sm" style="max-width:440px;">
+      <div class="modal-header" style="border-bottom:none;padding-bottom:4px;">
+        <div style="display:flex;align-items:center;gap:12px;">
+          <div style="width:42px;height:42px;border-radius:12px;background:#fee2e2;color:#dc2626;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;">
+            🗑️
+          </div>
+          <div>
+            <h3 style="color:#b91c1c;margin:0;font-size:16.5px;">Delete Template?</h3>
+            <div class="modal-subtitle" style="margin-top:2px;">This action cannot be undone.</div>
+          </div>
+        </div>
+        <button class="btn-close" onclick="closeModal('modal-delete-template')">✕</button>
+      </div>
+      <div class="modal-body" style="padding-top:14px;">
+        <p style="margin:0 0 16px 0;font-size:13.5px;color:var(--t,#374151);line-height:1.55;">
+          Are you sure you want to delete <strong id="delete-template-name" style="color:var(--th,#111827);">this template</strong>? All saved filter criteria and presets will be permanently removed.
+        </p>
+        <div class="modal-actions" style="margin-top:12px;padding-top:14px;">
+          <button type="button" class="btn-modal-ghost" onclick="closeModal('modal-delete-template')">Cancel</button>
+          <button type="button" class="btn-modal-danger" id="btn-confirm-delete-template" onclick="confirmDeleteTemplateAction()">
+            🗑️ Delete Template
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Containers (Matching core/toast.js) -->
+  <div id="toast" class="toast"></div>
+  <div id="db-toast"></div>
+
+  <!-- Scripts -->
+  <script src="js/core/session.js"></script>
+  <script src="js/core/api.js"></script>
+  <script src="js/core/toast.js"></script>
+  <script src="js/core/modal.js"></script>
+  <script src="js/pages/export.page.js"></script>
+</body>
+</html>

@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>EAMS Smart Board Kiosk</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,400;0,500;1,400&family=Poppins:wght@300;400;500;600;700;800&family=Playfair+Display:wght@600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/board.css">
+</head>
+<body>
+
+  <!-- AUTO FULLSCREEN PROMPT OVERLAY -->
+  <div class="fs-launch-overlay" id="fsLaunchOverlay" onclick="enterKioskFullscreen()">
+    <div class="fs-launch-card">
+      <div class="fs-launch-icon">🌿</div>
+      <div class="fs-launch-title">EAMS Smart Board Kiosk</div>
+      <div class="fs-launch-sub">Touch or click anywhere to launch into auto full-screen display</div>
+      <button type="button" class="fs-launch-btn">⛶ Launch Fullscreen</button>
+    </div>
+  </div>
+
+  <!-- KIOSK APPLICATION SHELL (SINGLE VIEWPORT 100VW x 100VH) -->
+  <main class="kiosk-shell" id="kioskShell">
+
+    <!-- TOPBAR -->
+    <header class="kiosk-topbar">
+      <div class="topbar-left">
+        <div class="brand-pill">
+          <span class="brand-icon">🌿</span>
+          <div>
+            <div class="brand-title">EAMS Smart Board</div>
+            <div class="brand-campus">Autonomous Classroom Display</div>
+          </div>
+        </div>
+
+        <div class="room-badge" id="roomBadge">
+          <span class="room-badge-icon">📍</span>
+          <div>
+            <div class="room-badge-name" id="roomName">Connecting Room…</div>
+            <div class="room-badge-building" id="buildingName">Resolving Location…</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="topbar-right">
+        <!-- Live Clock -->
+        <div class="kiosk-clock-box">
+          <div class="clock-time" id="clockTime">--:--:--</div>
+          <div class="clock-ampm" id="clockAmPm">--</div>
+          <div class="clock-date" id="clockDate">Fetching Day &amp; Date…</div>
+        </div>
+
+        <!-- Fullscreen Toggle Button -->
+        <button class="fs-toggle-btn" id="fsToggleBtn" onclick="toggleKioskFullscreen()" title="Toggle Fullscreen Mode">
+          ⛶ Fullscreen
+        </button>
+
+        <!-- Network / WS Status Pill -->
+        <div class="net-pill" id="netPill" title="Press Ctrl+D for Diagnostics">
+          <div class="net-dot" id="netDot"></div>
+          <span id="netStatusText">Connecting…</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- MAIN VIEW GRID -->
+    <section class="kiosk-main">
+
+      <!-- LEFT: CURRENT CLASS HERO CARD -->
+      <article class="hero-card" id="heroCard">
+        <!-- Slot Meta Row -->
+        <div class="hero-meta-row">
+          <div class="period-tag">
+            <span class="period-badge" id="periodBadge">Active Period</span>
+            <span class="period-timing" id="periodTiming">00:00 - 00:00</span>
+          </div>
+          <div class="class-tag" id="classTag">Section --</div>
+        </div>
+
+        <!-- Subject Headline -->
+        <div class="subject-box">
+          <div class="subject-kicker" id="subjectKicker">Academic Timetable Slot</div>
+          <h1 class="subject-title" id="subjectTitle">Synchronizing Timetable…</h1>
+          <div class="subject-type-pill" id="subjectType">Course Details</div>
+        </div>
+
+        <!-- Faculty Details Row -->
+        <div class="faculty-row" id="facultyRow">
+          <div class="faculty-profile">
+            <div class="faculty-avatar" id="facultyAvatar">--</div>
+            <div>
+              <div class="faculty-name" id="facultyName">Resolving Faculty…</div>
+              <div class="faculty-title" id="facultyTitle">Department Faculty</div>
+            </div>
+          </div>
+          <div class="substitute-badge" id="substituteBadge" style="display: none;">
+            <span>⇄</span>
+            <span>Faculty Substitution Active</span>
+          </div>
+        </div>
+      </article>
+
+      <!-- RIGHT: ATTENDANCE & UPCOMING SLOTS -->
+      <aside class="kiosk-side">
+
+        <!-- Attendance Readiness Card -->
+        <div class="attendance-card" id="attendanceCard">
+          <div>
+            <div class="card-header-label">Class Attendance Subsystem</div>
+          </div>
+
+          <div class="attendance-status-box">
+            <div class="status-radar">📡</div>
+            <div class="status-headline" id="attStatusHeadline">Awaiting Teacher Verification</div>
+            <div class="status-sub" id="attStatusSub">
+              Faculty must initiate attendance verification from the Faculty Portal. The live QR &amp; BLE PIN will appear automatically on this display.
+            </div>
+          </div>
+
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <span class="plan3-tag">⚡ EAMS Plan 3 Attendance Ready</span>
+            <span style="font-size: 11px; font-family: var(--font-mono); color: var(--text-dim);" id="deviceTag">DEV: --</span>
+          </div>
+        </div>
+
+        <!-- Upcoming Period Preview -->
+        <div class="upcoming-card" id="upcomingCard">
+          <div class="card-header-label">Next Timetable Slot</div>
+          <div class="upcoming-row">
+            <div class="upcoming-icon-box">⏱️</div>
+            <div class="upcoming-info">
+              <div class="upcoming-period-label" id="nextPeriodLabel">Upcoming Period --:--</div>
+              <div class="upcoming-subject" id="nextSubjectTitle">No Upcoming Session</div>
+              <div class="upcoming-teacher" id="nextFacultyName">--</div>
+            </div>
+          </div>
+        </div>
+
+      </aside>
+    </section>
+
+  </main>
+
+  <!-- REMOTE IDENTIFY BANNER (TRIGGERED BY ADMIN DASHBOARD) -->
+  <div class="identify-overlay" id="identifyOverlay">
+    <div class="identify-card">
+      <div class="identify-icon">🔔</div>
+      <div class="identify-title">Smart Board Identified</div>
+      <div class="identify-device-id" id="identifyDeviceId">SB-UNKNOWN</div>
+      <div class="identify-room" id="identifyRoomName">Room: Lab --</div>
+      <div class="identify-sub">Remote ping command acknowledged · Device operational</div>
+    </div>
+  </div>
+
+  <!-- ON-SCREEN DIAGNOSTICS MODAL (CTRL+D) -->
+  <div class="modal-bg" id="diagModal">
+    <div class="modal modal-lg kiosk-modal">
+      <div class="modal-hd">
+        <div>
+          <div class="modal-title">📡 Hardware &amp; Telemetry Diagnostics</div>
+          <div class="modal-sub">Real-time WebSocket and hardware diagnostics · Press <kbd>Ctrl+D</kbd> or Esc to toggle</div>
+        </div>
+        <div class="modal-close" onclick="document.getElementById('diagModal').classList.remove('open')">✖</div>
+      </div>
+
+      <div class="diag-grid">
+        <div class="diag-item">
+          <div class="diag-lbl">DEVICE ID</div>
+          <div class="diag-val" id="diagDeviceId">--</div>
+        </div>
+        <div class="diag-item">
+          <div class="diag-lbl">WS PROTOCOL STATE</div>
+          <div class="diag-val" id="diagWsState">DISCONNECTED</div>
+        </div>
+        <div class="diag-item">
+          <div class="diag-lbl">CURRENT IP / NETWORK</div>
+          <div class="diag-val" id="diagIp">--</div>
+        </div>
+        <div class="diag-item">
+          <div class="diag-lbl">DISPLAY RESOLUTION</div>
+          <div class="diag-val" id="diagResolution">--</div>
+        </div>
+        <div class="diag-item">
+          <div class="diag-lbl">HEARTBEAT COUNTER</div>
+          <div class="diag-val" id="diagHeartbeats">0 sent</div>
+        </div>
+        <div class="diag-item">
+          <div class="diag-lbl">KIOSK UPTIME</div>
+          <div class="diag-val" id="diagUptime">00m 00s</div>
+        </div>
+      </div>
+
+      <div style="font-size:11px;font-weight:700;color:var(--text-dim);letter-spacing:1px;margin-bottom:6px;">EVENT &amp; TELEMETRY LOGS</div>
+      <div class="diag-logs" id="diagLogs">
+        <div>[SYSTEM] Diagnostics initialized. Press Ctrl+D to toggle.</div>
+      </div>
+
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:20px;padding-top:14px;border-top:1px solid var(--border-glass);">
+        <button class="btn-out" style="color:#f87171;border-color:rgba(239,68,68,0.4);" onclick="openSetupModal()">⚙️ Re-pair Hardware</button>
+        <button class="btn-pri" id="diagCloseBtn">Close Diagnostics</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- SMART BOARD HARDWARE SETUP & PAIRING MODAL -->
+  <div class="modal-bg" id="setupModal">
+    <div class="modal modal-sm kiosk-modal">
+      <div class="modal-hd">
+        <div>
+          <div class="modal-title">📺 Smart Board Pairing</div>
+          <div class="modal-sub">Authenticate this display with the EAMS Autonomous Gateway</div>
+        </div>
+        <div class="modal-close" onclick="closeSetupModal()">✖</div>
+      </div>
+
+      <div class="setup-err" id="setupErr"></div>
+
+      <div class="fg" style="margin-bottom:14px;">
+        <label class="fl" style="color:var(--text-muted);">Hardware Device Identifier</label>
+        <input type="text" class="fc setup-input" id="setupDeviceId" placeholder="e.g. SB-LH101-001" style="text-transform:uppercase;">
+      </div>
+
+      <div class="fg" style="margin-bottom:18px;">
+        <label class="fl" style="color:var(--text-muted);">Board API Key / Passcode</label>
+        <input type="password" class="fc setup-input" id="setupApiKey" placeholder="Enter 64-char cryptographic API key">
+      </div>
+
+      <button class="btn-pri setup-btn-connect" id="setupConnectBtn" onclick="submitBoardSetup()">
+        <span>⚡ Connect &amp; Initialize Classroom Display</span>
+      </button>
+
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:18px;font-size:12px;color:var(--text-dim);">
+        <span>Obtain keys in Admin Portal → Rooms</span>
+        <a href="index.html" style="color:var(--accent-green);text-decoration:none;font-weight:600;">Go to Main Login →</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- PAGE ENGINE -->
+  <script src="js/pages/board.page.js"></script>
+</body>
+</html>

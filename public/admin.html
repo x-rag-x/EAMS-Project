@@ -1,0 +1,2170 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EAMS – Admin Dashboard</title>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&family=Playfair+Display:wght@700&display=swap"
+    rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/admin.css">
+</head>
+
+<body>
+
+  <!-- Page loader overlay shown until initial database sync completes -->
+  <div id="page-loader">
+    <div class="loader-brand">🌿 EAMS Admin</div>
+    <div class="three-body">
+      <div class="three-body__dot"></div>
+      <div class="three-body__dot"></div>
+      <div class="three-body__dot"></div>
+    </div>
+    <div class="loader-msg" id="loader-msg">Initializing EAMS…</div>
+    <div class="loader-eta" id="loader-eta"></div>
+    <div class="loader-steps">
+      <div class="loader-step active" id="lstep-0"></div>
+      <div class="loader-step" id="lstep-1"></div>
+      <div class="loader-step" id="lstep-2"></div>
+      <div class="loader-step" id="lstep-3"></div>
+      <div class="loader-step" id="lstep-4"></div>
+    </div>
+  </div>
+
+  <!-- APP SHELL -->
+  <div id="app-shell">
+    <div class="sb-overlay" id="sb-overlay" onclick="toggleAdminSidebar()"></div>
+
+    <!-- SIDEBAR TOGGLE BUTTON -->
+    <button class="sb-toggle-btn" id="sbtoggle" onclick="toggleAdminSidebar()" title="Toggle menu">✖</button>
+
+    <!-- SIDEBAR -->
+    <nav class="sb">
+      <div class="sb-logo">
+        <div class="sb-brand">EAMS Admin</div>
+        <button class="btn-pri" onclick="refreshAll()">Refresh</button>
+      </div>
+
+      <div class="nav-section" style="flex:1;overflow-y:auto;padding:6px 0;">
+        <div class="sb-section-label">Overview</div>
+        <button class="sb-item act" data-page="dash" onclick="nav('dash')"><span
+            class="sbi-ic">📊</span>Dashboard</button>
+
+        <div class="sb-section-label">Management</div>
+        <button class="sb-item" data-page="depts" onclick="nav('depts')"><span class="sbi-ic">🏛️</span>Departments<span
+            class="sb-badge" id="dept-count">0</span></button>
+        <button class="sb-item" data-page="struct" onclick="nav('struct')"><span class="sbi-ic">🏫</span>Classes &amp;
+          Subjects</button>
+        <button class="sb-item" data-page="students" onclick="nav('students')"><span
+            class="sbi-ic">👨‍🎓</span>Students<span class="sb-badge" id="stud-count">0</span></button>
+        <button class="sb-item" data-page="teachers" onclick="nav('teachers')"><span
+            class="sbi-ic">👩‍🏫</span>Teachers<span class="sb-badge" id="teach-count">0</span></button>
+        <button class="sb-item" data-page="roles" onclick="nav('roles')"><span
+            class="sbi-ic">👥</span>Executive Access</button>
+
+        <button class="sb-item" onclick="window.location.href='timetable.html'"><span
+            class="sbi-ic">🗓️</span>Timetable</button>
+        <button class="sb-item" onclick="window.location.href='rooms.html'"><span
+            class="sbi-ic">🏛️</span>Rooms &amp; Facilities</button>
+        <button class="sb-item" onclick="window.location.href='rooms.html#boards'"><span
+            class="sbi-ic">📺</span>Smart Boards</button>
+        <button class="sb-item" onclick="window.location.href='manage.html'"><span
+            class="sbi-ic">📤</span>Manage</button>
+
+        <div class="sb-section-label">Reports & Logs</div>
+        <button class="sb-item" data-page="reports" onclick="nav('reports')"><span
+            class="sbi-ic">📈</span>Analytics</button>
+        <button class="sb-item" onclick="window.location.href='export.html'"><span class="sbi-ic">📊</span>Export
+          Center</button>
+        <button class="sb-item" onclick="window.location.href='bulk.html'"><span class="sbi-ic">📤</span>Bulk
+          Upload</button>
+        <button class="sb-item" onclick="window.location.href='logs.html'"><span class="sbi-ic">📋</span>Activity
+          Logs</button>
+
+
+        <div class="sb-section-label">System</div>
+        <button class="sb-item" onclick="window.location.href='control.html'"><span
+            class="sbi-ic">&#9881;&#65039;</span>Control Panel</button>
+        <button class="sb-item" onclick="window.location.href='settings.html'"><span
+            class="sbi-ic">⚙️</span>Settings Page</button>
+      </div>
+
+      <div class="sb-bottom">
+        <div class="sb-user">
+          <div class="sb-uav" id="sb-av">A</div>
+          <div>
+            <div class="sb-uname" id="sb-name">Administrator</div>
+            <div class="sb-urole">Admin</div>
+          </div>
+        </div>
+        <button class="sb-back-btn" id="admin-hub-back-btn" onclick="location.href='selector.html'" style="display:none;margin-bottom:8px;">← Back to Hub</button>
+        <button class="sb-logout-btn" onclick="doLogout()" title="Logout">
+          <div class="logout-sign">
+            <svg viewBox="0 0 512 512">
+              <path
+                d="M377.9 105.9L500.7 228.7c7.2 7.2 11.3 17.1 11.3 27.3s-4.1 20.1-11.3 27.3L377.9 406.1c-6.4 6.4-15 9.9-24 9.9c-18.7 0-33.9-15.2-33.9-33.9l0-62.1-128 0c-17.7 0-32-14.3-32-32l0-64c0-17.7 14.3-32 32-32l128 0 0-62.1c0-18.7 15.2-33.9 33.9-33.9c9 0 17.6 3.6 24 9.9zM160 96L96 96c-17.7 0-32 14.3-32 32l0 256c0 17.7 14.3 32 32 32l64 0c17.7 0 32 14.3 32 32s-14.3 32-32 32l-64 0c-53 0-96-43-96-96L0 128C0 75 43 32 96 32l64 0c17.7 0 32 14.3 32 32s-14.3 32-32 32z">
+              </path>
+            </svg>
+          </div>
+          <div class="logout-text">Logout</div>
+        </button>
+      </div>
+    </nav>
+
+    <!-- MAIN CONTENT -->
+    <div class="mc">
+
+      <!-- TOP BAR -->
+      <div class="topbar">
+        <div class="topbar-left">
+          <div style="width:32px;"></div><!-- spacer for toggle btn -->
+          <div
+            style="font-size:11px;color:var(--tmu);background:var(--gLt);padding:4px 12px;border-radius:12px;border:1px solid var(--br);font-weight:500;white-space:nowrap;"
+            id="tdt-label"></div>
+        </div>
+        <div class="topbar-right">
+          <div class="tb-icon" style="position:relative;" onclick="toggleNotifDrop()" title="Notifications">
+            🔔
+            <div class="tb-badge" id="notif-badge-count">0</div>
+            <!-- Notification Dropdown -->
+            <div class="notif-drop" id="notif-drop">
+              <div class="nd-hd">
+                <div class="nd-title">Notifications</div>
+                <div class="nd-clear" onclick="clearAllNotifs()">Mark all read</div>
+              </div>
+              <div class="nd-list" id="nd-list"></div>
+            </div>
+          </div>
+          <div class="profile-chip" onclick="openModal('profile')">
+            <div class="profile-av" id="topbar-av">A</div>
+            <div class="profile-info">
+              <div class="name" id="topbar-name">Administrator</div>
+              <div class="email" id="topbar-inst-name">Admin Portal</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- DASHBOARD PAGE -->
+      <div class="pg act" id="pg-dash">
+        <div class="page-wrap">
+          <div class="page-hd">
+            <div>
+              <div class="page-title">Dashboard</div>
+              <div class="page-sub">Plan, monitor, and manage your institution with ease.</div>
+            </div>
+            <div class="page-actions">
+              <button class="btn-out" onclick="shiftToMenu('m-add-teacher', 'teachers')">+ Add Teacher</button>
+              <button class="btn-pri" onclick="shiftToMenu('m-add-student', 'students')">+ Add Student</button>
+              <button class="btn-out" onclick="window.location.href='bulk.html'">📤 Upload Data</button>
+            </div>
+          </div>
+
+          <!-- STAT CARDS -->
+          <div class="stats-row">
+            <div class="stat-card primary" onclick="nav('students')">
+              <div class="sc-top">
+                <div class="sc-label">Total Students</div>
+                <div class="sc-arrow">🡭</div>
+              </div>
+              <div class="sc-val" id="c-students">0</div>
+              <div class="sc-trend">↑ Enrolled</div>
+            </div>
+            <div class="stat-card" onclick="nav('depts')">
+              <div class="sc-top">
+                <div class="sc-label">Departments</div>
+                <div class="sc-arrow">🡭</div>
+              </div>
+              <div class="sc-val" id="c-depts">0</div>
+              <div class="sc-trend">Active</div>
+            </div>
+            <div class="stat-card" onclick="nav('teachers')">
+              <div class="sc-top">
+                <div class="sc-label">Teachers</div>
+                <div class="sc-arrow">🡭</div>
+              </div>
+              <div class="sc-val" id="c-teachers">0</div>
+              <div class="sc-trend">Faculty</div>
+            </div>
+            <div class="stat-card" onclick="nav('struct')">
+              <div class="sc-top">
+                <div class="sc-label">Classes</div>
+                <div class="sc-arrow">🡭</div>
+              </div>
+              <div class="sc-val" id="c-classes">0</div>
+              <div class="sc-trend"><span id="c-unmarked-mini" style="color:#b45309;">0 unmarked</span></div>
+            </div>
+          </div>
+
+          <!-- ROW 2: Analytics + Notifications -->
+          <div style="display:grid;grid-template-columns:3fr 2fr;gap:14px;margin-bottom:14px;">
+            <!-- Attendance Analytics -->
+            <div class="card">
+              <div class="card-hd">
+                <div class="card-title">📊 Attendance Analytics</div>
+              </div>
+              <div class="rtype-row" style="padding-top:12px;">
+                <button class="rtype-pill act" id="rp-overall" onclick="setReportType('overall')">Overall</button>
+                <button class="rtype-pill" id="rp-specific" onclick="setReportType('specific')">Specific Date</button>
+              </div>
+              <div class="att-filters">
+                <div class="fg"><label class="fl">Department</label>
+                  <select class="fc" id="f-dept" onchange="onFilterChange()">
+                    <option value="">All</option>
+                  </select>
+                </div>
+                <div class="fg"><label class="fl">Acad. Year</label>
+                  <select class="fc" id="f-year" onchange="onFilterChange()">
+                    <option value="">All</option>
+                  </select>
+                </div>
+                <div class="fg"><label class="fl">Class</label>
+                  <select class="fc" id="f-class" onchange="onFilterChange()">
+                    <option value="">All</option>
+                  </select>
+                </div>
+                <div class="fg"><label class="fl">Subject</label>
+                  <select class="fc" id="f-subj" onchange="onFilterChange()">
+                    <option value="">All</option>
+                  </select>
+                </div>
+              </div>
+              <div class="att-filter-dates" id="date-overall-row">
+                <div class="fg"><label class="fl">From</label><input type="date" class="date-fc" id="f-from"
+                    onchange="onFilterChange()"></div>
+                <div class="fg"><label class="fl">To</label><input type="date" class="date-fc" id="f-to"
+                    onchange="onFilterChange()"></div>
+                <div style="margin-top:16px;display:flex;gap:5px;">
+                  <button class="rtype-pill act" style="font-size:10px;padding:3px 10px;"
+                    onclick="setWeekRange('this')">This Week</button>
+                  <button class="rtype-pill" style="font-size:10px;padding:3px 10px;"
+                    onclick="setWeekRange('last')">Last Week</button>
+                  <button class="rtype-pill" style="font-size:10px;padding:3px 10px;"
+                    onclick="setWeekRange('month')">This Month</button>
+                </div>
+              </div>
+              <div class="att-filter-dates" id="date-specific-row" style="display:none;">
+                <div class="fg"><label class="fl">Date</label><input type="date" class="date-fc" id="f-date"
+                    onchange="onFilterChange()"></div>
+              </div>
+              <div class="bar-chart-wrap">
+                <div class="bar-chart" id="bar-chart"></div>
+              </div>
+              <div class="chart-legend">
+                <div class="leg-item">
+                  <div class="leg-dot d"></div>High(≥75%)
+                </div>
+                <div class="leg-item">
+                  <div class="leg-dot l"></div>Moderate
+                </div>
+                <div class="leg-item">
+                  <div class="leg-dot a"></div>Low(&lt;50%)
+                </div>
+                <div class="leg-item">
+                  <div class="leg-dot s"></div>Weekend/No Data
+                </div>
+              </div>
+              <div class="chart-summary">
+                <div class="cs-box">
+                  <div class="cs-val" id="cs-present" style="color:var(--gD);">—</div>
+                  <div class="cs-label">Avg Present</div>
+                </div>
+                <div class="cs-box">
+                  <div class="cs-val" id="cs-absent" style="color:#ef4444;">—</div>
+                  <div class="cs-label">Avg Absent</div>
+                </div>
+                <div class="cs-box">
+                  <div class="cs-val" id="cs-pct" style="color:var(--gK);">—%</div>
+                  <div class="cs-label">Avg %</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Notifications -->
+            <div class="card" style="display:flex;flex-direction:column;">
+              <div class="card-hd">
+                <div class="card-title">🔔 Notifications</div>
+                <span class="notif-tag-err" id="notif-count-badge">0 new</span>
+              </div>
+              <div id="notif-list-main" style="flex:1;overflow-y:auto;max-height:380px;">
+                <div class="empty-state"><span class="ei">🎉</span>
+                  <p>No notifications</p>
+                </div>
+              </div>
+              <div style="padding:10px;border-top:1px solid var(--brl);">
+                <button class="respond-btn" onclick="openModal('notif-all')">📩 View All & Respond</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- ROW 3: Activity + Gauge + Defaulters -->
+          <div style="display:grid;grid-template-columns:1.1fr 0.9fr 1fr;gap:14px;margin-bottom:14px;">
+            <!-- Recent Activity -->
+            <div class="card">
+              <div class="card-hd">
+                <div class="card-title">👥 Recent Activity</div>
+                <button class="btn-out btn-sm" onclick="window.location.href='logs.html'" style="border-radius:14px;">View All</button>
+              </div>
+              <div id="activity-list" style="max-height:250px;overflow-y:auto;">
+                <div class="empty-state"><span class="ei">📋</span>
+                  <p>No activity yet</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Gauge -->
+            <div class="card" style="display:flex;flex-direction:column;">
+              <div class="card-hd">
+                <div class="card-title">🎯 Attendance Overview</div>
+              </div>
+              <div class="gauge-wrap" style="flex:1;">
+                <svg class="gauge-svg" width="160" height="100" viewBox="0 0 160 100">
+                  <path d="M 20 90 A 60 60 0 0 1 140 90" stroke="#e8f5e9" stroke-width="14" fill="none"
+                    stroke-linecap="round" />
+                  <path id="gauge-present-arc" d="M 20 90 A 60 60 0 0 1 140 90" fill="none" stroke="#388e3c"
+                    stroke-width="14" stroke-linecap="round" stroke-dasharray="0 188" />
+                  <path id="gauge-absent-arc" d="M 20 90 A 60 60 0 0 1 140 90" fill="none" stroke="#ef4444"
+                    stroke-width="14" stroke-linecap="round" stroke-dasharray="0 188" stroke-dashoffset="0" />
+                  <text id="gauge-pct-text" x="80" y="82" text-anchor="middle" class="gauge-pct">—%</text>
+                </svg>
+                <div class="gauge-legend">
+                  <div class="gl-item">
+                    <div class="gl-dot" style="background:var(--gD);"></div>Present<div class="gl-val" id="gl-present">—
+                    </div>
+                  </div>
+                  <div class="gl-item">
+                    <div class="gl-dot" style="background:#ef4444;"></div>Absent<div class="gl-val" id="gl-absent">—
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Defaulters -->
+            <div class="dark-card">
+              <div class="card-hd">
+                <div class="card-title">🔴 Defaulters (&lt;75%)</div>
+                <div
+                  style="font-size:11px;font-weight:600;background:rgba(239,68,68,.25);color:#fca5a5;padding:2px 9px;border-radius:10px;"
+                  id="def-total-label">0</div>
+              </div>
+              <div id="def-list" style="max-height:220px;overflow-y:auto;">
+                <div style="padding:20px;text-align:center;color:rgba(255,255,255,.5);font-size:12px;">🎉 No defaulters
+                </div>
+              </div>
+              <div style="padding:10px 14px;">
+                <button
+                  style="width:100%;padding:8px;border:1.5px solid rgba(255,255,255,.2);border-radius:10px;background:transparent;color:#fff;font-size:12px;font-weight:600;cursor:pointer;font-family:'Poppins',sans-serif;"
+                  onclick="nav('reports')">View Reports →</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- BOTTOM: Unmarked + System Health -->
+          <div style="display:grid;grid-template-columns:1fr 280px;gap:14px;margin-bottom:14px;">
+            <div class="card">
+              <div class="card-hd">
+                <div class="card-title">⚠️ Teachers Who Didn't Mark This Week</div>
+                <span class="notif-tag-err" id="unmarked-count-badge">0 pending</span>
+              </div>
+              <div id="unmarked-list" style="max-height:260px;overflow-y:auto;">
+                <div class="empty-state"><span class="ei">✅</span>
+                  <p>All teachers marked attendance this week</p>
+                </div>
+              </div>
+            </div>
+            <div class="card">
+              <div class="card-hd">
+                <div class="card-title">🗄 System Status</div>
+                <div style="display:flex;align-items:center;gap:5px;font-size:11px;font-weight:600;color:var(--gK);">
+                  <div style="width:8px;height:8px;border-radius:50%;background:var(--gB);animation:pulse 2s infinite;">
+                  </div>OK
+                </div>
+              </div>
+              <div id="sys-health-list" style="padding:4px 0 10px;"></div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- DEPARTMENTS PAGE -->
+      <div class="pg" id="pg-depts">
+        <div class="page-wrap">
+          <div class="page-hd">
+            <div>
+              <div class="page-title">Departments</div>
+              <div class="page-sub">Manage departments</div>
+            </div>
+            <div class="page-actions">
+              <button class="btn-pri" id="hdr-add-dept" onclick="om('m-add-dept')">+ Add Department</button>
+            </div>
+          </div>
+          <div id="stats-dept" class="stats-row"></div>
+        </div>
+        <div id="dg2" class="tgrd"></div>
+      </div>
+
+      <!-- CLASSES & SUBJECTS PAGE -->
+      <div class="pg" id="pg-struct">
+        <div class="page-wrap">
+          <div class="page-hd">
+            <div>
+              <div class="page-title">Classes &amp; Subjects</div>
+              <div class="page-sub">Manage classes and subjects across departments.</div>
+            </div>
+            <div class="page-actions" id= "cls-page-btn" style="display:none;">
+              <button class="btn-pri" id="hdr-add-class" onclick="sst('classes');openAddClassModal()">+ Add Class</button>
+              <button class="btn-out" id="hdr-add-subj" onclick="sst('subjects');openAddSubj()">+ Add Subject</button>
+            </div>
+          </div>
+
+          <div class="bcrumb" id="sbc"></div>
+
+          <div class="stats-row" id="cls-stat-cards"></div>
+
+          <div id="sv-dept">
+            <div class="shd">
+              <div class="stl"><span class="sdo"></span>Select Department</div>
+            </div>
+            <div id="sdg" class="tgrd"></div>
+          </div>
+
+          <div id="sv-cs" style="display:none">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:18px;">
+              <div class="tabs" style="margin-bottom:0;margin-top:18px;">
+                <button class="tab act" onclick="sst('classes')"><span class="tab-ic">🏫</span> Classes</button>
+                <button class="tab" onclick="sst('subjects')"><span class="tab-ic">📚</span> Subjects</button>
+              </div>
+              <div style="margin-left:auto;display:flex;gap:4px;">
+                <button type="button" class="t-vt-btn act" id="cs-vt-grid" onclick="toggleClassView('grid')" title="Grid view">▦</button>
+                <button type="button" class="t-vt-btn" id="cs-vt-table" onclick="toggleClassView('table')" title="Table view">☰</button>
+              </div>
+            </div>
+
+            <div id="sp-classes">
+              <div id="scg" class="egrd"></div>
+              <div id="scg-tbl" class="tw" style="display:none;">
+                <table class="tbl t-tbl">
+                  <thead>
+                    <tr>
+                      <th>#</th>
+                      <th>Name</th>
+                      <th>Batch</th>
+                      <th>Section</th>
+                      <th>Year</th>
+                      <th>Sem</th>
+                      <th>Hall</th>
+                      <th>Students</th>
+                      <th>Subjects</th>
+                    </tr>
+                  </thead>
+                  <tbody id="scg-tbl-body"></tbody>
+                </table>
+              </div>
+            </div>
+            <div id="sp-subjects" style="display:none">
+              <div id="ssg2" class="egrd"></div>
+              <div id="ssg2-tbl" class="tw" style="display:none;">
+                <table class="tbl t-tbl">
+                  <thead>
+                    <tr>
+                      <th>#</th>
+                      <th>Name</th>
+                      <th>Code</th>
+                      <th>Type</th>
+                      <th>Credits</th>
+                      <th>Sections</th>
+                    </tr>
+                  </thead>
+                  <tbody id="ssg2-tbl-body"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- STUDENTS PAGE -->
+      <div class="pg" id="pg-students">
+        <div class="shd">
+          <div class="stl"><span class="sdo"></span>Students</div>
+          <div style="display:flex;gap:8px;">
+            <button class="btn-pri" onclick="om('m-add-student')">+ Add Student</button>
+          </div>
+        </div>
+        <div class="card" style="margin-bottom:16px;">
+          <div class="card-body-p">
+            <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(140px, 1fr));gap:10px;margin-bottom:12px;">
+              <div class="fg"><label class="fl">Batch</label>
+                <select class="fc" id="sf-batch" onchange="onStudentBatchChange()">
+                  <option value="">All Batches</option>
+                </select>
+              </div>
+              <div class="fg"><label class="fl">Course Type</label>
+                <select class="fc" id="sf-ct" onchange="onStudentCourseTypeChange()">
+                  <option value="">All</option>
+                  <option>UG</option>
+                  <option>PG</option>
+                </select>
+              </div>
+              <div class="fg"><label class="fl">Department</label>
+                <select class="fc" id="sf-dept" onchange="onStudentDeptChange()">
+                  <option value="">All Departments</option>
+                </select>
+              </div>
+              <div class="fg"><label class="fl">Class</label>
+                <select class="fc" id="sf-cls" onchange="onStudentClassChange()">
+                  <option value="">All Classes</option>
+                </select>
+              </div>
+              <div class="fg"><label class="fl">Section</label>
+                <select class="fc" id="sf-sec" onchange="updateShowListEnabled()">
+                  <option value="">All</option>
+                </select>
+              </div>
+            </div>
+            <div style="display:flex;gap:10px;align-items:center;">
+              <div style="position:relative;flex:1;max-width:320px;">
+                <span style="position:absolute;left:11px;top:50%;transform:translateY(-50%);color:var(--tdi);">🔍</span>
+                <input
+                  style="width:100%;padding:8px 13px 8px 35px;border:1.5px solid var(--br);border-radius:9px;background:#fff;font-size:12.5px;font-family:'Poppins',sans-serif;outline:none;color:var(--td);"
+                  placeholder="Search name / reg no…" id="sf-q" oninput="filterStudentsLive(this.value)">
+              </div>
+              <button class="btn-pri" id="btn-show-list" onclick="showStudentList()"
+                style="cursor:pointer;flex-shrink:0;">📋 Show List</button>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-hd">
+            <div class="card-title">👨‍🎓 Student List</div>
+            <span class="bge bgg" id="scb">0 students</span>
+          </div>
+          <div class="tw">
+            <table class="tbl">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th onclick="sortStudentsBy('fullName')" style="cursor:pointer;user-select:none;">Full Name <span
+                      class="sort-ind" data-sort="fullName"></span></th>
+                  <th onclick="sortStudentsBy('regNo')" style="cursor:pointer;user-select:none;">Reg. Number <span
+                      class="sort-ind" data-sort="regNo"></span></th>
+                  <th>Batch</th>
+                  <th>Course Type</th>
+                  <th>Branch</th>
+                  <th>Department</th>
+                  <th>Class</th>
+                  <th>Section</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="stb"></tbody>
+            </table>
+          </div>
+          <div id="load-more-wrap" style="text-align:center;padding:16px;display:none;">
+            <button class="btn" onclick="loadMoreStudents()" id="btn-load-more">Load More</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- TEACHERS PAGE -->
+      <div class="pg" id="pg-teachers">
+        <div class="page-wrap">
+          <div class="page-hd">
+            <div>
+              <div class="page-title">Teachers</div>
+              <div class="page-sub">Manage faculty members across all departments.</div>
+            </div>
+            <div class="page-actions">
+              <button class="btn-pri" onclick="om('m-add-teacher')">+ Add Teacher</button>
+              <button class="btn-out" onclick="exportTeachersXlsx()">📤 Export Excel</button>
+            </div>
+          </div>
+
+          <!-- Stat Cards -->
+          <div class="stats-row" id="t-stat-cards"></div>
+
+          <!-- Filter Toolbar -->
+          <div class="card" style="margin-bottom:16px;">
+            <div class="card-body-p">
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
+                <div class="fg"><label class="fl">Department</label>
+                  <select class="fc" id="tf-dept" onchange="onTeacherDeptChange()">
+                    <option value="">All Departments</option>
+                  </select>
+                </div>
+                <div class="fg"><label class="fl">Designation</label>
+                  <select class="fc" id="tf-desig" onchange="filterTeachersByDesig()">
+                    <option value="">All Designations</option>
+                    <option>Assistant Professor</option>
+                    <option>Associate Professor</option>
+                    <option>Professor</option>
+                    <option>HOD</option>
+                    <option>Lecturer</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="t-filter-pills" id="t-role-pills">
+                <button type="button" class="t-pill act" data-role="all" onclick="filterTeachersByRole('all')">All</button>
+                <button type="button" class="t-pill" data-role="hod" onclick="filterTeachersByRole('hod')">HOD</button>
+                <button type="button" class="t-pill" data-role="advisor" onclick="filterTeachersByRole('advisor')">Class Advisor</button>
+              </div>
+
+              <div style="display:flex;gap:10px;align-items:center;margin-top:12px;">
+                <div style="position:relative;flex:1;min-width:200px;">
+                  <span style="position:absolute;left:11px;top:50%;transform:translateY(-50%);color:var(--tdi);">🔍</span>
+                  <input
+                    style="width:100%;padding:8px 13px 8px 35px;border:1.5px solid var(--br);border-radius:9px;background:#fff;font-size:12.5px;font-family:'Poppins',sans-serif;outline:none;color:var(--td);"
+                    placeholder="Search loaded teachers…" id="tf-q" oninput="filterTeachersLive(this.value)">
+                </div>
+                <div class="t-view-toggle">
+                  <button type="button" class="t-vt-btn act" id="t-vt-grid" onclick="toggleTeacherView('grid')" title="Grid view">▦</button>
+                  <button type="button" class="t-vt-btn" id="t-vt-table" onclick="toggleTeacherView('table')" title="Table view">☰</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Grid View -->
+          <div id="tgr" class="tgrd"></div>
+
+          <!-- Table View -->
+          <div id="ttbl-wrap" class="tw" style="display:none;">
+            <table class="tbl t-tbl">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th onclick="sortTeachersBy('name')" style="cursor:pointer;user-select:none;">Name <span
+                      class="sort-ind" data-sort="name"></span></th>
+                  <th onclick="sortTeachersBy('empId')" style="cursor:pointer;user-select:none;">Emp ID <span
+                      class="sort-ind" data-sort="empId"></span></th>
+                  <th>Department</th>
+                  <th>Designation</th>
+                  <th>Email</th>
+                  <th>Roles</th>
+                  <th>Subjects</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="ttbl-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- EXECUTIVE ROLES & SPECIAL ACCESS PAGE -->
+      <div class="pg" id="pg-roles">
+        <div class="page-wrap">
+          <div class="page-hd">
+            <div>
+              <div class="page-title">Executive Roles &amp; Access</div>
+              <div class="page-sub">Assign and manage College Principal, Department HODs, and Faculty Sub-Administrators.</div>
+            </div>
+            <div class="page-actions" id="roles-header-actions">
+              <button class="btn-pri" id="btn-role-action-principal" onclick="openAssignPrincipalModal()">+ Assign Principal</button>
+              <button class="btn-pri" id="btn-role-action-hod" style="display:none;" onclick="openAssignHodModal()">+ Assign HOD</button>
+              <button class="btn-pri" id="btn-role-action-subadmin" style="display:none;" onclick="openGrantSubAdminModal()">+ Grant Sub-Admin</button>
+            </div>
+          </div>
+
+          <!-- Role Tabs Navigation -->
+          <div class="tabs" style="display:inline-flex;width:fit-content;margin-bottom:18px;">
+            <button class="tab act" id="rtab-btn-principal" onclick="switchRoleTab('principal')"><span class="tab-ic">🏫</span> Principal</button>
+            <button class="tab" id="rtab-btn-hod" onclick="switchRoleTab('hod')"><span class="tab-ic">🏛️</span> Department HODs</button>
+            <button class="tab" id="rtab-btn-subadmin" onclick="switchRoleTab('subadmin')"><span class="tab-ic">⚡</span> Sub-Administrators</button>
+          </div>
+
+          <!-- 1. Principal Section -->
+          <div id="role-sec-principal">
+            <div class="card">
+              <div class="card-hd">
+                <div class="card-title">🏫 College Principal (Institutional Executive)</div>
+                <span class="bge bgg" id="principal-status-badge">Active</span>
+              </div>
+              <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px;padding:16px 24px 20px;" id="principal-details-card">
+                <div style="display:flex;align-items:center;gap:14px;">
+                  <div style="width:50px;height:50px;border-radius:14px;background:#eef2ff;color:#4f46e5;display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:700;">🏫</div>
+                  <div>
+                    <div style="font-size:16px;font-weight:700;color:var(--td);" id="principal-display-name">Dr. Principal</div>
+                    <div style="font-size:12px;color:var(--tmu);" id="principal-display-meta">Username: @principal · Jurisdiction: College-wide (All Departments)</div>
+                  </div>
+                </div>
+                <button class="btn-pri" onclick="openAssignPrincipalModal()">Edit / Reassign Principal</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- 2. Department HODs Section -->
+          <div id="role-sec-hod" style="display:none;">
+            <div class="card">
+              <div class="card-hd">
+                <div class="card-title">🏛️ Department Heads (HODs)</div>
+                <button class="btn-sm btn-pri" onclick="openAssignHodModal()">+ Assign HOD</button>
+              </div>
+              <div class="tw">
+                <table class="tbl">
+                  <thead>
+                    <tr>
+                      <th>Department</th>
+                      <th>Code</th>
+                      <th>Head of Department (HOD)</th>
+                      <th>Emp ID</th>
+                      <th>Email</th>
+                      <th>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody id="roles-hods-tbody">
+                    <tr><td colspan="6" class="text-center">Loading department HODs…</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <!-- 3. Sub-Administrators Section -->
+          <div id="role-sec-subadmin" style="display:none;">
+            <div class="card">
+              <div class="card-hd">
+                <div class="card-title">⚡ Sub-Administrators &amp; Special Privileges</div>
+                <button class="btn-sm btn-pri" onclick="openGrantSubAdminModal()">+ Grant Sub-Admin</button>
+              </div>
+              <div class="tw">
+                <table class="tbl">
+                  <thead>
+                    <tr>
+                      <th>Name</th>
+                      <th>Username</th>
+                      <th>Department</th>
+                      <th>Role Type</th>
+                      <th>Granted Modules</th>
+                      <th>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody id="roles-subadmins-tbody">
+                    <tr><td colspan="6" class="text-center">Loading sub-administrators…</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- REPORTS PAGE -->
+      <div class="pg" id="pg-reports">
+        <div class="shd">
+          <div class="stl"><span class="sdo"></span>Analytics & Reports</div>
+          <div style="display:flex;gap:8px;">
+            <button class="btn-pri" onclick="expAdminRpt('current','xlsx')">⬇️ Excel</button>
+            <button class="btn-out" onclick="expAdminRpt('current','csv')">📄 CSV</button>
+          </div>
+        </div>
+        <div class="rep-tab-bar">
+          <button class="rtab act" onclick="arTab('dept')">By Department</button>
+          <button class="rtab" onclick="arTab('overall')">Overall</button>
+          <button class="rtab" onclick="arTab('student')">By Student</button>
+        </div>
+        <div id="rpt-dept">
+          <div class="card" style="margin-bottom:14px;">
+            <div class="card-body-p">
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                <div class="fg"><label class="fl">Department</label>
+                  <select class="fc" id="ars-dept" onchange="genDeptRpt()">
+                    <option value="">All Departments</option>
+                  </select>
+                </div>
+                <div class="fg"><label class="fl">Date Range</label>
+                  <div style="display:flex;gap:8px;">
+                    <input type="date" class="fc" id="ard-fr" onchange="genDeptRpt()">
+                    <input type="date" class="fc" id="ard-to" onchange="genDeptRpt()">
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="tw">
+              <table class="tbl">
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>Class</th>
+                    <th>Subject</th>
+                    <th>Dept</th>
+                    <th>Total Sessions</th>
+                    <th>Present</th>
+                    <th>Absent</th>
+                    <th>%</th>
+                  </tr>
+                </thead>
+                <tbody id="arb-dept"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+        <div id="rpt-overall" style="display:none">
+          <div class="card" style="margin-bottom:14px;">
+            <div class="card-body-p">
+              <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;">
+                <div class="fg"><label class="fl">Department</label>
+                  <select class="fc" id="ars-o-dept" onchange="genOverallRpt()">
+                    <option value="">All</option>
+                  </select>
+                </div>
+                <div class="fg"><label class="fl">From</label><input type="date" class="fc" id="aro-fr"
+                    onchange="genOverallRpt()"></div>
+                <div class="fg"><label class="fl">To</label><input type="date" class="fc" id="aro-to"
+                    onchange="genOverallRpt()"></div>
+              </div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="tw">
+              <table class="tbl">
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>Department</th>
+                    <th>Classes</th>
+                    <th>Students</th>
+                    <th>Total Records</th>
+                    <th>Present</th>
+                    <th>Absent</th>
+                    <th>Overall %</th>
+                  </tr>
+                </thead>
+                <tbody id="arb-overall"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+        <div id="rpt-student" style="display:none">
+          <div class="card" style="margin-bottom:14px;">
+            <div class="card-body-p">
+              <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;">
+                <div class="fg"><label class="fl">Department</label>
+                  <select class="fc" id="arstu-dept" onchange="genStuRpt()">
+                    <option value="">All</option>
+                  </select>
+                </div>
+                <div class="fg"><label class="fl">From</label><input type="date" class="fc" id="arstu-fr"
+                    onchange="genStuRpt()"></div>
+                <div class="fg"><label class="fl">To</label><input type="date" class="fc" id="arstu-to"
+                    onchange="genStuRpt()"></div>
+              </div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="tw" id="arstu-wrap">
+              <table class="tbl">
+                <thead id="arstu-head">
+                  <tr>
+                    <th>#</th>
+                    <th>Name</th>
+                    <th>Reg No</th>
+                    <th>Dept</th>
+                    <th>Overall %</th>
+                  </tr>
+                </thead>
+                <tbody id="arb-student"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- MODALS -->
+
+      <!-- Add Department -->
+      <div class="modal-bg" id="m-add-dept">
+        <div class="modal modal-lg">
+          <div class="modal-hd">
+            <div class="modal-title">🏛️ Add Department</div>
+            <div class="modal-close" onclick="closeModalBg('m-add-dept')">✖</div>
+          </div>
+          <!-- Row 1: Full name -->
+          <div class="form-grid" style="grid-template-columns:1fr;">
+            <div class="fg">
+              <label class="fl">Department Name
+                <span style="color:var(--red);">*</span>
+                <span class="info-icon">?<span class="tooltip-text">Full department name like 'Computer Science'
+                  </span></span></label>
+              <input type="text" class="fc2" id="dept-name" placeholder="Enter Full Department name">
+            </div>
+          </div>
+          <!-- Row 2: 2-digit | 3-digit | Dept Number -->
+          <div class="form-grid" style="grid-template-columns:1fr 1fr 1fr;">
+            <div class="fg"><label class="fl">2-Letter Character<span style="color:var(--red);">*</span></label>
+              <input type="text" class="fc2" id="dept-2code" placeholder="cs" maxlength="4"
+                oninput="this.value=this.value.toLowerCase().replace(/[^a-z]/g,'')">
+            </div>
+            <div class="fg"><label class="fl">3-Letter Character<span style="color:var(--red);">*</span></label>
+              <input type="text" class="fc2" id="dept-code" placeholder="CSE" maxlength="6"
+                oninput="this.value=this.value.toUpperCase().replace(/[^A-Z]/g,'')">
+            </div>
+            <div class="fg"><label class="fl">Department Code <span style="color:var(--red);">*</span></label>
+              <input type="text" class="fc2" id="dept-number" placeholder="e.g. 104" maxlength="3"
+                oninput="this.value=this.value.replace(/\D/g,'')">
+            </div>
+          </div>
+          <!-- Row 3: Course Type | Branch -->
+          <div class="form-grid" style="grid-template-columns:1.5fr 1.5fr;">
+            <div class="fg"><label class="fl">Course Type <span style="color:var(--red);">*</span></label>
+              <select class="fc2" id="co-type" onchange="updateBranch()">
+                <option value="">— Select —</option>
+                <option>UG</option>
+                <option>PG</option>
+              </select>
+            </div>
+            <div class="fg"><label class="fl">Branch <span style="color:var(--red);">*</span></label>
+              <select class="fc2" id="branch">
+                <option value="">— Select Course Type First —</option>
+              </select>
+            </div>
+          </div>
+          <!-- Row 4: HoD TrackID | HoD Name -->
+          <div class="form-grid" style="grid-template-columns:1fr 2fr;">
+            <div class="fg" style="position:relative;">
+              <label class="fl">HoD TrackID</label>
+              <input type="text" class="fc2" id="hod-id" placeholder="e.g. TREMP001"
+                oninput="scheduleHodLookup(this.value,'')" autocomplete="off" style="padding-right:34px;">
+              <span id="hod-spin"
+                style="display:none;position:absolute;right:10px;top:28px;width:16px;height:16px;border:2.5px solid var(--gLr);border-top-color:var(--gD);border-radius:50%;animation:dbspin .7s linear infinite;"></span>
+              <span id="hod-ok"
+                style="display:none;position:absolute;right:10px;top:26px;color:var(--gD);font-size:17px;font-weight:700;line-height:1;">✓</span>
+              <span id="hod-err"
+                style="display:none;position:absolute;right:10px;top:26px;color:var(--red);font-size:17px;font-weight:700;line-height:1;">✗</span>
+            </div>
+            <div class="fg">
+              <label class="fl">Head of Department Name <span class="auto-txt">(auto)</span></label>
+              <input type="text" class="fc2" id="hod-name" placeholder="Auto-filled from TrackID" readonly
+                style="background:var(--gLt);color:var(--tmu);cursor:default;">
+            </div>
+          </div>
+          <div id="hod-lookup-msg" style="font-size:11px;min-height:16px;margin:-4px 0 8px;padding-left:2px;"></div>
+          <div class="form-actions">
+            <button class="btn-form-ghost" onclick="resetDeptForm()">🔄 Clear</button>
+            <button class="btn-form-ghost" onclick="closeModalBg('m-add-dept')">Cancel</button>
+            <button class="btn-form-pri" onclick="addDept()">Add Department</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Edit Department -->
+      <div class="modal-bg" id="m-edit-dept">
+        <div class="modal modal-sm">
+          <div class="modal-hd">
+            <div class="modal-title">✏️ Edit Department</div>
+            <div class="modal-close" onclick="closeModalBg('m-edit-dept')">✖</div>
+          </div>
+          <input type="hidden" id="ed-id">
+          <!-- Row 1: Name -->
+          <div class="form-grid" style="grid-template-columns:1fr;">
+            <div class="fg"><label class="fl">Department Name</label>
+              <input type="text" class="fc2" id="ed-nm" placeholder="Enter Full Dept Name">
+            </div>
+          </div>
+          <!-- Row 2: Code + Number -->
+          <div class="form-grid form-grid-2">
+            <div class="fg"><label class="fl">Department Code</label>
+              <input type="text" class="fc2" id="ed-cd" placeholder="e.g. AIML, CSE">
+            </div>
+            <div class="fg"><label class="fl">Department Number <span style="color:var(--red);">*</span></label>
+              <input type="text" class="fc2" id="ed-num" placeholder="3-digit e.g. 104" maxlength="3"
+                oninput="this.value=this.value.replace(/\D/g,'')">
+            </div>
+          </div>
+          <!-- Row 3: Course Type + Branch -->
+          <div class="form-grid form-grid-2">
+            <div class="fg"><label class="fl">Course Type</label>
+              <select class="fc2" id="ed-cotype" onchange="edUpdateBranch()">
+                <option value="">— Select —</option>
+                <option>UG</option>
+                <option>PG</option>
+              </select>
+            </div>
+            <div class="fg"><label class="fl">Branch</label>
+              <select class="fc2" id="ed-branch">
+                <option value="">— Select Course Type First —</option>
+              </select>
+            </div>
+          </div>
+          <!-- Row 4: HoD TrackID + Name -->
+          <div class="form-grid form-grid-2">
+            <div class="fg" style="position:relative;">
+              <label class="fl">HoD TrackID</label>
+              <input type="text" class="fc2" id="ed-hod-id" placeholder="Enter HoD TrackID"
+                oninput="scheduleHodLookup(this.value,'ed-')" autocomplete="off" style="padding-right:34px;">
+              <span id="ed-hod-spin" style="
+              display:none; position:absolute; right:10px; top:28px;
+              width:16px; height:16px;
+              border:2.5px solid var(--gLr); border-top-color:var(--gD);
+              border-radius:50%; animation:dbspin .7s linear infinite;">
+              </span>
+              <span id="ed-hod-ok"
+                style="display:none;position:absolute;right:10px;top:26px;color:var(--gD);font-size:17px;font-weight:700;line-height:1;">✓</span>
+              <span id="ed-hod-err"
+                style="display:none;position:absolute;right:10px;top:26px;color:var(--red);font-size:17px;font-weight:700;line-height:1;">✗</span>
+            </div>
+            <div class="fg">
+              <label class="fl">Head of Department Name <span class="auto-txt">(auto)</span></label>
+              <input type="text" class="fc2" id="ed-hod-name" placeholder="Auto-filled from TrackID" readonly
+                style="background:var(--gLt);color:var(--tmu);cursor:default;">
+            </div>
+          </div>
+          <div id="ed-hod-lookup-msg" style="font-size:11px;min-height:16px;margin:-6px 0 10px;padding-left:2px;"></div>
+          <div class="form-actions">
+            <button class="btn-form-ghost" onclick="closeModalBg('m-edit-dept')">Cancel</button>
+            <button class="btn-form-pri" onclick="saveEditDept()">💾 Save Changes</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Add Class -->
+      <div class="modal-bg" id="m-add-class-quick">
+        <div class="modal modal-sm">
+          <div class="modal-hd">
+            <div class="modal-title">🏫 Add Class</div>
+            <div class="modal-close" onclick="closeModalBg('m-add-class-quick')">✖</div>
+          </div>
+          <div class="form-grid" style="grid-template-columns:1fr;">
+            <div class="fg"><label class="fl">Department<span style="color:var(--red);">*</span></label>
+              <select class="fc2" id="nc-dept" onchange="ncAutoName()">
+                <option value="">— Select —</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-grid" style="grid-template-columns:1.2fr 0.8fr 1fr;">
+            <div class="fg"><label class="fl">Batch<span style="color:var(--red);">*</span></label>
+              <select class="fc2" id="nc-batch" onchange="ncValidate()">
+                <option value="">— Select —</option>
+              </select>
+            </div>
+            <div class="fg"><label class="fl">Year<span style="color:var(--red);">*</span></label>
+              <select class="fc2" id="nc-yr" onchange="ncValidate()">
+                <option>I Year</option>
+                <option>II Year</option>
+                <option>III Year</option>
+                <option>IV Year</option>
+              </select>
+            </div>
+            <div class="fg"><label class="fl">Semester</label>
+              <select class="fc2" id="nc-sem">
+                <option>I</option>
+                <option>II</option>
+                <option>III</option>
+                <option>IV</option>
+                <option>V</option>
+                <option>VI</option>
+                <option>VII</option>
+                <option>VIII</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-grid" style="grid-template-columns:1fr 1fr;">
+            <div class="fg"><label class="fl">Section<span style="color:var(--red);">*</span></label><input type="text"
+                class="fc2" id="nc-sec" placeholder="e.g. A / B" oninput="ncAutoName()" minlength="1" maxlength="1">
+            </div>
+            <div class="fg"><label class="fl">Hall Number<span style="color:var(--red);">*</span></label><input
+                type="text" class="fc2" id="nc-hall" placeholder="e.g, LH01" minlength="4" maxlength="4"></div>
+          </div>
+          <div class="fg" style="margin-bottom:6px;"><label class="fl">Class Name <span
+                class="auto-txt">(auto)</span></label>
+            <input type="text" class="fc2" id="nc-name" readonly
+              style="background:#f8fafc;color:var(--tmu);cursor:not-allowed;" placeholder="Select dept, sem & section">
+          </div>
+          <div id="nc-warn"
+            style="display:none;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:8px 12px;font-size:12px;color:#92400e;margin-bottom:10px;">
+          </div>
+          <div class="form-actions"><button class="btn-form-ghost"
+              onclick="closeModalBg('m-add-class-quick')">Cancel</button><button class="btn-form-pri" id="nc-add-btn"
+              onclick="addCls()" disabled style="opacity:.5;cursor:not-allowed;">Add Class</button></div>
+        </div>
+      </div>
+
+      <!-- Edit Class -->
+      <div class="modal-bg" id="m-edit-cls">
+        <div class="modal modal-sm">
+          <div class="modal-hd">
+            <div class="modal-title">✏️ Edit Class</div>
+            <div class="modal-close" onclick="closeModalBg('m-edit-cls')">✖</div>
+          </div>
+          <div class="form-grid form-grid-2">
+            <div class="fg"><label class="fl">Class Name <span class="auto-txt">(auto)</span></label>
+              <input type="text" class="fc2" id="ec-nm" readonly
+                style="background:#f8fafc;color:var(--tmu);cursor:not-allowed;">
+            </div>
+            <div class="fg"><label class="fl">Department</label><select class="fc2" id="ec-dept"
+                onchange="ecAutoName()">
+                <option value="">— Select —</option>
+              </select></div>
+
+            <div class="fg"><label class="fl">Batch</label><select class="fc2" id="ec-batch" onchange="ecAutoName()">
+                <option value="">— Select —</option>
+              </select></div>
+            <div class="fg"><label class="fl">Section</label><input type="text" class="fc2" id="ec-sec" placeholder="A"
+                oninput="ecAutoName()"></div>
+
+            <div class="fg"><label class="fl">Year</label><select class="fc2" id="ec-yr">
+                <option>I Year</option>
+                <option>II Year</option>
+                <option>III Year</option>
+                <option>IV Year</option>
+              </select></div>
+            <div class="fg"><label class="fl">Hall Number</label><input type="text" class="fc2" id="ec-hall"
+                placeholder="e.g. LH01"></div>
+
+            <div class="fg"><label class="fl">Semester</label>
+              <select class="fc2" id="ec-sem">
+                <option>I</option>
+                <option>II</option>
+                <option>III</option>
+                <option>IV</option>
+                <option>V</option>
+                <option>VI</option>
+                <option>VII</option>
+                <option>VIII</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-actions"><button class="btn-form-ghost"
+              onclick="closeModalBg('m-edit-cls')">Cancel</button><button class="btn-form-pri"
+              onclick="saveEditCls()">💾
+              Save Changes</button></div>
+        </div>
+      </div>
+
+      <!-- Class Detail -->
+      <div class="modal-bg" id="m-cls-detail">
+        <div class="modal modal-lg">
+          <div class="modal-hd">
+            <div>
+              <div class="modal-title" id="cd-ttl"></div>
+              <div class="modal-sub" id="cd-sub"></div>
+            </div>
+            <div class="modal-actions">
+              <button class="btn-out" onclick="editClsInline()">✏️ Edit</button>
+              <div class="modal-close" onclick="closeModalBg('m-cls-detail')">✖</div>
+            </div>
+          </div>
+          <div id="cd-stats" style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px;">
+          </div>
+          <!-- Class Advisor Row -->
+          <div style="background:linear-gradient(135deg,rgba(46,125,50,.07),rgba(46,125,50,.02));border:1.5px solid rgba(46,125,50,.18);border-radius:12px;padding:12px 14px;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
+            <div style="display:flex;align-items:center;gap:10px;">
+              <div style="width:36px;height:36px;border-radius:9px;background:var(--gLt);color:var(--gD);display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;">⭐</div>
+              <div>
+                <div style="font-size:10.5px;font-weight:700;color:var(--tdi);text-transform:uppercase;letter-spacing:.5px;">Class Advisor</div>
+                <div id="cd-advisor-name" style="font-size:13.5px;font-weight:700;color:var(--td);margin-top:1px;">Not Assigned</div>
+              </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <select id="cd-advisor-select" class="fci" style="font-size:12px;padding:5px 9px;border-radius:8px;max-width:220px;display:none;"></select>
+              <button class="btn-out bsm" id="cd-advisor-btn" onclick="toggleAssignAdvisor()">👤 Assign Advisor</button>
+              <button class="btn-pri bsm" id="cd-advisor-save-btn" style="display:none;" onclick="saveClassAdvisor()">💾 Save</button>
+              <button class="btn-form-ghost bsm" id="cd-advisor-cancel-btn" style="display:none;" onclick="cancelAssignAdvisor()">Cancel</button>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+            <strong style="font-size:13px;color:var(--td);">📌 Subject Assignments</strong>
+            <button class="btn-out" onclick="oasc()">+ Assign Subject</button>
+          </div>
+          <div id="cd-asgn" style="margin-bottom:14px;"></div>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+            <strong style="font-size:13px;color:var(--td);">👨‍🎓 Students (<span id="cd-sc">0</span>)</strong>
+          </div>
+          <div id="cd-stus" style="max-height:220px;overflow-y:auto;"></div>
+          <div style="display:flex;justify-content:flex-end;margin-top:14px;">
+            <button class="btn bdan bsm" id="cd-del">🗑 Delete Class</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Subject Detail -->
+      <div class="modal-bg" id="m-subj-detail">
+        <div class="modal modal-sm">
+          <div class="modal-hd">
+            <div>
+              <div class="modal-title" id="sd-ttl"></div>
+              <div class="modal-sub" id="sd-sub"></div>
+            </div>
+            <div class="modal-actions">
+              <button class="sp-btn-out" onclick="editSubjInline()">Edit<svg viewBox="0 0 512 512">
+                  <path
+                    d="M410.3 231l11.3-11.3-33.9-33.9-62.1-62.1L291.7 89.8l-11.3 11.3-22.6 22.6L58.6 322.9c-10.4 10.4-18 23.3-22.2 37.4L1 480.7c-2.5 8.4-.2 17.5 6.1 23.7s15.3 8.5 23.7 6.1l120.3-35.4c14.1-4.2 27-11.8 37.4-22.2L387.7 253.7 410.3 231z">
+                  </path>
+                </svg>
+              </button>
+              <div class="modal-close" onclick="closeModalBg('m-subj-detail')">✖</div>
+            </div>
+          </div>
+          <div id="sd-stats" style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px;">
+          </div>
+          <div style="margin-bottom:10px;"><strong style="font-size:13px;color:var(--td);">📌 Class Assignments</strong>
+          </div>
+          <div id="sd-asgn" style="margin-bottom:14px;"></div>
+          <div style="display:flex;justify-content:flex-end;">
+            <button class="btn bdan bsm" id="sd-del">🗑 Delete Subject</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Add Subject -->
+      <div class="modal-bg" id="m-add-subj-ctx">
+        <div class="modal modal-sm">
+          <div class="modal-hd">
+            <div class="modal-title">📚 Add Subject</div>
+            <div class="modal-close" onclick="closeModalBg('m-add-subj-ctx')">✖</div>
+          </div>
+          <div class="fg"><label class="fl">Subject Name</label><input type="text" class="fc2" id="ns-nm"
+              placeholder="e.g. Data Structures Algorithm"></div>
+          <div style="height:16px;"></div>
+          <div class="fg"><label class="fl">Department</label>
+            <select class="fc2" id="ns-dept">
+              <option value="">— Select —</option>
+            </select>
+          </div>
+          <div style="height:16px;"></div>
+          <div class="form-grid form-grid-2">
+            <div class="fg"><label class="fl"> Subject Code</label><input type="text" class="fc2" id="ns-cd"
+                placeholder="e.g. 25CSE201" oninput="nsScAuto()">
+            </div>
+            <div class="fg"><label class="fl">Subject Short Code</label><input type="text" class="fc2" id="ns-ssc"
+                placeholder="e.g. DSA" oninput="nsScAuto()" minlength="2" maxlength="5"></div>
+
+            <div class="fg"><label class="fl">Credits</label><input type="number" class="fc2" id="ns-cr" value="3"
+                min="1" max="6"></div>
+            <div class="fg"><label class="fl">Type</label><select class="fc2" id="ns-tp" oninput="nsScAuto()">
+                <option>Theory</option>
+                <option>Lab</option>
+                <option>Project</option>
+              </select></div>
+          </div>
+          <div class="fg"><label class="fl">Subject Code <span class="auto-txt">(auto)</span></label><input type="text"
+              class="fc2" id="ns-sc" style="cursor: not-allowed;" placeholder="Auto filled" readonly>
+          </div>
+
+          <div class="required-note">⚠️ All the above fields are required.</div>
+          <div style="height:16px;"></div>
+
+          <div class="form-actions"><button class="btn-form-ghost"
+              onclick="closeModalBg('m-add-subj-ctx')">Cancel</button><button class="btn-form-pri"
+              onclick="addSubCtx()">Add
+              Subject</button></div>
+        </div>
+      </div>
+
+      <!-- Edit Subject -->
+      <div class="modal-bg" id="m-edit-subj">
+        <div class="modal modal-sm">
+          <div class="modal-hd">
+            <div class="modal-title">✏️ Edit Subject</div>
+            <div class="modal-close" onclick="closeModalBg('m-edit-subj')">✖</div>
+          </div>
+          <div class="fg" style="margin-bottom:12px;"><label class="fl">Subject Name</label><input type="text"
+              class="fc2" id="es-nm"></div>
+          <div class="form-grid form-grid-2">
+            <div class="fg"><label class="fl">Subject Short Code</label><input type="text" class="fc2" id="es-ssc"
+                oninput="esScAuto()" minlength="2" maxlength="4"></div>
+            <div class="fg"><label class="fl">Code</label><input type="text" class="fc2" id="es-cd"
+                oninput="esScAuto()"></div>
+
+            <div class="fg"><label class="fl">Credits</label><input type="number" class="fc2" id="es-cr" min="1"
+                max="6">
+            </div>
+            <div class="fg"><label class="fl">Type</label><select class="fc2" id="es-tp" oninput="esScAuto()">
+                <option>Theory</option>
+                <option>Lab</option>
+                <option>Project</option>
+              </select></div>
+
+            <div class="fg"><label class="fl">Subject Code <span class="auto-txt">(auto)</span>
+              </label><input type="text" class="fc2" id="es-sc" placeholder="Auto filled" readonly></div>
+          </div>
+          <div class="form-actions">
+            <button class="btn-form-ghost" onclick="closeModalBg('m-edit-subj')">Cancel</button>
+            <button class="btn-form-pri" onclick="saveEditSubj()">💾 Save</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Assign Subject to Class -->
+      <div class="modal-bg" id="m-asgn-subj">
+        <div class="modal modal-sm">
+          <div class="modal-hd">
+            <div class="modal-title">📌 Assign Subject</div>
+            <div class="modal-close" onclick="closeModalBg('m-asgn-subj')">✖</div>
+          </div>
+          <div class="fg" style="margin-bottom:12px;"><label class="fl">Class</label><input type="text" class="fc2"
+              id="as-cls" disabled></div>
+          <div class="fg" style="margin-bottom:12px;"><label class="fl">Subject</label><select class="fc2"
+              id="as-subj"></select></div>
+          <div class="fg" style="margin-bottom:14px;"><label class="fl">Teacher</label><select class="fc2"
+              id="as-tch"></select></div>
+          <div class="form-actions"><button class="btn-form-ghost"
+              onclick="closeModalBg('m-asgn-subj')">Cancel</button><button class="btn-form-pri"
+              onclick="saveAsgn()">Assign</button></div>
+        </div>
+      </div>
+
+      <!-- Add Student -->
+      <div class="modal-bg" id="m-add-student">
+        <div class="modal modal-lg">
+          <div class="modal-hd">
+            <div class="modal-title">👨‍🎓 Add Student</div>
+            <div class="modal-close" onclick="closeModalBg('m-add-student')">✖</div>
+          </div>
+
+          <!-- Row 1: Full Name + Register No -->
+          <div class="form-grid" style="grid-template-columns:1.2fr 0.8fr;">
+            <div class="fg"><label class="fl">Full Name<span style="color:var(--red);">*</span></label>
+              <input type="text" class="fc2" id="stu-name" oninput="onStuNameInput()" placeholder="Student full name">
+            </div>
+            <div class="fg"><label class="fl">Register Number<span style="color:var(--red);">*</span></label>
+              <input type="text" class="fc2" id="stu-regNo" value="7140" oninput="onStuRegNoChange()" maxlength="12">
+            </div>
+          </div>
+
+          <!-- Row 2: First + Last name (auto-split) -->
+          <div class="form-grid form-grid-2">
+            <div class="fg"><label class="fl">First Name <span class="auto-txt">(auto)</span></label>
+              <input type="text" class="fc2" id="stu-firstName" placeholder="Auto-split from name">
+            </div>
+            <div class="fg"><label class="fl">Last Name <span class="auto-txt">(auto)</span></label>
+              <input type="text" class="fc2" id="stu-lastName" placeholder="Auto-split from name">
+            </div>
+          </div>
+
+          <!-- Row 3: Dept → courseType + branch -->
+          <div class="form-grid" style="grid-template-columns:1.5fr 1fr 1fr;">
+            <div class="fg"><label class="fl">Department<span style="color:var(--red);">*</span></label>
+              <select class="fc2" id="stu-dept" onchange="onStuDeptChange()">
+                <option value="">— Select —</option>
+              </select>
+            </div>
+            <div class="fg"><label class="fl">Course Type <span class="auto-txt">(auto)</span></label>
+              <input type="text" class="fc2" id="stu-courseType" readonly class="auto-block" placeholder="Auto">
+            </div>
+            <div class="fg"><label class="fl">Branch <span class="auto-txt">(auto)</span></label>
+              <input type="text" class="fc2" id="stu-branch" readonly class="auto-block" placeholder="Auto">
+            </div>
+          </div>
+
+          <!-- Row 4: Track ID (auto) -->
+          <div class="form-grid" style="grid-template-columns:1.4fr 0.8fr 0.8fr;">
+            <div class="fg"><label class="fl">Track ID <span class="auto-txt">(auto)</span></label>
+              <input type="text" class="fc2" id="stu-trackId" readonly class="auto-block"
+                placeholder="Auto from register no">
+            </div>
+            <div class="fg"><label class="fl">Academic Year<span style="color:var(--red);">*</span></label>
+              <select class="fc2" id="stu-year"></select>
+            </div>
+            <div class="fg"><label class="fl">Batch<span style="color:var(--red);">*</span></label>
+              <select class="fc2" id="stu-batch" onchange="onStuBatchChange()">
+                <option value="">— Select —</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Row 5: Class + Section -->
+          <div class="form-grid" style="grid-template-columns:1.5fr 0.5fr;">
+            <div class="fg"><label class="fl">Class<span style="color:var(--red);">*</span></label>
+              <select class="fc2" id="stu-class" onchange="onStuClassChange()">
+                <option value="">— Select —</option>
+              </select>
+            </div>
+            <div class="fg"><label class="fl">Section <span class="auto-txt">(auto)</span></label>
+              <input type="text" class="fc2" id="stu-section" placeholder="Auto from class" readonly class="auto-block">
+            </div>
+          </div>
+
+          <!-- Row 6: Email (full, editable) + Password -->
+          <div class="fl" style="margin-bottom:6px;">Student Login Details</div>
+          <div class="form-grid form-grid-2">
+            <div class="fg" style="position:relative;">
+              <label class="fl">Email <span class="auto-txt">(auto, editable)</span></label>
+              <input type="email" class="fc2" id="stu-email" placeholder="Auto from name + year + dept code"
+                oninput="onStuEmailInput()" onfocus="showStuEmailPopup()" autocomplete="off">
+
+              <!-- Inline confirm popup — appears on focus -->
+              <div id="stu-email-popup" style="display:none;position:absolute;left:0;top:calc(100% + 6px);z-index:60;
+                   background:#fff;border:1.5px solid var(--gB);border-radius:10px;
+                   padding:10px 14px;box-shadow:0 6px 20px rgba(27,94,32,.18);min-width:230px;">
+                <div style="font-size:12px;color:var(--tmu);margin-bottom:8px;font-weight:500;">
+                  📧 Is this email correct?
+                </div>
+                <div style="display:flex;gap:8px;align-items:center;">
+                  <button type="button" class="btn-form-pri" style="padding:4px 14px;font-size:12px;"
+                    onmousedown="event.preventDefault()" onclick="stuEmailVerify(true)">✓ Yes</button>
+                  <button type="button" class="btn-form-ghost" style="padding:4px 14px;font-size:12px;"
+                    onmousedown="event.preventDefault()" onclick="stuEmailVerify(false)">✗ No</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="fg"><label class="fl">Password <span class="auto-txt">(default)</span></label>
+              <div class="pw-wrap">
+                <input type="password" class="fc2" id="stu-password">
+                <button type="button" class="pw-eye" onclick="togglePwField('stu-password',this)"
+                  tabindex="-1">👁</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Username (auto from confirmed email) -->
+          <div class="form-grid" style="grid-template-columns:1fr;">
+            <div class="fg"><label class="fl">Username <span class="auto-txt">(auto from email)</span></label>
+              <input type="text" class="fc2" id="stu-username" readonly class="auto-block"
+                placeholder="Set after email confirmed">
+            </div>
+          </div>
+
+          <div class="form-actions">
+            <button class="btn-form-ghost" onclick="resetStudentForm()">🔄 Clear</button>
+            <button class="btn-form-ghost" onclick="closeModalBg('m-add-student')">Cancel</button>
+            <button class="btn-form-pri" id="btn-add-stu" onclick="addStu()" disabled
+              style="opacity:.5;cursor:not-allowed;">Add Student</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Edit Student -->
+      <div class="modal-bg" id="m-stu-edit">
+        <div class="modal modal-lg">
+          <div class="modal-hd">
+            <div>
+              <div class="modal-title">👨‍🎓 Edit Student</div>
+              <div class="modal-sub" id="edit-subtitle"></div>
+            </div>
+            <div class="modal-close" onclick="closeModalBg('m-stu-edit')">✖</div>
+          </div>
+
+          <!-- Row 1: Full Name + Register No -->
+          <div class="form-grid form-grid-2">
+            <div class="fg"><label class="fl">Full Name</label><input type="text" class="fc2" id="edit-name"
+                oninput="onEditNameInput()"></div>
+            <div class="fg"><label class="fl">Register Number</label><input type="text" class="fc2" id="edit-regNo">
+            </div>
+          </div>
+
+          <!-- Row 2: First + Last name (auto-split) -->
+          <div class="form-grid form-grid-2">
+            <div class="fg"><label class="fl">First Name <span class="auto-txt">(auto-split)</span></label>
+              <input type="text" class="fc2" id="edit-firstName" placeholder="Auto-split from name">
+            </div>
+            <div class="fg"><label class="fl">Last Name <span class="auto-txt">(auto-split)</span></label>
+              <input type="text" class="fc2" id="edit-lastName" placeholder="Auto-split from name">
+            </div>
+          </div>
+
+          <!-- Row 3: Department, Course Type, Branch -->
+          <div class="form-grid" style="grid-template-columns:1fr 1fr 1fr;">
+            <div class="fg"><label class="fl">Department</label><select class="fc2" id="edit-dept"
+                onchange="onEditDeptChange()">
+                <option value="">— Select —</option>
+              </select></div>
+            <div class="fg"><label class="fl">Course Type <span class="auto-txt">(auto)</span></label>
+              <input type="text" class="fc2" id="edit-courseType" readonly class="auto-block">
+            </div>
+            <div class="fg"><label class="fl">Branch <span class="auto-txt">(auto)</span></label>
+              <input type="text" class="fc2" id="edit-branch" readonly class="auto-block">
+            </div>
+          </div>
+
+          <!-- Row 4: Track ID (auto), Academic Year, Batch -->
+          <div class="form-grid" style="grid-template-columns:1fr 2fr 1fr;">
+            <div class="fg"><label class="fl">Track ID <span class="auto-txt">(auto)</span></label>
+              <input type="text" class="fc2" id="edit-trackId" readonly class="auto-block">
+            </div>
+            <div class="fg"><label class="fl">Academic Year</label>
+              <select class="fc2" id="edit-year"></select>
+            </div>
+            <div class="fg"><label class="fl">Batch<span style="color:var(--red);">*</span></label>
+              <select class="fc2" id="edit-batch" onchange="onEditBatchChange()"></select>
+            </div>
+          </div>
+
+          <!-- Row 5: Class + Section -->
+          <div class="form-grid" style="grid-template-columns:1.5fr 0.5fr;">
+            <div class="fg"><label class="fl">Class</label>
+              <select class="fc2" id="edit-class" onchange="onEditClassChange()">
+              </select>
+            </div>
+            <div class="fg"><label class="fl">Section <span class="auto-txt">(auto)</span></label>
+              <input type="text" class="fc2" id="edit-section" readonly class="auto-block">
+            </div>
+          </div>
+
+          <!-- Row 6: Email + Password -->
+          <div class="fl" style="margin-bottom:6px;">Student Login Details</div>
+          <div class="form-grid form-grid-2">
+            <div class="fg" style="position:relative;">
+              <label class="fl">Email <span class="auto-txt">(editable)</span></label>
+              <input type="email" class="fc2" id="edit-email" placeholder="Student email" oninput="onEditEmailInput()"
+                onfocus="showEditEmailPopup()" autocomplete="off">
+
+              <!-- Inline confirm popup — appears on focus -->
+              <div id="edit-email-popup" style="display:none;position:absolute;left:0;top:calc(100% + 6px);z-index:60;
+                   background:#fff;border:1.5px solid var(--gB);border-radius:10px;
+                   padding:10px 14px;box-shadow:0 6px 20px rgba(27,94,32,.18);min-width:230px;">
+                <div style="font-size:12px;color:var(--tmu);margin-bottom:8px;font-weight:500;">
+                  📧 Is this email correct?
+                </div>
+                <div style="display:flex;gap:8px;align-items:center;">
+                  <button type="button" class="btn-form-pri" style="padding:4px 14px;font-size:12px;"
+                    onmousedown="event.preventDefault()" onclick="editEmailVerify(true)">✓ Yes</button>
+                  <button type="button" class="btn-form-ghost" style="padding:4px 14px;font-size:12px;"
+                    onmousedown="event.preventDefault()" onclick="editEmailVerify(false)">✗ No</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="fg"><label class="fl">Reset Password <span class="auto-txt">(blank = keep)</span></label>
+              <div class="pw-wrap">
+                <input type="password" class="fc2" id="edit-password" placeholder="Leave blank to keep">
+                <button type="button" class="pw-eye" onclick="togglePwField('edit-password',this)"
+                  tabindex="-1">👁</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Row 7: Username (auto from confirmed email) -->
+          <div class="form-grid" style="grid-template-columns:1fr;">
+            <div class="fg"><label class="fl">Username <span class="auto-txt">(auto from email)</span></label>
+              <input type="text" class="fc2" id="edit-username" readonly class="auto-block"
+                placeholder="Set after email confirmed">
+            </div>
+          </div>
+
+          <div class="form-actions">
+            <button class="btn bdan bsm" onclick="dStuFromEdit()">🗑 Delete</button>
+            <div style="display:flex;gap:8px;">
+              <button class="btn-form-ghost" onclick="closeModalBg('m-stu-edit')">Cancel</button>
+              <button class="btn-form-pri" onclick="saveStuEdit()">💾 Save Changes</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Add Teacher -->
+      <div class="modal-bg" id="m-add-teacher">
+        <div class="modal modal-lg">
+          <div class="modal-hd">
+            <div class="modal-title">👩‍🏫 Add Teacher</div>
+            <div class="modal-close" onclick="closeModalBg('m-add-teacher')">✖</div>
+          </div>
+          <div class="form-grid" style="grid-template-columns: 1.4fr 0.8fr 0.8fr;">
+            <div class="fg"><label class="fl">Full Name</label><input type="text" class="fc2" id="t-nm"
+                oninput="onTchNameInput()" placeholder="Teacher name">
+            </div>
+            <div class="fg"><label class="fl">First Name <span class="auto-txt">(auto)</span></label>
+              <input type="text" class="fc2" id="t-fn" placeholder="Auto-split from name" readonly>
+            </div>
+            <div class="fg"><label class="fl">Last Name <span class="auto-txt">(auto)</span></label>
+              <input type="text" class="fc2" id="t-ln" placeholder="Auto-split from name" readonly>
+            </div>
+          </div>
+
+          <div class="form-grid" style="grid-template-columns: 1fr 1fr;">
+            <div class="fg"><label class="fl">Employee ID</label><input type="text" class="fc2" id="t-ei"
+                placeholder="EMP001" oninput="buildTchTrackId()">
+            </div>
+            <div class="fg"><label class="fl">Track ID <span class="auto-txt">(auto)</span></label>
+              <input type="text" class="fc2" id="t-ti" readonly class="auto-block" placeholder="Auto from Employee ID">
+            </div>
+          </div>
+
+          <div class="form-grid" style="grid-template-columns: 1.2fr 0.8fr;">
+            <div class="fg"><label class="fl">Department</label><select class="fc2" id="t-dp">
+                <option value="">— Select —</option>
+              </select></div>
+            <div class="fg"><label class="fl">Designation</label><select class="fc2" id="t-dg">
+                <option>Assistant Professor</option>
+                <option>Associate Professor</option>
+                <option>Professor</option>
+                <option>HOD</option>
+                <option>Lecturer</option>
+              </select></div>
+          </div>
+
+          <div class="form-grid" style="grid-template-columns: 1.5fr 0.6fr 0.9fr;">
+            <div class="fg"><label class="fl">Email</label><input type="text" class="fc2" id="t-em"
+                oninput="onTchEmailInput()" placeholder="Email Address"></div>
+            <div class="fg"><label class="fl">Password</label>
+              <div class="pw-wrap"><input type="password" class="fc2" id="t-pw" value="teacher123"><button type="button"
+                  class="pw-eye" onclick="togglePwField('t-pw',this)" tabindex="-1">👁</button></div>
+            </div>
+            <div class="fg"><label class="fl">Username</label><input type="text" class="fc2" id="t-us"
+                placeholder="Auto from Email" readonly></div>
+          </div>
+          <div
+            style="display:flex;gap:18px;flex-wrap:wrap;margin-top:10px;margin-bottom:20px;padding-top:10px;border-top:1px solid var(--br);">
+            <div class="fg">
+              <label class="fl">Roles</label>
+
+              <div style="display:flex;flex-wrap:wrap;gap:14px 20px;align-items:center;">
+                <label class="chk-box"><input type="checkbox" id="t-hod"> HOD</label>
+                <label class="chk-box"><input type="checkbox" id="t-advisor"> Class Advisor</label>
+                <label class="chk-box"><input type="checkbox" id="t-examcoord"> Exam Coordinator</label>
+                <label class="chk-box"><input type="checkbox" id="t-tt"> Timetable Coordinator</label>
+                <label class="chk-box"><input type="checkbox" id="t-warden"> Warden</label>
+                <label class="chk-box"><input type="checkbox" id="t-placement"> Placement Coordinator</label>
+              </div>
+            </div>
+          </div>
+
+          <div
+            style="display:flex;gap:18px;flex-wrap:wrap;margin-top:10px;margin-bottom:20px;padding-top:10px;border-top:1px solid var(--br);">
+            <div class="fg">
+              <label class="fl" style="font-size: 14px;">Admin Rights</label>
+              <label class="fl">Pages</label>
+              <div style="display:flex;flex-wrap:wrap;gap:14px 20px;align-items:center;">
+                <label class="chk-box"><input type="checkbox" id="t-all"> All</label>
+                <label class="chk-box"><input type="checkbox" id="t-controlPage"> Control Page</label>
+                <label class="chk-box"><input type="checkbox" id="t-timetablePage"> Time Table Page</label>
+                <label class="chk-box"><input type="checkbox" id="t-managePage"> Manage Page</label>
+                <label class="chk-box"><input type="checkbox" id="t-bulkPage"> Bulk Page</label>
+              </div>
+              <label class="fl" style="margin-top:8px;">Modules & Actions</label>
+              <div style="display:flex;flex-wrap:wrap;gap:14px 20px;align-items:center;">
+                <label class="chk-box"><input type="checkbox" id="t-adderModules"> Adder Modules</label>
+                <label class="chk-box"><input type="checkbox" id="t-deletings"> Delete Rights</label>
+                <label class="chk-box"><input type="checkbox" id="t-settingsModule"> Settings Module</label>
+                <label class="chk-box"><input type="checkbox" id="t-reportsModule"> Reports Module</label>
+                <label class="chk-box"><input type="checkbox" id="t-downloadDatas"> Download & Exports</label>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-actions">
+            <button class="btn-form-ghost" onclick="resetTeacherForm()">🔄 Clear</button>
+            <button class="btn-form-ghost" onclick="closeModalBg('m-add-teacher')">Cancel</button>
+            <button class="btn-form-pri" onclick="addTch()">Add Teacher</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Edit Teacher Detail -->
+      <div class="modal-bg" id="m-tch-detail">
+        <div class="modal modal-lg">
+          <div class="modal-hd">
+            <div>
+              <div class="modal-title" id="td-nm"></div>
+              <div class="modal-sub" id="td-dp"></div>
+            </div>
+            <div class="modal-close" onclick="closeModalBg('m-tch-detail')">✖</div>
+          </div>
+          <div
+            style="background:var(--gLt);border:1px solid var(--br);border-radius:11px;padding:14px;margin-bottom:14px;">
+            <div
+              style="font-size:11px;font-weight:700;color:var(--tdi);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;">
+              ✏️ Edit Details</div>
+            <div class="form-grid form-grid-2">
+              <div class="fg"><label class="fl">Full Name</label><input type="text" class="fc2" id="td-edit-nm"></div>
+              <div class="fg"><label class="fl">Employee ID</label><input type="text" class="fc2" id="td-edit-ei"></div>
+              <div class="fg"><label class="fl">Department</label><select class="fc2" id="td-edit-dept"></select></div>
+              <div class="fg"><label class="fl">Designation</label><select class="fc2" id="td-edit-dg">
+                  <option>Assistant Professor</option>
+                  <option>Associate Professor</option>
+                  <option>Professor</option>
+                  <option>HOD</option>
+                  <option>Lecturer</option>
+                </select></div>
+              <div class="fg"><label class="fl">Username</label><input type="text" class="fc2" id="td-edit-us"></div>
+              <div class="fg"><label class="fl">Reset Password</label>
+                <div class="pw-wrap"><input type="password" class="fc2" id="td-edit-pw"
+                    placeholder="Leave blank to keep"><button type="button" class="pw-eye"
+                    onclick="togglePwField('td-edit-pw',this)" tabindex="-1">👁</button></div>
+              </div>
+            </div>
+            <div style="margin-top:10px;">
+              <div
+                style="font-size:11px;font-weight:700;color:var(--tdi);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;">
+                🎯 Special Roles</div>
+              <div style="display:flex;flex-wrap:wrap;gap:10px 18px;">
+                <label style="font-size:12px;display:flex;align-items:center;gap:5px;cursor:pointer;"><input
+                    type="checkbox" id="td-sp-hod"> HOD</label>
+                <label style="font-size:12px;display:flex;align-items:center;gap:5px;cursor:pointer;"><input
+                    type="checkbox" id="td-sp-advisor"> Class Advisor</label>
+                <label style="font-size:12px;display:flex;align-items:center;gap:5px;cursor:pointer;"><input
+                    type="checkbox" id="td-sp-exam"> Exam Coordinator</label>
+                <label style="font-size:12px;display:flex;align-items:center;gap:5px;cursor:pointer;"><input
+                    type="checkbox" id="td-sp-tt"> Timetable Coordinator</label>
+                <label style="font-size:12px;display:flex;align-items:center;gap:5px;cursor:pointer;"><input
+                    type="checkbox" id="td-sp-warden"> Warden</label>
+                <label style="font-size:12px;display:flex;align-items:center;gap:5px;cursor:pointer;"><input
+                    type="checkbox" id="td-sp-placement"> Placement Coordinator</label>
+              </div>
+            </div>
+            <div style="margin-top:14px;">
+              <div
+                style="font-size:11px;font-weight:700;color:var(--tdi);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;">
+                🔑 Admin Rights</div>
+              <div style="font-size:10px;font-weight:700;color:var(--tdi);text-transform:uppercase;margin-bottom:4px;">
+                Pages</div>
+              <div style="display:flex;flex-wrap:wrap;gap:10px 18px;margin-bottom:8px;">
+                <label style="font-size:12px;display:flex;align-items:center;gap:5px;cursor:pointer;"><input
+                    type="checkbox" id="td-ar-all"> All</label>
+                <label style="font-size:12px;display:flex;align-items:center;gap:5px;cursor:pointer;"><input
+                    type="checkbox" id="td-ar-controlPage"> Control Page</label>
+                <label style="font-size:12px;display:flex;align-items:center;gap:5px;cursor:pointer;"><input
+                    type="checkbox" id="td-ar-timetablePage"> Time Table Page</label>
+                <label style="font-size:12px;display:flex;align-items:center;gap:5px;cursor:pointer;"><input
+                    type="checkbox" id="td-ar-managePage"> Manage Page</label>
+                <label style="font-size:12px;display:flex;align-items:center;gap:5px;cursor:pointer;"><input
+                    type="checkbox" id="td-ar-bulkPage"> Bulk Page</label>
+              </div>
+              <div style="font-size:10px;font-weight:700;color:var(--tdi);text-transform:uppercase;margin-bottom:4px;">
+                Modules & Actions</div>
+              <div style="display:flex;flex-wrap:wrap;gap:10px 18px;">
+                <label style="font-size:12px;display:flex;align-items:center;gap:5px;cursor:pointer;"><input
+                    type="checkbox" id="td-ar-adderModules"> Adder Modules</label>
+                <label style="font-size:12px;display:flex;align-items:center;gap:5px;cursor:pointer;"><input
+                    type="checkbox" id="td-ar-deletings"> Delete Rights</label>
+                <label style="font-size:12px;display:flex;align-items:center;gap:5px;cursor:pointer;"><input
+                    type="checkbox" id="td-ar-settingsModule"> Settings Module</label>
+                <label style="font-size:12px;display:flex;align-items:center;gap:5px;cursor:pointer;"><input
+                    type="checkbox" id="td-ar-reportsModule"> Reports Module</label>
+                <label style="font-size:12px;display:flex;align-items:center;gap:5px;cursor:pointer;"><input
+                    type="checkbox" id="td-ar-downloadDatas"> Download & Exports</label>
+              </div>
+            </div>
+            <div style="display:flex;justify-content:flex-end;margin-top:10px;"><button class="btn-form-pri"
+                style="font-size:12px;padding:7px 16px;" onclick="saveTchEdit()">💾 Save Details</button></div>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+            <strong style="font-size:13px;color:var(--td);">📌 Subject – Class Assignments</strong>
+            <button class="btn-out" onclick="oaat()">+ Add Assignment</button>
+          </div>
+          <div id="td-asgn" style="max-height:280px;overflow-y:auto;"></div>
+          <div style="display:flex;justify-content:flex-end;margin-top:14px;">
+            <button class="btn bdan bsm" id="td-del">🗑 Delete Teacher</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Add Assignment to Teacher -->
+      <div class="modal-bg" id="m-add-asgn-t">
+        <div class="modal modal-sm">
+          <div class="modal-hd">
+            <div class="modal-title">📌 Add Class Assignment</div>
+            <div class="modal-close" onclick="closeModalBg('m-add-asgn-t')">✖</div>
+          </div>
+          <div class="fg" style="margin-bottom:12px;"><label class="fl">Department</label>
+            <select class="fc2" id="at-dp" onchange="atdc()">
+              <option value="">— Select Dept —</option>
+            </select>
+          </div>
+          <div class="fg" style="margin-bottom:12px;"><label class="fl">Class</label>
+            <select class="fc2" id="at-cl">
+              <option value="">— Select Class —</option>
+            </select>
+          </div>
+          <div class="fg" style="margin-bottom:14px;"><label class="fl">Subject</label>
+            <select class="fc2" id="at-sb">
+              <option value="">— Select Subject —</option>
+            </select>
+          </div>
+          <div class="form-actions"><button class="btn-form-ghost"
+              onclick="closeModalBg('m-add-asgn-t')">Cancel</button>
+            <button class="btn-form-pri" onclick="savTA()">Add Assignment</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Notifications All -->
+      <div class="modal-bg" id="m-notif-all">
+        <div class="modal">
+          <div class="modal-hd">
+            <div>
+              <div class="modal-title">🔔 All Notifications</div>
+              <div class="modal-sub">Teacher requests & system alerts</div>
+            </div>
+            <div class="modal-actions">
+              <button class="btn-form-ghost" style="padding:6px 14px;font-size:12px;" onclick="clearAllNotifs()">Clear
+                All</button>
+              <div class="modal-close" onclick="closeModalBg('m-notif-all')">✖</div>
+            </div>
+          </div>
+          <div class="m-list" id="notif-all-list"></div>
+        </div>
+      </div>
+
+      <!-- Defaulters Full -->
+      <div class="modal-bg" id="m-defaulters">
+        <div class="modal">
+          <div class="modal-hd">
+            <div>
+              <div class="modal-title">🔴 Defaulters List</div>
+              <div class="modal-sub">Students below 75% attendance</div>
+            </div>
+            <div class="modal-actions">
+              <button class="btn-form-ghost" style="padding:6px 14px;font-size:12px;" onclick="downloadDefaulters()">⬇️
+                Export</button>
+              <div class="modal-close" onclick="closeModalBg('m-defaulters')">✖</div>
+            </div>
+          </div>
+          <div class="m-list" id="def-full-list"></div>
+        </div>
+      </div>
+
+      <!-- Profile -->
+      <div class="modal-bg" id="m-profile">
+        <div class="modal modal-sm">
+          <div class="modal-hd">
+            <div class="modal-title">👤 My Profile</div>
+            <div class="modal-close" onclick="closeModalBg('m-profile')">✖</div>
+          </div>
+          <div style="text-align:center;margin-bottom:20px;">
+            <div
+              style="width:76px;height:76px;border-radius:50%;background:linear-gradient(135deg,#c8e6c9,#66bb6a);display:flex;align-items:center;justify-content:center;font-size:30px;font-weight:700;color:var(--gD);margin:0 auto 12px;"
+              id="pr-av-big">A</div>
+            <div style="font-size:18px;font-weight:700;color:var(--td);" id="pr-name-big">Administrator</div>
+            <div style="margin-top:5px;"><span
+                style="background:var(--gLt);color:var(--gK);padding:2px 10px;border-radius:10px;font-size:11px;font-weight:700;">Admin</span>
+            </div>
+          </div>
+          <div style="margin-bottom:14px;">
+            <label
+              style="font-size:11px;font-weight:600;color:var(--tmu);text-transform:uppercase;letter-spacing:.6px;display:block;margin-bottom:5px;">Display
+              Name</label>
+            <div style="display:flex;gap:8px;">
+              <input type="text" id="pr-edit-name"
+                style="flex:1;padding:9px 12px;border:1.5px solid #e2e8f0;border-radius:10px;font-size:13.5px;font-family:Poppins,sans-serif;outline:none;"
+                placeholder="Your name">
+              <button onclick="saveProfileName()"
+                style="padding:9px 14px;background:var(--gD);color:#fff;border:none;border-radius:10px;font-size:12px;font-weight:600;cursor:pointer;font-family:Poppins,sans-serif;">Save</button>
+            </div>
+          </div>
+          <div style="background:#f8fafc;border-radius:12px;padding:14px;margin-bottom:14px;">
+            <div style="font-size:12px;font-weight:700;color:var(--td);margin-bottom:10px;">🔑 Change Password</div>
+            <div id="pr-pw-err"
+              style="display:none;background:#fdecea;color:#c62828;border-radius:8px;padding:8px 10px;font-size:12px;margin-bottom:8px;">
+            </div>
+            <div id="pr-pw-ok"
+              style="display:none;background:#e8f5e9;color:#2e7d32;border-radius:8px;padding:8px 10px;font-size:12px;margin-bottom:8px;">
+            </div>
+            <input type="password" id="pr-pw-cur" placeholder="Current password"
+              style="width:100%;padding:8px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;font-family:Poppins,sans-serif;margin-bottom:7px;outline:none;box-sizing:border-box;">
+            <input type="password" id="pr-pw-new" placeholder="New password (min 6 chars)"
+              style="width:100%;padding:8px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;font-family:Poppins,sans-serif;margin-bottom:7px;outline:none;box-sizing:border-box;">
+            <input type="password" id="pr-pw-conf" placeholder="Confirm new password"
+              style="width:100%;padding:8px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;font-family:Poppins,sans-serif;margin-bottom:10px;outline:none;box-sizing:border-box;">
+            <button onclick="saveProfilePassword()"
+              style="width:100%;padding:9px;background:#1a237e;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;font-family:Poppins,sans-serif;">Update
+              Password</button>
+          </div>
+          <div class="form-actions">
+            <button class="btn-form-ghost" onclick="closeModalBg('m-profile')">Close</button>
+            <button class="btn-form-pri" onclick="doLogout()">Logout</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Notify Teacher -->
+      <div class="modal-bg" id="m-notify">
+        <div class="modal modal-sm">
+          <div class="modal-hd">
+            <div>
+              <div class="modal-title">📢 Send Reminder</div>
+              <div class="modal-sub" id="notify-sub">—</div>
+            </div>
+            <div class="modal-close" onclick="closeModalBg('m-notify')">✖</div>
+          </div>
+          <div class="fg" style="margin-bottom:12px;"><label class="fl">Message</label>
+            <textarea class="fc2" id="notify-msg" rows="4" style="resize:none;border-radius:10px;"></textarea>
+          </div>
+          <div class="fg" style="margin-bottom:16px;"><label class="fl">Priority</label>
+            <select class="fc2" id="notify-priority">
+              <option>Normal</option>
+              <option>High</option>
+              <option>Urgent</option>
+            </select>
+          </div>
+          <div class="form-actions">
+            <button class="btn-form-ghost" onclick="closeModalBg('m-notify')">Cancel</button>
+            <button class="btn-form-pri" onclick="sendNotification()">📤 Send Reminder</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Generic Confirm -->
+      <div class="modal-bg" id="m-dc-confirm">
+        <div class="modal modal-sm">
+          <div class="modal-hd">
+            <div class="modal-title">⚠️ Confirm Action</div>
+            <div class="modal-close" onclick="closeModalBg('m-dc-confirm')">✖</div>
+          </div>
+          <input type="hidden" id="dc-confirm-id">
+          <div id="dc-confirm-msg" style="font-size:13px;color:var(--tmu);margin-bottom:22px;line-height:1.6;"></div>
+          <div class="form-actions">
+            <button class="btn-form-ghost" onclick="closeModalBg('m-dc-confirm')">Cancel</button>
+            <button class="btn bdan" id="dc-confirm-btn">Confirm Delete</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- TOAST -->
+      <div class="toast" id="toast"></div>
+      <div id="db-toast"></div>
+
+      <!-- SUBJECT STAFF & HALL ASSIGNMENT MODAL -->
+      <div class="modal-bg" id="m-subj-assign">
+        <div class="modal" style="max-width:820px;width:96vw;">
+          <div class="modal-hd">
+            <div>
+              <div class="modal-title" id="sa-ttl">📌 Assign Staff &amp; Hall</div>
+              <div class="modal-sub" id="sa-sub"></div>
+            </div>
+            <div class="modal-close" onclick="closeModalBg('m-subj-assign')">✖</div>
+          </div>
+
+          <!-- Instruction bar -->
+          <div
+            style="background:var(--gLt);border:1px solid var(--br);border-radius:10px;padding:10px 14px;font-size:12px;color:var(--tmu);margin-bottom:14px;">
+            📋 Each row assigns <strong>one section</strong> to a <strong>staff member</strong> with a <strong>hall
+              location</strong>.
+            Hall defaults to the class default hall. All fields are required.
+          </div>
+
+          <!-- Assignment rows table -->
+          <div style="overflow-x:auto;border:1px solid var(--br);border-radius:12px;margin-bottom:12px;">
+            <table style="width:100%;border-collapse:collapse;" id="sa-table">
+              <thead>
+                <tr style="background:var(--gLt);">
+                  <th
+                    style="padding:10px 12px;text-align:left;font-size:11px;font-weight:700;color:var(--tmu);text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--br);">
+                    Section (Class)</th>
+                  <th
+                    style="padding:10px 12px;text-align:left;font-size:11px;font-weight:700;color:var(--tmu);text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--br);">
+                    Staff (Teacher)</th>
+                  <th
+                    style="padding:10px 12px;text-align:left;font-size:11px;font-weight:700;color:var(--tmu);text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--br);">
+                    Hall No.</th>
+                  <th
+                    style="padding:10px 12px;text-align:center;font-size:11px;font-weight:700;color:var(--tmu);text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--br);width:52px;">
+                    Remove</th>
+                </tr>
+              </thead>
+              <tbody id="sa-rows"></tbody>
+            </table>
+          </div>
+
+          <!-- Add Row + validation warning -->
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
+            <button class="btn-out btn-sm" onclick="addAssignRow()" style="gap:5px;">➕ Add Row</button>
+            <span id="sa-warn" style="display:none;color:var(--red);font-size:12px;font-weight:600;"></span>
+          </div>
+
+          <div class="form-actions">
+            <button class="btn-form-ghost" onclick="closeModalBg('m-subj-assign')">Cancel</button>
+            <button class="btn-form-pri" onclick="saveSubjAssignments()">💾 Save to DB</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- CLEAR BROWSER STORAGE MODAL -->
+      <div class="modal-bg" id="m-clear-storage">
+        <div class="modal modal-sm" style="text-align:center;">
+          <div class="modal-hd">
+            <div class="modal-title">🗑️ Clear Browser Cache</div>
+            <div class="modal-close" onclick="closeModalBg('m-clear-storage')">✖</div>
+          </div>
+          <div style="font-size:14px;margin-bottom:4px;">Choose what to clear from <strong>browser storage</strong>.
+          </div>
+          <div style="font-size:12px;color:var(--tmu);margin-bottom:14px;">Cleared data will be re-fetched from Database
+            on next sync.</div>
+
+          <!-- Select All + in-memory render-cache collections (NOT localStorage — the
+           app never persists app data to localStorage; MongoDB is the single
+           source of truth and this cache lives only in page memory) -->
+          <div
+            style="text-align:left;background:var(--gLt);border:1px solid var(--br);border-radius:10px;padding:12px 16px;margin-bottom:10px;display:flex;flex-direction:column;gap:8px;">
+            <div
+              style="font-size:11px;font-weight:700;color:var(--tmu);text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px;">
+              In-Memory Cache (synced data)</div>
+            <label style="display:flex;align-items:center;gap:10px;font-size:13px;font-weight:600;cursor:pointer;">
+              <input type="checkbox" id="clr-all" onchange="toggleClearAll(this)"
+                style="accent-color:#ef4444;width:15px;height:15px;">
+              <span style="color:#ef4444;">Select All</span>
+            </label>
+            <hr style="border:none;border-top:1px solid var(--br);margin:0;">
+            <label class="checkbx-btn"><input type="checkbox" class="clr-chk clr-ls chkbx-input" value="depts"> 🏛️
+              Departments</label>
+            <label class="checkbx-btn"><input type="checkbox" class="clr-chk clr-ls chkbx-input" value="classes"> 🏫
+              Classes</label>
+            <label class="checkbx-btn"><input type="checkbox" class="clr-chk clr-ls chkbx-input" value="subjects"> 📚
+              Subjects</label>
+            <label class="checkbx-btn"><input type="checkbox" class="clr-chk clr-ls chkbx-input" value="students"> 👨‍🎓
+              Students</label>
+            <label class="checkbx-btn"><input type="checkbox" class="clr-chk clr-ls chkbx-input" value="users"> 👩‍🏫
+              Users / Teachers</label>
+            <label class="checkbx-btn"><input type="checkbox" class="clr-chk clr-ls chkbx-input" value="assignments"> 📋
+              Assignments</label>
+            <label class="checkbx-btn"><input type="checkbox" class="clr-chk clr-ls chkbx-input" value="attendance"> 📅
+              Attendance Records</label>
+            <label class="checkbx-btn"><input type="checkbox" class="clr-chk clr-ls chkbx-input" value="notifications">
+              🔔 Notifications</label>
+            <label class="checkbx-btn"><input type="checkbox" class="clr-chk clr-ls chkbx-input" value="logs"> 📋
+              Activity Logs</label>
+            <label class="checkbx-btn"><input type="checkbox" class="clr-chk clr-ls chkbx-input" value="settings"> ⚙️
+              Cached Settings</label>
+          </div>
+
+          <!-- sessionStorage section -->
+          <div
+            style="text-align:left;background:var(--gLt);border:1px solid var(--br);border-radius:10px;padding:12px 16px;margin-bottom:16px;display:flex;flex-direction:column;gap:8px;">
+            <div
+              style="font-size:11px;font-weight:700;color:var(--tmu);text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px;">
+              sessionStorage (session data)</div>
+            <label class="checkbx-btn"><input type="checkbox" class="clr-chk clr-ss" value="session_token"
+                style="accent-color:#b45309;width:14px;height:14px;"> 🔑 Auth Token <span
+                style="font-size:11px;color:#b45309;margin-left:4px;">(logs you out)</span></label>
+            <label class="checkbx-btn"><input type="checkbox" class="clr-chk clr-ss" value="session_user"
+                style="accent-color:#b45309;width:14px;height:14px;"> 👤 Session User Profile</label>
+          </div>
+
+          <div class="form-actions">
+            <button class="btn-form-ghost" onclick="closeModalBg('m-clear-storage')">Cancel</button>
+            <button class="btn-form-pri" style="background:#ef4444;border-color:#ef4444;"
+              onclick="confirmClearStorage()">🗑️ Clear Selected</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Special Delete Password Modal -->
+      <div class="modal-bg" id="m-special-pw">
+        <div class="modal modal-sm" style="text-align:center;">
+          <div class="modal-hd" style="justify-content:center;">
+            <div class="modal-title">🔐 Authentication Required</div>
+          </div>
+          <div style="font-size:14px;margin-bottom:8px;">⚠️ Data Management actions require authentication.</div>
+          <div style="font-size:12px;color:var(--tmu);margin-bottom:16px;">Enter your admin login password or the special management password.</div>
+          <div id="sppw-err"
+            style="display:none;background:#fdecea;color:#c62828;border-radius:8px;padding:8px;font-size:12px;margin-bottom:12px;">
+          </div>
+          <div class="pw-wrap" style="margin-bottom:16px;">
+            <input type="password" id="sppw-input" class="fc2" placeholder="Enter password"
+              style="width:100%;padding:10px 36px 10px 12px;border:1.5px solid #e2e8f0;border-radius:10px;font-size:14px;font-family:Poppins,sans-serif;outline:none;">
+            <button type="button" class="pw-eye" onclick="togglePwField('sppw-input',this)" tabindex="-1">👁</button>
+          </div>
+          <div class="form-actions">
+            <button class="btn-form-ghost" onclick="closeModalBg('m-special-pw')">Cancel</button>
+            <button class="btn-form-pri" onclick="verifySpecialPw()">Verify →</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- MODAL: ASSIGN / EDIT PRINCIPAL -->
+      <div class="modal-bg" id="m-assign-principal">
+        <div class="modal modal-md">
+          <div class="modal-hd">
+            <div class="modal-title">🏫 Assign College Principal</div>
+            <div class="modal-close" onclick="closeModalBg('m-assign-principal')">✖</div>
+          </div>
+          <div class="modal-body">
+            <div class="fg" style="margin-bottom:12px;">
+              <label class="fl">Principal Full Name *</label>
+              <input type="text" id="prin-fullname" class="fc" placeholder="e.g. Dr. K. Principal">
+            </div>
+            <div class="fg" style="margin-bottom:12px;">
+              <label class="fl">Username *</label>
+              <input type="text" id="prin-username" class="fc" placeholder="e.g. principal" value="principal">
+            </div>
+            <div class="fg" style="margin-bottom:12px;">
+              <label class="fl">Password (Leave blank to keep unchanged)</label>
+              <input type="password" id="prin-password" class="fc" placeholder="Enter password (minimum 8 chars)">
+            </div>
+            <div class="fg" style="margin-bottom:12px;">
+              <label class="fl">Official Email</label>
+              <input type="email" id="prin-email" class="fc" placeholder="principal@institution.edu">
+            </div>
+            <div class="fg">
+              <label class="fl">Employee ID</label>
+              <input type="text" id="prin-empno" class="fc" placeholder="PRIN001">
+            </div>
+          </div>
+          <div class="form-actions" style="margin-top:16px;">
+            <button class="btn-form-ghost" onclick="closeModalBg('m-assign-principal')">Cancel</button>
+            <button class="btn-form-pri" onclick="submitAssignPrincipal()">💾 Save Principal</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- MODAL: ASSIGN DEPARTMENT HOD -->
+      <div class="modal-bg" id="m-assign-hod">
+        <div class="modal modal-md">
+          <div class="modal-hd">
+            <div class="modal-title">🏛️ Assign Department Head (HOD)</div>
+            <div class="modal-close" onclick="closeModalBg('m-assign-hod')">✖</div>
+          </div>
+          <div class="modal-body">
+            <div class="fg" style="margin-bottom:14px;">
+              <label class="fl">Select Department *</label>
+              <select id="hod-dept-select" class="fc" onchange="onHodModalDeptChange(this.value)">
+                <option value="">Select Department…</option>
+              </select>
+            </div>
+            <div class="fg">
+              <label class="fl">Select Faculty Member to Appoint as HOD *</label>
+              <select id="hod-teacher-select" class="fc">
+                <option value="">Select Faculty Member…</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-actions" style="margin-top:16px;">
+            <button class="btn-form-ghost" onclick="closeModalBg('m-assign-hod')">Cancel</button>
+            <button class="btn-form-pri" onclick="submitAssignHod()">💾 Appoint as HOD</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- MODAL: GRANT SUB-ADMIN PRIVILEGES -->
+      <div class="modal-bg" id="m-grant-subadmin">
+        <div class="modal modal-md">
+          <div class="modal-hd">
+            <div class="modal-title">⚡ Grant Sub-Admin Rights</div>
+            <div class="modal-close" onclick="closeModalBg('m-grant-subadmin')">✖</div>
+          </div>
+          <div class="modal-body">
+            <div class="fg" style="margin-bottom:14px;">
+              <label class="fl">Select Faculty Member *</label>
+              <select id="subadmin-teacher-select" class="fc">
+                <option value="">Select Faculty…</option>
+              </select>
+            </div>
+            <div class="fg">
+              <label class="fl" style="margin-bottom:8px;">Select Allowed Admin Modules</label>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+                <label class="checkbx-btn"><input type="checkbox" class="subadmin-module-chk" value="controlPage"> 🎛️ Control Panel</label>
+                <label class="checkbx-btn"><input type="checkbox" class="subadmin-module-chk" value="timetablePage"> 🗓️ Timetable Hub</label>
+                <label class="checkbx-btn"><input type="checkbox" class="subadmin-module-chk" value="managePage"> 📋 Academic Data</label>
+                <label class="checkbx-btn"><input type="checkbox" class="subadmin-module-chk" value="bulkPage"> 📦 Bulk Operations</label>
+                <label class="checkbx-btn"><input type="checkbox" class="subadmin-module-chk" value="settingsPage"> ⚙️ Settings View</label>
+                <label class="checkbx-btn"><input type="checkbox" class="subadmin-module-chk" value="reportsModule"> 📈 Reports Module</label>
+              </div>
+            </div>
+          </div>
+          <div class="form-actions" style="margin-top:16px;">
+            <button class="btn-form-ghost" onclick="closeModalBg('m-grant-subadmin')">Cancel</button>
+            <button class="btn-form-pri" onclick="submitGrantSubAdmin()">💾 Save Sub-Admin Rights</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script src="js/core/session.js"></script>
+<script src="js/core/api.js"></script>
+<script src="js/core/toast.js"></script>
+<script src="js/core/modal.js"></script>
+<script src="js/pages/admin.page.js"></script>
+
+</body>
+</html>

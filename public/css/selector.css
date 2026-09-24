@@ -1,0 +1,412 @@
+/* ── SELECTOR PORTAL CSS ────────────────────────────────────── */
+body {
+  font-family: 'Poppins', sans-serif;
+  background: var(--gP);
+  color: var(--td);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background-image: 
+    radial-gradient(circle at 10% 15%, rgba(76, 175, 80, 0.07) 0%, transparent 45%),
+    radial-gradient(circle at 90% 85%, rgba(59, 130, 246, 0.05) 0%, transparent 45%),
+    radial-gradient(circle at 50% 50%, rgba(245, 158, 11, 0.03) 0%, transparent 60%);
+  background-attachment: fixed;
+  overflow-x: hidden;
+}
+
+/* ── APP SHELL & FADE ───────────────────────────────────────── */
+.sel-shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  opacity: 0;
+  transition: opacity .35s ease;
+}
+
+.sel-shell.vis {
+  opacity: 1;
+}
+
+/* ── TOPBAR ─────────────────────────────────────────────────── */
+.sel-topbar {
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-bottom: 1px solid var(--br);
+  padding: 12px 36px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  box-shadow: 0 2px 12px rgba(27, 94, 32, 0.04);
+}
+
+.sel-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-decoration: none;
+  cursor: default;
+}
+
+.sel-logo {
+  width: 40px;
+  height: 40px;
+  background: linear-gradient(135deg, var(--gD), var(--gB));
+  color: #fff;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 21px;
+  font-weight: 700;
+  box-shadow: 0 4px 14px rgba(46, 125, 50, 0.28);
+  transition: transform .2s ease;
+}
+
+.sel-brand:hover .sel-logo {
+  transform: scale(1.05);
+}
+
+.sel-brand-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.sel-brand-title {
+  font-family: 'Playfair Display', serif;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--td);
+  letter-spacing: -0.2px;
+  line-height: 1.15;
+}
+
+.sel-brand-sub {
+  font-size: 11px;
+  color: var(--tmu);
+  font-weight: 500;
+  letter-spacing: 0.3px;
+}
+
+.sel-topbar-center {
+  display: flex;
+  align-items: center;
+}
+
+
+.status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #22c55e;
+  box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.25);
+  animation: pulseDot 2s infinite;
+}
+
+@keyframes pulseDot {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.25); opacity: 0.8; }
+}
+
+.sel-topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+/* ── MAIN CONTENT & HERO ────────────────────────────────────── */
+.sel-main {
+  flex: 1;
+  max-width: 1220px;
+  margin: 0 auto;
+  width: 100%;
+  padding: 38px 24px 60px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.sel-hero {
+  text-align: center;
+  margin-bottom: 36px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+} 
+
+.sel-hero-title {
+  font-family: 'Playfair Display', serif;
+  font-size: 30px;
+  font-weight: 800;
+  color: var(--td);
+  margin-bottom: 8px;
+  letter-spacing: -0.4px;
+}
+
+.sel-hero-desc {
+  font-size: 13.5px;
+  color: var(--tmu);
+  max-width: 560px;
+  line-height: 1.6;
+  margin-bottom: 14px;
+}
+
+.sel-tags-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 6px;
+}
+
+.role-tag-pill {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 11px;
+  border-radius: 16px;
+  background: #fff;
+  border: 1px solid #d0d7d0;
+  color: var(--tmu);
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.02);
+}
+
+.role-tag-pill.active {
+  background: #e8f5e9;
+  border-color: #a5d6a7;
+  color: #1b5e20;
+}
+
+/* ── PORTAL CARDS GRID ──────────────────────────────────────── */
+.sel-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(330px, 1fr));
+  gap: 24px;
+  width: 100%;
+}
+
+.sel-card {
+  background: #ffffff;
+  border: 1px solid var(--br);
+  border-radius: 18px;
+  padding: 24px 24px 20px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
+  transition: all 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+  cursor: pointer;
+  text-decoration: none;
+  color: inherit;
+}
+
+.sel-card.disabled-portal {
+  opacity: 0.7;
+  filter: grayscale(0.2);
+  cursor: not-allowed;
+  border-color: #fde68a;
+  background: #fffdfa;
+}
+
+.sel-card.disabled-portal:hover {
+  transform: none !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03) !important;
+}
+
+.disabled-badge {
+  background: #fffbeb;
+  color: #b45309;
+  border: 1px solid #fde68a;
+  padding: 3px 8px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.sel-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: var(--card-accent, var(--gB));
+  opacity: 0.95;
+  transition: height 0.2s ease;
+}
+
+.sel-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 14px 36px rgba(27, 94, 32, 0.12);
+  border-color: rgba(76, 175, 80, 0.4);
+}
+
+.sel-card:hover::before {
+  height: 6px;
+}
+
+.card-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.card-icon {
+  width: 50px;
+  height: 50px;
+  border-radius: 14px;
+  background: var(--card-icon-bg, #e8f5e9);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 25px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.04);
+  transition: transform .2s ease;
+}
+
+.sel-card:hover .card-icon {
+  transform: scale(1.06);
+}
+
+.card-tag {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 14px;
+  background: var(--card-tag-bg, #f1f5f9);
+  color: var(--card-tag-col, #475569);
+  letter-spacing: 0.2px;
+}
+
+.card-body {
+  margin-bottom: 22px;
+  flex: 1;
+}
+
+.card-title {
+  font-size: 17.5px;
+  font-weight: 700;
+  color: var(--td);
+  margin-bottom: 6px;
+  line-height: 1.3;
+}
+
+.card-desc {
+  font-size: 12.8px;
+  color: var(--tmu);
+  line-height: 1.55;
+  margin-bottom: 14px;
+}
+
+.card-highlights {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.card-highlight-item {
+  font-size: 11px;
+  font-weight: 500;
+  background: var(--gP);
+  color: var(--td);
+  padding: 2px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--brl);
+}
+
+.card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 14px;
+  border-top: 1px solid var(--brl);
+}
+
+.card-btn {
+  background: var(--card-accent, var(--gD));
+  color: #fff;
+  border: none;
+  border-radius: 20px;
+  padding: 8px 16px;
+  font-size: 12px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);
+  transition: all .2s ease;
+  cursor: pointer;
+}
+
+.sel-card:hover .card-btn {
+  filter: brightness(1.08);
+  transform: translateX(2px);
+}
+
+.card-arrow {
+  transition: transform .2s ease;
+  font-size: 13px;
+}
+
+.sel-card:hover .card-arrow {
+  transform: translateX(3px);
+}
+
+/* ── FOOTER ─────────────────────────────────────────────────── */
+.sel-footer {
+  text-align: center;
+  padding: 22px 24px;
+  font-size: 12px;
+  color: var(--tdi);
+  border-top: 1px solid var(--brl);
+  background: rgba(255, 255, 255, 0.5);
+}
+
+.sel-footer-content {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.footer-badge {
+  background: #e8f5e9;
+  color: #1b5e20;
+  font-weight: 600;
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  border: 1px solid #c8e6c9;
+}
+
+@media (max-width: 768px) {
+  .sel-topbar {
+    padding: 12px 18px;
+  }
+  .sel-topbar-center {
+    display: none;
+  }
+  .profile-info {
+    display: none;
+  }
+  .sel-grid {
+    grid-template-columns: 1fr;
+  }
+  .sel-main {
+    padding: 20px 14px 40px;
+  }
+  .sel-hero-title {
+    font-size: 24px;
+  }
+}
