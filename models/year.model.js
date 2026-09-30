@@ -6,7 +6,14 @@ const YearSchema = new mongoose.Schema({
     batchTrackId : { type: String, required: true, trim: true },
     batch        : { type: String, required: true, trim: true },
     currentYear  : { type: String, enum: ['I', 'II', 'III', 'IV'], required: true },
-    currentSem   : { type: String, enum: ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII'], required: true }
+    currentSem   : { type: String, enum: ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII'], required: true },
+    regulation   : { type: String, trim: true, default: '' }
+  }],
+  regulations: [{
+    code      : { type: String, required: true, trim: true },
+    name      : { type: String, default: '', trim: true },
+    year      : { type: String, trim: true },
+    isDefault : { type: Boolean, default: false }
   }],
   semesterDates: [{
     year         : { type: String, enum: ['I', 'II', 'III', 'IV'], required: true },

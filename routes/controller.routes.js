@@ -511,54 +511,34 @@ router.post('/leaves/approve', async (req, res) => {
           for (const sub of tLeave.substitutions) {
             if (!sub.classId || !sub.date || !sub.periodNumber) continue;
             try {
-              let dayOverride = await M.TimetableDayOverride.findOne({
-                classId: sub.classId,
-                date: sub.date
-              });
-              const dObj = new Date(sub.date + 'T00:00:00.000Z');
-              const dayAbbr = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][dObj.getUTCDay()];
-
-              if (!dayOverride) {
-                dayOverride = new M.TimetableDayOverride({
+              await M.Override.findOneAndUpdate(
+                {
                   classId: sub.classId,
-                  className: sub.className,
-                  deptId: tLeave.deptId,
-                  date: sub.date,
-                  day: dayAbbr,
-                  overrides: [],
-                  status: 'active',
-                  updatedBy: ctx.name
-                });
-              }
-
-              const existingOvIdx = dayOverride.overrides.findIndex(ov => ov.periodNumber === sub.periodNumber);
-              const overrideEntry = {
-                periodNumber: sub.periodNumber,
-                span: 1,
-                action: 'substitute',
-                substituteTeacherId: sub.substituteTeacherTrackId,
-                substituteTeacherName: sub.substituteTeacherName,
-                originalSlot: {
-                  teacherName: tLeave.teacherName,
-                  teacherTrackId: tLeave.teacherTrackId,
-                  subjectName: sub.subjectName,
-                  hallNo: sub.hallNo
+                  date: new Date(sub.date),
+                  period: sub.periodNumber
                 },
-                newSlot: {
-                  teacherName: sub.substituteTeacherName,
-                  teacherTrackId: sub.substituteTeacherTrackId,
-                  subjectName: sub.subjectName,
-                  hallNo: sub.hallNo
+                {
+                  classId: sub.classId,
+                  date: new Date(sub.date),
+                  period: sub.periodNumber,
+                  type: 'substitute',
+                  originalSlot: {
+                    teacherName: tLeave.teacherName,
+                    teacherTrackId: tLeave.teacherTrackId,
+                    subjectName: sub.subjectName,
+                    hallNo: sub.hallNo
+                  },
+                  newSlot: {
+                    teacherName: sub.substituteTeacherName,
+                    teacherTrackId: sub.substituteTeacherTrackId,
+                    subjectName: sub.subjectName,
+                    hallNo: sub.hallNo
+                  },
+                  reason: `Leave substitution for ${tLeave.teacherName}`,
+                  approvedBy: ctx.name
                 },
-                reason: `Leave substitution for ${tLeave.teacherName}`
-              };
-
-              if (existingOvIdx >= 0) {
-                dayOverride.overrides[existingOvIdx] = overrideEntry;
-              } else {
-                dayOverride.overrides.push(overrideEntry);
-              }
-              await dayOverride.save();
+                { upsert: true, returnDocument: 'after' }
+              );
 
               // Notify the substitute teacher
               await M.Notification.create({

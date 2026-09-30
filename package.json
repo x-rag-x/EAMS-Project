@@ -6,7 +6,10 @@
   "scripts": {
     "start": "node server.js",
     "setup": "node dev/start.js",
-    "att": "node dev/attendanceDev.js"
+    "att": "node dev/attendanceDev.js",
+    "memory": "node .antigravity/bin/memory.js",
+    "track:chat": "node .antigravity/bin/track_chat.js",
+    "end:chat": "node .antigravity/bin/track_chat.js --auto-memory"
   },
   "engines": {
     "node": ">=18.0.0"
@@ -24,7 +27,8 @@
     "mongoose": "^9.7.1",
     "multer": "^1.4.5-lts.1",
     "nodemailer": "^9.0.1",
-    "qrcode": "^1.5.4"
+    "qrcode": "^1.5.4",
+    "ws": "^8.21.3"
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0",

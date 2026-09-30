@@ -435,6 +435,26 @@
       </div>
     </div>
 
+    <!-- Curriculum Regulations (Change 2) -->
+    <div class="card" style="margin-bottom:16px;">
+      <div class="card-hd">
+        <div>
+          <div class="card-title">📜 Curriculum Regulations</div>
+          <div style="font-size:11.5px;color:var(--tmu);margin-top:2px;">Institutional syllabus &amp; protocol years (e.g. 2021, 2025) applied across batches &amp; subjects.</div>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn-pri btn-sm" onclick="openRegulationModal()">+ Add Regulation</button>
+          <button class="btn-out btn-sm" onclick="loadRegulations()">🔄 Refresh</button>
+        </div>
+      </div>
+      <div class="tw">
+        <table class="tbl">
+          <thead><tr><th>Code</th><th>Regulation Name</th><th>Effective Year</th><th>Default Status</th><th>Actions</th></tr></thead>
+          <tbody id="regulations-tbody"><tr><td colspan="5" style="text-align:center;color:var(--tdi);padding:18px;">Loading regulations…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
     <!-- All Years -->
     <div class="card">
       <div class="card-hd">
@@ -816,6 +836,38 @@
     <div class="form-actions">
       <button class="btn-form-ghost" onclick="closeModal('delete-month-modal-bg')">Cancel</button>
       <button class="btn-form-del" onclick="confirmDeleteCalendarMonth()">🗑 Delete Month</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: ADD / EDIT REGULATION -->
+<div class="modal-bg" id="reg-modal-bg" onclick="if(event.target===this)closeModal('reg-modal-bg')">
+  <div class="modal" style="max-width:480px;">
+    <div class="modal-hd">
+      <div>
+        <div class="modal-title" id="reg-m-title">📜 Add Curriculum Regulation</div>
+        <div class="modal-sub">Define regulation year protocol for subjects and batches</div>
+      </div>
+      <div class="modal-close" onclick="closeModal('reg-modal-bg')">✕</div>
+    </div>
+    <div class="fg" style="margin-bottom:12px;">
+      <label class="fl">Regulation Code / Year *</label>
+      <input type="text" class="fc2" id="reg-code-inp" placeholder="e.g. 2021 or 2025" maxlength="10">
+      <div style="font-size:10.5px;color:var(--tmu);margin-top:3px;">Institutional regulation year (e.g. 2021, 2025)</div>
+    </div>
+    <div class="fg" style="margin-bottom:12px;">
+      <label class="fl">Regulation Title *</label>
+      <input type="text" class="fc2" id="reg-name-inp" placeholder="e.g. Regulation 2021" maxlength="50">
+    </div>
+    <div class="fg" style="margin-bottom:16px;">
+      <label style="display:flex;align-items:center;gap:8px;font-size:12.5px;cursor:pointer;">
+        <input type="checkbox" id="reg-default-chk">
+        <span>Set as Default Regulation for new subjects</span>
+      </label>
+    </div>
+    <div class="form-actions">
+      <button class="btn-form-ghost" onclick="closeModal('reg-modal-bg')">Cancel</button>
+      <button class="btn-form-pri" onclick="saveRegulation()">💾 Save Regulation</button>
     </div>
   </div>
 </div>

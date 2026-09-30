@@ -13,6 +13,7 @@ const systemModels     = require('./system.model');
 const leaveModels      = require('./leave.model');
 const liveAttModels    = require('./liveSessionAtt.model');
 const exportModels     = require('./export.model');
+const specialActivityModels = require('./specialActivity.model');
 
 module.exports = {
   ...userModels,
@@ -30,4 +31,5 @@ module.exports = {
   ...leaveModels,
   ...liveAttModels,
   ...exportModels,
+  ...specialActivityModels,
 };
