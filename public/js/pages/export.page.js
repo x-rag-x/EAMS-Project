@@ -123,13 +123,13 @@ window.toggleExportSidebar = toggleExportSidebar;
 window.toggleAdminSidebar = toggleExportSidebar;
 
 // ─── TAB NAVIGATION (Matching admin.html) ──────────────────────────────────
-var PAGE_NAMES = ['dash', 'student', 'class', 'subject', 'teacher', 'dept', 'bulk', 'scheduled', 'templates', 'history'];
+var PAGE_NAMES = ['dash', 'student', 'class', 'subject', 'teacher', 'dept', 'bulk', 'tt', 'scheduled', 'templates', 'history'];
 
 function nav(pageName) {
   if (window.isTimetableScoped) {
-    var allowedTabs = ['class', 'teacher', 'scheduled', 'templates', 'history'];
+    var allowedTabs = ['class', 'teacher', 'tt', 'scheduled', 'templates', 'history'];
     if (allowedTabs.indexOf(pageName) === -1) {
-      pageName = 'class';
+      pageName = 'tt';
     }
   }
   if (PAGE_NAMES.indexOf(pageName) === -1) pageName = 'dash';
@@ -147,6 +147,11 @@ function nav(pageName) {
   });
   var targetPage = document.getElementById('pg-' + pageName);
   if (targetPage) targetPage.classList.add('act');
+
+  // Trigger timetable initialization if navigating to tt tab
+  if (pageName === 'tt' && typeof initTTExportTab === 'function') {
+    initTTExportTab();
+  }
 
   // Switch active sidebar item
   document.querySelectorAll('.sb .sb-item').forEach(function (item) {
@@ -1129,3 +1134,547 @@ function showToast(msg, type) {
     alert(msg);
   }
 }
+
+// ══ TIME TABLE EXPORT CENTER INTEGRATION ═════════════════════════════════
+var ttState = {
+  classes: [],
+  activeClassId: '',
+  activeClassName: '',
+  activeSlots: [],
+  masterData: null,
+  allSectionsData: null,
+  periods: [
+    ['P1', '08:30', '09:15', 'Period 1'],
+    ['P2', '09:15', '10:00', 'Period 2'],
+    ['P3', '10:15', '11:00', 'Period 3'],
+    ['P4', '11:00', '11:45', 'Period 4'],
+    ['P5', '11:45', '12:30', 'Period 5'],
+    ['P6', '12:30', '13:15', 'Period 6'],
+    ['P7', '14:00', '14:45', 'Period 7'],
+    ['P8', '14:45', '15:30', 'Period 8'],
+    ['P9', '15:45', '16:30', 'Period 9']
+  ],
+  days: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'],
+  loading: false,
+  initialized: false
+};
+
+function format12hTime(time24) {
+  if (!time24) return '';
+  var parts = time24.split(':');
+  var h = parseInt(parts[0], 10);
+  var m = parts[1] || '00';
+  var ampm = h >= 12 ? 'PM' : 'AM';
+  var h12 = h % 12 || 12;
+  return h12 + ':' + m + ' ' + ampm;
+}
+
+function spanTimeForPeriod(periodCode, span) {
+  span = span || 1;
+  var idx = ttState.periods.findIndex(function (p) { return p[0] === periodCode; });
+  if (idx === -1) return periodCode;
+  var start = ttState.periods[idx][1];
+  var endIdx = Math.min(idx + span - 1, ttState.periods.length - 1);
+  var end = ttState.periods[endIdx][2];
+  return format12hTime(start) + ' – ' + format12hTime(end);
+}
+
+function downloadTTFile(content, filename, mimeType) {
+  var blob = new Blob([content], { type: mimeType });
+  var url = URL.createObjectURL(blob);
+  var link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
+async function initTTExportTab() {
+  var secSelect = document.getElementById('tt-export-sec-select');
+  if (!secSelect) return;
+
+  if (!ttState.initialized) {
+    ttState.initialized = true;
+    secSelect.addEventListener('change', function (e) {
+      ttState.activeClassId = e.target.value;
+      var selectedOpt = e.target.options[e.target.selectedIndex];
+      ttState.activeClassName = selectedOpt ? selectedOpt.textContent : '';
+      loadTTSectionSlots(ttState.activeClassId);
+    });
+  }
+
+  if (!ttState.classes.length && !ttState.loading) {
+    ttState.loading = true;
+    try {
+      var data = await apiCall('GET', '/timetable/master-data');
+      ttState.masterData = data;
+      ttState.classes = (data.classes || []).map(function (c) {
+        return { id: c._id || c.id, name: c.name || c.section || 'Class' };
+      });
+
+      // Load timing sets if available
+      try {
+        var sets = await apiCall('GET', '/timetable/timing-sets');
+        if (Array.isArray(sets) && sets.length) {
+          var activeSet = sets.find(function (s) { return s.isDefault; }) || sets[0];
+          if (activeSet && Array.isArray(activeSet.periods)) {
+            var parsed = [];
+            activeSet.periods.forEach(function (p) {
+              if (!p.isBreak && p.periodNumber !== 0 && p.number !== 0) {
+                var code = 'P' + (p.periodNumber || p.number);
+                parsed.push([code, p.start, p.end, p.label || ('Period ' + (p.periodNumber || p.number))]);
+              }
+            });
+            if (parsed.length) ttState.periods = parsed;
+          }
+        }
+      } catch (_) {}
+
+      renderTTSectionDropdown();
+      if (ttState.classes.length) {
+        ttState.activeClassId = ttState.classes[0].id;
+        ttState.activeClassName = ttState.classes[0].name;
+        await loadTTSectionSlots(ttState.activeClassId);
+      }
+    } catch (err) {
+      showToast('Failed to load timetable sections: ' + err.message, 'error');
+    } finally {
+      ttState.loading = false;
+    }
+  }
+}
+
+function renderTTSectionDropdown() {
+  var secSelect = document.getElementById('tt-export-sec-select');
+  if (!secSelect) return;
+  if (!ttState.classes.length) {
+    secSelect.innerHTML = '<option value="">No sections available</option>';
+    return;
+  }
+  secSelect.innerHTML = ttState.classes.map(function (c) {
+    return '<option value="' + escapeHtml(c.id) + '" ' + (c.id === ttState.activeClassId ? 'selected' : '') + '>' + escapeHtml(c.name) + '</option>';
+  }).join('');
+}
+
+async function loadTTSectionSlots(classId) {
+  var countEl = document.getElementById('tt-sec-slots-count');
+  var descEl = document.getElementById('tt-sec-desc');
+  if (!classId) {
+    ttState.activeSlots = [];
+    if (countEl) countEl.textContent = '0';
+    return;
+  }
+  try {
+    var res = await apiCall('GET', '/timetable/section/' + classId);
+    var slotsObj = res.slots || {};
+    var flat = [];
+    Object.keys(slotsObj).forEach(function (key) {
+      var s = slotsObj[key];
+      if (!s) return;
+      flat.push({
+        id: s._id || s.id || key,
+        day: s.day || key.split('_')[0],
+        period: s.period ? ('P' + s.period) : (key.split('_')[1] || 'P1'),
+        duration: s.span || 1,
+        subject: s.subject || '',
+        teacher: s.teacher || '',
+        room: s.room || '',
+        section: ttState.activeClassName,
+        type: s.isLab ? 'Lab' : 'Theory'
+      });
+    });
+    ttState.activeSlots = flat;
+    if (countEl) countEl.textContent = String(flat.length);
+    if (descEl) descEl.innerHTML = 'Weekly schedule for <b>' + escapeHtml(ttState.activeClassName) + '</b> (' + flat.length + ' active slots)';
+  } catch (err) {
+    ttState.activeSlots = [];
+    if (countEl) countEl.textContent = '0';
+  }
+}
+
+async function ensureAllTTSections() {
+  if (ttState.allSectionsData && ttState.allSectionsData.length) return ttState.allSectionsData;
+  showToast('Fetching all department section schedules…', 'info');
+  var all = [];
+  for (var i = 0; i < ttState.classes.length; i++) {
+    var c = ttState.classes[i];
+    try {
+      var res = await apiCall('GET', '/timetable/section/' + c.id);
+      var slotsObj = res.slots || {};
+      Object.keys(slotsObj).forEach(function (key) {
+        var s = slotsObj[key];
+        if (!s) return;
+        all.push({
+          id: s._id || s.id || key,
+          day: s.day || key.split('_')[0],
+          period: s.period ? ('P' + s.period) : (key.split('_')[1] || 'P1'),
+          duration: s.span || 1,
+          subject: s.subject || '',
+          teacher: s.teacher || '',
+          room: s.room || '',
+          section: c.name,
+          type: s.isLab ? 'Lab' : 'Theory'
+        });
+      });
+    } catch (_) {}
+  }
+  ttState.allSectionsData = all;
+  return all;
+}
+
+// ── Export Actions ──
+function exportTTCurrentCSV() {
+  if (!ttState.activeSlots || !ttState.activeSlots.length) {
+    return showToast('No timetable slots available to export for this section.', 'warn');
+  }
+  var header = ['Day', 'Period', '12h Time', 'Duration', 'Subject', 'Faculty', 'Room', 'Section', 'Type'];
+  var rows = [header];
+  ttState.activeSlots.forEach(function (x) {
+    rows.push([
+      x.day,
+      x.period,
+      spanTimeForPeriod(x.period, x.duration),
+      x.duration || 1,
+      x.subject,
+      x.teacher,
+      x.room,
+      x.section || ttState.activeClassName,
+      x.type || 'Theory'
+    ].map(function (v) { return '"' + String(v || '').replace(/"/g, '""') + '"'; }));
+  });
+  var csv = rows.map(function (r) { return r.join(','); }).join('\n');
+  downloadTTFile(csv, 'EAMS-Timetable-' + (ttState.activeClassName || 'Section') + '-' + new Date().toISOString().slice(0, 10) + '.csv', 'text/csv;charset=utf-8');
+  showToast('Section timetable exported to CSV.', 'success');
+}
+
+function exportTTCurrentExcel() {
+  var secName = ttState.activeClassName || 'Section';
+  var slots = ttState.activeSlots || [];
+  if (!slots.length) return showToast('No timetable records to export.', 'warn');
+
+  var html = '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">' +
+    '<head><meta http-equiv="content-type" content="application/vnd.ms-excel; charset=UTF-8">' +
+    '<style>' +
+    'table { border-collapse: collapse; width: 100%; font-family: Calibri, Arial, sans-serif; font-size: 11pt; }' +
+    'th { background-color: #2e7d32; color: #ffffff; border: 1px solid #1b5e20; padding: 8px; text-align: center; font-weight: bold; }' +
+    'td { border: 1px solid #cccccc; padding: 6px; text-align: center; vertical-align: middle; }' +
+    '.header-title { font-size: 14pt; font-weight: bold; text-align: left; }' +
+    '.sub-title { font-size: 11pt; color: #555555; text-align: left; }' +
+    '.day-col { font-weight: bold; background-color: #f4f7f4; }' +
+    '.lab-slot { background-color: #fff3e0; color: #e65100; font-weight: bold; }' +
+    '.theory-slot { background-color: #e8f5e9; color: #1b5e20; font-weight: bold; }' +
+    '</style></head><body><table>' +
+    '<tr><td colspan="' + (ttState.periods.length + 1) + '" class="header-title">EAMS Academic Timetable · Section: ' + escapeHtml(secName) + '</td></tr>' +
+    '<tr><td colspan="' + (ttState.periods.length + 1) + '" class="sub-title">Exported on ' + new Date().toLocaleDateString('en-IN', { dateStyle: 'full' }) + '</td></tr>' +
+    '<tr><td></td></tr>' +
+    '<tr><th>Day / Period</th>' +
+    ttState.periods.map(function (p) {
+      return '<th>' + escapeHtml(p[3] || p[0]) + '<br><span style="font-size:9pt;font-weight:normal;">' + format12hTime(p[1]) + ' - ' + format12hTime(p[2]) + '</span></th>';
+    }).join('') + '</tr>';
+
+  ttState.days.forEach(function (day) {
+    html += '<tr><td class="day-col">' + day + '</td>';
+    var daySlots = slots.filter(function (s) { return s.day === day; });
+    var starts = {};
+    daySlots.forEach(function (s) { starts[s.period] = s; });
+    var occupied = {};
+
+    ttState.periods.forEach(function (p, idx) {
+      var pId = p[0];
+      if (occupied[pId]) return;
+      var entry = starts[pId];
+      if (entry) {
+        var span = Math.min(3, Math.max(1, Number(entry.duration || 1)));
+        for (var i = 1; i < span; i++) {
+          if (ttState.periods[idx + i]) occupied[ttState.periods[idx + i][0]] = true;
+        }
+        var cls = entry.type === 'Lab' ? 'lab-slot' : 'theory-slot';
+        html += '<td colspan="' + span + '" class="' + cls + '">' + escapeHtml(entry.subject) + '<br><span style="font-size:9pt;font-weight:normal;">' + escapeHtml(entry.teacher) + ' · ' + escapeHtml(entry.room) + '</span></td>';
+      } else {
+        html += '<td>—</td>';
+      }
+    });
+    html += '</tr>';
+  });
+
+  html += '</table></body></html>';
+  downloadTTFile(html, 'EAMS-Timetable-' + secName + '-' + new Date().toISOString().slice(0, 10) + '.xls', 'application/vnd.ms-excel;charset=utf-8');
+  showToast('Excel timetable downloaded for ' + secName, 'success');
+}
+
+function exportTTCurrentPrint() {
+  if (!ttState.activeSlots || !ttState.activeSlots.length) {
+    return showToast('No timetable records to print.', 'warn');
+  }
+  window.print();
+}
+
+async function exportTTAllSectionsCSV() {
+  try {
+    var all = await ensureAllTTSections();
+    if (!all.length) return showToast('No timetable records found across sections.', 'warn');
+    var header = ['Section', 'Day', 'Period', '12h Time', 'Duration', 'Subject', 'Faculty', 'Room', 'Type'];
+    var rows = [header];
+    all.forEach(function (x) {
+      rows.push([
+        x.section,
+        x.day,
+        x.period,
+        spanTimeForPeriod(x.period, x.duration),
+        x.duration || 1,
+        x.subject,
+        x.teacher,
+        x.room,
+        x.type || 'Theory'
+      ].map(function (v) { return '"' + String(v || '').replace(/"/g, '""') + '"'; }));
+    });
+    var csv = rows.map(function (r) { return r.join(','); }).join('\n');
+    downloadTTFile(csv, 'EAMS-All-Sections-Master-Timetable-' + new Date().toISOString().slice(0, 10) + '.csv', 'text/csv;charset=utf-8');
+    showToast(all.length + ' timetable records exported for all sections.', 'success');
+  } catch (err) {
+    showToast('Failed to export all sections: ' + err.message, 'error');
+  }
+}
+
+async function exportTTJSON() {
+  try {
+    var all = await ensureAllTTSections();
+    var snapshot = {
+      academicYear: '2026-2027',
+      exportedAt: new Date().toISOString(),
+      sectionsCount: ttState.classes.length,
+      totalSlots: all.length,
+      slots: all
+    };
+    var jsonStr = JSON.stringify(snapshot, null, 2);
+    downloadTTFile(jsonStr, 'EAMS-Timetable-Snapshot-' + new Date().toISOString().slice(0, 10) + '.json', 'application/json');
+    showToast('Timetable raw JSON snapshot exported.', 'success');
+  } catch (err) {
+    showToast('Failed to export JSON snapshot: ' + err.message, 'error');
+  }
+}
+
+async function exportTTFacultyCSV() {
+  try {
+    var all = await ensureAllTTSections();
+    if (!all.length) return showToast('No timetable records found to export faculty schedules.', 'warn');
+    var header = ['Faculty Name', 'Day', 'Period', '12h Time', 'Duration', 'Subject', 'Section', 'Room', 'Type'];
+    var rows = [header];
+    all.slice().sort(function (a, b) {
+      return (a.teacher || '').localeCompare(b.teacher || '');
+    }).forEach(function (x) {
+      rows.push([
+        x.teacher || 'Unassigned',
+        x.day,
+        x.period,
+        spanTimeForPeriod(x.period, x.duration),
+        x.duration || 1,
+        x.subject,
+        x.section,
+        x.room,
+        x.type || 'Theory'
+      ].map(function (v) { return '"' + String(v || '').replace(/"/g, '""') + '"'; }));
+    });
+    var csv = rows.map(function (r) { return r.join(','); }).join('\n');
+    downloadTTFile(csv, 'EAMS-Faculty-Schedules-' + new Date().toISOString().slice(0, 10) + '.csv', 'text/csv;charset=utf-8');
+    showToast('Faculty teaching schedules exported.', 'success');
+  } catch (err) {
+    showToast('Failed to export faculty schedules: ' + err.message, 'error');
+  }
+}
+
+async function exportTTWorkloadCSV() {
+  try {
+    var all = await ensureAllTTSections();
+    if (!all.length) return showToast('No timetable records found for workload analysis.', 'warn');
+    var map = new Map();
+    all.forEach(function (x) {
+      var f = x.teacher || 'Unassigned';
+      if (!map.has(f)) map.set(f, { periods: 0, labs: 0, theory: 0, sections: new Set() });
+      var cur = map.get(f);
+      var dur = Number(x.duration || 1);
+      cur.periods += dur;
+      if (x.type === 'Lab') cur.labs += dur;
+      else cur.theory += dur;
+      if (x.section) cur.sections.add(x.section);
+    });
+    var header = ['Faculty Name', 'Total Weekly Periods', 'Theory Periods', 'Lab Periods', 'Assigned Sections', 'Load Status'];
+    var rows = [header];
+    Array.from(map.entries()).sort(function (a, b) {
+      return b[1].periods - a[1].periods;
+    }).forEach(function (pair) {
+      var name = pair[0];
+      var data = pair[1];
+      var status = data.periods > 18 ? 'Heavy Load' : (data.periods > 12 ? 'Standard Load' : 'Light Load');
+      rows.push([
+        name,
+        data.periods,
+        data.theory,
+        data.labs,
+        Array.from(data.sections).join('; '),
+        status
+      ].map(function (v) { return '"' + String(v || '').replace(/"/g, '""') + '"'; }));
+    });
+    var csv = rows.map(function (r) { return r.join(','); }).join('\n');
+    downloadTTFile(csv, 'EAMS-Faculty-Workload-Summary-' + new Date().toISOString().slice(0, 10) + '.csv', 'text/csv;charset=utf-8');
+    showToast('Faculty workload matrix exported.', 'success');
+  } catch (err) {
+    showToast('Failed to export workload matrix: ' + err.message, 'error');
+  }
+}
+
+async function exportTTRoomsCSV() {
+  try {
+    var all = await ensureAllTTSections();
+    if (!all.length) return showToast('No timetable records found for room allocation matrix.', 'warn');
+    var header = ['Room / Venue', 'Day', 'Period', '12h Time', 'Duration', 'Section', 'Subject', 'Faculty'];
+    var rows = [header];
+    all.slice().sort(function (a, b) {
+      return (a.room || '').localeCompare(b.room || '');
+    }).forEach(function (x) {
+      rows.push([
+        x.room || 'Unassigned',
+        x.day,
+        x.period,
+        spanTimeForPeriod(x.period, x.duration),
+        x.duration || 1,
+        x.section,
+        x.subject,
+        x.teacher
+      ].map(function (v) { return '"' + String(v || '').replace(/"/g, '""') + '"'; }));
+    });
+    var csv = rows.map(function (r) { return r.join(','); }).join('\n');
+    downloadTTFile(csv, 'EAMS-Room-Allocations-' + new Date().toISOString().slice(0, 10) + '.csv', 'text/csv;charset=utf-8');
+    showToast('Room allocations matrix exported.', 'success');
+  } catch (err) {
+    showToast('Failed to export room allocations: ' + err.message, 'error');
+  }
+}
+
+async function exportTTSubjectDistributionCSV() {
+  try {
+    var all = await ensureAllTTSections();
+    if (!all.length) return showToast('No timetable records found for subject distribution.', 'warn');
+
+    var subjectMap = new Map();
+    all.forEach(function (e) {
+      var s = e.subject || 'Unassigned';
+      var dur = Number(e.duration || 1);
+      var isLab = e.type === 'Lab' || s.toLowerCase().includes('lab');
+      if (!subjectMap.has(s)) subjectMap.set(s, { total: 0, theory: 0, lab: 0, teachers: new Set(), sections: new Set() });
+      var r = subjectMap.get(s);
+      r.total += dur;
+      if (isLab) r.lab += dur; else r.theory += dur;
+      if (e.teacher) r.teachers.add(e.teacher);
+      if (e.section) r.sections.add(e.section);
+    });
+
+    var totalHours = Array.from(subjectMap.values()).reduce(function (sum, r) { return sum + r.total; }, 0);
+    var header = ['Course Name', 'Total Hours/Wk', 'Theory Hours', 'Lab Hours', 'Theory %', 'Lab %', 'Schedule Share %', 'Faculty Assigned', 'Sections'];
+    var rows = [header];
+
+    Array.from(subjectMap.entries()).sort(function (a, b) { return b[1].total - a[1].total; }).forEach(function (entry) {
+      var name = entry[0];
+      var r = entry[1];
+      var sharePct = totalHours ? ((r.total / totalHours) * 100).toFixed(1) : '0.0';
+      var tPct = r.total ? Math.round((r.theory / r.total) * 100) : 100;
+      var lPct = 100 - tPct;
+      rows.push([
+        '"' + name.replace(/"/g, '""') + '"',
+        r.total,
+        r.theory,
+        r.lab,
+        tPct + '%',
+        lPct + '%',
+        sharePct + '%',
+        '"' + Array.from(r.teachers).join(', ').replace(/"/g, '""') + '"',
+        '"' + Array.from(r.sections).join(', ').replace(/"/g, '""') + '"'
+      ]);
+    });
+
+    var csv = rows.map(function (r) { return r.join(','); }).join('\n');
+    downloadTTFile(csv, 'EAMS-Subject-Distribution-Report-' + new Date().toISOString().slice(0, 10) + '.csv', 'text/csv;charset=utf-8');
+    showToast('Subject distribution report exported.', 'success');
+  } catch (err) {
+    showToast('Failed to export subject distribution: ' + err.message, 'error');
+  }
+}
+
+async function exportTTRoomUtilizationCSV() {
+  try {
+    var all = await ensureAllTTSections();
+    if (!all.length) return showToast('No timetable records found for room utilization.', 'warn');
+
+    var rooms = (ttState.masterData && ttState.masterData.rooms) ? ttState.masterData.rooms : [];
+    var roomMap = new Map();
+    rooms.forEach(function (r) {
+      var key = r.hallNo || r.name;
+      roomMap.set(key, {
+        name: key,
+        capacity: r.capacity || '—',
+        building: (r.buildingId && r.buildingId.name) ? r.buildingId.name : (r.block || 'Academic Block'),
+        type: r.type || (key.toLowerCase().includes('lab') ? 'Laboratory' : 'Lecture Hall'),
+        hours: 0,
+        sections: new Set()
+      });
+    });
+
+    all.forEach(function (e) {
+      if (!e.room) return;
+      if (!roomMap.has(e.room)) {
+        roomMap.set(e.room, {
+          name: e.room,
+          capacity: '—',
+          building: 'Academic Block',
+          type: e.room.toLowerCase().includes('lab') ? 'Laboratory' : 'Lecture Hall',
+          hours: 0,
+          sections: new Set()
+        });
+      }
+      var r = roomMap.get(e.room);
+      r.hours += Number(e.duration || 1);
+      if (e.section) r.sections.add(e.section);
+    });
+
+    var standardCapacity = 35;
+    var header = ['Room / Hall No', 'Type', 'Building', 'Seating Capacity', 'Weekly Hours Scheduled', 'Utilization % (35h Base)', 'Status', 'Utilizing Sections'];
+    var rows = [header];
+
+    Array.from(roomMap.values()).sort(function (a, b) { return b.hours - a.hours; }).forEach(function (r) {
+      var utilPct = Math.min(100, Math.round((r.hours / standardCapacity) * 100));
+      var status = utilPct > 70 ? 'High Load (>70%)' : (utilPct >= 30 ? 'Optimal (30-70%)' : 'Underutilized (<30%)');
+      rows.push([
+        '"' + r.name.replace(/"/g, '""') + '"',
+        '"' + r.type.replace(/"/g, '""') + '"',
+        '"' + r.building.replace(/"/g, '""') + '"',
+        r.capacity,
+        r.hours,
+        utilPct + '%',
+        status,
+        '"' + Array.from(r.sections).join(', ').replace(/"/g, '""') + '"'
+      ]);
+    });
+
+    var csv = rows.map(function (r) { return r.join(','); }).join('\n');
+    downloadTTFile(csv, 'EAMS-Room-Utilization-Report-' + new Date().toISOString().slice(0, 10) + '.csv', 'text/csv;charset=utf-8');
+    showToast('Room utilization report exported.', 'success');
+  } catch (err) {
+    showToast('Failed to export room utilization: ' + err.message, 'error');
+  }
+}
+
+// Expose handlers to global scope for HTML onclick
+window.exportTTCurrentCSV = exportTTCurrentCSV;
+window.exportTTCurrentExcel = exportTTCurrentExcel;
+window.exportTTCurrentPrint = exportTTCurrentPrint;
+window.exportTTAllSectionsCSV = exportTTAllSectionsCSV;
+window.exportTTJSON = exportTTJSON;
+window.exportTTFacultyCSV = exportTTFacultyCSV;
+window.exportTTWorkloadCSV = exportTTWorkloadCSV;
+window.exportTTRoomsCSV = exportTTRoomsCSV;
+window.exportTTSubjectDistributionCSV = exportTTSubjectDistributionCSV;
+window.exportTTRoomUtilizationCSV = exportTTRoomUtilizationCSV;
+window.initTTExportTab = initTTExportTab;
+

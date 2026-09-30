@@ -18,19 +18,29 @@
       <img src="assets/logo.png" alt="Logo" height=60 class="center-img">
       <span class="lb" id="login-inst-name">EAMS</span>
     </div>
-    <div class="lh">EAMS Login</div>
+    <div class="lh" id="login-heading">EAMS Login</div>
 
     <!-- ROLE SELECTOR — tabs hidden dynamically if blocked by maintenance -->
-    <div class="rtabs" style="gap:8px;" id="rtabs-wrap">
-      <div class="rtab" id="tab-student" onclick="pickRole('student')" style="padding:8px 18px;">
+    <div class="rtabs" style="gap:6px;flex-wrap:wrap;" id="rtabs-wrap">
+      <div class="rtab" id="tab-student" onclick="pickRole('student')" style="padding:7px 14px;">
         Student
       </div>
-      <div class="rtab" id="tab-teacher" onclick="pickRole('teacher')" style="padding:8px 18px;">
+      <div class="rtab" id="tab-teacher" onclick="pickRole('teacher')" style="padding:7px 14px;">
         Teacher
       </div>
-      <div class="rtab sel" id="tab-admin" onclick="pickRole('admin')" style="padding:8px 18px;">
+      <div class="rtab sel" id="tab-admin" onclick="pickRole('admin')" style="padding:7px 14px;">
         Admin
       </div>
+    </div>
+
+    <!-- ADMIN SUB-MODE SELECTOR (Nested under Admin role) -->
+    <div id="admin-sub-toggle" class="admin-sub-wrap">
+      <button type="button" class="admin-sub-btn sel" id="sub-mode-admin" onclick="switchAdminLoginMode('admin')">
+        <span>👤</span> Administrator
+      </button>
+      <button type="button" class="admin-sub-btn" id="sub-mode-board" onclick="switchAdminLoginMode('board')">
+        <span>📺</span> Smart Board Kiosk
+      </button>
     </div>
 
     <!-- Shown when some roles are blocked by maintenance -->
@@ -41,9 +51,9 @@
 
     <div class="le" id="lerr">Invalid credentials. Please try again.</div>
 
-    <div class="lf2"><label>Username</label><input type="text" id="lu" placeholder="Enter username"
+    <div class="lf2"><label id="lbl-u">Username</label><input type="text" id="lu" placeholder="Enter username"
         autocomplete="username" autofocus></div>
-    <div class="lf2"><label>Password</label>
+    <div class="lf2"><label id="lbl-p">Password</label>
       <div class="pw-wrap"><input type="password" id="lp" placeholder="Enter password"
           autocomplete="current-password"><button type="button" class="pw-eye" onclick="togglePw('lp',this)"
           tabindex="-1" title="Show password">👁</button></div>

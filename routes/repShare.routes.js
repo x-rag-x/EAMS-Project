@@ -5,6 +5,7 @@ const mongoose = require('mongoose');
 const M = require('../models');
 const { authMiddleware } = require('../middleware/auth');
 const { verifyTeacherAssignment } = require('../utils/assignmentAuth');
+const { logAction } = require('../utils/logAction');
 
 const isValidObjId = (id) => typeof id === 'string' && mongoose.Types.ObjectId.isValid(id) && id.length === 24;
 
@@ -64,8 +65,11 @@ router.post('/request', authMiddleware, async (req, res) => {
       return res.status(400).json({ error: 'Class, Subject, Date, and Representative are required' });
     }
 
-    // Verify teacher assignment (A3)
-    const assignCheck = await verifyTeacherAssignment(req.user, classId, subjectId);
+    // Verify teacher assignment (A3, permit valid substitute)
+    const assignCheck = await verifyTeacherAssignment(req.user, classId, subjectId, {
+      date,
+      periodNumber
+    });
     if (!assignCheck.allowed) {
       return res.status(403).json({ error: assignCheck.reason });
     }
@@ -128,6 +132,35 @@ router.post('/request', authMiddleware, async (req, res) => {
       });
     } catch (notifErr) {
       console.warn('Failed to send rep notification:', notifErr.message);
+    }
+
+    if (assignCheck && assignCheck.via === 'substitution') {
+      try {
+        await logAction(
+          req.user.trackId || req.user._id,
+          req.user.fullName || req.user.username,
+          req.user.role || 'teacher',
+          'Substitute Rep Share Assigned',
+          `Rep share session assigned via substitution for Class ${classId}, Period ${periodNumber}`,
+          'attendance',
+          'info',
+          req.ip,
+          req.user.sessionId,
+          {
+            module: 'attendance',
+            subType: 'substitute-mark',
+            classId: String(classId),
+            date,
+            periodNumber: Number(periodNumber) || 1,
+            overrideId: assignCheck.overrideId,
+            sessionId: session._id,
+            sessionTrackId: session.sessionTrackId,
+            req
+          }
+        );
+      } catch (logErr) {
+        console.error('[RepShare Substitute Log Error]:', logErr.message);
+      }
     }
 
     return res.status(201).json({

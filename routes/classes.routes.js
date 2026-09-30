@@ -19,7 +19,13 @@ router.get('/', authMiddleware, async (req, res) => {
           : b);
       filter.batch = { $in: [b, altB] };
     }
-    const classes = await M.Class.find(filter).sort({ name: 1 }).lean();
+    const classes = await M.Class.find(filter)
+      .populate({
+        path: 'roomId',
+        populate: { path: 'buildingId' }
+      })
+      .sort({ name: 1 })
+      .lean();
     // Attach studentCount per class via aggregate to avoid client-side full scan
     const classIds = classes.map(function (c) { return c._id; });
     const counts = classIds.length
@@ -37,7 +43,14 @@ router.get('/', authMiddleware, async (req, res) => {
 
 router.post('/', authMiddleware, adminOnly, requireRight('adderModules'), async (req, res) => {
   try {
-    const cls = await M.Class.create(req.body);
+    if (req.body.roomId && !req.body.hallNo) {
+      const rm = await M.Room.findById(req.body.roomId).lean();
+      if (rm) req.body.hallNo = rm.hallNo;
+    }
+    let cls = await M.Class.create(req.body);
+    if (cls.roomId) {
+      cls = await M.Class.findById(cls._id).populate({ path: 'roomId', populate: { path: 'buildingId' } });
+    }
     await logAction(
       req.user.trackId || req.user._id,
       req.user.name,
@@ -62,8 +75,14 @@ router.post('/', authMiddleware, adminOnly, requireRight('adderModules'), async 
 
 router.put('/:id', authMiddleware, adminOnly, async (req, res) => {
   try {
+    if (req.body.roomId && !req.body.hallNo) {
+      const rm = await M.Room.findById(req.body.roomId).lean();
+      if (rm) req.body.hallNo = rm.hallNo;
+    }
     const before = await M.Class.findById(req.params.id).lean();
-    const cls = await M.Class.findByIdAndUpdate(req.params.id, req.body, { returnDocument: 'after' }).lean();
+    const cls = await M.Class.findByIdAndUpdate(req.params.id, req.body, { returnDocument: 'after' })
+      .populate({ path: 'roomId', populate: { path: 'buildingId' } })
+      .lean();
     await logAction(
       req.user.trackId || req.user._id,
       req.user.name,

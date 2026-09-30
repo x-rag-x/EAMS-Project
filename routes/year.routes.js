@@ -45,6 +45,86 @@ router.get('/batch/:batchTrackId', authMiddleware, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// GET /api/year/regulations - Get list of curriculum regulations
+router.get('/regulations', authMiddleware, async (req, res) => {
+  try {
+    const defaultRegs = [
+      { code: '2021', name: 'Regulation 2021', year: '2021', isDefault: false },
+      { code: '2025', name: 'Regulation 2025', year: '2025', isDefault: true }
+    ];
+    const currentYear = await M.Year.findOne({ isCurrent: true }).lean();
+    if (currentYear && Array.isArray(currentYear.regulations) && currentYear.regulations.length > 0) {
+      return res.json(currentYear.regulations);
+    }
+    const anyYear = await M.Year.findOne({ 'regulations.0': { $exists: true } }).lean();
+    if (anyYear && Array.isArray(anyYear.regulations) && anyYear.regulations.length > 0) {
+      return res.json(anyYear.regulations);
+    }
+    res.json(defaultRegs);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// POST /api/year/regulations - Add or update a curriculum regulation
+router.post('/regulations', authMiddleware, adminOnly, async (req, res) => {
+  try {
+    const { code, name, year, isDefault } = req.body;
+    if (!code) return res.status(400).json({ error: 'Regulation code is required (e.g. 2021, 2025)' });
+    const regDoc = {
+      code: String(code).trim(),
+      name: String(name || `Regulation ${code}`).trim(),
+      year: String(year || code).trim(),
+      isDefault: Boolean(isDefault)
+    };
+
+    let targetYear = await M.Year.findOne({ isCurrent: true });
+    if (!targetYear) targetYear = await M.Year.findOne().sort({ createdAt: -1 });
+    if (!targetYear) {
+      targetYear = await M.Year.create({
+        academicYear: '2025-2026',
+        batches: [],
+        regulations: [regDoc],
+        isCurrent: true
+      });
+    } else {
+      if (!Array.isArray(targetYear.regulations)) targetYear.regulations = [];
+      const idx = targetYear.regulations.findIndex(r => r.code === regDoc.code);
+      if (idx >= 0) {
+        targetYear.regulations[idx] = regDoc;
+      } else {
+        targetYear.regulations.push(regDoc);
+      }
+      if (regDoc.isDefault) {
+        targetYear.regulations.forEach(r => { if (r.code !== regDoc.code) r.isDefault = false; });
+      }
+      await targetYear.save();
+    }
+
+    await logAction(
+      req.user.trackId || req.user._id, req.user.name, req.user.role,
+      'Regulation Saved', regDoc.name, 'year', 'info', req.ip, req.user.sessionId
+    );
+    res.json({ ok: true, data: targetYear.regulations });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// DELETE /api/year/regulations/:code - Remove a curriculum regulation
+router.delete('/regulations/:code', authMiddleware, adminOnly, async (req, res) => {
+  try {
+    const code = req.params.code;
+    let targetYear = await M.Year.findOne({ isCurrent: true });
+    if (!targetYear) targetYear = await M.Year.findOne().sort({ createdAt: -1 });
+    if (targetYear && Array.isArray(targetYear.regulations)) {
+      targetYear.regulations = targetYear.regulations.filter(r => r.code !== code);
+      await targetYear.save();
+    }
+    await logAction(
+      req.user.trackId || req.user._id, req.user.name, req.user.role,
+      'Regulation Deleted', code, 'year', 'warning', req.ip, req.user.sessionId
+    );
+    res.json({ ok: true, deleted: code });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 // GET /api/year/:id - Get specific year by ID
 router.get('/:id', authMiddleware, async (req, res) => {
   try {
@@ -57,7 +137,7 @@ router.get('/:id', authMiddleware, async (req, res) => {
 // POST /api/year - Create new academic year
 router.post('/', authMiddleware, adminOnly, async (req, res) => {
   try {
-    const { academicYear, batches, semesterDates, isCurrent } = req.body;
+    const { academicYear, batches, semesterDates, regulations, isCurrent } = req.body;
 
     if (!academicYear || !batches || !Array.isArray(batches) || batches.length === 0) {
       return res.status(400).json({ error: 'academicYear and batches array are required' });
@@ -72,6 +152,7 @@ router.post('/', authMiddleware, adminOnly, async (req, res) => {
     const year = await M.Year.create({
       academicYear,
       batches,
+      regulations: regulations || [],
       semesterDates: semesterDates || [],
       createdBy: req.user.trackId || req.user.name,
       isCurrent: isCurrent || false
@@ -104,7 +185,7 @@ router.post('/', authMiddleware, adminOnly, async (req, res) => {
 // PUT /api/year/:id - Update academic year (including batch progress)
 router.put('/:id', authMiddleware, adminOnly, async (req, res) => {
   try {
-    const { academicYear, batches, semesterDates, isCurrent } = req.body;
+    const { academicYear, batches, semesterDates, regulations, isCurrent } = req.body;
     const existingYear = await M.Year.findById(req.params.id);
     if (!existingYear) return res.status(404).json({ error: 'Academic year not found' });
 
@@ -117,6 +198,10 @@ router.put('/:id', authMiddleware, adminOnly, async (req, res) => {
     if (academicYear && academicYear !== existingYear.academicYear) {
       historyEntries.push({ field: 'academicYear', oldValue: existingYear.academicYear, newValue: academicYear, updatedBy, updatedAt });
       updates.academicYear = academicYear;
+    }
+
+    if (regulations && Array.isArray(regulations)) {
+      updates.regulations = regulations;
     }
 
     if (batches && Array.isArray(batches)) {

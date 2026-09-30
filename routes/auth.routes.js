@@ -32,9 +32,12 @@ function getClientDetails(req) {
   return { ip, userAgent, deviceType, browser, os };
 }
 
+const isDev = cfg.NODE_ENV === 'development' || process.env.NODE_ENV === 'development';
+
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: cfg.NODE_ENV === 'development' ? 100 : 10, // Reasonable floor for dev (100) instead of MAX_SAFE_INTEGER
+  max: 10,
+  skip: () => isDev,
   message: { error: 'Too many login attempts from this IP, please try again after 15 minutes.' },
   standardHeaders: true,
   legacyHeaders: false,
@@ -69,7 +72,16 @@ router.post('/verify-credentials', loginLimiter, async (req, res) => {
     const lockoutMins = security.lockoutDurationMins || 15;
     const isAdmin = role === 'admin' || shadowUser.role === 'admin';
 
-    if (!isAdmin && shadowUser.status === 'locked') {
+    // In development mode, auto-unlock locked accounts to prevent login block
+    if (isDev && shadowUser.status === 'locked') {
+      shadowUser.status = 'active';
+      await Promise.all([
+        M.User.updateOne({ _id: shadowUser._id }, { $set: { status: 'active' } }),
+        M.LoginHistory.updateOne({ trackId: shadowUser.trackId }, { $set: { failedLogins: 0, lockedUntil: null } })
+      ]).catch(() => {});
+    }
+
+    if (!isAdmin && !isDev && shadowUser.status === 'locked') {
       if (loginHistory?.lockedUntil && new Date(loginHistory.lockedUntil) > new Date()) {
         const remainingTimeMs = new Date(loginHistory.lockedUntil) - new Date();
         const remainingTimeMins = Math.ceil(remainingTimeMs / 60000);
@@ -90,7 +102,7 @@ router.post('/verify-credentials', loginLimiter, async (req, res) => {
     const match = await bcrypt.compare(password, userDoc.password);
     if (!match) {
       const newFailed = (loginHistory?.failedLogins || 0) + 1;
-      if (!isAdmin && newFailed >= maxAttempts) {
+      if (!isAdmin && !isDev && newFailed >= maxAttempts) {
         const lockedUntil = new Date(Date.now() + lockoutMins * 60 * 1000);
         await Promise.all([
           M.User.updateOne({ _id: shadowUser._id }, { $set: { status: 'locked' } }),
@@ -106,7 +118,7 @@ router.post('/verify-credentials', loginLimiter, async (req, res) => {
       await Promise.all([
         M.LoginHistory.updateOne(
           { trackId: shadowUser.trackId },
-          { $set: { failedLogins: newFailed, username: cleanUsername, role } },
+          { $set: { failedLogins: isDev ? 0 : newFailed, username: cleanUsername, role } },
           { upsert: true }
         ),
         logAction(shadowUser.trackId || shadowUser._id, shadowUser.username, role, 'Login Failed', 'Wrong password', 'security', 'warning', req.ip, '', { module: 'system', subType: 'auth-fail' })
@@ -252,8 +264,17 @@ router.post('/login', loginLimiter, async (req, res) => {
     const lockoutMins = security.lockoutDurationMins || 15;
     const isAdmin = role === 'admin' || shadowUser.role === 'admin';
 
+    // In development mode, auto-unlock locked accounts to prevent login block
+    if (isDev && shadowUser.status === 'locked') {
+      shadowUser.status = 'active';
+      await Promise.all([
+        M.User.updateOne({ _id: shadowUser._id }, { $set: { status: 'active' } }),
+        M.LoginHistory.updateOne({ trackId: shadowUser.trackId }, { $set: { failedLogins: 0, lockedUntil: null } })
+      ]).catch(() => {});
+    }
+
     // Verify account lockout status and auto-recover expired lockouts
-    if (!isAdmin && shadowUser.status === 'locked') {
+    if (!isAdmin && !isDev && shadowUser.status === 'locked') {
       if (loginHistory?.failedLogins >= 90 || !loginHistory?.lockedUntil || new Date(loginHistory.lockedUntil) <= new Date()) {
         await Promise.all([
           M.User.updateOne({ _id: shadowUser._id }, { $set: { status: 'active' } }),
@@ -317,7 +338,7 @@ router.post('/login', loginLimiter, async (req, res) => {
     const match = await bcrypt.compare(password, userDoc.password);
     if (!match) {
       const newFailed = (loginHistory?.failedLogins || 0) + 1;
-      if (!isAdmin && newFailed >= maxAttempts) {
+      if (!isAdmin && !isDev && newFailed >= maxAttempts) {
         const lockedUntil = new Date(Date.now() + lockoutMins * 60 * 1000);
         await Promise.all([
           M.User.updateOne({ _id: shadowUser._id }, { $set: { status: 'locked' } }),
@@ -333,7 +354,7 @@ router.post('/login', loginLimiter, async (req, res) => {
       await Promise.all([
         M.LoginHistory.updateOne(
           { trackId: shadowUser.trackId },
-          { $set: { failedLogins: newFailed, username: cleanUsername, role } },
+          { $set: { failedLogins: isDev ? 0 : newFailed, username: cleanUsername, role } },
           { upsert: true }
         ),
         logAction(shadowUser.trackId || shadowUser._id, shadowUser.username, role, 'Login Failed', 'Wrong password', 'security', 'warning', req.ip, '', { module: 'system', subType: 'auth-fail' })

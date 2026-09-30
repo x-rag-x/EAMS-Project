@@ -532,7 +532,10 @@ router.post('/update/:id?', attendanceUpdateLimiter, authMiddleware, requireRole
           const teacherTrackId = req.user.trackId || String(req.user._id);
           const isPeriodAuthor = period.teacherTrackId === teacherTrackId;
           if (!isPeriodAuthor) {
-            const assignCheck = await verifyTeacherAssignment(req.user, classAttDoc.classId, period.subjectTrackId);
+            const assignCheck = await verifyTeacherAssignment(req.user, classAttDoc.classId, period.subjectTrackId, {
+              date: classAttDoc.date,
+              periodNumber: period.periodNumber || (pIdx + 1)
+            });
             if (!assignCheck.allowed) {
               return res.status(403).json({ error: 'You are not authorized to edit this attendance period.' });
             }
@@ -586,7 +589,10 @@ router.post('/update/:id?', attendanceUpdateLimiter, authMiddleware, requireRole
             const teacherTrackId = req.user.trackId || String(req.user._id);
             const isPeriodAuthor = p.teacherTrackId === teacherTrackId;
             if (!isPeriodAuthor) {
-              const assignCheck = await verifyTeacherAssignment(req.user, attDoc.classId, p.subjectTrackId);
+              const assignCheck = await verifyTeacherAssignment(req.user, attDoc.classId, p.subjectTrackId, {
+                date: attDoc.date,
+                periodNumber: p.periodNumber || 1
+              });
               if (!assignCheck.allowed) {
                 return res.status(403).json({ error: 'You are not authorized to edit this attendance period.' });
               }
@@ -688,8 +694,11 @@ router.post('/', attendanceMarkLimiter, authMiddleware, requireRole('teacher', '
     const sub = await M.Subject.findOne({ $or: subjectQuery }).lean();
     const targetSubjectTrackId = sub ? (sub.subjectTrackId || sub.subjectCode || String(sub._id)) : subjectIdInput;
 
-    // Verify teacher assignment to this class and subject (skip for admin)
-    const assignCheck = await verifyTeacherAssignment(req.user, targetClassId, targetSubjectTrackId);
+    // Verify teacher assignment to this class and subject (skip for admin, permit valid substitute)
+    const assignCheck = await verifyTeacherAssignment(req.user, targetClassId, targetSubjectTrackId, {
+      date: dateInput,
+      periodNumber: periodNumInput
+    });
     if (!assignCheck.allowed) {
       return res.status(403).json({ error: assignCheck.reason });
     }
@@ -960,6 +969,33 @@ router.post('/', attendanceMarkLimiter, authMiddleware, requireRole('teacher', '
       }
     } catch (attLogErr) {
       console.error('[Class Daily Attendance Log Error]:', attLogErr.message);
+    }
+
+    if (assignCheck && assignCheck.via === 'substitution') {
+      try {
+        await logAction(
+          teacherTrackId,
+          teacherName,
+          req.user.role || 'teacher',
+          'Substitute Attendance Marked',
+          `Attendance marked via substitution for Class ${className} on ${dateStr}, Period ${periodNumInput}`,
+          'attendance',
+          'info',
+          req.ip,
+          teacherSessionId,
+          {
+            module: 'attendance',
+            subType: 'substitute-mark',
+            classId: String(targetClassId),
+            date: dateStr,
+            periodNumber: periodNumInput,
+            overrideId: assignCheck.overrideId,
+            req
+          }
+        );
+      } catch (subLogErr) {
+        console.error('[Substitute Mark Log Error]:', subLogErr.message);
+      }
     }
 
     // Update draft sessions to final saved status if associated

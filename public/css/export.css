@@ -753,6 +753,89 @@ body {
   color: var(--tmu, #5a7a5a);
 }
 
+/* ── TIME TABLE EXPORTS (INSTITUTIONAL EXPORT CENTER) ── */
+.tt-export-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+  gap: 20px;
+  margin-top: 14px;
+}
+
+.tt-export-card {
+  background: #ffffff;
+  border: 1px solid var(--br, rgba(27, 94, 32, 0.14));
+  border-radius: 14px;
+  padding: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  box-shadow: 0 1px 3px rgba(27, 94, 32, 0.04);
+  transition: all 0.2s ease;
+}
+
+.tt-export-card:hover {
+  border-color: var(--gD, #1b5e20);
+  box-shadow: 0 6px 20px rgba(27, 94, 32, 0.08);
+  transform: translateY(-2px);
+}
+
+.tt-export-card-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.tt-export-card-icon {
+  width: 46px;
+  height: 46px;
+  border-radius: 12px;
+  background: var(--gLt, #e8f5e9);
+  color: var(--gD, #1b5e20);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  flex-shrink: 0;
+  border: 1px solid var(--gLr, #a5d6a7);
+}
+
+.tt-export-card-head h3 {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--td, #1a2e1a);
+  margin: 0 0 4px 0;
+}
+
+.tt-export-card-head p {
+  font-size: 12.5px;
+  color: var(--tmu, #5a7a5a);
+  margin: 0;
+}
+
+.tt-export-card-desc {
+  font-size: 13px;
+  color: var(--tmu, #5a7a5a);
+  line-height: 1.5;
+}
+
+.tt-export-card-controls {
+  padding: 2px 0;
+}
+
+.tt-export-card-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: auto;
+  padding-top: 6px;
+}
+
+.tt-export-card-actions button {
+  padding: 8px 16px;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
 /* ── MODALS ────────────────────────────────────────────────────── */
 .modal-bg {
   position: fixed;

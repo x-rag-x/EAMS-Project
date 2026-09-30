@@ -51,6 +51,9 @@
         <button class="sb-item" data-page="bulk" onclick="nav('bulk')">
           <span class="sbi-ic">📦</span>Bulk Export
         </button>
+        <button class="sb-item" data-page="tt" onclick="nav('tt')">
+          <span class="sbi-ic">📅</span>Time Table Exports
+        </button>
 
         <div class="sb-section-label">Automation &amp; Archive</div>
         <button class="sb-item" data-page="scheduled" onclick="nav('scheduled')">
@@ -275,9 +278,6 @@
               <div class="page-title">👨‍🎓 Student Academic Reports</div>
               <div class="page-sub">Individualized attendance summaries, subject rosters, and formal parent documentation.</div>
             </div>
-            <div class="page-actions">
-              <button class="btn-secondary" onclick="nav('dash')">← Dashboard</button>
-            </div>
           </div>
 
           <div class="ec-report-grid">
@@ -339,9 +339,6 @@
             <div>
               <div class="page-title">🏫 Class &amp; Section Registers</div>
               <div class="page-sub">Official section musters, monthly registers, semester consolidations, and defaulters.</div>
-            </div>
-            <div class="page-actions">
-              <button class="btn-secondary" onclick="nav('dash')">← Dashboard</button>
             </div>
           </div>
 
@@ -417,9 +414,6 @@
               <div class="page-title">📚 Subject &amp; Curriculum Reports</div>
               <div class="page-sub">Curriculum hour tracking, session logs, student subject performance, and trends.</div>
             </div>
-            <div class="page-actions">
-              <button class="btn-secondary" onclick="nav('dash')">← Dashboard</button>
-            </div>
           </div>
 
           <div class="ec-report-grid">
@@ -469,9 +463,6 @@
             <div>
               <div class="page-title">👨‍🏫 Faculty &amp; Teaching Hours Reports</div>
               <div class="page-sub">Faculty teaching workload, sessions conducted, and attendance marking compliance.</div>
-            </div>
-            <div class="page-actions">
-              <button class="btn-secondary" onclick="nav('dash')">← Dashboard</button>
             </div>
           </div>
 
@@ -523,9 +514,6 @@
               <div class="page-title">🏢 Department Academic Reports</div>
               <div class="page-sub">Department-wide attendance aggregates, inter-class comparisons, and syllabus audit dossiers.</div>
             </div>
-            <div class="page-actions">
-              <button class="btn-secondary" onclick="nav('dash')">← Dashboard</button>
-            </div>
           </div>
 
           <div class="ec-report-grid">
@@ -576,9 +564,6 @@
               <div class="page-title">📦 Institutional Bulk Packs</div>
               <div class="page-sub">Batch archive packages, bulk parent letters, and comprehensive accreditation packs.</div>
             </div>
-            <div class="page-actions">
-              <button class="btn-secondary" onclick="nav('dash')">← Dashboard</button>
-            </div>
           </div>
 
           <div class="ec-report-grid">
@@ -621,6 +606,135 @@
         </div>
 
         <!-- ═══════════════════════════════════════════════════════════════ -->
+        <!-- 7B. TIME TABLE EXPORTS (INSTITUTIONAL EXPORT CENTER)            -->
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+        <div class="pg" id="pg-tt">
+          <div class="page-hd">
+            <div>
+              <div class="page-title">📅 Time Table Exports</div>
+              <div class="page-sub">Institutional Export Center — Download certified academic schedules in CSV, Excel, and PDF formats.</div>
+            </div>
+            <div class="page-actions">
+              <button class="btn-secondary" onclick="window.location.href='timetable.html'">← Back to Timetable</button>
+              <button class="btn-pri" onclick="exportTTAllSectionsCSV()">🗂 Export All (CSV)</button>
+            </div>
+          </div>
+
+          <div class="tt-export-grid">
+            <!-- CARD 1: Section Timetable Export -->
+            <div class="tt-export-card">
+              <div class="tt-export-card-head">
+                <div class="tt-export-card-icon">▦</div>
+                <div>
+                  <h3>Class / Section Timetable</h3>
+                  <p id="tt-sec-desc">Weekly schedule for selected section (<span id="tt-sec-slots-count">0</span> slots)</p>
+                </div>
+              </div>
+              <div class="tt-export-card-controls">
+                <label style="font-size:11.5px;font-weight:700;color:var(--td);text-transform:uppercase;margin-bottom:6px;display:block;">Select Class / Section</label>
+                <select id="tt-export-sec-select" class="select" style="width:100%;height:38px;padding:0 12px;border-radius:9px;border:1.5px solid var(--br);font-size:13px;background:#fff;">
+                  <option value="">Loading sections…</option>
+                </select>
+              </div>
+              <div class="tt-export-card-actions">
+                <button type="button" class="btn-pri" onclick="exportTTCurrentCSV()">📄 Download CSV</button>
+                <button type="button" class="btn-secondary" onclick="exportTTCurrentExcel()">📊 Download Excel (.xlsx)</button>
+                <button type="button" class="btn-secondary" onclick="exportTTCurrentPrint()">⎙ Print / PDF</button>
+              </div>
+            </div>
+
+            <!-- CARD 2: Department Master Schedule -->
+            <div class="tt-export-card">
+              <div class="tt-export-card-head">
+                <div class="tt-export-card-icon">🗂</div>
+                <div>
+                  <h3>Department Master Schedule</h3>
+                  <p id="tt-dept-desc">Consolidated schedule across all department sections</p>
+                </div>
+              </div>
+              <div class="tt-export-card-desc">
+                Single-file tabular workbook containing master timetable slots across all registered department classes.
+              </div>
+              <div class="tt-export-card-actions">
+                <button type="button" class="btn-pri" onclick="exportTTAllSectionsCSV()">🗂 Export All Sections (CSV)</button>
+                <button type="button" class="btn-secondary" onclick="exportTTJSON()">⚙ Raw JSON Dump</button>
+              </div>
+            </div>
+
+            <!-- CARD 3: Faculty Schedule & Workload -->
+            <div class="tt-export-card">
+              <div class="tt-export-card-head">
+                <div class="tt-export-card-icon">♙</div>
+                <div>
+                  <h3>Faculty Schedule &amp; Workload</h3>
+                  <p>Master breakdown of assigned teaching hours and instructor class commitments</p>
+                </div>
+              </div>
+              <div class="tt-export-card-desc">
+                Teaching allocation report with total hours, assigned classrooms, and cross-section theory/lab load per teacher.
+              </div>
+              <div class="tt-export-card-actions">
+                <button type="button" class="btn-pri" onclick="exportTTFacultyCSV()">♙ Export Faculty Schedules (CSV)</button>
+                <button type="button" class="btn-secondary" onclick="exportTTWorkloadCSV()">◒ Faculty Workload Matrix (CSV)</button>
+              </div>
+            </div>
+
+            <!-- CARD 4: Room Booking Matrix -->
+            <div class="tt-export-card">
+              <div class="tt-export-card-head">
+                <div class="tt-export-card-icon">⌗</div>
+                <div>
+                  <h3>Room Booking Matrix</h3>
+                  <p>Classroom, lecture hall, and laboratory period occupancy grids</p>
+                </div>
+              </div>
+              <div class="tt-export-card-desc">
+                Venue booking matrix showing which periods each hall or laboratory is reserved throughout the academic week.
+              </div>
+              <div class="tt-export-card-actions">
+                <button type="button" class="btn-pri" onclick="exportTTRoomsCSV()">⌗ Export Room Matrix (CSV)</button>
+                <button type="button" class="btn-secondary" onclick="window.location.href='rooms.html'">⌂ View Rooms Workspace</button>
+              </div>
+            </div>
+
+            <!-- CARD 5: Subject Distribution & Ratio Report -->
+            <div class="tt-export-card">
+              <div class="tt-export-card-head">
+                <div class="tt-export-card-icon" style="background:#fce7f3;color:#be185d;border-color:#fbcfe8;">📚</div>
+                <div>
+                  <h3>Subject Distribution &amp; Ratio Report</h3>
+                  <p>Curriculum balance, lab-theory ratios &amp; weekly contact shares</p>
+                </div>
+              </div>
+              <div class="tt-export-card-desc">
+                Detailed curriculum distribution analysis showing weekly theory vs practical contact hours, core subject weights, and lecture share percentages across all classes.
+              </div>
+              <div class="tt-export-card-actions">
+                <button type="button" class="btn-pri" onclick="exportTTSubjectDistributionCSV()">📚 Export Subject Report (CSV)</button>
+              </div>
+            </div>
+
+            <!-- CARD 6: Room Utilization & Facility Audit Report -->
+            <div class="tt-export-card">
+              <div class="tt-export-card-head">
+                <div class="tt-export-card-icon" style="background:#fef3c7;color:#b45309;border-color:#fde68a;">🏢</div>
+                <div>
+                  <h3>Room Utilization &amp; Facility Audit</h3>
+                  <p>Campus occupancy rates, capacity metrics &amp; weekly hours audit</p>
+                </div>
+              </div>
+              <div class="tt-export-card-desc">
+                Audited campus-wide classroom and lab occupancy percentages, seat capacities, and weekly reserved hours to identify underutilized facilities.
+              </div>
+              <div class="tt-export-card-actions">
+                <button type="button" class="btn-pri" onclick="exportTTRoomUtilizationCSV()">🏢 Export Utilization (CSV)</button>
+                <button type="button" class="btn-secondary" onclick="window.location.href='rooms.html'">🏛️ Campus Facilities</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ═══════════════════════════════════════════════════════════════ -->
         <!-- 8. SCHEDULED REPORTS PAGE                                       -->
         <!-- ═══════════════════════════════════════════════════════════════ -->
         <div class="pg" id="pg-scheduled">
@@ -628,9 +742,6 @@
             <div>
               <div class="page-title">📅 Scheduled Recurring Reports</div>
               <div class="page-sub">Automated cron job reporting, recurring weekly digests, and term backup schedules.</div>
-            </div>
-            <div class="page-actions">
-              <button class="btn-secondary" onclick="nav('dash')">← Dashboard</button>
             </div>
           </div>
 
@@ -682,9 +793,6 @@
               <div class="page-title">⭐ Saved Custom Templates</div>
               <div class="page-sub">Quickly load or manage your personal saved configuration presets.</div>
             </div>
-            <div class="page-actions">
-              <button class="btn-secondary" onclick="nav('dash')">← Dashboard</button>
-            </div>
           </div>
 
           <div class="ec-templates-list" id="templates-list">
@@ -706,7 +814,6 @@
               <div class="page-sub">Complete audit log of all generated documents and instant re-downloads.</div>
             </div>
             <div class="page-actions">
-              <button class="btn-secondary" onclick="nav('dash')">← Dashboard</button>
               <button class="btn-secondary" onclick="loadHistory(1)">↺ Refresh Log</button>
             </div>
           </div>

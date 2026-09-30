@@ -45,6 +45,7 @@ const DEFAULT_SETTINGS_MAP = {
       requirePeriodRemark:       false,
       autoLockAttendanceHours:   24,
       defaultAttendanceStatus:   'Present',
+      timetableMatch:            'warn',
     }
   },
 
@@ -62,6 +63,7 @@ const DEFAULT_SETTINGS_MAP = {
       modelAddStudent:       true,
       modelExportSheet:      true,
       moduleDelUseAdminPass: true,
+      requireHodApproval:    true,
     }
   },
 

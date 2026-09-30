@@ -1998,10 +1998,11 @@ function _renderClassGrid(classes) {
     ? classes.map(function (cls) {
       var studentCount = cls.studentCount || 0;
       var assignmentCount = DB.get('assignments').filter(function (a) { return a.classId === cls._id; }).length;
+      var hallDisplay = (cls.roomId && cls.roomId.hallNo) || cls.hallNo || '—';
       return '<div class="ec" onclick="openCD(\'' + cls._id + '\')">'
         + '<div class="ech"><div class="eci" style="background:var(--gLt)">🏫</div>'
         + '<div><div class="ecn">' + cls.name + '</div>'
-        + '<div class="ecsu">Hall: ' + (cls.hallNo || '—') + ' · Sec ' + (cls.section || '—') + ' · ' + cls.deptName + '</div></div></div>'
+        + '<div class="ecsu">Hall: ' + hallDisplay + ' · Sec ' + (cls.section || '—') + ' · ' + cls.deptName + '</div></div></div>'
         + '<div class="ecb"><div class="emt">' + studentCount + ' students · ' + assignmentCount + ' subjects</div></div>'
         + '</div>';
     }).join('')
@@ -2037,7 +2038,7 @@ function _renderClassTable(classes) {
         + '<td>' + (cls.section || '—') + '</td>'
         + '<td>' + (cls.year || '—') + '</td>'
         + '<td>' + (cls.sem || '—') + '</td>'
-        + '<td>' + (cls.hallNo || '—') + '</td>'
+        + '<td>' + ((cls.roomId && cls.roomId.hallNo) || cls.hallNo || '—') + '</td>'
         + '<td>' + (cls.studentCount || 0) + '</td>'
         + '<td>' + assignmentCount + '</td>'
         + '</tr>';
@@ -2198,8 +2199,9 @@ function openCD(classId) {
   if (!cls) return;
   currentClassId = classId;
 
+  var displayHall = (cls.roomId && cls.roomId.hallNo) || cls.hallNo || '—';
   document.getElementById('cd-ttl').textContent = cls.name + ' — ' + cls.deptName;
-  document.getElementById('cd-sub').textContent = 'Year: ' + cls.year + ' | Sem: ' + cls.sem + ' | Section: ' + cls.section + ' | Hall: ' + (cls.hallNo || '—');
+  document.getElementById('cd-sub').textContent = 'Year: ' + cls.year + ' | Sem: ' + cls.sem + ' | Section: ' + cls.section + ' | Hall: ' + displayHall;
 
   var classAssignments = DB.get('assignments').filter(function (a) { return a.classId === classId; });
 
@@ -2241,20 +2243,25 @@ function openCD(classId) {
     + '<div style="font-size:24px;font-weight:800;color:var(--td)">' + classAssignments.length + '</div>'
     + '<div style="font-size:10px;color:var(--tdi);margin-top:3px;text-transform:uppercase;">Subjects</div></div>'
     + '<div style="background:var(--gP);border-radius:11px;padding:14px;text-align:center;">'
-    + '<div style="font-size:24px;font-weight:800;color:var(--teal)">' + (cls.hallNo || '—') + '</div>'
-    + '<div style="font-size:10px;color:var(--tdi);margin-top:3px;text-transform:uppercase;">Hall No.</div></div>';
+    + '<div style="font-size:24px;font-weight:800;color:var(--teal)">' + displayHall + '</div>'
+    + '<div style="font-size:10px;color:var(--tdi);margin-top:3px;text-transform:uppercase;">Room / Hall</div></div>';
 
-  document.getElementById('cd-asgn').innerHTML = classAssignments.length
-    ? classAssignments.map(function (a) {
-      return '<div class="arow">'
-        + '<div class="ainfo">'
-        + '<div class="anm">📚 ' + a.subjectName + '</div>'
-        + '<div class="acls">👩‍🏫 ' + (a.teacherName || 'Unassigned') + '</div>'
-        + '</div>'
-        + '<button class="btn bdan bxs" onclick="rmAsgn(\'' + a._id + '\',\'class\')">✖</button>'
-        + '</div>';
-    }).join('')
-    : '<div style="text-align:center;padding:18px;color:var(--tdi);font-size:12px;">No subjects assigned. Click "+ Assign Subject".</div>';
+  _populateClassRoomBoardSection(cls);
+
+  var cdAsgnEl = document.getElementById('cd-asgn');
+  if (cdAsgnEl) {
+    cdAsgnEl.innerHTML = classAssignments.length
+      ? classAssignments.map(function (a) {
+        return '<div class="arow">'
+          + '<div class="ainfo">'
+          + '<div class="anm">📚 ' + a.subjectName + '</div>'
+          + '<div class="acls">👩‍🏫 ' + (a.teacherName || 'Unassigned') + '</div>'
+          + '</div>'
+          + '<button class="btn bdan bxs" onclick="rmAsgn(\'' + a._id + '\',\'class\')">✖</button>'
+          + '</div>';
+      }).join('')
+      : '<div style="text-align:center;padding:18px;color:var(--tdi);font-size:12px;">No subjects assigned. Click "+ Assign Subject".</div>';
+  }
 
   document.getElementById('cd-sc').textContent = cls.studentCount || '—';
   // Show loading state while fetching roster
@@ -2294,13 +2301,90 @@ function openCD(classId) {
     });
 }
 
+var _currentClassRoom = null;
+
+function _populateClassRoomBoardSection(cls) {
+  var titleEl = document.getElementById('cd-room-board-title');
+  var subEl = document.getElementById('cd-room-board-sub');
+  var btnEl = document.getElementById('cd-room-board-btn');
+  if (!titleEl || !subEl) return;
+
+  var rm = (cls.roomId && typeof cls.roomId === 'object') ? cls.roomId : null;
+  if (!rm && cls.roomId && _facilityRooms.length) {
+    rm = _facilityRooms.find(function (r) { return String(r._id) === String(cls.roomId); });
+  }
+  if (!rm && cls.hallNo && _facilityRooms.length) {
+    rm = _facilityRooms.find(function (r) {
+      return (r.hallNo && r.hallNo.toLowerCase() === cls.hallNo.toLowerCase()) ||
+             (r.name && r.name.toLowerCase() === cls.hallNo.toLowerCase());
+    });
+  }
+
+  _currentClassRoom = rm;
+
+  if (rm) {
+    var bldg = rm.buildingId;
+    var bldgName = (bldg && typeof bldg === 'object') ? (bldg.name || bldg.code) : (rm.buildingName || 'Facility');
+    var floorTxt = (rm.floor !== undefined && rm.floor !== null) ? ('Floor ' + rm.floor) : '';
+    titleEl.textContent = (rm.hallNo || rm.name) + ' — ' + bldgName + (floorTxt ? ' (' + floorTxt + ')' : '');
+
+    var isLab = (rm.type === 'Lab' || rm.type === 'Laboratory' || (rm.category && rm.category.toLowerCase().includes('lab')));
+    var subParts = [];
+    subParts.push(rm.type || 'Classroom');
+    if (rm.capacity) subParts.push(rm.capacity + ' seats');
+    if (isLab) {
+      subParts.push('🧪 Laboratory (No Board Required)');
+    } else if (rm.board) {
+      var bInfo = typeof rm.board === 'object' ? (rm.board.boardId || 'Board Online') : 'Board Linked';
+      subParts.push('📺 ' + bInfo);
+    } else {
+      subParts.push('📺 No Board Linked');
+    }
+    subEl.textContent = subParts.join(' • ');
+    if (btnEl) btnEl.textContent = 'Open in Facilities Hub →';
+  } else if (cls.hallNo) {
+    titleEl.textContent = 'Hall: ' + cls.hallNo;
+    subEl.textContent = 'Unmapped in Facilities Hub • Click below to map facility';
+    if (btnEl) btnEl.textContent = 'Assign in Facilities Hub →';
+  } else {
+    titleEl.textContent = 'No Room Assigned';
+    subEl.textContent = 'Connect this class to a campus hall and smart board';
+    if (btnEl) btnEl.textContent = 'Assign Room in Facilities Hub →';
+  }
+}
+
+function openRoomBoardFromClass() {
+  if (_currentClassRoom) {
+    var bId = '';
+    if (_currentClassRoom.buildingId && typeof _currentClassRoom.buildingId === 'object') {
+      bId = _currentClassRoom.buildingId._id || '';
+    } else if (_currentClassRoom.buildingId) {
+      bId = _currentClassRoom.buildingId;
+    }
+    var fl = (_currentClassRoom.floor !== undefined && _currentClassRoom.floor !== null) ? _currentClassRoom.floor : '';
+    var uId = _currentClassRoom._id || '';
+    var params = [];
+    if (bId) params.push('blockId=' + encodeURIComponent(bId));
+    if (fl !== '') params.push('floorNum=' + encodeURIComponent(fl));
+    if (uId) params.push('unitId=' + encodeURIComponent(uId));
+    var url = 'rooms.html' + (params.length ? '?' + params.join('&') : '');
+    window.location.href = url;
+  } else {
+    window.location.href = 'rooms.html';
+  }
+}
+
 function editClsInline() {
   if (!currentClassId) return;
   var cls = DB.get('classes').find(function (c) { return c._id === currentClassId; });
   if (!cls) return;
   document.getElementById('ec-dept').value = cls.deptId || '';
   document.getElementById('ec-sec').value = cls.section || '';
-  document.getElementById('ec-hall').value = cls.hallNo || '';
+  _populateFacilityRoomDropdowns();
+  var targetRoomId = (cls.roomId && typeof cls.roomId === 'object') ? cls.roomId._id : (cls.roomId || '');
+  var ecRoomEl = document.getElementById('ec-room');
+  if (ecRoomEl) ecRoomEl.value = targetRoomId;
+  document.getElementById('ec-hall').value = (cls.roomId && cls.roomId.hallNo) || cls.hallNo || '';
   document.getElementById('ec-yr').value = cls.year || '';
   document.getElementById('ec-sem').value = cls.sem || '';
   document.getElementById('ec-batch').value = cls.batch || '';
@@ -2321,19 +2405,34 @@ function ecAutoName() {
     document.getElementById('ec-nm').value = cls.batch + '-' + dept.code + '-' + section;
 }
 
+function ecOnRoomChange() {
+  var sel = document.getElementById('ec-room');
+  var hallInput = document.getElementById('ec-hall');
+  if (!sel || !hallInput) return;
+  var opt = sel.options[sel.selectedIndex];
+  hallInput.value = (opt && opt.getAttribute('data-hall')) || (opt && opt.value ? opt.text : '');
+}
+
 function saveEditCls() {
   if (!currentClassId) return;
   var cls = DB.get('classes').find(function (c) { return c._id === currentClassId; });
   var deptName = getFieldValue('ec-dept') || '';
   var section = getFieldValue('ec-sec') || '';
+  var roomId = getFieldValue('ec-room') || null;
   var hallNo = getFieldValue('ec-hall');
+  if (roomId && !hallNo) {
+    var sel = document.getElementById('ec-room');
+    if (sel && sel.selectedIndex >= 0) {
+      hallNo = sel.options[sel.selectedIndex].getAttribute('data-hall') || '';
+    }
+  }
   var year = getFieldValue('ec-yr');
   var sem = getFieldValue('ec-sem');
   var batch = getFieldValue('ec-batch');
   var dept = DB.get('depts').find(function (d) { return d && cls && d._id === cls.deptId; });
   var name = dept ? (batch + '-' + dept.code + '-' + section) : getFieldValue('ec-nm');
   dbToast('Saving changes...', 'saving');
-  apiUpdateClass(currentClassId, { section: section, hallNo: hallNo, name: name, year: year, sem: sem, batch: batch, deptName: deptName }).then(function (d) {
+  apiUpdateClass(currentClassId, { section: section, roomId: roomId, hallNo: hallNo, name: name, year: year, sem: sem, batch: batch, deptName: deptName }).then(function (d) {
     if (!d) return;
     addLog('Class Updated', '"' + name + '"');
     closeModalBg('m-edit-cls');
@@ -2540,6 +2639,7 @@ function editSubjInline() {
   document.getElementById('es-cd').value = subj.code || '';
   document.getElementById('es-cr').value = subj.credits || 3;
   document.getElementById('es-tp').value = subj.type || 'Theory';
+  if (document.getElementById('es-reg')) document.getElementById('es-reg').value = subj.regulation || '2025';
   closeModalBg('m-subj-detail');
   openModal_('m-edit-subj');
 }
@@ -2551,8 +2651,9 @@ function saveEditSubj() {
   var code = getFieldValue('es-cd');
   var credits = parseInt(getFieldValue('es-cr')) || 3;
   var type = getFieldValue('es-tp') || 'Theory';
+  var regulation = getFieldValue('es-reg') || '2025';
   if (!name || !code) { showToast('Name and code required', 'warn'); return; }
-  apiUpdateSubject(currentSubjectId, { name: name, shortName: shortName, code: code, credits: credits, type: type }).then(function (d) {
+  apiUpdateSubject(currentSubjectId, { name: name, shortName: shortName, code: code, credits: credits, type: type, regulation: regulation }).then(function (d) {
     if (!d) return;
     addLog('Subject Updated', '"' + name + '"');
     closeModalBg('m-edit-subj');
@@ -2600,9 +2701,12 @@ function ncAutoName() {
 function openAddClassModal() {
   // Ensure dropdowns are populated with latest DB data
   populateAdminDropdowns();
+  _populateFacilityRoomDropdowns();
 
   // Reset fields
   document.getElementById('nc-sec').value = '';
+  var ncRoomEl = document.getElementById('nc-room');
+  if (ncRoomEl) ncRoomEl.value = '';
   document.getElementById('nc-hall').value = '';
   document.getElementById('nc-name').value = '';
   var warnEl = document.getElementById('nc-warn');
@@ -2625,28 +2729,46 @@ function openAddClassModal() {
 function ncValidate() { ncAutoName(); }
 function ncdc() { ncAutoName(); }
 
+function ncOnRoomChange() {
+  var sel = document.getElementById('nc-room');
+  var hallInput = document.getElementById('nc-hall');
+  if (!sel || !hallInput) return;
+  var opt = sel.options[sel.selectedIndex];
+  hallInput.value = (opt && opt.getAttribute('data-hall')) || (opt && opt.value ? opt.text : '');
+  ncAutoName();
+}
+
 function addCls() {
   var deptId = getFieldValue('nc-dept');
   var year = getFieldValue('nc-yr');
   var sem = getFieldValue('nc-sem');
   var batch = getFieldValue('nc-batch');
   var section = (document.getElementById('nc-sec').value || '').trim() || '';
+  var roomId = getFieldValue('nc-room') || null;
   var hallNo = getFieldValue('nc-hall');
+  if (roomId && !hallNo) {
+    var sel = document.getElementById('nc-room');
+    if (sel && sel.selectedIndex >= 0) {
+      hallNo = sel.options[sel.selectedIndex].getAttribute('data-hall') || '';
+    }
+  }
   if (!deptId) { showToast('Select a department', 'warn'); return; }
   if (!batch) { showToast('Select a batch', 'warn'); return; }
   if (!section) { showToast('Enter a section', 'warn'); return; }
-  if (!hallNo) { showToast('Enter a hall number', 'warn'); return; }
+  if (!roomId && !hallNo) { showToast('Select an assigned room / hall', 'warn'); return; }
   var dept = DB.get('depts').find(function (d) { return d._id === deptId; });
   var className = getFieldValue('nc-name');
   // Final duplicate check
   if (DB.get('classes').find(function (cls) { return cls.name.toLowerCase() === className.toLowerCase(); })) {
     showToast('Class "' + className + '" already exists!', 'warn'); return;
   }
-  apiAddClass({ deptId: deptId, deptName: dept.name, deptCode: dept.code, year: year, sem: sem, section: section, hallNo: hallNo, name: className, batch: batch })
+  apiAddClass({ deptId: deptId, deptName: dept.name, deptCode: dept.code, year: year, sem: sem, section: section, roomId: roomId, hallNo: hallNo, name: className, batch: batch })
     .then(function (d) {
       if (!d) return;
       closeModalBg('m-add-class-quick');
       document.getElementById('nc-sec').value = '';
+      var ncRoom = document.getElementById('nc-room');
+      if (ncRoom) ncRoom.value = '';
       document.getElementById('nc-hall').value = '';
       document.getElementById('nc-name').value = '';
       document.getElementById('nc-warn').style.display = 'none';
@@ -2748,13 +2870,14 @@ function addSubCtx() {
   var credits = parseInt(getFieldValue('ns-cr')) || 3;
   var type = getFieldValue('ns-tp') || 'Theory';
   var shortCode = getFieldValue('ns-ssc');
+  var regulation = getFieldValue('ns-reg') || '2025';
   var subjectName = shortCode + '-' + type + ' ' + code;
   var subjectCode = getFieldValue('ns-sc');
   if (!name || !code) { showToast('Name and code required', 'warn'); return; }
   if (!structureContext.deptId) { showToast('Please select a department first by exploring structure', 'warn'); return; }
   var dept = DB.get('depts').find(function (d) { return d._id === structureContext.deptId; });
   if (DB.get('subjects').find(function (s) { return s.subjectCode === subjectCode; })) { showToast('Subject code already exists', 'warn'); return; }
-  apiAddSubject({ name: name, shortName: shortCode, code: code, credits: credits, type: type, deptId: structureContext.deptId, deptName: dept.name, deptCode: dept.code, subjectCode: subjectCode })
+  apiAddSubject({ name: name, shortName: shortCode, code: code, credits: credits, type: type, deptId: structureContext.deptId, deptName: dept.name, deptCode: dept.code, subjectCode: subjectCode, regulation: regulation })
     .then(function (newSubject) {
       if (!newSubject || newSubject.error) return;
 
@@ -2814,7 +2937,7 @@ function _buildSaClassOptions(selectedId) {
   var classes = DB.get('classes') || [];
   return '<option value="">\u2014 Select Section \u2014</option>'
     + classes.map(function (c) {
-      var hall = c.hallNo || '';
+      var hall = (c.roomId && c.roomId.hallNo) || c.hallNo || '';
       var deptName = c.deptCode || c.deptName || '';
       var label = c.name + (deptName ? ' — ' + deptName : '');
       return '<option value="' + c._id + '" data-hall="' + hall + '" data-dept="' + (c.deptId || '') + '"'
@@ -2879,8 +3002,8 @@ function addAssignRow(classId, teacherId, hallNo) {
     + '</td>';
   tbody.appendChild(tr);
   // Auto-fill hall from class default when no hallNo supplied
-  if (!hallNo && classId && cls && cls.hallNo) {
-    tr.querySelector('.sa-hall').value = cls.hallNo;
+  if (!hallNo && classId && cls && (cls.roomId || cls.hallNo)) {
+    tr.querySelector('.sa-hall').value = (cls.roomId && cls.roomId.hallNo) || cls.hallNo || '';
   }
 }
 
@@ -4914,8 +5037,61 @@ function populateAdminDropdowns() {
     if (el) el.innerHTML = '<option value="">— Select —</option>'
       + depts.map(function (d) { return '<option value="' + d._id + '">' + d.name + '</option>'; }).join('');
   });
+
+  _loadFacilityRooms();
 }
 var padm = populateAdminDropdowns;
+
+// ── Facility Room Dropdowns for Class Assignment ─────────────────────────
+var _facilityRooms = [];
+
+function _loadFacilityRooms() {
+  return apiCall('GET', '/timetable/rooms').then(function (rooms) {
+    _facilityRooms = Array.isArray(rooms) ? rooms : [];
+    _populateFacilityRoomDropdowns();
+    return _facilityRooms;
+  }).catch(function (err) {
+    console.warn('[EAMS] Failed to fetch facility rooms for admin dropdowns:', err);
+    return [];
+  });
+}
+
+function _populateFacilityRoomDropdowns() {
+  var ncSel = document.getElementById('nc-room');
+  var ecSel = document.getElementById('ec-room');
+  if (!ncSel && !ecSel) return;
+
+  var currentNcVal = ncSel ? ncSel.value : '';
+  var currentEcVal = ecSel ? ecSel.value : '';
+
+  var optsHtml = '<option value="">— Select Room / Hall —</option>';
+  if (_facilityRooms.length) {
+    var sorted = _facilityRooms.slice().sort(function (a, b) {
+      var bA = (a.buildingName || '').localeCompare(b.buildingName || '');
+      if (bA !== 0) return bA;
+      var fA = (a.floor || 0) - (b.floor || 0);
+      if (fA !== 0) return fA;
+      return (a.hallNo || a.name || '').localeCompare(b.hallNo || b.name || '');
+    });
+
+    optsHtml += sorted.map(function (r) {
+      var bldg = (r.buildingName || (r.buildingId && r.buildingId.name) || 'Building');
+      var fl = (r.floor !== undefined && r.floor !== null) ? ('Fl ' + r.floor) : '';
+      var label = (r.hallNo || r.name) + ' (' + bldg + (fl ? ', ' + fl : '') + ' • ' + (r.type || 'Room') + ')';
+      var hallAttr = escapeHtml(r.hallNo || r.name || '');
+      return '<option value="' + r._id + '" data-hall="' + hallAttr + '">' + escapeHtml(label) + '</option>';
+    }).join('');
+  }
+
+  if (ncSel) {
+    ncSel.innerHTML = optsHtml;
+    if (currentNcVal) ncSel.value = currentNcVal;
+  }
+  if (ecSel) {
+    ecSel.innerHTML = optsHtml;
+    if (currentEcVal) ecSel.value = currentEcVal;
+  }
+}
 
 // ─── MODAL HELPERS ───────────────────────────────────────────────────────────
 function openModal_(id) { var el = document.getElementById(id); if (el) { el.style.display = 'flex'; el.classList.add('open'); } }

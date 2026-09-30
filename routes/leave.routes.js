@@ -6,6 +6,13 @@ const { authMiddleware } = require('../middleware/auth');
 const { logAction } = require('../utils/logAction');
 const { sanitizeToString } = require('../utils/sanitizeQuery');
 const { checkModuleGuard } = require('../middleware/portalGuard');
+const {
+  getTeacherIdentity,
+  resolveTeacherRange,
+  getTimingSets,
+  sessionOfPeriod,
+  buildOverrideSlot
+} = require('../utils/teacherSchedule');
 
 // Helper to generate date array [YYYY-MM-DD, ...]
 function getDatesInRange(startDateStr, endDateStr) {
@@ -633,6 +640,20 @@ router.get('/affected-slots', authMiddleware, async (req, res) => {
 
     const fromDate = sanitizeToString(req.query.fromDate);
     const toDate = sanitizeToString(req.query.toDate) || fromDate;
+    if (!fromDate || !/^\d{4}-\d{2}-\d{2}$/.test(fromDate) || !/^\d{4}-\d{2}-\d{2}$/.test(toDate)) {
+      return res.status(400).json({ error: 'Valid fromDate and toDate (YYYY-MM-DD) are required' });
+    }
+
+    const dFrom = new Date(fromDate + 'T00:00:00.000Z');
+    const dTo = new Date(toDate + 'T00:00:00.000Z');
+    if (isNaN(dFrom.getTime()) || isNaN(dTo.getTime()) || dTo < dFrom) {
+      return res.status(400).json({ error: 'toDate cannot be before fromDate' });
+    }
+    const diffDays = Math.round((dTo - dFrom) / (24 * 60 * 60 * 1000)) + 1;
+    if (diffDays > 14) {
+      return res.status(400).json({ error: 'Date range cannot exceed 14 days' });
+    }
+
     const slotType = sanitizeToString(req.query.slot) || 'Full Day';
     let targetPeriods = [];
     if (req.query.periods) {
@@ -640,100 +661,71 @@ router.get('/affected-slots', authMiddleware, async (req, res) => {
         ? req.query.periods.map(Number) 
         : String(req.query.periods).split(',').map(Number);
     }
-    if (slotType === 'FN' && targetPeriods.length === 0) targetPeriods = [1, 2, 3, 4];
-    if (slotType === 'AN' && targetPeriods.length === 0) targetPeriods = [5, 6, 7, 8, 9];
 
     let teacherTrackId = req.user.trackId;
     if (req.user.role === 'admin' && req.query.teacherTrackId) {
       teacherTrackId = sanitizeToString(req.query.teacherTrackId);
     }
-    if (!teacherTrackId) {
-      return res.status(400).json({ error: 'Teacher trackId required' });
+
+    const idn = await getTeacherIdentity(req.user, teacherTrackId);
+    if (!idn) {
+      return res.status(404).json({ error: 'Teacher record not found' });
     }
 
-    const teacher = await M.Teacher.findOne({
-      $or: [{ trackId: teacherTrackId }, { _id: mongoose.isValidObjectId(req.user._id) ? req.user._id : undefined }]
-    }).lean();
-
-    const teacherNames = [teacher?.fullName, teacher?.name, req.user.name, req.user.fullName].filter(Boolean);
-
-    const dates = getDatesInRange(fromDate, toDate);
+    const resolvedDays = await resolveTeacherRange(idn, fromDate, toDate);
+    const timingSets = await getTimingSets();
     const affectedSlots = [];
 
-    for (const dateStr of dates) {
-      const dObj = new Date(dateStr + 'T00:00:00.000Z');
-      const dowIndex = dObj.getUTCDay();
-      if (dowIndex === 0) continue; // Skip Sunday
+    for (const dayObj of resolvedDays) {
+      if (dayObj.isHoliday) continue;
 
-      const dayAbbr = DAY_ABBR_MAP_LEAVE[dowIndex];
-      const dayFull = DAY_FULL_MAP_LEAVE[dowIndex];
+      for (const slot of (dayObj.slots || [])) {
+        // Keep only owned, scheduled slots (automatically ignores cancelled, substituted, holiday, leave)
+        if (slot.role !== 'owner' || slot.status !== 'scheduled') {
+          continue;
+        }
 
-      // Check Academic Calendar: if day is declared leave/holiday, no classes run
-      const calDay = await M.CalendarDay.findOne({
-        $or: [
-          { date: new Date(dateStr + 'T00:00:00.000Z') },
-          { date: new Date(dateStr + 'T00:00:00') }
-        ]
-      }).lean();
-
-      if (calDay && calDay.details && calDay.details.some(d => d.dayType === 'leave')) {
-        continue;
-      }
-
-      // 1. Query live Timetable slots for this teacher
-      const liveSlots = await M.Timetable.find({
-        $or: [
-          { trackId: teacherTrackId },
-          { teacherName: { $in: teacherNames } }
-        ],
-        day: dayAbbr,
-        isDraft: false
-      }).lean();
-
-      // 2. Query Day Overrides for this date to avoid already-cancelled slots
-      const dayOverrides = await M.TimetableDayOverride.find({
-        date: dateStr,
-        status: 'active'
-      }).lean();
-
-      for (const slot of liveSlots) {
-        const pNum = slot.periodNumber || slot.startPeriod || 1;
+        const pNum = Number(slot.periodNumber);
         if (targetPeriods.length > 0 && !targetPeriods.includes(pNum)) {
           continue;
         }
 
-        // Check if overridden on this specific day
-        const overrideForClass = dayOverrides.find(o => String(o.classId) === String(slot.classId));
-        const overrideItem = overrideForClass?.overrides?.find(ov => ov.periodNumber === pNum);
-        if (overrideItem && overrideItem.action === 'cancel') {
-          continue; // Cancelled period
+        // Determine session (FN vs AN) via sessionOfPeriod
+        if (slotType === 'FN' || slotType === 'AN') {
+          const tSet = timingSets.find(ts => ts.name === slot.timingSetName)
+            || timingSets.find(ts => ts.isDefault)
+            || timingSets[0];
+          const session = sessionOfPeriod(tSet, pNum);
+          if (session !== slotType) {
+            continue;
+          }
         }
 
         affectedSlots.push({
-          date: dateStr,
-          day: dayFull,
+          date: slot.date,
+          day: dayObj.dayFull || slot.day,
           periodNumber: pNum,
           span: slot.span || 1,
           classId: slot.classId,
           className: slot.className,
           subjectId: slot.subjectId,
           subjectName: slot.subjectName,
-          hallNo: slot.hallNo || '',
+          subjectCode: slot.subjectCode || '',
+          hallNo: slot.room || '',
           start: slot.start,
           end: slot.end,
           timingSetName: slot.timingSetName || '',
-          slotKey: `${dayFull}_${pNum}`,
-          currentSubstitute: overrideItem?.substituteTeacherName || ''
+          slotKey: `${dayObj.dayFull || slot.day}_${pNum}`,
+          currentSubstitute: slot.substituteTeacher || ''
         });
       }
     }
 
-    // Sort by date ascending, then period ascending
     affectedSlots.sort((a, b) => a.date.localeCompare(b.date) || a.periodNumber - b.periodNumber);
 
     res.json({
-      teacherTrackId,
-      teacherName: teacher?.fullName || req.user.name,
+      teacherTrackId: idn.trackId,
+      teacherName: idn.fullName,
       fromDate,
       toDate,
       slotType,
@@ -773,15 +765,38 @@ router.post('/teacher/apply', authMiddleware, checkModuleGuard('modelLeave', 'Le
 
     if (!teacher) return res.status(404).json({ error: 'Teacher record not found' });
 
-    // Validate substitutions list
+    // Validate substitutions list against production resolver
     const validSubs = [];
-    if (Array.isArray(substitutions)) {
+    if (Array.isArray(substitutions) && substitutions.length > 0) {
+      const idn = await getTeacherIdentity(req.user);
+      if (!idn) return res.status(404).json({ error: 'Teacher identity not resolved' });
+
+      const resolvedDays = await resolveTeacherRange(idn, fromDate, effectiveEndDate);
+      const validOwnedSlots = new Set();
+      resolvedDays.forEach(d => {
+        (d.slots || []).forEach(s => {
+          if (s.role === 'owner' && s.status === 'scheduled') {
+            validOwnedSlots.add(`${s.date}_${s.periodNumber}_${String(s.classId || '')}`);
+            validOwnedSlots.add(`${s.date}_${s.periodNumber}`);
+          }
+        });
+      });
+
       for (const s of substitutions) {
         if (!s.substituteTeacherTrackId || !s.substituteTeacherName) continue;
+        const pNum = Number(s.periodNumber);
+        const keyExact = `${s.date}_${pNum}_${String(s.classId || '')}`;
+        const keyGeneric = `${s.date}_${pNum}`;
+        if (!validOwnedSlots.has(keyExact) && !validOwnedSlots.has(keyGeneric)) {
+          return res.status(400).json({
+            error: `Invalid substitution: slot on ${s.date} (Period ${pNum}) does not exist or does not belong to you.`
+          });
+        }
+
         validSubs.push({
           date: s.date,
           day: s.day || '',
-          periodNumber: Number(s.periodNumber),
+          periodNumber: pNum,
           classId: s.classId || null,
           className: s.className || '',
           subjectName: s.subjectName || '',
@@ -821,26 +836,31 @@ router.post('/teacher/apply', authMiddleware, checkModuleGuard('modelLeave', 'Le
       substituteTeacherName: validSubs.map(s => s.substituteTeacherName).join(', ')
     });
 
-    // Notify HOD
-    if (teacher.deptId) {
-      const hodTeacher = await M.Teacher.findOne({
-        deptId: teacher.deptId,
-        'specials.option': 'isHOD'
+    // Notify HOD (T11: robust lookup across deptId, deptCode, and department name)
+    const deptFilters = [];
+    if (teacher.deptId) deptFilters.push({ deptId: teacher.deptId });
+    if (teacher.deptCode) deptFilters.push({ deptCode: teacher.deptCode });
+    if (teacher.department) deptFilters.push({ department: new RegExp(`^${teacher.department.trim()}$`, 'i') });
+    let hodTeacher = null;
+    if (deptFilters.length > 0) {
+      hodTeacher = await M.Teacher.findOne({
+        'specials.option': { $in: ['isHod', 'isHOD'] },
+        $or: deptFilters
       }).lean();
+    }
 
-      if (hodTeacher) {
-        await M.Notification.create({
-          type: 'leave-request',
-          from: teacher.fullName || teacher.name,
-          fromRole: 'teacher',
-          toTeacherId: hodTeacher._id,
-          toTeacherTrackId: hodTeacher.trackId,
-          toTeacherName: hodTeacher.fullName || hodTeacher.name,
-          message: `${teacher.fullName} submitted a ${leaveReq.category} request (${fromDate} to ${effectiveEndDate}) with ${validSubs.length} substitutions.`,
-          priority: isEmergency ? 'High' : 'Normal',
-          time: new Date()
-        }).catch(() => {});
-      }
+    if (hodTeacher) {
+      await M.Notification.create({
+        type: 'leave-request',
+        from: teacher.fullName || teacher.name,
+        fromRole: 'teacher',
+        toTeacherId: hodTeacher._id,
+        toTeacherTrackId: hodTeacher.trackId,
+        toTeacherName: hodTeacher.fullName || hodTeacher.name,
+        message: `${teacher.fullName} submitted a ${leaveReq.category} request (${fromDate} to ${effectiveEndDate}) with ${validSubs.length} substitutions.`,
+        priority: isEmergency ? 'High' : 'Normal',
+        time: new Date()
+      }).catch(() => {});
     }
 
     await logAction(
@@ -980,36 +1000,57 @@ router.put('/teacher/:id/hod-approve', authMiddleware, async (req, res) => {
     leaveReq.hodReviewedAt = new Date();
     await leaveReq.save();
 
-    // For each substitution, create a TimetableDayOverride (action: 'substitute')
+    // For each substitution, create an Override record (type: 'substitute')
     let overridesCreated = 0;
     for (const sub of leaveReq.substitutions || []) {
       try {
-        const overrideDoc = await M.TimetableDayOverride.findOneAndUpdate(
-          { classId: sub.classId, date: sub.date },
+        const subDateStr = sub.date ? String(sub.date).slice(0, 10) : '';
+        if (!subDateStr) continue;
+        const subUtcDate = new Date(subDateStr + 'T00:00:00.000Z');
+        const periodNum = Number(sub.periodNumber);
+
+        const originalSlot = buildOverrideSlot({
+          teacher: leaveReq.teacherName,
+          teacherTrackId: leaveReq.teacherTrackId,
+          teacherId: leaveReq.teacherId,
+          subject: sub.subjectName,
+          room: sub.hallNo
+        });
+        const newSlot = buildOverrideSlot({
+          teacher: sub.substituteTeacherName,
+          teacherTrackId: sub.substituteTeacherTrackId,
+          teacherId: sub.substituteTeacherId,
+          subject: sub.subjectName,
+          room: sub.hallNo
+        });
+
+        await M.Override.findOneAndUpdate(
           {
             classId: sub.classId,
-            className: sub.className,
-            deptId: leaveReq.deptId,
-            date: sub.date,
-            day: sub.day,
-            isHoliday: false,
-            overrides: [{
-              periodNumber: sub.periodNumber,
-              action: 'substitute',
-              substituteTeacherName: sub.substituteTeacherName,
-              substituteTeacherId: sub.substituteTeacherId,
-              reason: `Leave substitution: ${leaveReq.teacherName} on ${leaveReq.fromDate}–${leaveReq.toDate}`
-            }],
-            status: 'active',
-            updatedBy: req.user.name
+            date: subUtcDate,
+            $or: [{ period: periodNum }, { periodNumber: periodNum }]
+          },
+          {
+            classId: sub.classId,
+            date: subUtcDate,
+            period: periodNum,
+            periodNumber: periodNum,
+            type: 'substitute',
+            originalSlot,
+            newSlot,
+            reason: `Leave substitution: ${leaveReq.teacherName} on ${leaveReq.fromDate}–${leaveReq.toDate}`,
+            approvedBy: req.user.fullName || req.user.name,
+            requestId: String(leaveReq._id)
           },
           { upsert: true, returnDocument: 'after' }
         );
+        sub.status = 'approved';
         overridesCreated++;
       } catch (e) {
         console.error(`Failed to create override for sub ${sub.substituteTeacherName}:`, e.message);
       }
     }
+    await leaveReq.save();
 
     // Notify the substitute(s)
     const substituteTrackIds = [...new Set(leaveReq.substitutions?.map(s => s.substituteTeacherTrackId) || [])];
