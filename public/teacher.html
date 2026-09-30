@@ -79,7 +79,7 @@
     </div>
   </div>
   <!-- ROW 1: Today Schedule | Calendar -->
-  <div style="display:grid;grid-template-columns:1.3fr 1fr;gap:14px;margin-bottom:14px;">
+  <div class="dash-row dash-row-top">
     <div class="card">
       <div class="card-hd"><div class="card-title" style="font-size: 16px;">&#128336; Today's Schedule</div><div id="todaylbl" style="font-size:13px;color:var(--tdi);font-weight:700;"></div></div>
       <div class="card-body" style="padding-top:6px;max-height:320px;overflow-y:auto;" id="todaysched"><div class="est"><span class="ei">&#128205;</span><p style="font-size:12px;">No classes today.</p></div></div>
@@ -98,7 +98,7 @@
     </div>
   </div>
   <!-- ROW 2: Attendance Overview | Defaulters -->
-  <div style="display:grid;grid-template-columns:1.7fr 1fr;gap:14px;">
+  <div class="dash-row dash-row-bottom">
     <div class="card">
       <div class="card-hd"><div class="card-title">&#128202; Attendance Overview</div></div>
       <div class="fwrap" style="padding-top:0;">
@@ -136,7 +136,7 @@
 <div class="pg" id="pg-sched">
   <div class="page-hd">
     <div><div class="page-title">&#128197; My Schedule</div><div class="page-sub">View your week, day, and manage your timetable.</div></div>
-    <div class="page-actions"><button class="btn-pri" onclick="openAddSlot()">&#65291; Add Slot</button></div>
+    <div class="page-actions"><button class="btn-pri" id="btn-coord-edit-tt" style="display:none;" onclick="goToTimetable()">✏️ Edit in Timetable</button></div>
   </div>
 
   <!-- Schedule View Tabs -->
@@ -154,7 +154,7 @@
 
   <!-- Week View -->
   <div id="sched-week-view">
-    <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:10px;" id="schedbyday"></div>
+    <div class="week-grid" id="schedbyday"></div>
   </div>
 
   <!-- Day View -->
@@ -174,7 +174,7 @@
       <div class="tt-teacher-top">
         <div>
           <div class="tt-card-title">&#128203; My Weekly Timetable</div>
-          <div class="tt-card-sub">Interactive schedule &mdash; click any cell to edit or add schedule slots.</div>
+          <div class="tt-card-sub">Published institutional timetable &mdash; click any slot to view details.</div>
           <div class="tt-legend-bar">
             <span class="tt-leg-item"><span class="tt-badge tt-b-theory"></span> Theory</span>
             <span class="tt-leg-item"><span class="tt-badge tt-b-lab"></span> Lab (3 Periods)</span>
@@ -183,7 +183,6 @@
           </div>
         </div>
         <div class="tt-top-actions">
-          <button class="btnp bsm" onclick="openTeacherAddSlot()">&#65291; Add Slot</button>
           <button class="btno bsm" onclick="exportTeacherTimetablePDF()">&#128229; Export PDF</button>
         </div>
       </div>
@@ -200,6 +199,24 @@
 
   <!-- ZONE 1: SELECTION & METHODS (State 1) -->
   <div class="att-selector-zone asel" id="att-selector-zone">
+    <!-- TODAY'S CLASSES CHIP STRIP (Phase 4) -->
+    <div class="today-chips-wrap" id="today-classes-chips" style="display:none;margin-bottom:14px;">
+      <div style="font-size:11.5px;font-weight:700;color:var(--tdi);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;display:flex;align-items:center;gap:6px;">
+        <span>⚡ Today's Classes</span>
+        <span style="font-size:11px;font-weight:500;color:var(--tmu);text-transform:none;">(Click to quick-fill)</span>
+      </div>
+      <div class="today-chips-list" id="today-chips-list"></div>
+    </div>
+
+    <!-- TIMETABLE MISMATCH SOFT WARNING BANNER (Phase 4) -->
+    <div id="att-tt-warn" class="att-tt-warn-banner" style="display:none;margin-bottom:14px;background:#fffbeb;border:1px solid #fde68a;color:#b45309;padding:10px 14px;border-radius:10px;font-size:12.5px;font-weight:600;align-items:center;justify-content:space-between;gap:8px;">
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span style="font-size:16px;">⚠️</span>
+        <span id="att-tt-warn-text">Not in your timetable today — continue?</span>
+      </div>
+      <button type="button" class="btno bsm" onclick="dismissTtWarn()" style="padding:3px 10px;font-size:11px;border-color:#fde68a;color:#b45309;background:#fff;">Dismiss</button>
+    </div>
+
     <div class="aselrow">
       <div class="fg"><label class="fl">Class</label><select class="fc" id="attcls" onchange="attLoadSubs()"><option value="">— Select —</option></select></div>
       <div class="fg"><label class="fl">Subject</label><select class="fc" id="attsub"><option value="">— Select —</option></select></div>
@@ -396,20 +413,20 @@
   </div>
 
   <!-- KPI SUMMARY CARDS -->
-  <div class="t-stats-grid" style="grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));gap:14px;margin-bottom:18px;">
-    <div class="t-stat-card">
+  <div class="t-stat-grid" style="margin-bottom:18px;">
+    <div class="t-stat-mini">
       <div class="t-stat-icon green">📈</div>
       <div><div class="t-stat-val" id="ins-kpi-avg">0%</div><div class="t-stat-label">Average Attendance</div></div>
     </div>
-    <div class="t-stat-card">
+    <div class="t-stat-mini">
       <div class="t-stat-icon red">⚠️</div>
       <div><div class="t-stat-val" id="ins-kpi-defaulters">0</div><div class="t-stat-label">Below Threshold (&lt;75%)</div></div>
     </div>
-    <div class="t-stat-card">
+    <div class="t-stat-mini">
       <div class="t-stat-icon blue">📅</div>
       <div><div class="t-stat-val" id="ins-kpi-sessions">0</div><div class="t-stat-label">Class Sessions Held</div></div>
     </div>
-    <div class="t-stat-card">
+    <div class="t-stat-mini">
       <div class="t-stat-icon purple">⚡</div>
       <div><div class="t-stat-val" id="ins-kpi-method">—</div><div class="t-stat-label">Top Marking Method</div></div>
     </div>
@@ -642,7 +659,7 @@
   </div>
 
   <!-- SUB TABS: Applications vs Substitute Duties vs HOD Approvals -->
-  <div style="display:flex;gap:8px;margin-bottom:16px;">
+  <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;">
     <button class="sched-tab act" id="tab-tl-apps" onclick="switchTeacherLeaveSubTab('apps')">&#127958; My Leave Requests</button>
     <button class="sched-tab" id="tab-tl-duties" onclick="switchTeacherLeaveSubTab('duties')">&#128260; My Substitution Duties</button>
     <button class="sched-tab" id="tab-tl-hod-pending" onclick="switchTeacherLeaveSubTab('hod-pending')" style="display:none;">⚖️ Dept Faculty Approvals <span class="badge" id="tl-hod-badge" style="display:none;margin-left:4px;font-size:10px;padding:2px 6px;border-radius:10px;background:#f59e0b;color:#fff;">0</span></button>
@@ -691,6 +708,9 @@
           <tr><td colspan="7" style="text-align:center;padding:28px;color:var(--tdi);">No upcoming substitution duties found.</td></tr>
         </tbody>
       </table>
+    </div>
+  </div>
+
   <!-- TABLE: HOD Faculty Approvals (Visible to HODs only) -->
   <div class="card" id="cont-tl-hod-pending" style="padding:0;overflow:hidden;display:none;">
     <div style="padding:14px 18px;background:var(--gLt);border-bottom:1px solid var(--br);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
@@ -698,7 +718,7 @@
         <strong style="font-size:13.5px;color:var(--gD);">⚖️ Department Faculty Leave &amp; Substitution Approvals</strong>
         <div style="font-size:11.5px;color:var(--tmu);">Review colleague leave requests. Approving will automatically create timetable substitute overrides.</div>
       </div>
-      <button class="btn btn-sm btn-outline" onclick="loadHodTeacherLeaves()" style="font-size:11px;">🔄 Refresh</button>
+      <button class="btno bsm" onclick="loadHodTeacherLeaves()" style="font-size:11px;">🔄 Refresh</button>
     </div>
     <div style="overflow-x:auto;">
       <table class="tbl" style="width:100%;margin:0;">
@@ -780,6 +800,22 @@
               <option value="Unmarked">Neutral / Unmarked (Explicit Click)</option>
             </select>
             <span style="font-size:11px;color:var(--tmu);margin-top:4px;display:block;">Configure your preferred default starting status when opening a class attendance roster.</span>
+          </div>
+          <div class="field-group" style="grid-column:1/-1;margin-top:10px;">
+            <label class="fl" style="font-size:12px;font-weight:600;color:var(--td);margin-bottom:6px;display:flex;align-items:center;gap:8px;cursor:pointer;">
+              <input type="checkbox" id="prof-auto-att-prompt" style="width:16px;height:16px;accent-color:var(--gD);">
+              <span>Enable Automatic Attendance Prompts when class starts</span>
+            </label>
+            <span style="font-size:11px;color:var(--tmu);margin-top:2px;display:block;">Displays an on-screen prompt when your scheduled period begins to take attendance quickly.</span>
+          </div>
+          <div class="field-group" id="prof-lead-wrap" style="grid-column:1/-1;margin-top:6px;">
+            <label class="fl" style="font-size:12px;font-weight:600;color:var(--td);margin-bottom:6px;display:block;">Prompt Lead Time</label>
+            <select class="fc2" id="prof-prompt-lead" style="max-width:320px;">
+              <option value="0">At class start (0 min)</option>
+              <option value="5" selected>5 minutes before class</option>
+              <option value="10">10 minutes before class</option>
+            </select>
+            <span style="font-size:11px;color:var(--tmu);margin-top:4px;display:block;">How early to notify you before the period commences.</span>
           </div>
         </div>
         <div style="margin-top:14px;">
@@ -869,7 +905,8 @@
       </div>
       <div class="modal-close" onclick="closeModalBg('m-leave-review')">✖</div>
     </div>
-    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px;">
+    <div class="mbody">
+    <div class="lr-stats" style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px;">
       <div style="background:var(--gP);border-radius:12px;padding:12px 10px;text-align:center;border:1px solid var(--brl);">
         <div id="lr-stat-pct" style="font-size:22px;font-weight:800;color:var(--gD);">—%</div>
         <div style="font-size:10px;font-weight:700;color:var(--tdi);text-transform:uppercase;margin-top:2px;">Attendance</div>
@@ -895,12 +932,15 @@
       <label class="fl" style="font-size:12px;font-weight:700;color:var(--td);margin-bottom:5px;display:block;">Class Advisor Remarks (Optional)</label>
       <input type="text" class="fc2" id="lr-remarks" placeholder="Add remarks or instructions for the student…" style="font-size:12.5px;">
     </div>
-    <div style="display:flex;gap:10px;justify-content:flex-end;">
+    </div>
+    <div class="modal-actions">
       <button class="btn-form-ghost" onclick="closeModalBg('m-leave-review')" style="font-size:12px;">Close</button>
-      <button class="btn bdan bsm" id="lr-reject-btn" onclick="submitLeaveAction('Rejected')" style="padding:8px 16px;font-size:12px;font-weight:700;border-radius:8px;display:flex;align-items:center;gap:5px;"><span>❌ Reject Request</span></button>
-      <button class="btn-form-pri bsm" id="lr-approve-btn" onclick="submitLeaveAction('Approved')" style="padding:8px 18px;font-size:12px;font-weight:700;border-radius:8px;display:flex;align-items:center;gap:5px;background:#16a34a;"><span>✅ Approve Leave</span></button>
+      <button class="btn-form-del" id="lr-reject-btn" onclick="submitLeaveAction('Rejected')" style="margin-right:0;font-size:12px;font-weight:700;"><span>❌ Reject Request</span></button>
+      <button class="btn-form-pri" id="lr-approve-btn" onclick="submitLeaveAction('Approved')" style="font-size:12px;font-weight:700;background:#16a34a;"><span>✅ Approve Leave</span></button>
     </div>
   </div>
+</div>
+
 <!-- MODAL: TEACHER APPLY LEAVE & ASSIGN SUBSTITUTES (PLAN 4) -->
 <div class="modal-bg" id="m-teacher-apply-leave">
   <div class="modal modal-md" style="max-width:680px;border-radius:18px;">
@@ -1154,7 +1194,7 @@
         <div style="font-size:24px;margin-bottom:8px;">⏳</div>
         <div style="font-size:13px;font-weight:600;">Fetching class representatives…</div>
       </div>
-      <div id="rep-list-container" style="display:none;display:flex;flex-direction:column;gap:10px;"></div>
+      <div id="rep-list-container" style="display:none;flex-direction:column;gap:10px;"></div>
     </div>
     <div style="padding:12px 20px;background:#f8fafc;border-top:1px solid #e2e8f0;display:flex;justify-content:flex-end;">
       <button class="btn-out" onclick="closeRepShareModal()" style="font-size:12px;padding:7px 16px;">Cancel</button>
@@ -1224,6 +1264,29 @@
 <div id="changePwModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9998;align-items:center;justify-content:center;">
   <div style="background:#fff;border-radius:14px;padding:36px 32px;width:380px;max-width:95vw;box-shadow:0 8px 40px rgba(0,0,0,0.25);text-align:center;">
     <div style="font-size:2rem;margin-bottom:8px;">🔑</div><h2 style="margin:0 0 6px;font-size:1.3rem;color:#1a237e;">Change Password</h2><p style="color:#666;font-size:0.88rem;margin-bottom:20px;">Enter your current password and choose a new one.</p><div id="changePwErr" style="display:none;background:#fdecea;color:#c62828;border-radius:8px;padding:10px;margin-bottom:14px;font-size:0.85rem;"></div><div id="changePwOk" style="display:none;background:#e8f5e9;color:#2e7d32;border-radius:8px;padding:10px;margin-bottom:14px;font-size:0.85rem;"></div><input id="changePwCur" type="password" placeholder="Current password" style="width:100%;box-sizing:border-box;padding:10px 14px;border:1px solid #ddd;border-radius:8px;margin-bottom:10px;font-size:0.95rem;" /><input id="changePwNew" type="password" placeholder="New password (min 6 chars)" style="width:100%;box-sizing:border-box;padding:10px 14px;border:1px solid #ddd;border-radius:8px;margin-bottom:10px;font-size:0.95rem;" /><input id="changePwConf" type="password" placeholder="Confirm new password" style="width:100%;box-sizing:border-box;padding:10px 14px;border:1px solid #ddd;border-radius:8px;margin-bottom:18px;font-size:0.95rem;" /><div style="display:flex;gap:10px;"><button onclick="closeChangePwModal()" style="flex:1;padding:12px;background:#f5f5f5;color:#333;border:none;border-radius:8px;font-size:0.95rem;cursor:pointer;">Cancel</button><button onclick="submitChangePw()" style="flex:1;padding:12px;background:#1a237e;color:#fff;border:none;border-radius:8px;font-size:1rem;font-weight:600;cursor:pointer;">Update</button></div>
+  </div>
+</div>
+
+<!-- MODAL: LIVE SLOT ATTENDANCE PROMPT (PLAN PHASE 4) -->
+<div class="modal-bg" id="m-live-slot" role="dialog" aria-modal="true" aria-labelledby="mls-title" style="display:none;align-items:center;justify-content:center;">
+  <div class="modal msm" style="max-width:480px;">
+    <div class="modal-hd">
+      <div>
+        <div class="modal-title" id="mls-title">✅ Class starting now</div>
+        <div class="modal-sub" id="mls-sub">P3 · 10:15–11:00 · LH 204</div>
+      </div>
+      <button class="modal-close" onclick="LiveSlotPrompt.close('dismiss')" aria-label="Close">✖</button>
+    </div>
+    <div class="mbody" id="mls-body">
+      <!-- class · subject · role badge · student count -->
+    </div>
+    <div class="modal-actions" style="flex-wrap:wrap;gap:8px;">
+      <button type="button" class="btn-form-ghost" onclick="LiveSlotPrompt.close('snooze')">⏰ Remind in 5 min</button>
+      <button type="button" class="btn-form-ghost" onclick="LiveSlotPrompt.method('rep')" id="mls-rep">👥 Rep Share</button>
+      <button type="button" class="btn-form-ghost" onclick="LiveSlotPrompt.method('qr')" id="mls-qr">📷 Scan Live</button>
+      <button type="button" class="btn-form-ghost" onclick="LiveSlotPrompt.method('code')" id="mls-code">🔢 Quick Pass</button>
+      <button type="button" class="btn-form-pri" onclick="LiveSlotPrompt.method('manual')" id="mls-manual">📋 Take Attendance</button>
+    </div>
   </div>
 </div>
 

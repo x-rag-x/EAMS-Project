@@ -8,6 +8,7 @@ const { liveSessionMarkLimiter } = require('../utils/rateLimiters');
 const { checkLiveSessionGuard } = require('../middleware/portalGuard');
 const { verifyTeacherAssignment } = require('../utils/assignmentAuth');
 const { isCampusIpAllowed } = require('../utils/ipCheck');
+const { logAction } = require('../utils/logAction');
 
 function generate12CharCode() {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -45,8 +46,11 @@ router.post('/start', authMiddleware, checkLiveSessionGuard, async (req, res) =>
     const sub = await M.Subject.findOne({ $or: subQueries }).lean();
     if (sub) targetSubjectId = sub._id;
 
-    // Verify teacher assignment to this class and subject (A3)
-    const assignCheck = await verifyTeacherAssignment(req.user, targetClassId, targetSubjectId);
+    // Verify teacher assignment to this class and subject (A3, permit valid substitute)
+    const assignCheck = await verifyTeacherAssignment(req.user, targetClassId, targetSubjectId, {
+      date,
+      periodNumber
+    });
     if (!assignCheck.allowed) {
       return res.status(403).json({ error: assignCheck.reason });
     }
@@ -110,6 +114,35 @@ router.post('/start', authMiddleware, checkLiveSessionGuard, async (req, res) =>
       });
     } catch (scanErr) {
       console.warn('ScanLiveSession creation notice:', scanErr.message);
+    }
+
+    if (assignCheck && assignCheck.via === 'substitution') {
+      try {
+        await logAction(
+          teacherTrackId,
+          req.user.fullName || req.user.username,
+          req.user.role || 'teacher',
+          'Substitute Live Session Started',
+          `Live session started via substitution for Class ${targetClassId}, Period ${periodNumber}`,
+          'attendance',
+          'info',
+          req.ip,
+          req.user.sessionId,
+          {
+            module: 'attendance',
+            subType: 'substitute-mark',
+            classId: String(targetClassId),
+            date,
+            periodNumber: Number(periodNumber) || 1,
+            overrideId: assignCheck.overrideId,
+            sessionId: session._id,
+            sessionTrackId: session.trackId || trackId,
+            req
+          }
+        );
+      } catch (logErr) {
+        console.error('[LiveSession Substitute Log Error]:', logErr.message);
+      }
     }
 
     res.status(201).json(session);

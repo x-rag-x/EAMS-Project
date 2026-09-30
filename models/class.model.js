@@ -10,7 +10,8 @@ const ClassSchema = new mongoose.Schema({
   batch:    { type: String, required: true },
   sem:      { type: String, required: true },
   section:  { type: String, required: true },
-  hallNo:   { type: String, required: true },
+  roomId:   { type: mongoose.Schema.Types.ObjectId, ref: 'Room', default: null },
+  hallNo:   { type: String, default: '', trim: true },
   advisorTeacherId:      { type: mongoose.Schema.Types.ObjectId, ref: 'Teacher', default: null },
   advisorTeacherName:    { type: String, default: '' },
   advisorTeacherTrackId: { type: String, default: '' },
@@ -18,6 +19,7 @@ const ClassSchema = new mongoose.Schema({
 
 ClassSchema.index({ deptId: 1 });
 ClassSchema.index({ deptId: 1, batch: 1 });
+ClassSchema.index({ roomId: 1 });
 
 module.exports = {
   Class: mongoose.model('Class', ClassSchema),

@@ -1267,8 +1267,83 @@ function populateSemOptions(selectEl, yearLevel, presetSem) {
   if (!presetSem && yearLevel) selectEl.value = opts[0];
 }
 
+// Regulations Data (Change 2)
+var regulationsData = [];
+
+function loadRegulations() {
+  apiCall('GET', '/year/regulations').then(function(data) {
+    regulationsData = Array.isArray(data) ? data : [];
+    renderRegulationsTable();
+  }).catch(function(err) {
+    console.error('Error loading regulations:', err);
+    var tbody = document.getElementById('regulations-tbody');
+    if (tbody) tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#dc2626;padding:18px;">Failed to load regulations.</td></tr>';
+  });
+}
+
+function renderRegulationsTable() {
+  var tbody = document.getElementById('regulations-tbody');
+  if (!tbody) return;
+  if (!regulationsData.length) {
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--tdi);padding:18px;">No curriculum regulations configured. Click <strong>+ Add Regulation</strong>.</td></tr>';
+    return;
+  }
+  var html = '';
+  regulationsData.forEach(function(r) {
+    html += '<tr>';
+    html += '<td><span class="yr-badge yr-badge-I" style="font-weight:700;">' + (r.code || '—') + '</span></td>';
+    html += '<td><strong>' + (r.name || ('Regulation ' + r.code)) + '</strong></td>';
+    html += '<td>' + (r.year || r.code || '—') + '</td>';
+    html += '<td>' + (r.isDefault ? '<span class="status-badge status-published">● Default</span>' : '<span style="color:var(--tmu);font-size:12px;">Active</span>') + '</td>';
+    html += '<td>';
+    html += '<button class="btn-out btn-xs" style="color:var(--red,#dc2626);border-color:rgba(220,38,38,0.3);" onclick="deleteRegulation(\'' + (r.code || '') + '\')">🗑 Delete</button>';
+    html += '</td>';
+    html += '</tr>';
+  });
+  tbody.innerHTML = html;
+}
+
+function openRegulationModal() {
+  document.getElementById('reg-code-inp').value = '';
+  document.getElementById('reg-name-inp').value = '';
+  document.getElementById('reg-default-chk').checked = false;
+  openModal('reg-modal-bg');
+}
+
+function saveRegulation() {
+  var code = document.getElementById('reg-code-inp').value.trim();
+  var name = document.getElementById('reg-name-inp').value.trim();
+  var isDefault = document.getElementById('reg-default-chk').checked;
+
+  if (!code) { showToast('Regulation Code / Year is required', 'warn'); return; }
+  if (!name) name = 'Regulation ' + code;
+
+  dbToast('Saving regulation…', 'saving');
+  apiCall('POST', '/year/regulations', { code: code, name: name, year: code, isDefault: isDefault })
+    .then(function(res) {
+      dbToast('Regulation saved', 'success');
+      closeModal('reg-modal-bg');
+      loadRegulations();
+    }).catch(function(err) {
+      dbToast('Error: ' + (err && err.message ? err.message : 'Server error'), 'error');
+    });
+}
+
+function deleteRegulation(code) {
+  if (!confirm('Are you sure you want to delete Regulation ' + code + '?')) return;
+  dbToast('Deleting regulation…', 'saving');
+  apiCall('DELETE', '/year/regulations/' + encodeURIComponent(code))
+    .then(function() {
+      dbToast('Regulation deleted', 'success');
+      loadRegulations();
+    }).catch(function(err) {
+      dbToast('Error: ' + (err && err.message ? err.message : 'Server error'), 'error');
+    });
+}
+
 // Load / Render
 function loadYears() {
+  loadRegulations();
   apiCall('GET', '/year').then(function(data) {
     yearsData = Array.isArray(data) ? data : [];
     populateExamFilterAcYears();
@@ -1372,7 +1447,7 @@ function openYearModal(yearId) {
 
       // Add batch rows for each batch
       year.batches.forEach(function(b) {
-        addBatchRow(b.batchTrackId, b.batch, b.currentYear, b.currentSem);
+        addBatchRow(b.batchTrackId, b.batch, b.currentYear, b.currentSem, b.regulation);
       });
 
       // Add semester date rows if they exist
@@ -1550,7 +1625,7 @@ function quickAddBatch(level) {
   showToast('Added Year ' + level + ' batch (' + info.batch + ')', 'success');
 }
 
-function addBatchRow(trackId, batch, year, sem) {
+function addBatchRow(trackId, batch, year, sem, regulation) {
   var container = document.getElementById('ym-batch-rows');
   var rowId = 'batch-row-' + Date.now() + Math.floor(Math.random() * 1000);
 
@@ -1566,7 +1641,7 @@ function addBatchRow(trackId, batch, year, sem) {
   html += '<input type="text" class="fc2 batch-name" placeholder="2026-2030" value="' + (batch || '') + '" oninput="validateYearForm();autoBatchTrackId(this);updateBatchPreview(this)"></div>';
   html += '</div>';
 
-  html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">';
+  html += '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;">';
   html += '<div class="fg"><label class="fl">Current Year <span style="color:#dc2626;">*</span></label>';
   html += '<select class="fc2 batch-year" onchange="onBatchYearChange(this)">';
   html += '<option value="">— Select —</option>';
@@ -1577,6 +1652,17 @@ function addBatchRow(trackId, batch, year, sem) {
 
   html += '<div class="fg"><label class="fl">Current Semester <span style="color:#dc2626;">*</span></label>';
   html += '<select class="fc2 batch-sem"></select></div>';
+
+  html += '<div class="fg"><label class="fl">Regulation</label>';
+  html += '<select class="fc2 batch-regulation">';
+  html += '<option value="">— Default —</option>';
+  var regs = (regulationsData && regulationsData.length) ? regulationsData : [{ code: '2021', name: 'Regulation 2021' }, { code: '2025', name: 'Regulation 2025' }];
+  regs.forEach(function(r) {
+    var rCode = r.code || r;
+    var rName = r.name || ('Regulation ' + rCode);
+    html += '<option value="' + rCode + '"' + (String(rCode) === String(regulation) ? ' selected' : '') + '>' + rName + '</option>';
+  });
+  html += '</select></div>';
   html += '</div></div>';
 
   container.insertAdjacentHTML('beforeend', html);
@@ -1755,11 +1841,14 @@ function saveYear() {
     }
     seenTrackIds.push(trackId.toLowerCase());
     
+    var reg = row.querySelector('.batch-regulation') ? row.querySelector('.batch-regulation').value : '';
+
     batches.push({
       batchTrackId: trackId,
       batch: batch,
       currentYear: year,
-      currentSem: sem
+      currentSem: sem,
+      regulation: reg
     });
   });
   
@@ -1772,6 +1861,7 @@ function saveYear() {
   var payload = {
     academicYear: acadYear,
     batches: batches,
+    regulations: regulationsData,
     semesterDates: semesterDates,
     isCurrent: _ymCurrent
   };

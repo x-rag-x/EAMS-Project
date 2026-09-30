@@ -3562,51 +3562,74 @@ function verifySpecialPw() {
     });
 }
 
-// Loader step advancement
-var _loaderStep = 0;
-function advanceLoaderStep(msg) {
-  _loaderStep++;
+// ── Page Loader Controller (Adapted from Admin Portal) ──
+var loaderMsgEl = document.getElementById('loader-msg');
+var loaderEtaEl = document.getElementById('loader-eta');
 
-  if (_loaderStep > 4) return;
+function setLoaderMsg(idx, text) {
+  if (!loaderMsgEl) return;
+  loaderMsgEl.classList.add('msg-fade');
+  setTimeout(function () {
+    loaderMsgEl.textContent = text;
+    loaderMsgEl.classList.remove('msg-fade');
+    for (var s = 0; s < 5; s++) {
+      var dot = document.getElementById('lstep-' + s);
+      if (!dot) continue;
+      dot.className = 'loader-step' + (s < idx ? ' done' : s === idx ? ' active' : '');
+    }
+  }, 120);
+}
 
-  var next = document.getElementById("lstep-" + _loaderStep);
-
-  if (next) next.classList.add("active");
-
-  var msgEl = document.getElementById("loader-msg");
-
-  if (msg && msgEl) msgEl.textContent = msg;
+function formatEta(ms) {
+  var sec = Math.max(1, Math.round(ms / 1000));
+  return sec + 's';
 }
 
 // Init
 (function () {
-  advanceLoaderStep("Checking authorization…");
+  setLoaderMsg(0, 'Checking System Privileges…');
 
   updateClock();
-
   setInterval(updateClock, 1000);
 
+  var _etaMs = 1200;
+  var _etaTick = setInterval(function () {
+    if (_etaMs <= 0) return;
+    _etaMs = Math.max(0, _etaMs - 200);
+    if (loaderEtaEl) {
+      if (_etaMs > 0) {
+        loaderEtaEl.innerHTML = 'ETA: <span class="eta-time">' + formatEta(_etaMs) + '</span> — loading control telemetry';
+      } else {
+        loaderEtaEl.innerHTML = '✔ Finalizing system panel…';
+      }
+    }
+  }, 200);
+
   setTimeout(function () {
-    advanceLoaderStep("Loading system data…");
-
-    nav("overview");
-  }, 100);
-
-  setTimeout(function () {
-    advanceLoaderStep("Finalizing…");
-  }, 800);
+    setLoaderMsg(1, 'Loading System Services & Health…');
+    nav('overview');
+  }, 300);
 
   setTimeout(function () {
-    var loader = document.getElementById("page-loader");
+    setLoaderMsg(2, 'Gathering User Matrix & Danger Zones…');
+  }, 600);
 
+  setTimeout(function () {
+    setLoaderMsg(3, 'Synchronizing Audit Streams…');
+  }, 900);
+
+  setTimeout(function () {
+    setLoaderMsg(4, 'Readying Control Panel…');
+    clearInterval(_etaTick);
+    if (loaderEtaEl) loaderEtaEl.innerHTML = '✔ System ready';
+    var loader = document.getElementById('page-loader');
     if (loader) {
-      loader.classList.add("loader-fade");
-
+      loader.classList.add('loader-fade');
       setTimeout(function () {
-        loader.style.display = "none";
+        loader.style.display = 'none';
       }, 360);
     }
-  }, 2000);
+  }, 1300);
 })();
 // Errors mode toggling
 var _errorsMode = "n";

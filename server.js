@@ -29,19 +29,19 @@ app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc:    ["'self'"],
-      scriptSrc:     ["'self'", "'unsafe-inline'", "https://cdnjs.cloudflare.com"],
-      scriptSrcElem: ["'self'", "'unsafe-inline'", "https://cdnjs.cloudflare.com"],
+      scriptSrc:     ["'self'", "'unsafe-inline'", "https://cdnjs.cloudflare.com", "https://unpkg.com"],
+      scriptSrcElem: ["'self'", "'unsafe-inline'", "https://cdnjs.cloudflare.com", "https://unpkg.com"],
       scriptSrcAttr: ["'unsafe-inline'"],
-      styleSrc:      ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
-      styleSrcElem:  ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+      styleSrc:      ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://unpkg.com"],
+      styleSrcElem:  ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://unpkg.com"],
       styleSrcAttr:  ["'unsafe-inline'"],
       fontSrc:       ["'self'", "https://fonts.gstatic.com", "data:"],
-      imgSrc:        ["'self'", "data:", "blob:", "http://localhost:*", "http://127.0.0.1:*"],
-      connectSrc:    ["'self'", "http://localhost:*", "http://127.0.0.1:*", "ws:", "wss:"],
+      imgSrc:        ["'self'", "data:", "blob:", "http://localhost:*", "http://127.0.0.1:*", "https://*.tile.openstreetmap.org", "https://*.basemaps.cartocdn.com", "https://server.arcgisonline.com", "https://unpkg.com"],
+      connectSrc:    ["'self'", "http://localhost:*", "http://127.0.0.1:*", "ws:", "wss:", "https://*.tile.openstreetmap.org", "https://*.basemaps.cartocdn.com", "https://server.arcgisonline.com", "https://unpkg.com"],
       upgradeInsecureRequests: null,
     },
   },
-  crossOriginResourcePolicy: { policy: "same-origin" },
+  crossOriginResourcePolicy: { policy: "cross-origin" },
 }));
 app.use(cors({origin: cfg.CORS_ORIGIN,credentials: true}));
 app.use(express.json({ limit: '1mb' }));
@@ -54,9 +54,14 @@ app.get('/attendance', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'attendance.html'));
 });
 
-// Start HTTP server listener
+// Start HTTP & WebSocket server listener
+const http = require('http');
+const server = http.createServer(app);
+const { initBoardSocket } = require('./services/board.socket');
+initBoardSocket(server);
+
 const PORT = process.env.PORT || cfg.PORT;
-app.listen(PORT, () => {
+server.listen(PORT, () => {
   console.log(`   1/5: Environment set for: ${cfg.NODE_ENV}`);
   console.log(`   2/5: EAMS API running → http://localhost:${PORT}`);
   console.log(`> Connecting Database...`)

@@ -10,7 +10,8 @@ const AssignmentSchema = new mongoose.Schema({
   teacherName: { type: String },
   hallNo:      { type: String },          
   deptName:    { type: String },
-  deptCode:    { type: String }
+  deptCode:    { type: String },
+  remarks:     { type: String, default: '', trim: true }
 }, { timestamps: true });
 
 AssignmentSchema.index({ subjectId: 1 });

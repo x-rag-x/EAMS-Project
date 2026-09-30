@@ -41,8 +41,11 @@ const TeacherSchema = new mongoose.Schema({
   isAdmin:            { type: Boolean, default: false },
   adminRights:        { type: [String], enum : ['all', 'controlPage', 'timetablePage', 'managePage', 'adderModules', 
     'deletings', 'bulkPage', 'settingsPage', 'settingsModule', 'reportsModule', 'downloadDatas', 'none'], default: ['none'] },
+  responsibilities:   { type: [String], default: [] },
   preferences: {
-    defaultAttendanceStatus: { type: String, enum: ['Present', 'Absent', 'Unmarked'], default: 'Present' }
+    defaultAttendanceStatus: { type: String, enum: ['Present', 'Absent', 'Unmarked'], default: 'Present' },
+    autoAttendancePrompt:    { type: Boolean, default: true },
+    promptLeadMinutes:       { type: Number, enum: [0, 5, 10], default: 5 },
   },
   mustChangePassword:   { type: Boolean, default: false },
   passwordHistory:      { type: [{ hash: { type: String, required: true }, changedAt: { type: Date, default: Date.now } }], select: false, default: [] },

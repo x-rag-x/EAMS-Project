@@ -1,3 +1,109 @@
+## 🔹 `v2.4.0` — 30 September 2026 *(Timetable Workspace 2.0)*
+
+### *Timetable Workspace 2.0*
+- **Desktop-Grade Single Page Architecture**: Transformed the Timetable module into an institutional desktop-grade workspace with zero frontend framework dependencies, native CSS variables, and persistent retained-DOM rendering.
+- **Dual Environment Toggle (Development Drafts vs Live Production)**: Complete workspace isolation allowing coordinators to safely draft, test, and auto-generate schedules (`save-draft`) without disrupting live production timetables (`SectionTimetable`).
+- **Retained-DOM Viewport & Instant 0ms Switching**: Active class tabs and analytical views switch instantaneously with zero paint lag, zero screen flicker, and no redundant API re-fetching.
+- **Unified Workspace Views**: Instant switching across Timetable Matrix (Grid), Workload Analytics, Faculty Schedule Explorer, Room-wise Free Slots Finder, Room Allocations, Department Overview, Subjects Curriculum Manager, Conflict & HOD Approvals, Version History, Attendance Insights, and Export Center.
+- **Live Sync & Concurrency Indicator**: Real-time server sync state badge (`Draft — unpublished`, `Saving..`, `All changes saved`) in the topbar providing continuous persistence feedback without intrusive alert toasts.
+
+### *Multi-Tab Desktop Experience & Split Screen Engine*
+- **Tabstrip Workspace Engine**: High-performance tab lifecycle management supporting opening, closing, reordering, and pinning class section timetables.
+- **Split Screen Comparison Mode**: Side-by-side or stacked vertical/horizontal split comparison (`Alt+S`) with a draggable divider for direct comparison between sections, years, or dev vs prod drafts.
+- **Width-Aware Responsive Auto-Collapse**: Smart floating sidebar toggle button (`#sb-float-toggle`) that automatically collapses the sidebar when entering split mode below 1600px display width.
+- **Desktop Keyboard Shortcuts**: Power-user keyboard shortcuts (`Alt+T` new tab, `Alt+W` close active tab, `Alt+S` split view).
+- **Dirty Draft Guard Rails & Session Restoration**: Warns coordinators before closing tabs with unsaved edits; automatically restores previously opened tabs and active section upon browser refresh.
+
+### *Interactive Visual Grid, Drag & Drop, Keyboard Navigation & Context Menus*
+- **Visual Drag-and-Drop Rescheduling**: Move and swap timetable slots smoothly across days and periods with live drag previews, highlight indicators, and pre-drop conflict confirmation dialogs.
+- **Desktop Keyboard Traversal**: Navigate the matrix grid with arrow keys (`ArrowUp/Down/Left/Right`), press `Enter` to edit slot, `Delete` to remove with confirmation dialog, `Ctrl+C` / `Ctrl+V` to copy/paste slots with conflict validation, and `Esc` to deselect.
+- **Right-Click Context Menu**: Instant contextual menu on any grid cell: Edit Entry, Copy Slot, Paste Slot, Swap Slots, Add Slot Remark/Comment, Delete Slot, and "Find Substitute Faculty".
+- **Substitution Finder Modal**: Instant modal searching and listing all free faculty members for that specific day and period, verifying conflict availability in real time.
+- **Native Modal Replacements**: Replaced browser `alert()` and `confirm()` dialogs with custom EAMS modal dialogs for delete confirmations, slot comments, and substitute assignments.
+
+### *Bulk Excel Importer & Intelligent Fuzzy Matching*
+- **High-Throughput Excel Parser**: Ingests institution-wide timetable spreadsheets supporting both standard matrix grids and unformatted custom Excel sheets.
+- **Fuzzy Matching Engine**: Levenshtein distance and Jaro-Winkler string similarity algorithms automatically match faculty names, subject shortcodes, department IDs, and room codes against database records.
+- **Interactive Preview & Diff Matrix**: Color-coded confidence preview table showing matched records, ambiguities, and errors prior to commit, preventing corrupt schedule imports.
+
+### *Conflict Detection Engine, Workload Analytics & HOD Verification Workflow*
+- **Real-Time Conflict Detection Engine**: Instant live checks for faculty double-booking (`❌ Faculty double-booked` toast), room collisions, subject weekly period caps, and lab consecutive slot constraints.
+- **Automated Timetable Generation Engine**: Algorithmic slot generation supporting faculty teaching load limits, lab room requirements, and department distribution rules.
+- **HOD Verification & Approval Pipeline**: Dedicated approval view where HODs and Principals review side-by-side visual diffs of pending timetable changes before atomic promotion to live production.
+- **Version History & Snapshot Rollback**: Automatic snapshot creation on every publish, visual version comparison, and 1-click historical rollback.
+
+### *Multi-Timing Sets, Break Intervals & Special Activities*
+- **Multi-Timing Sets (`SET_1` vs `SET_2`)**: Native support for differing bell timings across departments and degree levels (e.g. Engineering vs Management).
+- **Configurable Break Intervals**: First break (Morning Tea), Lunch Break, and Afternoon Break columns with customizable duration and spanning lab slots.
+- **Special Activities Integration**: Added `models/specialActivity.model.js` supporting institutional activities (Assembly, Mentoring, Remedial Classes, Sports, Club Activities, Guest Lectures) directly on the grid.
+
+### *Production Schedule Resolver & Teacher Portal Integration*
+- **Production Teacher Schedule Resolver**: Real-time schedule aggregation across all active `SectionTimetable` records with 60-second in-memory caching, institutional timing set resolution, and teacher identity normalization (`refMatches`).
+- **Multi-Day Dynamic Overlays**: Real-time dynamic resolution of academic calendar holidays, approved teacher leaves, cancelled periods, room relocations, substitutions, and attendance completion status.
+- **New Schedule Endpoints**: `GET /api/timetable/my-timetable` (canonical weekly template) and `GET /api/timetable/my-schedule` (multi-day resolved schedule) with role-based authorization.
+- **Teacher Portal My Schedule Restructure**: Replaced legacy storage with production-linked `syncMySchedule()`. Week, Day, and dynamic Weekly Grid views with holiday banners, leave alerts, substitution indicators, and dashboard calendar dot indicators.
+- **Read-Only Portal Security**: Removed self-editing slot controls from general faculty; added "Edit in Timetable Workspace" button gated strictly for Timetable Coordinators.
+
+### *Today's Schedule Card, LiveSlotWatcher & 30s Auto-Attendance Prompt*
+- **Real-Time Slot State Machine**: Dynamically evaluates slot states: `live` with pulsating green indicator, `upcoming` with minutes countdown, `pending` when class has ended but remains unmarked, `done` when attendance is submitted, and badges for `cancelled`, `substituted`, `holiday`, `leave`.
+- **Header Intelligence**: Dynamic `#todaylbl` displays the active live class in session or the next class countdown.
+- **LiveSlotWatcher Background Engine**: Lightweight 30-second background ticker automatically detects active class start times and presents the non-intrusive `LiveSlotPrompt` modal within configurable lead time.
+- **Intelligent Prompt Suppression**: Auto-suppresses prompt if the teacher is already marking attendance, has an open roster sheet, or is viewing a modal.
+- **5-Minute Snooze & Session Tracking**: Supports 5-minute snooze or dismissal tracked in `sessionStorage`.
+- **1-Click "Today's Classes" Quick Chips**: Quick action chip strip (`#today-classes-chips`) automatically prefills Class, Subject, Period, and Date with a single click.
+- **Teacher Customization Preferences**: Added `autoAttendancePrompt` and `promptLeadMinutes` (0, 5, 10 min) to `TeacherSchema.preferences`, whitelisted in `PUT /api/profile/me` with settings controls in My Profile.
+
+### *Substitute Attendance Authorization Suite*
+- **Full Substitute Authorization Pipeline**: Enhanced `verifyTeacherAssignment` to accept `{ date, periodNumber }` and authorize non-assigned teachers when an active `Override` exists with `type: 'substitute'` matching the class, UTC date, period, and teacher identity.
+- **Multi-Mode Attendance Coverage**: Fully wired into Manual Attendance marking, Individual Student Edit, Quick Pass Passcode Attendance, Dynamic Rotating QR Attendance, and Class Representative (Rep Share) Attendance.
+- **Encrypted Audit Logging**: Substitute check-ins recorded with encrypted AES-256-GCM audit logs tagged with `subType: 'substitute-mark'`.
+- **Configurable Timetable Match Policy**: Introduced `attendance.timetableMatch: 'warn'` setting to alert teachers when marking unscheduled periods.
+
+### *Leave Management & Substitution Duties Linked to Timetable*
+- **Production-Linked Affected Slots**: Rebuilt `GET /api/leave/affected-slots` using `resolveTeacherRange()`. Retains only `role: 'owner'` and `status: 'scheduled'` slots, automatically excluding holidays, prior leaves, and cancelled periods. Supports FN/AN half-day filtering via `sessionOfPeriod`.
+- **Server-Side Substitution Re-Validation**: `POST /api/leave/teacher/apply` re-validates each substitution against the applicant's resolved scheduled slots, rejecting unowned or invalid slots with HTTP 400.
+- **Multi-Field HOD Lookup (T11)**: Expanded HOD lookup across `deptId`, `deptCode`, and case-insensitive department name matching `'specials.option': { $in: ['isHod', 'isHOD'] }`.
+- **Dual-Shape UTC Midnight Overrides (`PUT /teacher/:id/hod-approve`)**: Standardized override generation via `buildOverrideSlot()` with dual-spelled properties and normalized UTC midnight timestamps.
+- **My Substitution Duties Tab (`renderTeacherSubstituteDuties`):** Displays 14-day rolling window of assigned substitute duties, daily first-load duty alert prompt, notification deep-links to `my-leaves`, and direct "Take Att." deep links for today's duties.
+
+### *GridSlot ID Persistence & Backfill Engine*
+- **Additive GridSlot Schema**: Added `teacherId` (`ObjectId`), `teacherTrackId` (`String`), and `subjectId` (`ObjectId`) to `GridSlotSchema` in `models/timetable.model.js`.
+- **Client-Side Auto-Resolution**: Updated `readModal()`, `entriesToGrid()`, `flattenSlots()`, and `flattenGrid()` in `timetable.page.js` to automatically resolve and preserve IDs on slot creation and edits.
+- **Server Normalizer Integrity**: `normalizeGridSlots()` in `routes/timetable.routes.js` preserves teacher and subject IDs across `save-production`, `PUT /section/:classId`, and `PUT /section/:classId/slot`.
+- **Production Backfill CLI**: Created `scripts/backfillSlotTeacherIds.js` with exact `normName` matching, ambiguity safeguards, dry-run default, `--apply` flag, and automatic cache invalidation.
+
+### *SmartBoard Classroom Kiosk*
+- **Hardware Kiosk Mode**: Dedicated, responsive full-screen kiosk web application designed specifically for wall-mounted Smart Boards and IFPs.
+- **Live Schedule Broadcasting**: Connects via real-time WebSockets (`services/board.socket.js`) to display current live class, faculty name, room allocation, and next upcoming subject.
+- **Integrated On-Screen Dynamic QR**: Renders rotating dynamic attendance QR code directly on the Smart Board for instant student scanning.
+- **Campus Emergency & Broadcast Banner**: Real-time broadcast banner for institutional alerts, urgent announcements, and period time updates.
+- **Device Pairing & Remote Control**: Hardware pairing code handshake with cryptographic device tokens, heartbeat telemetry, and remote refresh/lock.
+
+### *Campus Facilities & Room Management Hub*
+- **Centralized Infrastructure Hub**: Comprehensive management of campus buildings, blocks, wings, floors, and rooms.
+- **Interactive Leaflet Geofence Map**: Interactive map coordinate picker with adjustable radius (in meters) to enforce physical attendance boundaries.
+- **Granular Facility Attributes**: Tracking of IFP / Smart Boards, projectors, AC units, audio PA systems, workstation counts, and Wi-Fi access points.
+- **Room Occupancy & Free Slots Calendar**: Live visual occupancy heatmap showing current bookings and free periods per room.
+- **Data Migration CLI (`scripts/migrate-facilities.js`)**: Automated script to migrate legacy room strings into structured `Facility` documents.
+
+### *System Controller Dashboard & Process Monitor*
+- **Real-Time Process Telemetry**: Live gauges for Node.js process memory (heap used/total), CPU utilization, event loop latency, and server uptime.
+- **Maintenance Mode Window Scheduler**: Schedule planned maintenance windows with custom countdown banners and automated non-admin lockouts.
+- **IP Whitelist Bypass Engine (`utils/ipCheck.js`)**: Configurable IP address and CIDR subnet whitelist allowing administrators and on-campus testers to bypass maintenance lockouts.
+- **Live Session & Socket Monitor (`utils/sessionMonitor.js`)**: Real-time tracking of active user logins, socket connections, and idle session termination.
+- **Emergency Controls & Audit Logs**: 1-click system freeze, database backup triggers, and encrypted AES-256-GCM audit log viewer.
+
+### *Security, Authorization & Backend Hardening*
+- **Tiered Rate Limiters (`utils/rateLimiters.js`)**: Custom rate limiters safeguarding login, live attendance submission, report generation, and backup endpoints.
+- **Model Barrel Standardization**: Enforced `const M = require('../models')` across all routes and services for consistent model registration.
+- **DOM Nesting & Structural Audit**: Resolved unclosed tabs and modals across all 11 EAMS pages, ensuring zero DOM leakage.
+- **Input Sanitization & HTML Escaping**: Global `escapeHtml` protection across all dynamic table renders, modals, notifications, and tooltips.
+
+### `Total 84 Files changed and updated in v2.4.0` 
+### `Last Version: v2.3.3`
+
+----
+
 ## 🔹 `v2.3.3` — 21 September 2026 *(Security Hardening & Authorization Overhaul)*
 
 ### *Encryption & Security*

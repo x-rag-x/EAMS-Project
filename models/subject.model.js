@@ -11,9 +11,12 @@ const SubjectSchema = new mongoose.Schema({
   deptId:   { type: mongoose.Schema.Types.ObjectId, ref: 'Department' },
   deptName: { type: String, default: '' },
   deptCode: { type: String, default: '' },
+  regulation: { type: String, trim: true, default: '' },
 }, { timestamps: true });
 
 SubjectSchema.index({ deptId: 1 });
+SubjectSchema.index({ deptId: 1, regulation: 1 });
+SubjectSchema.index({ regulation: 1 });
 
 module.exports = {
   Subject: mongoose.model('Subject', SubjectSchema),

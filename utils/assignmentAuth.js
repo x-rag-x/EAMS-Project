@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const M = require('../models');
+const { readOverrideSlot, refMatches, getTeacherIdentity, normName } = require('./teacherSchedule');
 
 const isValidObjId = (id) => typeof id === 'string' && mongoose.Types.ObjectId.isValid(id) && id.length === 24;
 
@@ -7,13 +8,15 @@ const isValidObjId = (id) => typeof id === 'string' && mongoose.Types.ObjectId.i
  * Verifies whether a teacher is assigned to a specific class and subject.
  * Admins and Sub-admins bypass this verification.
  * If no assignments exist in the entire system, gracefully allows marking to prevent onboarding lockouts.
+ * Also permits substitute teachers if an active Override exists for that date, period, and class.
  * 
  * @param {Object} user - The authenticated user object (from req.user)
  * @param {string|Object} classIdInput - Class ID, trackId, or Class document
  * @param {string|Object} subjectIdInput - Subject ID, trackId, code, or Subject document
- * @returns {Promise<{ allowed: boolean, reason?: string, assignment?: Object }>}
+ * @param {Object} [context] - Optional context containing { date, periodNumber }
+ * @returns {Promise<{ allowed: boolean, reason?: string, assignment?: Object, via?: string, overrideId?: any }>}
  */
-async function verifyTeacherAssignment(user, classIdInput, subjectIdInput) {
+async function verifyTeacherAssignment(user, classIdInput, subjectIdInput, context = {}) {
   if (!user) {
     return { allowed: false, reason: 'Authentication required' };
   }
@@ -135,6 +138,60 @@ async function verifyTeacherAssignment(user, classIdInput, subjectIdInput) {
     }).lean();
 
     if (!assignment) {
+      // Check substitute teacher authorization via Day Override
+      if (context && (context.date || context.periodNumber || context.period)) {
+        const rawDate = context.date;
+        const pNum = Number(context.periodNumber || context.period || 1);
+        let startOfUtc = null;
+        let endOfUtc = null;
+
+        if (rawDate) {
+          const dateStr = typeof rawDate === 'string'
+            ? rawDate.split('T')[0]
+            : (rawDate instanceof Date ? rawDate.toISOString().split('T')[0] : '');
+          if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+            startOfUtc = new Date(dateStr + 'T00:00:00.000Z');
+            endOfUtc = new Date(dateStr + 'T23:59:59.999Z');
+          }
+        }
+
+        if (startOfUtc && endOfUtc && !isNaN(pNum)) {
+          const objIdCandidates = uniqueClassCandidates.filter(c => isValidObjId(c)).map(c => new mongoose.Types.ObjectId(c));
+          const ovQuery = {
+            type: 'substitute',
+            date: { $gte: startOfUtc, $lte: endOfUtc },
+            period: pNum,
+            $or: [
+              ...(objIdCandidates.length ? [{ classId: { $in: objIdCandidates } }] : []),
+              { classId: { $in: uniqueClassCandidates } }
+            ]
+          };
+
+          const matchingOverrides = await M.Override.find(ovQuery).lean();
+          if (matchingOverrides.length > 0) {
+            const idn = await getTeacherIdentity(user);
+            for (const ov of matchingOverrides) {
+              const slotInfo = readOverrideSlot(ov.newSlot);
+              const isMatch = (idn && refMatches(slotInfo, idn)) ||
+                uniqueTeacherCandidates.some(tc =>
+                  (slotInfo.teacherTrackId && String(slotInfo.teacherTrackId).trim() === String(tc).trim()) ||
+                  (slotInfo.teacherId && String(slotInfo.teacherId).trim() === String(tc).trim()) ||
+                  (slotInfo.teacher && normName(slotInfo.teacher) === normName(tc))
+                );
+
+              if (isMatch) {
+                return {
+                  allowed: true,
+                  via: 'substitution',
+                  overrideId: ov._id,
+                  assignment: null
+                };
+              }
+            }
+          }
+        }
+      }
+
       return {
         allowed: false,
         reason: 'You are not assigned to teach this class and subject combination.'

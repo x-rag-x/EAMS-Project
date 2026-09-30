@@ -140,6 +140,47 @@ body::after {
   display: none;
 }
 
+.admin-sub-wrap {
+  display: flex;
+  background: rgba(46, 125, 50, 0.08);
+  border: 1.5px solid rgba(46, 125, 50, 0.22);
+  border-radius: 12px;
+  padding: 3px;
+  gap: 4px;
+  margin-bottom: 20px;
+  position: relative;
+  z-index: 1;
+  transition: all 0.25s ease;
+}
+
+.admin-sub-btn {
+  flex: 1;
+  border: none;
+  background: transparent;
+  color: #2e7d32;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 7px 10px;
+  border-radius: 9px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: all 0.2s ease;
+}
+
+.admin-sub-btn:hover {
+  background: rgba(46, 125, 50, 0.08);
+}
+
+.admin-sub-btn.sel {
+  background: #1b5e20;
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(27, 94, 32, 0.28);
+}
+
 .lf2 {
   margin-bottom: 20px;
   position: relative;

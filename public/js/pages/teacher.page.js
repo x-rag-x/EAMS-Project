@@ -49,8 +49,21 @@ var _memStore = {};
   // DATE CONSTANTS
   const DAY_NAMES = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 
+  // Local-calendar YYYY-MM-DD. toISOString() is UTC, which in IST returns
+  // *yesterday* between 00:00 and 05:30 and shifts every derived date range.
+  function localISO(d) {
+    d = d || new Date();
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  }
+
   function todayISO() {
-    return new Date().toISOString().split('T')[0];
+    return localISO(new Date());
+  }
+
+  // Bearer header for plain fetch() calls — the API authenticates by
+  // Authorization header only (cookies are never sent/read).
+  function authHeaders(extra) {
+    return Object.assign({ 'Authorization': 'Bearer ' + getToken() }, extra || {});
   }
 
   function parseDateSafe(val) {
@@ -84,7 +97,13 @@ var _memStore = {};
 
   function showToast(msg, state, details) {
     if (typeof dbToast === 'function') {
-      var s = state === 'warn' || state === 'error' ? 'error' : (state === 'info' || state === 'saving' ? 'saving' : 'success');
+      // 'info' used to map to 'saving' (spinner that never auto-closes) and
+      // 'danger'/'warning' fell through to green 'success'.
+      var s = (state === 'error' || state === 'danger') ? 'error'
+            : (state === 'warn' || state === 'warning') ? 'warn'
+            : state === 'info' ? 'info'
+            : state === 'saving' ? 'saving'
+            : 'success';
       dbToast(msg, s, details);
     }
   }
@@ -181,7 +200,11 @@ var _memStore = {};
           isExamCoordinator: !!p.isExamCoordinator,
           isPlacementCoordinator: !!p.isPlacementCoordinator,
           isAdmin: !!p.isAdmin,
-          adminRights: p.adminRights || ''
+          adminRights: p.adminRights || '',
+          // Previously dropped — the saved "default attendance status"
+          // preference was ignored after every reload.
+          specials: Array.isArray(p.specials) ? p.specials : (currentUser.specials || []),
+          preferences: p.preferences || currentUser.preferences || { defaultAttendanceStatus: 'Present' }
         });
         sessionStorage.setItem('eams_user', JSON.stringify(currentUser));
 
@@ -268,10 +291,12 @@ var _memStore = {};
     var to = todayISO();
     var from90 = new Date();
     from90.setDate(from90.getDate() - 90);
-    var from = from90.toISOString().split('T')[0];
+    var from = localISO(from90);
+    // limit=0 → unpaginated. The endpoint defaults to 50 rows, which silently
+    // truncated the dashboard chart, defaulters and "already marked" checks.
     return fetch(
       '/api/attendance?teacherId=' + encodeURIComponent(currentUser._id)
-        + '&from=' + from + '&to=' + to,
+        + '&from=' + from + '&to=' + to + '&limit=0',
       { headers: { 'Authorization': 'Bearer ' + tok } }
     )
     .then(function(r) { return r.ok ? r.json() : []; })
@@ -287,7 +312,7 @@ var _memStore = {};
   function fetchAttendanceForReport(classId, subjectId, from, to) {
     var tok = getToken();
     if (!tok) return Promise.resolve([]);
-    var url = '/api/attendance?teacherId=' + encodeURIComponent(currentUser._id);
+    var url = '/api/attendance?teacherId=' + encodeURIComponent(currentUser._id) + '&limit=0';
     if (classId) url += '&classId=' + encodeURIComponent(classId);
     if (from && to) url += '&from=' + encodeURIComponent(from) + '&to=' + encodeURIComponent(to);
     return fetch(url, { headers: { 'Authorization': 'Bearer ' + tok } })
@@ -296,29 +321,202 @@ var _memStore = {};
       .catch(function() { return []; });
   }
 
-  // syncMyTimetable
-  // Fetches this teacher's live schedule slots from /api/timetable and caches in DB
-  function syncMyTimetable() {
+  // ── Production Timetable Synchronization (Phase 3) ──
+  // Fetches this teacher's canonical weekly template and 14-day resolved schedule
+  function syncMySchedule(weekOffsetDays) {
     var tok = getToken();
-    if (!tok) return Promise.resolve([]);
-    return fetch('/api/timetable?teacherId=' + encodeURIComponent(currentUser._id), {
-      headers: { 'Authorization': 'Bearer ' + tok }
+    if (!tok) return Promise.resolve({ template: [], days: {} });
+
+    // 1) Fetch canonical weekly template: GET /api/timetable/my-timetable
+    var pTemplate = fetch('/api/timetable/my-timetable', {
+      headers: authHeaders()
     })
-    .then(function(r) { return r.ok ? r.json() : []; })
-    .then(function(data) {
-      var rows = Array.isArray(data) ? data : [];
-      DB.set('timetable', rows);
-      return rows;
+    .then(function(r) { return r.ok ? r.json() : null; })
+    .then(function(res) {
+      if (res && res.ok && res.data) {
+        var rows = (res.data.slots || []).map(normalizeScheduleSlot);
+        DB.set('timetable', rows);
+        if (Array.isArray(res.data.timingSets)) {
+          DB.set('timing-sets', res.data.timingSets);
+          populatePeriodOptions('attperiod');
+        }
+        return rows;
+      }
+      return DB.get('timetable') || [];
     })
-    .catch(function() { return []; });
+    .catch(function() { return DB.get('timetable') || []; });
+
+    // 2) Fetch resolved schedule range around the given week offset: GET /api/timetable/my-schedule?from=...&to=...
+    var today = new Date();
+    var monday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    var diffToMon = (monday.getDay() + 6) % 7;
+    monday.setDate(monday.getDate() - diffToMon + (weekOffsetDays || 0));
+
+    var fromDate = new Date(monday);
+    var toDate = new Date(monday);
+    toDate.setDate(toDate.getDate() + 13); // 14-day window (inclusive)
+    var fromStr = localISO(fromDate);
+    var toStr = localISO(toDate);
+
+    var pSchedule = fetch('/api/timetable/my-schedule?from=' + encodeURIComponent(fromStr) + '&to=' + encodeURIComponent(toStr), {
+      headers: authHeaders()
+    })
+    .then(function(r) { return r.ok ? r.json() : null; })
+    .then(function(res) {
+      if (res && res.ok && res.data && Array.isArray(res.data.days)) {
+        var existing = DB.get('schedule-days') || {};
+        res.data.days.forEach(function(dayObj) {
+          if (dayObj && dayObj.date) {
+            existing[dayObj.date] = dayObj;
+          }
+        });
+        DB.set('schedule-days', existing);
+        return existing;
+      }
+      return DB.get('schedule-days') || {};
+    })
+    .catch(function() { return DB.get('schedule-days') || {}; });
+
+    return Promise.all([pTemplate, pSchedule]).then(function(results) {
+      // Check for today's substitute duties notice on first load of the day
+      try {
+        var todayKey = todayISO();
+        var todayDay = (results[1] && results[1][todayKey]) || null;
+        if (todayDay && Array.isArray(todayDay.slots)) {
+          var subDuties = todayDay.slots.filter(function(s) {
+            return s.role === 'substitute' && s.status === 'scheduled';
+          });
+          if (subDuties.length > 0) {
+            var dutyNoticeKey = 'eams_sub_duty_notice_' + todayKey;
+            if (!sessionStorage.getItem(dutyNoticeKey)) {
+              sessionStorage.setItem(dutyNoticeKey, '1');
+              var d0 = subDuties[0];
+              var orig = d0.originalTeacher || 'Faculty';
+              var msg = "You're substituting for " + orig + " in P" + d0.periodNumber + " · " + (d0.className || 'Class') + " today";
+              if (typeof showToast === 'function') {
+                showToast(msg, 'info');
+              }
+            }
+          }
+        }
+      } catch (e) {}
+
+      return { template: results[0], days: results[1] };
+    });
+  }
+
+  // Alias for backward compatibility
+  var syncMyTimetable = syncMySchedule;
+
+  // Retrieve cached resolved schedule day or trigger on-demand fetch
+  function getMyDay(dateISO) {
+    if (!dateISO) return null;
+    var cached = DB.get('schedule-days') || {};
+    if (cached[dateISO]) return cached[dateISO];
+
+    if (!getMyDay._inFlight) getMyDay._inFlight = {};
+    if (!getMyDay._inFlight[dateISO]) {
+      var tok = getToken();
+      if (tok) {
+        getMyDay._inFlight[dateISO] = true;
+        fetch('/api/timetable/my-schedule?from=' + encodeURIComponent(dateISO) + '&to=' + encodeURIComponent(dateISO), {
+          headers: authHeaders()
+        })
+        .then(function(r) { return r.ok ? r.json() : null; })
+        .then(function(res) {
+          delete getMyDay._inFlight[dateISO];
+          if (res && res.ok && res.data && Array.isArray(res.data.days) && res.data.days[0]) {
+            var dayDoc = res.data.days[0];
+            var cur = DB.get('schedule-days') || {};
+            cur[dateISO] = dayDoc;
+            DB.set('schedule-days', cur);
+            if (dateISO === todayISO()) {
+              renderTodaySchedule(todayISO());
+              renderTodayClassesChips();
+            }
+            if (currentSchedTab === 'week') renderSchedulePage();
+            else if (currentSchedTab === 'day') renderDayView();
+          }
+        })
+        .catch(function() {
+          delete getMyDay._inFlight[dateISO];
+        });
+      }
+    }
+
+    return null;
+  }
+
+  function populatePeriodOptions(selectId) {
+    var el = document.getElementById(selectId);
+    if (!el) return;
+    var sets = DB.get('timing-sets') || [];
+    var primary = sets[0] || null;
+    var periods = (primary && Array.isArray(primary.periods) && primary.periods.length)
+      ? primary.periods
+      : TEACHER_PERIODS.filter(function(p) { return !p.isBreak; });
+
+    var curVal = el.value;
+    var html = periods.map(function(p) {
+      var pNum = p.periodNumber || p.number || p.num;
+      var timeStr = (p.start && p.end) ? ' (' + p.start + '–' + p.end + ')' : '';
+      return '<option value="' + pNum + '">Period ' + pNum + timeStr + '</option>';
+    }).join('');
+    el.innerHTML = html;
+    if (curVal) el.value = curVal;
+  }
+
+  // Normalizes schedule slot properties across weekly template and daily resolver
+  function normalizeScheduleSlot(t) {
+    if (!t) return t;
+    var slot = Object.assign({}, t);
+    slot._id = slot._id || slot.key || ((slot.dayFull || slot.day || 'Mon') + '_' + (slot.periodNumber || 1));
+    slot.start = slot.start || '';
+    slot.end   = slot.end   || '';
+    slot.periodNumber = slot.periodNumber || (slot.start ? periodFromStartTime(slot.start) : 1);
+    slot.hallNo = slot.hallNo || slot.room || '';
+    slot.className = slot.className || '';
+    slot.subjectName = slot.subjectName || slot.subject || '';
+    slot.span = Number(slot.span || 1);
+    slot.day = slot.day || (slot.dayFull ? slot.dayFull.slice(0, 3) : 'Mon');
+    slot.dayFull = slot.dayFull || 'Monday';
+    slot.role = slot.role || 'owner';
+    slot.status = slot.status || 'scheduled';
+    slot.isLab = Boolean(slot.isLab || slot.type === 'Lab');
+    return slot;
+  }
+
+  function periodFromStartTime(start) {
+    var m = /^(\d{1,2}):(\d{2})/.exec(String(start || ''));
+    if (!m) return null;
+    var mins = Number(m[1]) * 60 + Number(m[2]);
+    var best = null, bestDiff = 16;
+    TEACHER_PERIODS.forEach(function(p) {
+      if (p.isBreak) return;
+      var pm = p.start.split(':');
+      var diff = Math.abs(Number(pm[0]) * 60 + Number(pm[1]) - mins);
+      if (diff < bestDiff) { bestDiff = diff; best = p.num; }
+    });
+    return best;
+  }
+
+  function getMyTimetable() {
+    return (DB.get('timetable') || []).filter(function(t) { return t && t.day; });
+  }
+
+  function bySlotStart(a, b) {
+    return String(a.start || '').localeCompare(String(b.start || ''));
   }
 
   function bootApp() {
     document.getElementById('app').classList.add('vis');
     if (typeof flushToastQueue === 'function') flushToastQueue();
     else if (typeof _loaderActive !== 'undefined') _loaderActive = false;
-    document.getElementById('tpav').textContent    = currentUser.name[0];
-    document.getElementById('tpname').textContent  = currentUser.name;
+    // Sidebar starts hidden on phones — the toggle must show ☰, not ✖.
+    var sbToggle = document.getElementById('sbtoggle');
+    if (sbToggle && window.innerWidth <= 768) sbToggle.innerHTML = '☰';
+    document.getElementById('tpav').textContent    = (currentUser.name || 'T')[0];
+    document.getElementById('tpname').textContent  = currentUser.name || 'Teacher';
     document.getElementById('tpdept').textContent  = currentUser.dept || 'Faculty';
     document.getElementById('datelbl').textContent =
       new Date().toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
@@ -327,6 +525,8 @@ var _memStore = {};
     if (ttBtn) ttBtn.style.display = isTTC ? 'flex' : 'none';
     var badge = document.getElementById('sn-tt-badge');
     if (badge) badge.style.display = isTTC ? 'inline-block' : 'none';
+    var coordEditBtn = document.getElementById('btn-coord-edit-tt');
+    if (coordEditBtn) coordEditBtn.style.display = isTTC ? 'inline-flex' : 'none';
     populateAllFilters();
     initCalendar();
     renderNotifications();
@@ -339,11 +539,22 @@ var _memStore = {};
 
     Promise.all([syncMyProfile(), syncMyAssignments()]).then(function() {
       populateAllFilters();
-      return Promise.all([syncMyStudents(), syncMyAttendance(), syncMyTimetable()]);
+      return Promise.all([syncMyStudents(), syncMyAttendance(), syncMySchedule(0)]);
     }).then(function() {
       populateAllFilters();
-      if (document.getElementById('pg-dash').classList.contains('act'))    initDashboard();
-      if (document.getElementById('pg-profile').classList.contains('act')) initProfilePage();
+      populatePeriodOptions('attperiod');
+      renderTodayClassesChips();
+      if (typeof LiveSlotWatcher !== 'undefined' && LiveSlotWatcher.start) {
+        LiveSlotWatcher.start();
+      }
+      // Re-render whichever data-driven view is open now that caches are warm
+      var isAct = function(id) { var el = document.getElementById(id); return el && el.classList.contains('act'); };
+      if (isAct('pg-dash'))    initDashboard();
+      if (isAct('pg-sched'))   switchSchedTab(currentSchedTab || 'week');
+      if (isAct('pg-att'))     initAttendancePage();
+      if (isAct('pg-rep-stu')) { populateStudentListFilters(); renderStudentList(); }
+      if (isAct('pg-rep-def')) { populateDefaulterFilters(); renderDefaultersList(); }
+      if (isAct('pg-profile')) initProfilePage();
     });
   }
 
@@ -368,7 +579,7 @@ var _memStore = {};
       'dash':         'sn-dash',     'sched':     'sn-sched', 'att':     'sn-att',
       'rep-att':      'sn-ratt',     'rep-def':   'sn-rdef',  'rep-stu': 'sn-stu',
       'rep-insights': 'sn-insights', 'leaves':    'sn-leaves','my-leaves': 'sn-my-leaves',
-      'griev':        'sn-griev'
+      'griev':        'sn-griev',    'profile':   'sn-profile'
     };
     if (navMap[pageName]) {
       const navEl = document.getElementById(navMap[pageName]);
@@ -454,15 +665,20 @@ var _memStore = {};
       if (el) el.innerHTML = buildSubjectOptions(true);
     });
 
-    // Attendance take page class selector
+    // Attendance take page class selector (keep the teacher's current pick —
+    // this runs again after the background sync finishes)
     const attClassEl = document.getElementById('attcls');
-    if (attClassEl) attClassEl.innerHTML = buildClassOptions(false);
+    if (attClassEl) {
+      const keepCls = attClassEl.value;
+      attClassEl.innerHTML = buildClassOptions(false);
+      if (keepCls && attClassEl.querySelector('option[value="' + keepCls + '"]')) attClassEl.value = keepCls;
+    }
 
     // Set default date range (last 7 days)
     const today       = todayISO();
     const weekAgo     = new Date();
     weekAgo.setDate(weekAgo.getDate() - 7);
-    const weekAgoISO  = weekAgo.toISOString().split('T')[0];
+    const weekAgoISO  = localISO(weekAgo);
 
     ['ff', 'rff'].forEach(function(id) { const el = document.getElementById(id); if (el) el.value = weekAgoISO; });
     ['ft', 'rft'].forEach(function(id) { const el = document.getElementById(id); if (el) el.value = today;      });
@@ -491,7 +707,7 @@ var _memStore = {};
 
   // DASHBOARD
   function initDashboard() {
-    const firstName = currentUser.name.split(' ')[0];
+    const firstName = String(currentUser.name || 'there').split(' ')[0];
     document.getElementById('dashsub').textContent = 'Welcome back, ' + firstName + '! Here\'s your day at a glance.';
     document.getElementById('todaylbl').textContent =
       new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' });
@@ -500,62 +716,262 @@ var _memStore = {};
     renderDefaultersMini();
     renderAttendanceChart();
     renderCalendar();
+
+    // 30s auto-refresh for Today's Schedule live states
+    if (!renderTodaySchedule._timer) {
+      renderTodaySchedule._timer = setInterval(function() {
+        var dash = document.getElementById('pg-dash');
+        if (dash && dash.classList.contains('act')) {
+          renderTodaySchedule(todayISO());
+        }
+      }, 30000);
+    }
   }
   var initDash = initDashboard;
 
+  function parseSlotTimeToMs(dateISO, timeStr) {
+    if (!timeStr) return 0;
+    var parts = String(timeStr).split(':');
+    var d = new Date(dateISO + 'T00:00:00');
+    d.setHours(parseInt(parts[0], 10) || 0, parseInt(parts[1], 10) || 0, 0, 0);
+    return d.getTime();
+  }
+
   function renderTodaySchedule(dateISO) {
-    const dayOfWeek   = new Date(dateISO + 'T00:00:00').getDay();
-    const dayName     = DAY_NAMES[dayOfWeek];
-    const timetable   = DB.get('timetable')
-      .filter(function(t) { return t.teacherId === currentUser._id && t.day === dayName; })
-      .sort(function(a, b) { return a.start.localeCompare(b.start); });
+    if (!dateISO) dateISO = todayISO();
+    var isToday = (dateISO === todayISO());
 
-    const attendance  = DB.get('attendance');
-    const isToday     = dateISO === todayISO();
+    var dateLabelEl = document.getElementById('todaylbl');
+    var containerEl = document.getElementById('todaysched');
+    if (!containerEl) return;
 
-    const dateLabelEl = document.getElementById('todaylbl');
-    if (dateLabelEl) {
-      dateLabelEl.textContent = new Date(dateISO + 'T00:00:00').toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' });
+    var dayData = getMyDay(dateISO);
+    if (!dayData) {
+      containerEl.innerHTML = '<div class="est"><span class="ei">&#128205;</span><p style="font-size:12px;">Loading today\'s schedule...</p></div>';
+      return;
     }
 
-    const containerEl = document.getElementById('todaysched');
-    if (!timetable.length) {
+    if (dayData.isHoliday) {
+      if (dateLabelEl) {
+        dateLabelEl.textContent = '🏖️ ' + (dayData.holidayReason || 'Holiday');
+      }
+      containerEl.innerHTML = '<div class="est"><span class="ei">🏖️</span><p style="font-size:13px;font-weight:700;color:var(--td);">' + escapeHtml(dayData.holidayReason || 'Holiday') + '</p><p style="font-size:12px;color:var(--tmu);">No classes scheduled for today.</p></div>';
+      return;
+    }
+
+    if (dayData.onLeave) {
+      if (dateLabelEl) {
+        dateLabelEl.textContent = '🏖️ On Approved Leave';
+      }
+      containerEl.innerHTML = '<div class="est"><span class="ei">🏖️</span><p style="font-size:13px;font-weight:700;color:var(--td);">On Approved Leave (' + escapeHtml(dayData.leaveSlot || 'Full Day') + ')</p><p style="font-size:12px;color:var(--tmu);">Classes handled by assigned substitutes.</p></div>';
+      return;
+    }
+
+    var slots = Array.isArray(dayData.slots) ? dayData.slots.slice() : [];
+    if (!slots.length) {
+      if (dateLabelEl) {
+        dateLabelEl.textContent = new Date(dateISO + 'T00:00:00').toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' });
+      }
       containerEl.innerHTML = '<div class="est"><span class="ei">&#128205;</span><p style="font-size:12px;">No classes on this day.</p></div>';
       return;
     }
 
-    containerEl.innerHTML = timetable.map(function(slot) {
-      const alreadyMarked = attendance.some(function(a) {
-        return a.classId === slot.classId && a.subjectId === slot.subjectId && a.date === dateISO;
-      });
+    // Sort by period number or start time
+    slots.sort(function(a, b) {
+      if (a.periodNumber !== b.periodNumber) return a.periodNumber - b.periodNumber;
+      return String(a.start).localeCompare(String(b.start));
+    });
 
-      let actionHtml;
-      if (alreadyMarked) {
-        actionHtml = '<div class="donetag">&#9989; Done</div>';
+    var now = Date.now();
+    var leadMin = (currentUser.preferences && currentUser.preferences.promptLeadMinutes !== undefined)
+      ? Number(currentUser.preferences.promptLeadMinutes)
+      : 5;
+    var leadMs = leadMin * 60 * 1000;
+
+    var liveSlot = null;
+    var nextSlot = null;
+    var minUntilNext = Infinity;
+    var allCompleted = true;
+
+    var html = slots.map(function(slot) {
+      var isDone = !!(slot.attendance && slot.attendance.marked);
+      var isInactive = ['cancelled', 'substituted', 'holiday', 'leave'].includes(slot.status);
+      var isSubRole = (slot.role === 'substitute');
+
+      var sTime = parseSlotTimeToMs(dateISO, slot.start);
+      var eTime = parseSlotTimeToMs(dateISO, slot.end);
+
+      var state = 'upcoming';
+      if (isDone) {
+        state = 'done';
+      } else if (isInactive) {
+        state = slot.status;
+        allCompleted = false;
       } else if (isToday) {
-        actionHtml = '<button class="attbtn" onclick="navigateToAttendance(\'' + slot.classId + '\',\'' + slot.subjectId + '\')">Take Att.</button>';
+        allCompleted = false;
+        if (now < sTime - leadMs) {
+          state = 'upcoming';
+          var diff = sTime - now;
+          if (diff > 0 && diff < minUntilNext) {
+            minUntilNext = diff;
+            nextSlot = slot;
+          }
+        } else if (now >= sTime - leadMs && now < eTime) {
+          state = 'live';
+          liveSlot = slot;
+        } else {
+          state = 'pending';
+        }
       } else {
-        actionHtml = '<div style="font-size:10px;color:var(--tdi);">–</div>';
+        if (dateISO < todayISO()) {
+          state = 'pending';
+          allCompleted = false;
+        } else {
+          state = 'upcoming';
+          allCompleted = false;
+        }
       }
 
-      const cardClass = 'scard ' + (isToday && !alreadyMarked ? 'uc' : alreadyMarked ? 'dn' : '');
+      var cardClass = 'scard';
+      var actionHtml = '';
+      var statusBadgeHtml = '';
+
+      if (state === 'live') {
+        cardClass += ' uc';
+        statusBadgeHtml = '<span class="badge-live">NOW</span>';
+        actionHtml = '<button class="btn-pri bsm" style="white-space:nowrap;padding:6px 14px;" onclick="navigateToAttendance(\'' + slot.classId + '\',\'' + (slot.subjectId || '') + '\',' + slot.periodNumber + ',\'' + dateISO + '\')">Take Attendance</button>';
+      } else if (state === 'pending') {
+        cardClass += ' uc';
+        statusBadgeHtml = '<span class="badge-pending">⏳ Attendance pending</span>';
+        actionHtml = '<button class="btn-out bsm" style="white-space:nowrap;padding:5px 12px;" onclick="navigateToAttendance(\'' + slot.classId + '\',\'' + (slot.subjectId || '') + '\',' + slot.periodNumber + ',\'' + dateISO + '\')">Take Att.</button>';
+      } else if (state === 'upcoming') {
+        cardClass += ' uc';
+        var minUntil = Math.ceil((sTime - now) / 60000);
+        var timeLabel = (isToday && minUntil > 0 && minUntil <= 60)
+          ? ('in ' + minUntil + ' min')
+          : ('at ' + escapeHtml(slot.start));
+        statusBadgeHtml = '<span style="font-size:11px;font-weight:600;color:var(--tmu);">' + timeLabel + '</span>';
+        actionHtml = isToday
+          ? '<button class="btn-out bsm" style="white-space:nowrap;padding:5px 12px;opacity:0.85;" onclick="navigateToAttendance(\'' + slot.classId + '\',\'' + (slot.subjectId || '') + '\',' + slot.periodNumber + ',\'' + dateISO + '\')">Take Att.</button>'
+          : '<div style="font-size:10px;color:var(--tdi);">–</div>';
+      } else if (state === 'done') {
+        cardClass += ' dn';
+        actionHtml = '<div class="donetag">&#9989; Done</div>';
+      } else if (state === 'cancelled') {
+        cardClass += ' dn';
+        actionHtml = '<span class="badge-cancelled">🚫 Cancelled</span>';
+      } else if (state === 'substituted') {
+        cardClass += ' dn';
+        actionHtml = '<span class="badge-substituted">🔄 Substituted (' + escapeHtml(slot.substituteTeacher || 'Faculty') + ')</span>';
+      } else if (state === 'holiday') {
+        cardClass += ' dn';
+        actionHtml = '<span class="badge-holiday">🏖️ Holiday</span>';
+      } else if (state === 'leave') {
+        cardClass += ' dn';
+        actionHtml = '<span class="badge-leave">🏖️ Leave</span>';
+      }
+
+      var roleBadgeHtml = isSubRole
+        ? ' <span class="badge-sub-role">🔄 Substitute for ' + escapeHtml(slot.originalTeacher || 'Colleague') + '</span>'
+        : '';
+
+      var periodLabel = slot.periodNumber
+        ? ' <span style="font-weight:600;color:var(--tdi);font-size:10.5px;">· P' + slot.periodNumber + '</span>'
+        : '';
+
       return '<div class="' + cardClass + '">'
-        + '<div class="stb"><div class="t">' + slot.start + '</div><span class="d">–' + slot.end + '</span></div>'
-        + '<div class="sinfo"><div class="scls">' + slot.className + '</div><div class="ssub">' + slot.subjectName + '</div></div>'
+        + '<div class="stb"><div class="t">' + escapeHtml(slot.start) + '</div><span class="d">–' + escapeHtml(slot.end) + '</span></div>'
+        + '<div class="sinfo">'
+        +   '<div class="scls" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">'
+        +     '<span>' + escapeHtml(slot.className) + '</span>'
+        +     periodLabel
+        +     roleBadgeHtml
+        +   '</div>'
+        +   '<div class="ssub" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">'
+        +     '<span>' + escapeHtml(slot.subjectName || slot.subject) + '</span>'
+        +     (statusBadgeHtml ? statusBadgeHtml : '')
+        +   '</div>'
+        + '</div>'
         + actionHtml
         + '</div>';
     }).join('');
+
+    containerEl.innerHTML = html;
+
+    // Update Header #todaylbl
+    if (dateLabelEl && isToday) {
+      if (liveSlot) {
+        dateLabelEl.innerHTML = '<span style="color:#15803d;font-weight:700;">🟢 P' + liveSlot.periodNumber + ' · ' + escapeHtml(liveSlot.className) + ' in session</span>';
+      } else if (nextSlot && minUntilNext !== Infinity) {
+        var min = Math.ceil(minUntilNext / 60000);
+        dateLabelEl.innerHTML = '<span style="color:var(--td);font-weight:600;">Next: P' + nextSlot.periodNumber + ' · ' + escapeHtml(nextSlot.className) + ' in ' + min + ' min</span>';
+      } else if (allCompleted) {
+        dateLabelEl.innerHTML = '<span style="color:#16a34a;font-weight:600;">✅ All classes completed today</span>';
+      } else {
+        dateLabelEl.textContent = new Date(dateISO + 'T00:00:00').toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' });
+      }
+    } else if (dateLabelEl) {
+      dateLabelEl.textContent = new Date(dateISO + 'T00:00:00').toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' });
+    }
   }
 
-  // Navigate to the attendance page with a specific class/subject pre-selected
-  function navigateToAttendance(classId, subjectId) {
+  // Has attendance already been recorded for this slot on this date?
+  function isSlotMarked(slot, dateISO, attendance) {
+    return (attendance || DB.get('attendance')).some(function(a) {
+      if (String(a.classId) !== String(slot.classId) || a.date !== dateISO) return false;
+      if (slot.subjectId && String(a.subjectId) !== String(slot.subjectId)) return false;
+      if (slot.periodNumber && a.periodNumber && Number(a.periodNumber) !== Number(slot.periodNumber)) return false;
+      return true;
+    });
+  }
+
+  // Navigate to attendance page with prefill (supports temporary substitution dropdown options)
+  function navigateToAttendance(classId, subjectId, periodNumber, dateISO) {
     nav('att');
     setTimeout(function() {
       const classEl = document.getElementById('attcls');
-      if (classEl) { classEl.value = classId; loadSubjectsForClass(); }
+      if (classEl && classId) {
+        var existingClassOpt = classEl.querySelector('option[value="' + classId + '"]');
+        if (!existingClassOpt) {
+          var dayData = getMyDay(dateISO || todayISO());
+          var matchSlot = dayData && dayData.slots && dayData.slots.find(function(s) { return String(s.classId) === String(classId); });
+          var clsName = matchSlot ? matchSlot.className : 'Class';
+          var subOpt = document.createElement('option');
+          subOpt.value = classId;
+          subOpt.setAttribute('data-sub', '1');
+          subOpt.textContent = clsName + ' (Substitution)';
+          classEl.appendChild(subOpt);
+        }
+        classEl.value = classId;
+        loadSubjectsForClass();
+      }
+      if (periodNumber) {
+        const pEl = document.getElementById('attperiod');
+        if (pEl) pEl.value = String(periodNumber);
+      }
+      if (dateISO) {
+        const dEl = document.getElementById('attdate');
+        if (dEl) dEl.value = dateISO;
+      }
       setTimeout(function() {
         const subjectEl = document.getElementById('attsub');
-        if (subjectEl) subjectEl.value = subjectId;
+        if (subjectEl && subjectId) {
+          var existingSubOpt = subjectEl.querySelector('option[value="' + subjectId + '"]');
+          if (!existingSubOpt) {
+            var dayData = getMyDay(dateISO || todayISO());
+            var matchSlot = dayData && dayData.slots && dayData.slots.find(function(s) {
+              return String(s.classId) === String(classId) && (String(s.subjectId) === String(subjectId) || String(s.periodNumber) === String(periodNumber));
+            });
+            var subName = matchSlot ? (matchSlot.subjectName || matchSlot.subject) : 'Subject';
+            var tempSubOpt = document.createElement('option');
+            tempSubOpt.value = subjectId;
+            tempSubOpt.setAttribute('data-sub', '1');
+            tempSubOpt.textContent = subName + ' (Substitution)';
+            subjectEl.appendChild(tempSubOpt);
+          }
+          subjectEl.value = subjectId;
+        }
+        checkTimetableMatch();
       }, 150);
     }, 200);
   }
@@ -568,8 +984,11 @@ var _memStore = {};
 
     getMyAssignments().forEach(function(assignment) {
       allStudents.filter(function(s) { return s.classId === assignment.classId; }).forEach(function(student) {
+        // allAttendance is already scoped to this teacher by the API. Records
+        // carry the teacher *trackId*, so comparing with currentUser._id
+        // (Mongo id) always failed and the widget never showed anyone.
         const stuAtt = allAttendance.filter(function(a) {
-          return a.studentId === student._id && a.subjectId === assignment.subjectId && a.teacherId === currentUser._id;
+          return String(a.studentId) === String(student._id) && String(a.subjectId) === String(assignment.subjectId);
         });
         if (!stuAtt.length) return;
         const pct = Math.round(stuAtt.filter(function(a) { return a.status === 'present'; }).length / stuAtt.length * 100);
@@ -585,12 +1004,13 @@ var _memStore = {};
       return;
     }
 
+    defaulterList.sort(function(a, b) { return a.pct - b.pct; });
     containerEl.innerHTML = defaulterList.slice(0, 5).map(function(d) {
       return '<div class="defrow">'
-        + '<div class="defav">' + d.name[0] + '</div>'
+        + '<div class="defav">' + escapeHtml((d.name || '?')[0]) + '</div>'
         + '<div style="flex:1;min-width:0;">'
-        + '<div style="font-size:11.5px;font-weight:700;color:var(--td);">' + d.name + '</div>'
-        + '<div style="font-size:10px;color:var(--tdi);">' + d.regNo + ' · ' + d.subjectName + '</div>'
+        + '<div style="font-size:11.5px;font-weight:700;color:var(--td);">' + escapeHtml(d.name) + '</div>'
+        + '<div style="font-size:10px;color:var(--tdi);">' + escapeHtml(d.regNo || d.registerNo || '') + ' · ' + escapeHtml(d.subjectName) + '</div>'
         + '</div>'
         + '<div style="font-size:13px;font-weight:800;color:#dc2626;">' + d.pct + '%</div>'
         + '</div>';
@@ -606,21 +1026,21 @@ var _memStore = {};
     });
 
     const today = new Date();
-    let fromDate, toDate = today.toISOString().split('T')[0];
+    let fromDate, toDate = localISO(today);
 
     if (rangeType === 'week') {
       document.getElementById('rpw').classList.add('act');
       const monday = new Date(today);
       monday.setDate(today.getDate() - ((today.getDay() + 6) % 7));
-      fromDate = monday.toISOString().split('T')[0];
+      fromDate = localISO(monday);
     } else if (rangeType === 'lweek') {
       document.getElementById('rplw').classList.add('act');
       const lastMon = new Date(today);
       lastMon.setDate(today.getDate() - ((today.getDay() + 6) % 7) - 7);
-      fromDate = lastMon.toISOString().split('T')[0];
-      const lastFri = new Date(lastMon);
-      lastFri.setDate(lastMon.getDate() + 4);
-      toDate   = lastFri.toISOString().split('T')[0];
+      fromDate = localISO(lastMon);
+      const lastSat = new Date(lastMon);
+      lastSat.setDate(lastMon.getDate() + 5); // Mon–Sat working week
+      toDate   = localISO(lastSat);
     } else {
       // 'month'
       document.getElementById('rpm').classList.add('act');
@@ -638,9 +1058,11 @@ var _memStore = {};
     const fromDate      = document.getElementById('ff')  ? document.getElementById('ff').value  : '';
     const toDate        = document.getElementById('ft')  ? document.getElementById('ft').value  : '';
 
-    let attendance = DB.get('attendance').filter(function(a) { return a.teacherId === currentUser._id; });
-    if (classFilter)   attendance = attendance.filter(function(a) { return a.classId   === classFilter; });
-    if (subjectFilter) attendance = attendance.filter(function(a) { return a.subjectId === subjectFilter; });
+    // Already teacher-scoped by the API (records carry the teacher trackId, so
+    // the old `a.teacherId === currentUser._id` filter emptied the chart).
+    let attendance = DB.get('attendance').slice();
+    if (classFilter)   attendance = attendance.filter(function(a) { return String(a.classId)   === String(classFilter); });
+    if (subjectFilter) attendance = attendance.filter(function(a) { return String(a.subjectId) === String(subjectFilter); });
     if (fromDate)      attendance = attendance.filter(function(a) { return a.date >= fromDate; });
     if (toDate)        attendance = attendance.filter(function(a) { return a.date <= toDate; });
 
@@ -714,7 +1136,7 @@ var _memStore = {};
                         'July','August','September','October','November','December'];
     document.getElementById('calmth').textContent = monthNames[calendarMonth] + ' ' + calendarYear;
 
-    const myTimetable = DB.get('timetable').filter(function(t) { return t.teacherId === currentUser._id; });
+    const myTimetable = getMyTimetable();
     const firstDayOfMonth  = new Date(calendarYear, calendarMonth, 1).getDay();
     const daysInMonth      = new Date(calendarYear, calendarMonth + 1, 0).getDate();
     const todayDateISO     = todayISO();
@@ -734,15 +1156,24 @@ var _memStore = {};
       const isoDate  = calendarYear + '-' + String(calendarMonth + 1).padStart(2, '0') + '-' + String(day).padStart(2, '0');
       const dayOfWk  = new Date(isoDate + 'T00:00:00').getDay();
       const isWeekend = dayOfWk === 0 || dayOfWk === 6;
-      const hasClass  = !isWeekend && myTimetable.some(function(t) { return t.day === DAY_NAMES[dayOfWk]; });
+      // Saturday is a working day when the timetable has Sat slots.
+      const hasClass  = dayOfWk !== 0 && myTimetable.some(function(t) { return t.day === DAY_NAMES[dayOfWk]; });
       const isToday   = isoDate === todayDateISO;
       const isSelected = isoDate === selectedCalDate && !isToday;
+
+      const dayData = (DB.get('schedule-days') || {})[isoDate];
+      const hasSubOut = dayData && (dayData.onLeave || (dayData.slots || []).some(function(s) { return s.status === 'substituted' || s.status === 'leave'; }));
+      const hasSubIn  = dayData && (dayData.slots || []).some(function(s) { return s.role === 'substitute'; });
+      const isHol     = dayData ? dayData.isHoliday : (dayOfWk === 0);
 
       const classes = ['cday',
         isToday    ? 'today'   : '',
         isSelected ? 'sel'     : '',
         hasClass   ? 'hc'      : '',
-        isWeekend  ? 'wknd'    : ''
+        isWeekend  ? 'wknd'    : '',
+        hasSubOut  ? 'has-sub-out' : '',
+        hasSubIn   ? 'has-sub-in'  : '',
+        isHol      ? 'has-holiday' : ''
       ].filter(Boolean).join(' ');
 
       calHTML += '<div class="' + classes + '" onclick="selectCalendarDate(\'' + isoDate + '\')">' + day + '</div>';
@@ -800,29 +1231,49 @@ var _memStore = {};
 
     listEl.innerHTML = allNotifs.slice().reverse().map(function(n) {
       const isLeaveReq = n.type === 'leave-request' || !!n.leaveRequestId;
+      const isLeaveStatus = n.type === 'leave-approval' || n.type === 'leave-substitution' || n.type === 'leave-rejection';
       const isAlert    = n.type === 'attendance-alert' || n.type === 'alert';
       const isAdminMsg = n.from === 'Administrator';
-      const iconCode   = isLeaveReq ? '&#128221;' : (isAlert ? '&#9888;' : (isAdminMsg ? '&#128276;' : '&#8505;'));
+      const iconCode   = isLeaveReq ? '&#128221;' : (isLeaveStatus ? '&#128197;' : (isAlert ? '&#9888;' : (isAdminMsg ? '&#128276;' : '&#8505;')));
       const iconBg     = isLeaveReq ? 'background:rgba(16,185,129,.14);color:#059669;'
+                       : (isLeaveStatus ? 'background:rgba(99,102,241,.14);color:#4f46e5;'
                        : (isAlert ? 'background:rgba(245,158,11,.12);color:#92400e;'
-                       : isAdminMsg ? 'background:rgba(59,130,246,.1);color:#1d4ed8;'
-                       : 'background:var(--gLt);color:var(--gD);');
+                       : (isAdminMsg ? 'background:rgba(59,130,246,.1);color:#1d4ed8;'
+                       : 'background:var(--gLt);color:var(--gD);')));
       const priorityBadge = n.priority && n.priority !== 'Normal'
-        ? '<span style="background:#fef3c7;color:#92400e;font-size:9px;font-weight:700;padding:1px 6px;border-radius:6px;margin-left:5px;">' + n.priority + '</span>'
+        ? '<span style="background:#fef3c7;color:#92400e;font-size:9px;font-weight:700;padding:1px 6px;border-radius:6px;margin-left:5px;">' + escapeHtml(n.priority) + '</span>'
         : '';
       const clickAction = isLeaveReq
         ? 'onclick="openLeaveReviewModal(\'' + (n.leaveRequestId || '') + '\',\'' + n._id + '\')"'
-        : 'onclick="markNotificationRead(\'' + n._id + '\')"';
+        : (isLeaveStatus
+          ? 'onclick="handleLeaveNotifClick(\'' + n._id + '\')"'
+          : 'onclick="markNotificationRead(\'' + n._id + '\')"');
+
+      const footerAction = isLeaveReq
+        ? ' &bull; <span style="color:var(--gD);font-weight:700;">Click to Review</span>'
+        : (isLeaveStatus
+          ? ' &bull; <span style="color:var(--pD,#6366f1);font-weight:700;">View in Leaves</span>'
+          : '');
 
       return '<div class="ndi ' + (n.read ? '' : 'unread') + '" ' + clickAction + ' style="cursor:pointer;">'
         + '<div class="ndic" style="' + iconBg + '">' + iconCode + '</div>'
         + '<div style="flex:1;">'
-        + '<div style="font-size:12px;font-weight:700;color:var(--td);display:flex;align-items:center;">' + n.from + priorityBadge + '</div>'
-        + '<div style="font-size:11px;color:var(--tmu);margin-top:2px;line-height:1.4;">' + n.message + '</div>'
-        + '<div style="font-size:10px;color:var(--tdi);margin-top:3px;">' + timeAgo(n.time || n.createdAt) + (isLeaveReq ? ' &bull; <span style="color:var(--gD);font-weight:700;">Click to Review</span>' : '') + '</div>'
+        + '<div style="font-size:12px;font-weight:700;color:var(--td);display:flex;align-items:center;">' + escapeHtml(n.from) + priorityBadge + '</div>'
+        + '<div style="font-size:11px;color:var(--tmu);margin-top:2px;line-height:1.4;">' + escapeHtml(n.message) + '</div>'
+        + '<div style="font-size:10px;color:var(--tdi);margin-top:3px;">' + timeAgo(n.time || n.createdAt) + footerAction + '</div>'
         + '</div></div>';
     }).join('');
   }
+
+  function handleLeaveNotifClick(notifId) {
+    if (notifId) markNotificationRead(notifId);
+    if (typeof closeModalBg === 'function') closeModalBg('m-notifications');
+    var dd = document.getElementById('ndd');
+    if (dd) dd.classList.remove('open');
+    if (typeof navigateToTab === 'function') navigateToTab('my-leaves');
+    if (typeof loadMyTeacherLeaves === 'function') loadMyTeacherLeaves();
+  }
+  window.handleLeaveNotifClick = handleLeaveNotifClick;
 
   function openLeaveReviewModal(leaveRequestId, notifId) {
     if (!leaveRequestId) return;
@@ -1022,20 +1473,20 @@ var _memStore = {};
       var isPending = r.status === 'Pending';
       var actionHtml = isPending
         ? '<button class="btn-form-pri bsm" onclick="openLeaveReviewModal(\'' + r._id + '\')" style="padding:4px 10px;font-size:11px;background:#16a34a;">Review</button>'
-        : (r.reviewRemarks ? ('<span style="font-size:11px;color:var(--tmu);">💬 ' + r.reviewRemarks + '</span>') : (r.reviewedBy ? ('<span style="font-size:10.5px;color:var(--tdi);">By ' + r.reviewedBy + '</span>') : '—'));
+        : (r.reviewRemarks ? ('<span style="font-size:11px;color:var(--tmu);">💬 ' + escapeHtml(r.reviewRemarks) + '</span>') : (r.reviewedBy ? ('<span style="font-size:10.5px;color:var(--tdi);">By ' + escapeHtml(r.reviewedBy) + '</span>') : '—'));
 
       var catBadge = r.category === 'Permission'
         ? '<span style="background:#ede9fe;color:#6d28d9;font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:6px;">⏱️ Permission</span>'
-        : '<span style="background:#f0fdf4;color:#15803d;font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:6px;">🌴 ' + r.leaveType + '</span>';
+        : '<span style="background:#f0fdf4;color:#15803d;font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:6px;">🌴 ' + escapeHtml(r.leaveType) + '</span>';
 
       return '<tr>'
         + '<td style="font-size:11px;color:var(--tdi);white-space:nowrap;">' + formatDateShort(r.createdAt) + '</td>'
-        + '<td><strong>' + r.studentName + '</strong><br><span style="font-size:10.5px;color:var(--tmu);">' + r.studentRegNo + '</span></td>'
-        + '<td>' + r.className + '</td>'
+        + '<td><strong>' + escapeHtml(r.studentName) + '</strong><br><span style="font-size:10.5px;color:var(--tmu);">' + escapeHtml(r.studentRegNo) + '</span></td>'
+        + '<td>' + escapeHtml(r.className) + '</td>'
         + '<td>' + catBadge + '</td>'
         + '<td>' + dateDisplay + (r.slot && r.slot !== 'Full Day' ? (' <span style="font-size:10px;background:var(--gP);padding:1px 5px;border-radius:4px;font-weight:600;">' + r.slot + '</span>') : '') + '</td>'
         + '<td><span style="font-weight:700;">' + (r.daysCount || (r.category === 'Permission' ? 0.5 : 1)) + '</span></td>'
-        + '<td style="max-width:180px;white-space:normal;font-size:11.5px;color:var(--td);line-height:1.4;">' + r.reason + '</td>'
+        + '<td style="max-width:180px;white-space:normal;font-size:11.5px;color:var(--td);line-height:1.4;">' + escapeHtml(r.reason) + '</td>'
         + '<td>' + statusBadge + '</td>'
         + '<td>' + actionHtml + '</td>'
         + '</tr>';
@@ -1099,69 +1550,239 @@ var _memStore = {};
   function scheduleNavigate(direction) {
     scheduleWeekOffset += direction * 7;
     renderSchedulePage();
+    syncMySchedule(scheduleWeekOffset).then(renderSchedulePage);
   }
   var schedNav = scheduleNavigate;
 
-  // Day View navigation
+  // ── WEEK VIEW (Mon–Sat) ──
+  // Reads multi-day resolved schedule days overlaid with holidays, leaves, and overrides
+  function renderSchedulePage() {
+    var container = document.getElementById('schedbyday');
+    var labelEl   = document.getElementById('weeklbl');
+    if (!container) return;
+
+    var today  = new Date();
+    var monday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7) + scheduleWeekOffset);
+
+    var weekDays = [];
+    for (var i = 0; i < 6; i++) {
+      var d = new Date(monday);
+      d.setDate(monday.getDate() + i);
+      weekDays.push(d);
+    }
+
+    if (labelEl) {
+      labelEl.textContent = weekDays[0].toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
+        + ' – ' + weekDays[5].toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+    }
+
+    var timetable  = getMyTimetable();
+    var attendance = DB.get('attendance');
+    var todayStr   = todayISO();
+
+    container.innerHTML = weekDays.map(function(d) {
+      var dateISO = localISO(d);
+      var dayName = DAY_NAMES[d.getDay()];
+      var isToday = dateISO === todayStr;
+
+      var dayData = getMyDay(dateISO);
+      var isHoliday = dayData ? dayData.isHoliday : (d.getDay() === 0);
+      var holidayReason = dayData ? (dayData.holidayReason || 'Holiday') : (d.getDay() === 0 ? 'Sunday' : '');
+      var onLeave = dayData ? dayData.onLeave : false;
+      var leaveSlot = dayData ? dayData.leaveSlot : null;
+
+      var slots = dayData ? (dayData.slots || []) : timetable.filter(function(t) { return t.day === dayName || t.dayFull === dayName; }).sort(bySlotStart);
+
+      var bannerHtml = '';
+      if (isHoliday) {
+        bannerHtml = '<div class="wk-holiday" style="margin-bottom:8px;">🏖️ ' + escapeHtml(holidayReason || 'Holiday') + '</div>';
+      } else if (onLeave) {
+        bannerHtml = '<div class="wk-holiday" style="margin-bottom:8px;background:#fef3c7;color:#b45309;border-color:#fde68a;">🌴 On Leave (' + escapeHtml(leaveSlot || 'Full Day') + ')</div>';
+      }
+
+      var slotHtml = slots.length ? slots.map(function(slot) {
+        var marked = (slot.attendance && slot.attendance.marked) || isSlotMarked(slot, dateISO, attendance);
+        var isCancelled = slot.status === 'cancelled';
+        var isSubstituted = slot.status === 'substituted';
+        var isSubIn = slot.role === 'substitute';
+        var isLeave = slot.status === 'leave';
+
+        var statusChip = '';
+        var cardExtraClass = '';
+        if (isCancelled) {
+          statusChip = '<span class="badge badge-cancelled">Cancelled</span>';
+          cardExtraClass = ' slot-cancelled';
+        } else if (isSubstituted) {
+          statusChip = '<span class="badge badge-sub-out">Substituted → ' + escapeHtml(slot.substituteTeacher || 'Substitute') + '</span>';
+          cardExtraClass = ' slot-substituted';
+        } else if (isSubIn) {
+          statusChip = '<span class="badge badge-sub-in">Substitute for ' + escapeHtml(slot.originalTeacher || 'Faculty') + '</span>';
+          cardExtraClass = ' slot-sub-in';
+        } else if (isLeave) {
+          statusChip = '<span class="badge badge-leave">On Leave</span>';
+          cardExtraClass = ' slot-leave';
+        }
+
+        var action = '';
+        if (marked) {
+          action = '<span class="donetag">&#9989; Marked</span>';
+        } else if (isToday && (slot.status === 'scheduled' || isSubIn)) {
+          action = '<button class="attbtn" title="Take attendance" onclick="navigateToAttendance(\'' + (slot.classId || '') + '\',\'' + (slot.subjectId || '') + '\',' + (slot.periodNumber || 'null') + ',\'' + dateISO + '\')">&#9989; Take Att.</button>';
+        }
+
+        var periodLabel = slot.periodNumber ? 'P' + slot.periodNumber : '';
+        if (slot.span && slot.span > 1) {
+          periodLabel = 'P' + slot.periodNumber + '–P' + (slot.periodNumber + slot.span - 1);
+        }
+
+        var slotKey = slot.key || slot._id || ((slot.dayFull || dayName) + '_' + slot.periodNumber);
+        return '<div class="wk-slot' + (marked ? ' done' : '') + cardExtraClass + '" onclick="showTeacherSlotPopover(\'' + escapeHtml(slotKey) + '\', event)" style="cursor:pointer;">'
+          + '<div class="wk-slot-top">'
+          +   '<span class="wk-time">' + escapeHtml(slot.start || '') + (slot.end ? '–' + escapeHtml(slot.end) : '') + '</span>'
+          +   (periodLabel ? '<span class="wk-per">' + periodLabel + '</span>' : '')
+          + '</div>'
+          + '<div class="wk-sub">' + escapeHtml(slot.subjectName || slot.subject || 'Subject') + '</div>'
+          + '<div class="wk-cls">' + escapeHtml(slot.className || '') + ((slot.hallNo || slot.room) ? ' · ' + escapeHtml(slot.hallNo || slot.room) : '') + '</div>'
+          + (statusChip ? '<div style="margin-top:4px;">' + statusChip + '</div>' : '')
+          + (slot.note && !isCancelled && !isSubstituted ? '<div style="font-size:10px;color:#d97706;margin-top:2px;">ℹ️ ' + escapeHtml(slot.note) + '</div>' : '')
+          + (action ? '<div class="wk-act" onclick="event.stopPropagation();">' + action + '</div>' : '')
+          + '</div>';
+      }).join('') : (isHoliday || onLeave ? '' : '<div class="wk-empty">No classes</div>');
+
+      return '<div class="wdblk' + (isToday ? ' today-col' : '') + '">'
+        + '<div class="wdhd"><div class="wdnm">' + dayName + '</div>'
+        + '<div class="wddt">' + d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) + '</div>'
+        + (isToday ? '<div class="wdtd">TODAY</div>' : '')
+        + '</div>'
+        + '<div class="wdslots">' + bannerHtml + slotHtml + '</div>'
+        + '</div>';
+    }).join('');
+  }
+  window.renderSchedulePage = renderSchedulePage;
+
+  // ── DAY VIEW ──
   function dayNavStep(dir) {
     dayOffset += dir;
     renderDayView();
+    var today = new Date();
+    var target = new Date(today);
+    target.setDate(today.getDate() + dayOffset);
+    var dateISO = localISO(target);
+    if (!getMyDay(dateISO)) {
+      var tok = getToken();
+      if (tok) {
+        fetch('/api/timetable/my-schedule?from=' + encodeURIComponent(dateISO) + '&to=' + encodeURIComponent(dateISO), {
+          headers: authHeaders()
+        })
+        .then(function(r) { return r.ok ? r.json() : null; })
+        .then(function(res) {
+          if (res && res.ok && res.data && Array.isArray(res.data.days) && res.data.days[0]) {
+            var cur = DB.get('schedule-days') || {};
+            cur[dateISO] = res.data.days[0];
+            DB.set('schedule-days', cur);
+            renderDayView();
+          }
+        }).catch(function() {});
+      }
+    }
   }
 
-  // Render single-day schedule
   function renderDayView() {
     var today    = new Date();
     var target   = new Date(today);
     target.setDate(today.getDate() + dayOffset);
-    var dateISO  = target.toISOString().split('T')[0];
+    var dateISO  = localISO(target);
     var dayNames = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
     var dayShort = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
     var dayName  = dayShort[target.getDay()];
+    var dFull    = dayNames[target.getDay()];
     var isToday  = dateISO === todayISO();
 
-    document.getElementById('daylbl').textContent =
-      dayNames[target.getDay()] + ', ' + target.toLocaleDateString('en-IN', {day:'numeric',month:'short',year:'numeric'});
+    var dayLblEl = document.getElementById('daylbl');
+    if (dayLblEl) {
+      dayLblEl.textContent =
+        dFull + ', ' + target.toLocaleDateString('en-IN', {day:'numeric',month:'short',year:'numeric'});
+    }
 
-    var myTimetable  = DB.get('timetable').filter(function(t) { return t.teacherId === currentUser._id && t.day === dayName; });
-    var allAttendance = DB.get('attendance');
     var cont = document.getElementById('dayschedcont');
+    if (!cont) return;
 
-    if (target.getDay() === 0) {
-      cont.innerHTML = '<div class="day-empty">&#127774; Weekend — no classes scheduled.</div>';
+    var dayData = getMyDay(dateISO);
+    var isHoliday = dayData ? dayData.isHoliday : (target.getDay() === 0);
+    var holidayReason = dayData ? (dayData.holidayReason || 'Holiday') : (target.getDay() === 0 ? 'Weekend' : '');
+    var onLeave = dayData ? dayData.onLeave : false;
+    var leaveSlot = dayData ? dayData.leaveSlot : null;
+
+    if (isHoliday) {
+      cont.innerHTML = '<div class="day-empty">&#127774; ' + escapeHtml(holidayReason || 'Weekend — no classes scheduled.') + '</div>';
       return;
     }
-    if (!myTimetable.length) {
-      cont.innerHTML = '<div class="day-empty">&#128197; No classes scheduled for this day.'
-        + (isToday ? '<br><br><button class="btnp bsm" onclick="openAddSlotForDay(\'' + dayName + '\')">+ Add Slot</button>' : '')
+
+    var bannerHtml = '';
+    if (onLeave) {
+      bannerHtml = '<div style="margin-bottom:14px;padding:12px 14px;background:#fef3c7;border:1px solid #fde68a;border-radius:10px;color:#92400e;font-size:12.5px;font-weight:600;">'
+        + '🌴 You are on approved leave today (' + escapeHtml(leaveSlot || 'Full Day') + ').'
         + '</div>';
+    }
+
+    var timetable = getMyTimetable().filter(function(t) { return t.day === dayName || t.dayFull === dFull; });
+    var slots = dayData ? (dayData.slots || []) : timetable.slice().sort(bySlotStart);
+    var allAttendance = DB.get('attendance');
+
+    if (!slots.length) {
+      cont.innerHTML = bannerHtml + '<div class="day-empty">&#128197; No classes scheduled for this day.</div>';
       return;
     }
 
-    var sorted = myTimetable.slice().sort(function(a,b){ return a.start.localeCompare(b.start); });
-    cont.innerHTML = sorted.map(function(slot) {
-      var marked = allAttendance.some(function(a) {
-        return a.classId === slot.classId && a.subjectId === slot.subjectId && a.date === dateISO && a.teacherId === currentUser._id;
-      });
-      var attBtn = isToday && !marked
-        ? '<button class="attbtn" style="margin-left:auto;" onclick="navigateToAttendance(\'' + slot.classId + '\',\'' + slot.subjectId + '\')">&#9989; Take Attendance</button>'
-        : marked ? '<span class="donetag" style="margin-left:auto;">&#9989; Marked</span>' : '';
+    var sorted = slots.slice().sort(bySlotStart);
+    cont.innerHTML = bannerHtml + sorted.map(function(slot) {
+      var marked = (slot.attendance && slot.attendance.marked) || isSlotMarked(slot, dateISO, allAttendance);
+      var isCancelled = slot.status === 'cancelled';
+      var isSubstituted = slot.status === 'substituted';
+      var isSubIn = slot.role === 'substitute';
+      var isLeave = slot.status === 'leave';
 
-      return '<div class="day-slot-card' + (isToday ? ' today-slot' : '') + '">'
-        + '<div class="day-time-col">' + slot.start + '<br><span style="color:var(--tdi);font-weight:400;">to</span><br>' + slot.end + '</div>'
-        + '<div style="flex:1;">'
-        + '<div style="font-size:14px;font-weight:700;color:var(--td);margin-bottom:3px;">' + slot.subjectName + '</div>'
-        + '<div style="font-size:12px;color:var(--tmu);">&#127979; ' + slot.className + '</div>'
+      var statusChip = '';
+      var borderStyle = '';
+      if (isCancelled) {
+        statusChip = '<span class="badge badge-cancelled">Cancelled</span>';
+        borderStyle = 'border-color:#e5e7eb;opacity:0.65;';
+      } else if (isSubstituted) {
+        statusChip = '<span class="badge badge-sub-out">Substituted → ' + escapeHtml(slot.substituteTeacher || 'Substitute') + '</span>';
+        borderStyle = 'border-color:#f59e0b;background:#fffbeb;';
+      } else if (isSubIn) {
+        statusChip = '<span class="badge badge-sub-in">Substitute for ' + escapeHtml(slot.originalTeacher || 'Faculty') + '</span>';
+        borderStyle = 'border:2px solid #8b5cf6;background:rgba(139,92,246,0.04);';
+      } else if (isLeave) {
+        statusChip = '<span class="badge badge-leave">On Leave</span>';
+        borderStyle = 'border-color:#ef4444;background:#fef2f2;';
+      }
+
+      var attBtn = '';
+      if (marked) {
+        attBtn = '<span class="donetag" style="margin-left:auto;">&#9989; Marked</span>';
+      } else if (isToday && (slot.status === 'scheduled' || isSubIn)) {
+        attBtn = '<button class="attbtn" style="margin-left:auto;" onclick="navigateToAttendance(\'' + (slot.classId || '') + '\',\'' + (slot.subjectId || '') + '\',' + (slot.periodNumber || 'null') + ',\'' + dateISO + '\')">&#9989; Take Attendance</button>';
+      }
+
+      var slotKey = slot.key || slot._id || ((slot.dayFull || dFull) + '_' + slot.periodNumber);
+      return '<div class="day-slot-card' + (isToday ? ' today-slot' : '') + '" style="' + borderStyle + 'cursor:pointer;" onclick="showTeacherSlotPopover(\'' + escapeHtml(slotKey) + '\', event)">'
+        + '<div class="day-time-col">' + escapeHtml(slot.start || '') + '<br><span style="color:var(--tdi);font-weight:400;">to</span><br>' + escapeHtml(slot.end || '') + '</div>'
+        + '<div style="flex:1;min-width:0;">'
+        +   '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:3px;">'
+        +     '<div style="font-size:14px;font-weight:700;color:var(--td);">' + escapeHtml(slot.subjectName || slot.subject || 'Subject') + '</div>'
+        +     (statusChip || '')
+        +   '</div>'
+        +   '<div style="font-size:12px;color:var(--tmu);">&#127979; ' + escapeHtml(slot.className || '') + (slot.periodNumber ? ' · Period ' + slot.periodNumber : '') + ((slot.hallNo || slot.room) ? ' · ' + escapeHtml(slot.hallNo || slot.room) : '') + '</div>'
+        +   (slot.note ? '<div style="font-size:11px;color:#d97706;margin-top:3px;">ℹ️ ' + escapeHtml(slot.note) + '</div>' : '')
         + '</div>'
-        + attBtn
-        + '<div style="display:flex;flex-direction:column;gap:5px;margin-left:8px;">'
-        + '<button class="btno bsm" onclick="openEditSlot(\'' + slot._id + '\')">&#9999;</button>'
-        + '<button class="btno bsm" style="color:#dc2626;" onclick="deleteSlot(\'' + slot._id + '\')">&#128465;</button>'
-        + '</div>'
+        + (attBtn ? '<div onclick="event.stopPropagation();">' + attBtn + '</div>' : '')
         + '</div>';
     }).join('');
   }
 
-  // TEACHER PERIOD SCHEDULE DEFINITIONS (Institutional Standard)
+  // Institutional Period Definitions (used as offline fallback)
   const TEACHER_PERIODS = [
     { id:1, num:1, label:'P1', time:'08:30–09:15', start:'08:30', end:'09:15' },
     { id:2, num:2, label:'P2', time:'09:15–10:00', start:'09:15', end:'10:00' },
@@ -1177,38 +1798,65 @@ var _memStore = {};
     { id:9, num:9, label:'P9', time:'03:45–04:30', start:'15:45', end:'16:30' },
   ];
 
-  // Enhanced Interactive Weekly Timetable Grid
+  // ── MY WEEKLY TIMETABLE GRID ──
+  // Renders the published weekly template against the institutional timing set
   function renderTimetableGrid() {
     var days    = ['Mon','Tue','Wed','Thu','Fri','Sat'];
     var dayFull = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
-    var timetable = DB.get('timetable').filter(function(t) {
-      return (t.teacherId === currentUser._id || t.trackId === currentUser.trackId) && !t.isDraft;
-    });
+    var timetable = getMyTimetable();
 
     var container = document.getElementById('tt-grid');
     if (!container) return;
 
-    // Build table header
+    var timingSets = DB.get('timing-sets') || [];
+    var setCounts = {};
+    timetable.forEach(function(s) {
+      var code = s.timingSetCode || 'SET_1';
+      setCounts[code] = (setCounts[code] || 0) + 1;
+    });
+    var primaryCode = Object.keys(setCounts).sort(function(a, b) { return setCounts[b] - setCounts[a]; })[0] || 'SET_1';
+    var primarySet = timingSets.find(function(ts) { return ts.code === primaryCode; }) || timingSets[0] || null;
+
+    var periodCols = [];
+    if (primarySet && Array.isArray(primarySet.periods) && primarySet.periods.length) {
+      primarySet.periods.forEach(function(p, idx) {
+        var pNum = p.periodNumber || p.number || (idx + 1);
+        periodCols.push({
+          num: pNum,
+          label: 'P' + pNum,
+          start: p.start,
+          end: p.end,
+          time: p.start + '–' + p.end,
+          isBreak: false
+        });
+        if (primarySet.morningBreakAfter && pNum === primarySet.morningBreakAfter) {
+          periodCols.push({ isBreak: true, label: '☕ Break', time: 'Break' });
+        }
+        if (primarySet.lunchAfter && pNum === primarySet.lunchAfter) {
+          periodCols.push({ isBreak: true, label: '🍱 Lunch', time: 'Lunch' });
+        }
+      });
+    } else {
+      periodCols = TEACHER_PERIODS;
+    }
+
     var thead = '<thead><tr><th style="width:75px;">Day</th>';
-    TEACHER_PERIODS.forEach(function(p) {
+    periodCols.forEach(function(p) {
       if (p.isBreak) {
-        thead += '<th class="tt-break-col" title="' + p.time + '"><span class="tt-break-text">' + p.label + '</span></th>';
+        thead += '<th class="tt-break-col"><span class="tt-break-text">' + p.label + '</span></th>';
       } else {
         thead += '<th>' + p.label + '<span class="tt-th-time">' + p.time + '</span></th>';
       }
     });
     thead += '</tr></thead>';
 
-    // Helper: find slot starting at or matching period
-    function findSlotForPeriod(daySlots, periodObj) {
+    function findSlotForCol(daySlots, col) {
       return daySlots.find(function(s) {
-        if (s.periodNumber === periodObj.num) return true;
-        if (s.start) {
-          var sHour = parseInt(s.start.split(':')[0], 10);
-          var sMin  = parseInt(s.start.split(':')[1], 10);
-          var pHour = parseInt(periodObj.start.split(':')[0], 10);
-          var pMin  = parseInt(periodObj.start.split(':')[1], 10);
-          return Math.abs((sHour * 60 + sMin) - (pHour * 60 + pMin)) <= 15;
+        if (s.periodNumber === col.num) return true;
+        if (s.start && col.start) {
+          var sMins = parseInt(s.start.split(':')[0], 10) * 60 + parseInt(s.start.split(':')[1], 10);
+          var cMins = parseInt(col.start.split(':')[0], 10) * 60 + parseInt(col.start.split(':')[1], 10);
+          return Math.abs(sMins - cMins) <= 15;
         }
         return false;
       });
@@ -1216,61 +1864,72 @@ var _memStore = {};
 
     var tbody = '<tbody>';
     days.forEach(function(day, dIdx) {
-      var daySlots = timetable.filter(function(t) { return t.day === day; });
+      var dFull = dayFull[dIdx];
+      var daySlots = timetable.filter(function(t) { return t.day === day || t.dayFull === dFull; });
       tbody += '<tr>';
-      tbody += '<td class="tt-day-label">' + dayFull[dIdx].slice(0, 3) + '</td>';
+      tbody += '<td class="tt-day-label">' + day + '</td>';
 
-      var skipPeriods = 0;
-      TEACHER_PERIODS.forEach(function(p) {
-        if (p.isBreak) {
+      var i = 0;
+      while (i < periodCols.length) {
+        var col = periodCols[i];
+        if (col.isBreak) {
           tbody += '<td class="tt-break-col" style="background:rgba(27,94,32,.04);border-right:1px solid var(--brl);"></td>';
-          return;
+          i++;
+          continue;
         }
 
-        if (skipPeriods > 0) {
-          skipPeriods--;
-          return;
-        }
-
-        var slot = findSlotForPeriod(daySlots, p);
-        if (slot) {
-          var isLab = slot.type === 'Lab' || (slot.start && slot.end && (parseInt(slot.end.split(':')[0],10) - parseInt(slot.start.split(':')[0],10) >= 2));
-          var isSub = slot.isSubstitute === true;
-          var isComb = slot.isCombined === true;
-
-          var cardClass = 'slot-theory';
-          var badgeHtml = '';
-          var colspan = 1;
-
-          if (isSub) {
-            cardClass = 'slot-sub';
-            badgeHtml = '<span class="tt-slot-badge badge-sub">Sub</span>';
-          } else if (isLab) {
-            cardClass = 'slot-lab';
-            badgeHtml = '<span class="tt-slot-badge badge-lab">Lab (3P)</span>';
-            colspan = 3;
-            skipPeriods = 2; // skip next 2 teaching periods
-          } else if (isComb) {
-            cardClass = 'slot-comb';
-            badgeHtml = '<span class="tt-slot-badge badge-comb">' + (slot.combinedClassNames?.join('+') || 'Comb') + '</span>';
-          }
-
-          var hallDisplay = slot.hallNo ? ' • ' + slot.hallNo : '';
-
-          tbody += '<td ' + (colspan > 1 ? 'colspan="' + colspan + '"' : '') + ' style="vertical-align:top;padding:3px;">';
-          tbody += '<div class="tt-slot-card ' + cardClass + '" onclick="showTeacherSlotPopover(\'' + slot._id + '\', event)" title="Click to edit or manage slot">';
-          tbody += '<div class="tt-slot-title">' + (slot.subjectName || 'Subject') + '</div>';
-          tbody += '<div class="tt-slot-meta">';
-          tbody += '<span>' + (slot.className || '') + hallDisplay + '</span>';
-          tbody += badgeHtml;
-          tbody += '</div></div></td>';
-        } else {
-          // Empty clickable cell
+        var slot = findSlotForCol(daySlots, col);
+        if (!slot) {
           tbody += '<td style="vertical-align:middle;padding:3px;">';
-          tbody += '<div class="tt-cell-empty" onclick="openTeacherAddSlot(\'' + day + '\', ' + p.num + ')" title="Add slot on ' + day + ' ' + p.label + '">+</div>';
+          tbody += '<div class="tt-cell-empty" style="cursor:default;opacity:0.3;">—</div>';
           tbody += '</td>';
+          i++;
+          continue;
         }
-      });
+
+        var spanPeriods = Number(slot.span || 1);
+        var isLab  = slot.type === 'Lab' || slot.isLab === true || spanPeriods >= 2;
+        var isSub  = slot.role === 'substitute' || slot.isSubstitute === true;
+        var isComb = Array.isArray(slot.combinedWith) && slot.combinedWith.length > 0;
+
+        var cardClass = 'slot-theory';
+        var badgeHtml = '';
+        if (isSub) {
+          cardClass = 'slot-sub';
+          badgeHtml = '<span class="tt-slot-badge badge-sub">Sub</span>';
+        } else if (isLab) {
+          cardClass = 'slot-lab';
+          badgeHtml = '<span class="tt-slot-badge badge-lab">Lab (' + spanPeriods + 'P)</span>';
+        } else if (isComb) {
+          cardClass = 'slot-comb';
+          badgeHtml = '<span class="tt-slot-badge badge-comb">' + escapeHtml((slot.combinedWith || []).join('+')) + '</span>';
+        }
+
+        var customTimeHtml = '';
+        if (slot.start && slot.end && (slot.timingSetCode !== primaryCode || slot.start !== col.start)) {
+          customTimeHtml = '<div style="font-size:9.5px;color:var(--gD);font-weight:700;">' + escapeHtml(slot.start) + '–' + escapeHtml(slot.end) + '</div>';
+        }
+
+        var colspan = 0, covered = 0, j = i;
+        while (j < periodCols.length && covered < spanPeriods) {
+          colspan++;
+          if (!periodCols[j].isBreak) covered++;
+          j++;
+        }
+
+        var hallDisplay = (slot.hallNo || slot.room) ? ' • ' + escapeHtml(slot.hallNo || slot.room) : '';
+        var slotKey = slot.key || slot._id || (dFull + '_' + slot.periodNumber);
+        tbody += '<td ' + (colspan > 1 ? 'colspan="' + colspan + '"' : '') + ' style="vertical-align:top;padding:3px;">';
+        tbody += '<div class="tt-slot-card ' + cardClass + '" onclick="showTeacherSlotPopover(\'' + escapeHtml(slotKey) + '\', event)" title="Click to view slot actions">';
+        tbody += '<div class="tt-slot-title">' + escapeHtml(slot.subjectName || slot.subject || 'Subject') + '</div>';
+        tbody += '<div class="tt-slot-meta">';
+        tbody += '<span>' + escapeHtml(slot.className || '') + hallDisplay + '</span>';
+        tbody += badgeHtml;
+        tbody += '</div>';
+        tbody += customTimeHtml;
+        tbody += '</div></td>';
+        i = j;
+      }
       tbody += '</tr>';
     });
     tbody += '</tbody>';
@@ -1278,13 +1937,27 @@ var _memStore = {};
     container.innerHTML = '<table class="tt-teacher-grid">' + thead + tbody + '</table>';
   }
 
-  // Teacher Slot Popover Quick Actions
-  function showTeacherSlotPopover(slotId, event) {
+  // ── TEACHER SLOT POPOVER QUICK ACTIONS ──
+  function showTeacherSlotPopover(slotKey, event) {
     if (event) event.stopPropagation();
-    var slot = DB.get('timetable').find(function(t) { return t._id === slotId; });
+    var timetable = getMyTimetable();
+    var slot = timetable.find(function(t) {
+      return (t.key && t.key === slotKey) || t._id === slotKey || ((t.dayFull || t.day) + '_' + t.periodNumber) === slotKey;
+    });
+
+    if (!slot) {
+      var daysCache = DB.get('schedule-days') || {};
+      for (var d in daysCache) {
+        var daySlots = daysCache[d]?.slots || [];
+        var found = daySlots.find(function(s) {
+          return (s.key && s.key === slotKey) || s._id === slotKey || ((s.dayFull || s.day) + '_' + s.periodNumber) === slotKey;
+        });
+        if (found) { slot = found; break; }
+      }
+    }
+
     if (!slot) return;
 
-    // Remove any existing popover
     var old = document.getElementById('tt-active-popover');
     if (old) old.remove();
 
@@ -1295,16 +1968,30 @@ var _memStore = {};
       if (e.target === overlay) overlay.remove();
     };
 
+    var isTTC = !!(currentUser.isTimeTableCoordinator || (Array.isArray(currentUser.specials) && currentUser.specials.some(function(s) { return s.option === 'isTimeTableCoordinator'; })));
+    var todayStr = todayISO();
+    var isToday = (slot.date === todayStr) || (!slot.date && DAY_NAMES[new Date().getDay()] === (slot.dayFull || slot.day));
+    var canTakeAtt = isToday && (!slot.attendance || !slot.attendance.marked) && slot.status === 'scheduled';
+
+    var actionsHtml = '';
+    if (canTakeAtt) {
+      actionsHtml += '<button class="tt-pop-btn" style="background:#16a34a;color:#fff;font-weight:700;" onclick="document.getElementById(\'tt-active-popover\').remove();navigateToAttendance(\'' + (slot.classId || '') + '\',\'' + (slot.subjectId || '') + '\',' + (slot.periodNumber || 'null') + ',\'' + todayStr + '\')">&#9989; Take Attendance Now</button>';
+    }
+
+    actionsHtml += '<button class="tt-pop-btn" onclick="document.getElementById(\'tt-active-popover\').remove();requestSubstituteForSlot(\'' + escapeHtml(slotKey) + '\')">&#128260; Request Substitute / Apply Leave</button>';
+
+    if (isTTC) {
+      actionsHtml += '<button class="tt-pop-btn" onclick="document.getElementById(\'tt-active-popover\').remove();goToTimetable()">✏️ Edit in Timetable Workspace</button>';
+    }
+
     var box = document.createElement('div');
     box.className = 'tt-popover-box';
-    box.innerHTML = 
-      '<div class="tt-popover-title">&#128203; ' + (slot.subjectName || 'Schedule Slot') + '</div>'
-      + '<div class="tt-popover-sub">' + slot.day + ' ' + slot.start + '–' + slot.end + ' | ' + (slot.className || '') + (slot.hallNo ? ' (' + slot.hallNo + ')' : '') + '</div>'
+    box.innerHTML =
+      '<div class="tt-popover-title">&#128203; ' + escapeHtml(slot.subjectName || slot.subject || 'Schedule Slot') + '</div>'
+      + '<div class="tt-popover-sub">' + escapeHtml(slot.dayFull || slot.day || '') + ' ' + escapeHtml(slot.start || '') + '–' + escapeHtml(slot.end || '') + ' | ' + escapeHtml(slot.className || '') + ((slot.hallNo || slot.room) ? ' (' + escapeHtml(slot.hallNo || slot.room) + ')' : '') + '</div>'
+      + (slot.note ? '<div style="font-size:12px;color:#d97706;margin:8px 0 12px;background:#fef3c7;padding:6px 10px;border-radius:6px;">ℹ️ ' + escapeHtml(slot.note) + '</div>' : '')
       + '<div class="tt-popover-actions">'
-      + '  <button class="tt-pop-btn" onclick="document.getElementById(\'tt-active-popover\').remove();openEditSlot(\'' + slotId + '\')">&#9999; Edit Slot Details</button>'
-      + '  <button class="tt-pop-btn" onclick="document.getElementById(\'tt-active-popover\').remove();cancelTeacherSlotToday(\'' + slotId + '\')">&#10060; Cancel Class for Today</button>'
-      + '  <button class="tt-pop-btn" onclick="document.getElementById(\'tt-active-popover\').remove();requestSubstituteForSlot(\'' + slotId + '\')">&#128260; Request Substitute</button>'
-      + '  <button class="tt-pop-btn btn-del" onclick="document.getElementById(\'tt-active-popover\').remove();deleteSlot(\'' + slotId + '\')">&#128465; Delete Slot</button>'
+      + actionsHtml
       + '</div>';
 
     overlay.appendChild(box);
@@ -1312,15 +1999,42 @@ var _memStore = {};
   }
   window.showTeacherSlotPopover = showTeacherSlotPopover;
 
-  function cancelTeacherSlotToday(slotId) {
-    showToast('Class marked as cancelled for today. Students will be notified.', 'info');
+  function cancelTeacherSlotToday(slotKey) {
+    showToast('Cancelling a period needs your Timetable Coordinator or HOD — they can mark it cancelled from the Timetable workspace.', 'info');
   }
   window.cancelTeacherSlotToday = cancelTeacherSlotToday;
 
-  function requestSubstituteForSlot(slotId) {
-    var slot = DB.get('timetable').find(function(t) { return t._id === slotId; });
-    nav('leaves');
-    showToast('Apply for leave to assign a substitute for ' + (slot?.subjectName || 'this class'), 'info');
+  function requestSubstituteForSlot(slotKey) {
+    var timetable = getMyTimetable();
+    var slot = timetable.find(function(t) {
+      return (t.key && t.key === slotKey) || t._id === slotKey || ((t.dayFull || t.day) + '_' + t.periodNumber) === slotKey;
+    });
+    if (!slot) {
+      var daysCache = DB.get('schedule-days') || {};
+      for (var d in daysCache) {
+        var daySlots = daysCache[d]?.slots || [];
+        var found = daySlots.find(function(s) {
+          return (s.key && s.key === slotKey) || s._id === slotKey || ((s.dayFull || s.day) + '_' + s.periodNumber) === slotKey;
+        });
+        if (found) { slot = found; break; }
+      }
+    }
+    nav('my-leaves');
+    var target = null;
+    if (slot && (slot.date || slot.dayFull || slot.day)) {
+      if (slot.date) {
+        target = slot.date;
+      } else {
+        var sDay = slot.dayFull || slot.day;
+        var now = new Date();
+        for (var k = 0; k < 7; k++) {
+          if (DAY_NAMES[now.getDay()] === sDay) { target = localISO(now); break; }
+          now.setDate(now.getDate() + 1);
+        }
+      }
+    }
+    openTeacherApplyLeaveModal(target);
+    showToast('Pick a substitute for ' + ((slot && (slot.subjectName || slot.subject)) || 'this class') + ' in the slot list below.', 'info');
   }
   window.requestSubstituteForSlot = requestSubstituteForSlot;
 
@@ -1355,8 +2069,11 @@ var _memStore = {};
       combWrap.style.display = (type === 'Combined') ? 'block' : 'none';
       if (type === 'Combined') {
         var clsEl = document.getElementById('schedcombcls');
-        if (clsEl && !clsEl.options.length) {
-          clsEl.innerHTML = buildClassOptions(false);
+        // The select ships with one placeholder option, so `!options.length`
+        // was never true and the class list was never filled in.
+        if (clsEl && clsEl.options.length <= 1) {
+          clsEl.innerHTML = '<option value="">— Optional second section —</option>'
+            + getMyClasses().map(function(c) { return '<option value="' + escapeHtml(c.id) + '">' + escapeHtml(c.name) + '</option>'; }).join('');
         }
       }
     }
@@ -1401,12 +2118,13 @@ var _memStore = {};
     document.getElementById('schedet').value = slot.end;
     document.getElementById('schedtype').value = slot.type || 'Theory';
     document.getElementById('schedhall').value = slot.hallNo || '';
-    if (slot.periodNumber) {
-      document.getElementById('schedperiod').value = String(slot.periodNumber);
-    } else {
-      document.getElementById('schedperiod').value = 'custom';
-    }
+    var editPeriod = slot.periodNumber || periodFromStartTime(slot.start);
+    document.getElementById('schedperiod').value = editPeriod ? String(editPeriod) : 'custom';
+    // onSchedTypeChange() re-derives start/end from the period; restore the
+    // slot's own times afterwards so editing doesn't silently change them.
     onSchedTypeChange();
+    document.getElementById('schedst').value = slot.start;
+    document.getElementById('schedet').value = slot.end;
     document.getElementById('schedcls').innerHTML = buildClassOptions(false);
     document.getElementById('schedsub').innerHTML = '<option value="">— Select —</option>';
     openModal('msched');
@@ -1465,37 +2183,47 @@ var _memStore = {};
       isDraft: false
     };
 
-    var tok = getToken();
+    // Parse JSON and turn HTTP/`{error}` failures into rejections. The old
+    // code ignored the status, so a 403 ("Timetable Coordinator access
+    // required") or 400 still toasted "Slot added!" and wrote a phantom slot
+    // into the local cache that vanished on reload.
+    function readJson(r) {
+      return r.json().catch(function() { return {}; }).then(function(body) {
+        if (!r.ok || (body && body.error)) throw new Error((body && body.error) || ('Server error ' + r.status));
+        return body;
+      });
+    }
+
     var savePromise;
     if (editId) {
       savePromise = fetch('/api/timetable/' + encodeURIComponent(editId), {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + tok },
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify(slotData)
-      }).then(function(r) { return r.json(); }).then(function(saved) {
-        DB.update('timetable', editId, Object.assign({}, slotData, { _id: editId }));
+      }).then(readJson).then(function(saved) {
+        DB.update('timetable', editId, normalizeScheduleSlot(Object.assign({}, slotData, saved || {}, { _id: editId })));
         showToast('&#9989; Slot updated!');
       });
     } else {
       savePromise = fetch('/api/timetable', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + tok },
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify(slotData)
-      }).then(function(r) { return r.json(); }).then(function(saved) {
-        slotData._id = saved._id || ('_' + Date.now().toString(36));
-        DB.insert('timetable', slotData);
+      }).then(readJson).then(function(saved) {
+        var rows = DB.get('timetable');
+        rows.push(normalizeScheduleSlot(Object.assign({}, slotData, saved || {})));
+        DB.set('timetable', rows);
         showToast('&#9989; Slot added!');
       });
     }
 
-    savePromise.catch(function(err) {
-      console.warn('Network sync issue, saving locally:', err);
-      if (editId) DB.update('timetable', editId, slotData);
-      else DB.insert('timetable', slotData);
-    }).finally(function() {
+    savePromise.then(function() {
       closeModal('msched');
       renderTimetableGrid();
       renderSchedulePage();
+      if (currentSchedTab === 'day') renderDayView();
+    }).catch(function(err) {
+      showToast('Could not save slot: ' + err.message, 'error');
     });
   }
   var saveSlot = saveScheduleSlot;
@@ -1503,16 +2231,27 @@ var _memStore = {};
 
   function deleteSlot(slotId) {
     if (!confirm('Delete this slot from your timetable?')) return;
-    var tok = getToken();
+    // Remove locally only after the server confirms (it used to delete the
+    // card immediately even when the request was rejected).
     fetch('/api/timetable/' + encodeURIComponent(slotId), {
       method: 'DELETE',
-      headers: { 'Authorization': 'Bearer ' + tok }
-    }).catch(function(e) { console.warn('Server delete error:', e); });
-
-    DB.delete('timetable', slotId);
-    showToast('Slot deleted', 'warn');
-    renderTimetableGrid();
-    renderSchedulePage();
+      headers: authHeaders()
+    })
+    .then(function(r) {
+      return r.json().catch(function() { return {}; }).then(function(body) {
+        if (!r.ok || (body && body.error)) throw new Error((body && body.error) || ('Server error ' + r.status));
+      });
+    })
+    .then(function() {
+      DB.delete('timetable', slotId);
+      showToast('Slot deleted', 'success');
+      renderTimetableGrid();
+      renderSchedulePage();
+      if (currentSchedTab === 'day') renderDayView();
+    })
+    .catch(function(err) {
+      showToast('Could not delete slot: ' + err.message, 'error');
+    });
   }
   var delSlot = deleteSlot;
   window.deleteSlot = deleteSlot;
@@ -1528,6 +2267,8 @@ var _memStore = {};
     if (!document.getElementById('attdate').value) {
       document.getElementById('attdate').value = todayISO();
     }
+    renderTodayClassesChips();
+    checkTimetableMatch();
   }
   var initAttPage = initAttendancePage;
 
@@ -1538,6 +2279,7 @@ var _memStore = {};
       + relatedAssignments.map(function(a) {
           return '<option value="' + a.subjectId + '">' + a.subjectName + '</option>';
         }).join('');
+    checkTimetableMatch();
   }
   var attLoadSubs = loadSubjectsForClass;
   window.attLoadSubs = loadSubjectsForClass;
@@ -1673,11 +2415,13 @@ var _memStore = {};
         .catch(function() { return null; })
     ]).then(async function(results) {
       var initialStudents = results[0] || [];
-      var resolvedSchedule = results[3] || null;
+      // /api/timetable/resolve responds { ok, data: DayInstance } — the
+      // holiday/cancelled checks used to read the wrapper and never fired.
+      var resolvedSchedule = results[3] ? (results[3].data || results[3]) : null;
 
       if (resolvedSchedule && resolvedSchedule.isHoliday) {
         if (typeof dbToast === 'function') {
-          dbToast('Institutional Holiday: ' + (resolvedSchedule.holidayReason || 'Holiday'), 'warn', 5000);
+          dbToast('Institutional Holiday: ' + (resolvedSchedule.holidayReason || 'Holiday'), 'warn');
         }
       }
 
@@ -1685,11 +2429,13 @@ var _memStore = {};
       var activeSlot = null;
       if (resolvedSchedule && resolvedSchedule.slots) {
         activeSlot = Object.values(resolvedSchedule.slots).find(function(s) {
-          return String(s.periodNumber) === String(period);
+          var sp = s.periodNumber != null ? s.periodNumber : s.period;
+          var span = Number(s.span) || 1;
+          return Number(period) >= Number(sp) && Number(period) < Number(sp) + span;
         });
         if (activeSlot && activeSlot.isCancelled) {
           if (typeof dbToast === 'function') {
-            dbToast('⚠️ Period ' + period + ' is marked Cancelled: ' + (activeSlot.cancelReason || 'Cancelled'), 'warn', 5000);
+            dbToast('⚠️ Period ' + period + ' is marked Cancelled: ' + (activeSlot.cancelReason || activeSlot.note || 'Cancelled'), 'warn');
           }
         }
       }
@@ -1711,7 +2457,7 @@ var _memStore = {};
           } catch (e) {}
         }
         if (typeof dbToast === 'function') {
-          dbToast('👥 Combined Session: Loaded students from all combined sections', 'info', 4000);
+          dbToast('👥 Combined Session: Loaded students from all combined sections', 'info');
         }
       }
 
@@ -1830,17 +2576,21 @@ var _memStore = {};
   var loadAttSheet = loadAttendanceSheet;
   function renderAttendanceSheet() {
     document.getElementById('atttbody').innerHTML = attendanceStudents.map(function(student, index) {
-      const isPresent = student.status === 'present';
+      // 'unmarked' (teacher preference "Neutral / Unmarked") used to render
+      // as Absent and was silently saved as AB.
+      const isPresent  = student.status === 'present';
+      const isAbsent   = !isPresent && student.status !== 'unmarked'; // absent/od/leave → A
+      const rowClass   = isPresent ? 'pr' : (isAbsent ? 'ab' : 'um');
       const leaveBadgeHtml = student.onLeave
-        ? '<span style="background:rgba(239,68,68,0.12);color:#dc2626;border:1px solid rgba(239,68,68,0.28);font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;margin-left:7px;display:inline-flex;align-items:center;" title="Approved Leave">' + (student.leaveBadge || '✈️ On Leave') + '</span>'
+        ? '<span style="background:rgba(239,68,68,0.12);color:#dc2626;border:1px solid rgba(239,68,68,0.28);font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;margin-left:7px;display:inline-flex;align-items:center;" title="Approved Leave">' + escapeHtml(student.leaveBadge || '✈️ On Leave') + '</span>'
         : '';
-      return '<tr class="' + (isPresent ? 'pr' : 'ab') + '" id="student-row-' + index + '">'
+      return '<tr class="' + rowClass + '" id="student-row-' + index + '">'
         + '<td style="font-weight:700;color:var(--tdi);">' + (index + 1) + '</td>'
-        + '<td style="font-weight:600;color:var(--tmu);">' + student.regNo + '</td>'
-        + '<td style="font-weight:600;">' + student.name + leaveBadgeHtml + '</td>'
+        + '<td style="font-weight:600;color:var(--tmu);">' + escapeHtml(student.regNo || student.registerNo || '—') + '</td>'
+        + '<td style="font-weight:600;">' + escapeHtml(student.name || student.fullName || '—') + leaveBadgeHtml + '</td>'
         + '<td><div class="attog">'
         + '<button class="abp ' + (isPresent ? 'act' : '') + '" onclick="setAttendanceStatus(' + index + ',\'present\')">P</button>'
-        + '<button class="aba ' + (!isPresent ? 'act' : '') + '" onclick="setAttendanceStatus(' + index + ',\'absent\')">A</button>'
+        + '<button class="aba ' + (isAbsent ? 'act' : '') + '" onclick="setAttendanceStatus(' + index + ',\'absent\')">A</button>'
         + '</div></td>'
         + '</tr>';
     }).join('');
@@ -1851,10 +2601,10 @@ var _memStore = {};
     attendanceStudents[index].status = status;
     const row = document.getElementById('student-row-' + index);
     if (row) {
-      row.className = status === 'present' ? 'pr' : 'ab';
+      row.className = status === 'present' ? 'pr' : (status === 'unmarked' ? 'um' : 'ab');
       row.querySelectorAll('.abp,.aba').forEach(function(btn) { btn.classList.remove('act'); });
       const targetBtn = row.querySelector(status === 'present' ? '.abp' : '.aba');
-      if (targetBtn) targetBtn.classList.add('act');
+      if (targetBtn && status !== 'unmarked') targetBtn.classList.add('act');
     }
     updateAttendanceSummary();
   }
@@ -1867,10 +2617,14 @@ var _memStore = {};
   var markAll = markAllStudents;
 
   function updateAttendanceSummary() {
-    const presentCount = attendanceStudents.filter(function(s) { return s.status === 'present'; }).length;
+    const presentCount  = attendanceStudents.filter(function(s) { return s.status === 'present'; }).length;
+    const unmarkedCount = attendanceStudents.filter(function(s) { return s.status === 'unmarked'; }).length;
+    const absentCount   = attendanceStudents.length - presentCount - unmarkedCount;
     document.getElementById('stotal').textContent = attendanceStudents.length;
     document.getElementById('spres').textContent  = presentCount;
-    document.getElementById('sabs').textContent   = attendanceStudents.length - presentCount;
+    document.getElementById('sabs').textContent   = absentCount;
+    const totalLbl = document.getElementById('stotal').nextElementSibling;
+    if (totalLbl) totalLbl.textContent = unmarkedCount > 0 ? ('Total · ' + unmarkedCount + ' unmarked') : 'Total';
   }
   var updSum = updateAttendanceSummary;
   window.setAttendanceStatus = setAttendanceStatus;
@@ -1890,8 +2644,91 @@ var _memStore = {};
       methodInd.style.display = 'none';
       methodInd.textContent = '';
     }
+    // Remove temporary substitution options
+    document.querySelectorAll('#attcls option[data-sub="1"], #attsub option[data-sub="1"]').forEach(function(opt) {
+      opt.remove();
+    });
+    checkTimetableMatch();
   }
   window.resetAttendanceView = resetAttendanceView;
+
+  function renderTodayClassesChips() {
+    var wrap = document.getElementById('today-classes-chips');
+    var list = document.getElementById('today-chips-list');
+    if (!wrap || !list) return;
+
+    var today = todayISO();
+    var dayData = getMyDay(today);
+    if (!dayData || !Array.isArray(dayData.slots) || !dayData.slots.length || dayData.isHoliday || dayData.onLeave) {
+      wrap.style.display = 'none';
+      list.innerHTML = '';
+      return;
+    }
+
+    var validSlots = dayData.slots.filter(function(s) {
+      return ['scheduled'].includes(s.status);
+    });
+
+    if (!validSlots.length) {
+      wrap.style.display = 'none';
+      list.innerHTML = '';
+      return;
+    }
+
+    wrap.style.display = 'block';
+    list.innerHTML = validSlots.map(function(s) {
+      var isDone = !!(s.attendance && s.attendance.marked);
+      var isSub = (s.role === 'substitute');
+      var chipClass = 'today-chip' + (isDone ? ' done' : '') + (isSub ? ' sub' : '');
+      var label = 'P' + s.periodNumber + ' · ' + escapeHtml(s.className) + ' (' + escapeHtml(s.subjectName || s.subject) + ')';
+      if (isSub) label += ' [Sub]';
+      if (isDone) label = '✅ ' + label;
+
+      return '<button type="button" class="' + chipClass + '" onclick="navigateToAttendance(\'' + s.classId + '\', \'' + (s.subjectId || '') + '\', ' + s.periodNumber + ', \'' + today + '\')">'
+        + '<span class="chip-time">' + escapeHtml(s.start) + '</span>'
+        + '<span class="chip-label">' + label + '</span>'
+        + '</button>';
+    }).join('');
+  }
+  window.renderTodayClassesChips = renderTodayClassesChips;
+
+  function checkTimetableMatch() {
+    var warnEl = document.getElementById('att-tt-warn');
+    if (!warnEl) return;
+    var clsId = document.getElementById('attcls') ? document.getElementById('attcls').value : '';
+    var period = document.getElementById('attperiod') ? document.getElementById('attperiod').value : '';
+    var dateVal = document.getElementById('attdate') ? document.getElementById('attdate').value : todayISO();
+
+    if (!clsId) {
+      warnEl.style.display = 'none';
+      return;
+    }
+
+    var dayData = getMyDay(dateVal || todayISO());
+    if (!dayData || !Array.isArray(dayData.slots) || !dayData.slots.length) {
+      warnEl.style.display = 'none';
+      return;
+    }
+
+    var pNum = parseInt(period, 10) || 1;
+    var matched = dayData.slots.some(function(s) {
+      var matchClass = String(s.classId) === String(clsId);
+      var matchPeriod = s.periods ? s.periods.includes(pNum) : (s.periodNumber === pNum);
+      return matchClass && matchPeriod;
+    });
+
+    if (!matched) {
+      warnEl.style.display = 'flex';
+    } else {
+      warnEl.style.display = 'none';
+    }
+  }
+  window.checkTimetableMatch = checkTimetableMatch;
+
+  window.dismissTtWarn = function() {
+    var w = document.getElementById('att-tt-warn');
+    if (w) w.style.display = 'none';
+  };
 
   function triggerAttendanceMethod(mode) {
     var classId = document.getElementById('attcls').value;
@@ -2747,6 +3584,12 @@ var _memStore = {};
     if (!tok) { showToast('Not authenticated', 'warn'); return; }
     if (!assignment) { showToast('Assignment not found', 'warn'); return; }
 
+    var unmarked = attendanceStudents.filter(function(st) { return st.status === 'unmarked'; }).length;
+    if (unmarked) {
+      showToast(unmarked + ' student(s) are still unmarked — mark Present or Absent before saving.', 'warn');
+      return;
+    }
+
     var topicVal = (document.getElementById('att-topic') ? document.getElementById('att-topic').value : '').trim();
     var notesVal = (document.getElementById('att-notes') ? document.getElementById('att-notes').value : '').trim();
     var requireRemark = !!(window._pubSettings && window._pubSettings.attendance && window._pubSettings.attendance.requirePeriodRemark);
@@ -2839,7 +3682,7 @@ var _memStore = {};
         attendance.forEach(function(a) {
           var key = String(a.studentId) + '|' + String(a.subjectId);
           if (!grouped[key]) grouped[key] = {
-            studentName: a.studentName, regNo: '',
+            studentName: a.studentName || '', regNo: a.regNo || '',
             className: a.className,   subjectName: a.subjectName,
             present: 0, total: 0,     studentId: a.studentId
           };
@@ -2856,7 +3699,7 @@ var _memStore = {};
           }
         });
 
-        var rows = Object.values(grouped).sort(function(a, b) { return a.studentName.localeCompare(b.studentName); });
+        var rows = Object.values(grouped).sort(function(a, b) { return String(a.studentName).localeCompare(String(b.studentName)); });
 
         if (!rows.length) {
           tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:24px;color:var(--tdi);">No records found.</td></tr>';
@@ -2908,10 +3751,10 @@ var _memStore = {};
     const defaultTh     = window._pubSettings && window._pubSettings.academic ? (window._pubSettings.academic.minAttendance || 75) : 75;
     const threshold     = parseInt(document.getElementById('dfth') ? (document.getElementById('dfth').value || defaultTh) : defaultTh);
 
+    // Already teacher-scoped by the API (teacherId on records is a trackId).
     const allAttendance = DB.get('attendance').filter(function(a) {
-      return a.teacherId === currentUser._id
-          && (!classFilter   || a.classId   === classFilter)
-          && (!subjectFilter || a.subjectId === subjectFilter);
+      return (!classFilter   || String(a.classId)   === String(classFilter))
+          && (!subjectFilter || String(a.subjectId) === String(subjectFilter));
     });
 
     const defaulterRows = [];
@@ -2922,7 +3765,7 @@ var _memStore = {};
       })
       .forEach(function(assignment) {
         DB.get('students').filter(function(s) { return s.classId === assignment.classId; }).forEach(function(student) {
-          const stuAtt = allAttendance.filter(function(a) { return a.studentId === student._id && a.subjectId === assignment.subjectId; });
+          const stuAtt = allAttendance.filter(function(a) { return String(a.studentId) === String(student._id) && String(a.subjectId) === String(assignment.subjectId); });
           if (!stuAtt.length) return;
           const pct = Math.round(stuAtt.filter(function(a) { return a.status === 'present'; }).length / stuAtt.length * 100);
           if (pct < threshold) {
@@ -2984,7 +3827,8 @@ var _memStore = {};
     const myClassIds  = classFilter ? [classFilter] : getMyClasses().map(function(c) { return c.id; });
     let students = DB.get('students').filter(function(s) { return myClassIds.includes(s.classId); });
     if (searchQuery) students = students.filter(function(s) {
-      return s.name.toLowerCase().includes(searchQuery) || s.regNo.toLowerCase().includes(searchQuery);
+      return String(s.name || s.fullName || '').toLowerCase().includes(searchQuery)
+          || String(s.regNo || s.registerNo || '').toLowerCase().includes(searchQuery);
     });
 
     const tbody = document.getElementById('stutbody');
@@ -3063,8 +3907,8 @@ var _memStore = {};
 
     var dTo = new Date();
     var dFrom = new Date(Date.now() - rangeDays * 86400000);
-    var fromStr = dFrom.toISOString().slice(0, 10);
-    var toStr = dTo.toISOString().slice(0, 10);
+    var fromStr = localISO(dFrom);
+    var toStr = localISO(dTo);
 
     var tbodyAlerts = document.getElementById('ins-alerts-tbody');
     if (tbodyAlerts) tbodyAlerts.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:24px;color:var(--tdi);">Analyzing student patterns…</td></tr>';
@@ -3128,7 +3972,7 @@ var _memStore = {};
             studentMap[sid] = {
               id: sid,
               name: a.studentName || (stuObj ? stuObj.name : 'Unknown'),
-              regNo: stuObj ? (stuObj.regNo || stuObj.registerNo || '') : '',
+              regNo: a.regNo || (stuObj ? (stuObj.regNo || stuObj.registerNo || '') : ''),
               className: a.className || '',
               subjectName: a.subjectName || '',
               records: []
@@ -3281,8 +4125,20 @@ var _memStore = {};
   window.exportAttendanceInsightsPDF = exportAttendanceInsightsPDF;
 
   // GRIEVANCES
+  // Grievances used to live only in the in-memory cache: nothing reached
+  // the server, admin was never notified and the list was empty after reload.
   function renderGrievances() {
-    const myGrievances = DB.get('teacher-grievances').filter(function(g) { return g.teacherId === currentUser._id; });
+    const containerEl = document.getElementById('grievlist');
+    if (!containerEl) return;
+    containerEl.innerHTML = '<div class="est"><span class="ei">&#8987;</span><p style="font-size:12px;">Loading grievances…</p></div>';
+    fetch('/api/grievances', { headers: authHeaders() })
+      .then(function(r) { return r.json().catch(function() { return []; }).then(function(d) { return r.ok && Array.isArray(d) ? d : []; }); })
+      .then(function(rows) { DB.set('teacher-grievances', rows); paintGrievances(); })
+      .catch(function() { paintGrievances(); });
+  }
+
+  function paintGrievances() {
+    const myGrievances = DB.get('teacher-grievances');
     const containerEl  = document.getElementById('grievlist');
 
     if (!myGrievances.length) {
@@ -3290,7 +4146,8 @@ var _memStore = {};
       return;
     }
 
-    containerEl.innerHTML = myGrievances.slice().reverse().map(function(grievance) {
+    // API returns newest first
+    containerEl.innerHTML = myGrievances.map(function(grievance) {
       const isResolved  = grievance.status === 'Resolved';
       const isCancelled = grievance.status === 'Cancelled';
       const isPending   = !isResolved && !isCancelled;
@@ -3324,7 +4181,7 @@ var _memStore = {};
         + '<span class="bge">' + escapeHtml(grievance.category) + '</span>'
         + '</div>'
         + '<div style="font-size:11.5px;color:var(--tmu);line-height:1.5;">' + escapeHtml(grievance.detail) + '</div>'
-        + '<div style="font-size:10px;color:var(--tdi);margin-top:5px;">' + formatDateLong(grievance.createdAt.split('T')[0]) + ' · Sent to Admin</div>'
+        + '<div style="font-size:10px;color:var(--tdi);margin-top:5px;">' + formatDateLong(grievance.createdAt) + ' · Sent to Admin</div>'
         + statusNote
         + '</div></div>';
     }).join('');
@@ -3338,31 +4195,34 @@ var _memStore = {};
 
     if (!subject || !detail) { showToast('Please fill all fields', 'warn'); return; }
 
-    const newGrievance = DB.insert('teacher-grievances', {
-      teacherId: currentUser._id, teacherName: currentUser.name,
-      subject: subject, category: category, detail: detail,
-      status: 'Pending', createdAt: new Date().toISOString()
+    showToast('Submitting grievance…', 'saving');
+    fetch('/api/grievances', {
+      method: 'POST',
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ subject: subject, category: category, detail: detail })
+    })
+    .then(function(r) {
+      return r.json().catch(function() { return {}; }).then(function(body) {
+        if (!r.ok || (body && body.error)) throw new Error((body && body.error) || ('Server error ' + r.status));
+        return body;
+      });
+    })
+    .then(function() {
+      document.getElementById('gsubj').value   = '';
+      document.getElementById('gdetail').value = '';
+      closeModal('mgriev');
+      showToast('&#128225; Grievance submitted to admin!', 'success');
+      renderGrievances();
+    })
+    .catch(function(err) {
+      showToast('Could not submit grievance: ' + err.message, 'error');
     });
-
-    // Notify admin
-    DB.insert('notifications', {
-      type: 'request', from: currentUser.name, fromRole: 'Teacher',
-      message: '[Grievance] ' + subject + ' — ' + detail.slice(0, 100) + (detail.length > 100 ? '…' : ''),
-      time: new Date().toISOString(), read: false, priority: 'Normal',
-      category: category, grievanceId: newGrievance._id
-    });
-
-    document.getElementById('gsubj').value   = '';
-    document.getElementById('gdetail').value = '';
-    closeModal('mgriev');
-    showToast('&#128225; Grievance submitted to admin!');
-    renderGrievances();
   }
   var submitGriev = submitGrievance;
 
   // PROFILE PAGE
   function initProfilePage() {
-    document.getElementById('profav').textContent    = currentUser.name[0];
+    document.getElementById('profav').textContent    = (currentUser.name || 'T')[0];
     document.getElementById('profname').textContent  = currentUser.name;
     document.getElementById('pdrdesig').textContent  = currentUser.desig  || 'Assistant Professor';
     document.getElementById('pdremp').textContent    = currentUser.empId  || '—';
@@ -3392,6 +4252,18 @@ var _memStore = {};
     if (prefStatusEl) {
       prefStatusEl.value = (currentUser.preferences && currentUser.preferences.defaultAttendanceStatus) || 'Present';
     }
+    var autoPromptEl = document.getElementById('prof-auto-att-prompt');
+    if (autoPromptEl) {
+      autoPromptEl.checked = (currentUser.preferences && currentUser.preferences.autoAttendancePrompt !== undefined)
+        ? Boolean(currentUser.preferences.autoAttendancePrompt)
+        : true;
+    }
+    var promptLeadEl = document.getElementById('prof-prompt-lead');
+    if (promptLeadEl) {
+      promptLeadEl.value = String((currentUser.preferences && currentUser.preferences.promptLeadMinutes !== undefined)
+        ? currentUser.preferences.promptLeadMinutes
+        : 5);
+    }
 
     ['pwcur','pwnew','pwconf'].forEach(function(id) { document.getElementById(id).value = ''; });
     document.getElementById('pwerr').style.display = 'none';
@@ -3401,6 +4273,11 @@ var _memStore = {};
   function saveTeacherPreferences() {
     var prefStatusEl = document.getElementById('prof-def-att-status');
     var status = prefStatusEl ? prefStatusEl.value : 'Present';
+    var autoPromptEl = document.getElementById('prof-auto-att-prompt');
+    var autoPrompt = autoPromptEl ? autoPromptEl.checked : true;
+    var promptLeadEl = document.getElementById('prof-prompt-lead');
+    var leadMinutes = promptLeadEl ? Number(promptLeadEl.value) : 5;
+
     var tok = getToken();
     if (!tok) return;
 
@@ -3410,7 +4287,11 @@ var _memStore = {};
         'Content-Type': 'application/json',
         'Authorization': 'Bearer ' + tok
       },
-      body: JSON.stringify({ defaultAttendanceStatus: status })
+      body: JSON.stringify({
+        defaultAttendanceStatus: status,
+        autoAttendancePrompt: autoPrompt,
+        promptLeadMinutes: leadMinutes
+      })
     })
       .then(function(r) { return r.json(); })
       .then(function(res) {
@@ -3420,6 +4301,8 @@ var _memStore = {};
         }
         if (!currentUser.preferences) currentUser.preferences = {};
         currentUser.preferences.defaultAttendanceStatus = status;
+        currentUser.preferences.autoAttendancePrompt = autoPrompt;
+        currentUser.preferences.promptLeadMinutes = leadMinutes;
         sessionStorage.setItem('eams_user', JSON.stringify(currentUser));
         showToast('✅ Preferences saved!', 'success');
       })
@@ -3428,6 +4311,9 @@ var _memStore = {};
       });
   }
 
+  // Profile → Change Password. It compared against currentUser.password (never
+  // present client-side, so it always said "incorrect") and only updated the
+  // in-memory cache. Uses the same endpoint as the change-password modal.
   function changePassword() {
     const currentPw  = document.getElementById('pwcur').value.trim();
     const newPw      = document.getElementById('pwnew').value.trim();
@@ -3435,28 +4321,25 @@ var _memStore = {};
     const errorEl    = document.getElementById('pwerr');
 
     errorEl.style.display = 'none';
+    function fail(msg) { errorEl.textContent = msg; errorEl.style.display = 'block'; }
 
-    if (!currentPw || !newPw || !confirmPw) {
-      errorEl.textContent = 'Please fill all password fields.';
-      errorEl.style.display = 'block'; return;
-    }
-    if (currentPw !== currentUser.password) {
-      errorEl.textContent = 'Current password is incorrect.';
-      errorEl.style.display = 'block'; return;
-    }
-    if (newPw.length < 6) {
-      errorEl.textContent = 'New password must be at least 6 characters.';
-      errorEl.style.display = 'block'; return;
-    }
-    if (newPw !== confirmPw) {
-      errorEl.textContent = 'Passwords do not match.';
-      errorEl.style.display = 'block'; return;
-    }
+    if (!currentPw || !newPw || !confirmPw) return fail('Please fill all password fields.');
+    if (newPw.length < 6) return fail('New password must be at least 6 characters.');
+    if (newPw !== confirmPw) return fail('Passwords do not match.');
 
-    DB.update('users', currentUser._id, { password: newPw });
-    currentUser = Object.assign({}, currentUser, { password: newPw });
-    ['pwcur','pwnew','pwconf'].forEach(function(id) { document.getElementById(id).value = ''; });
-    showToast('&#128274; Password updated successfully!');
+    fetch('/api/auth/change-password', {
+      method: 'POST',
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ currentPassword: currentPw, newPassword: newPw })
+    })
+    .then(function(r) { return r.json().catch(function() { return {}; }); })
+    .then(function(d) {
+      if (d && d.error) return fail(d.error);
+      ['pwcur','pwnew','pwconf'].forEach(function(id) { document.getElementById(id).value = ''; });
+      sessionStorage.setItem('eams_mustChangePw', '0');
+      showToast('&#128274; Password updated successfully!', 'success');
+    })
+    .catch(function() { fail('Server error. Try again.'); });
   }
   var changePw = changePassword;
 
@@ -3792,6 +4675,7 @@ window.addEventListener('load', function(){
         }
       }
       if (pub.attendance) {
+        window._publicSettings = pub;
         if (typeof updateAttendanceMethodETAs === 'function') updateAttendanceMethodETAs();
         if (pub.attendance.forwardToRep === false) {
           var fBtn = document.getElementById('btn-forward-rep');
@@ -3830,12 +4714,13 @@ var _hodPendingLeaves = [];
 function initMyLeavesPage() {
   loadMyTeacherLeaves();
   loadFacultyDepartmentsForFinder();
-  var u = DB.get('user');
-  if (u && (u.isHod || u.isAdmin)) {
-    var btnHod = document.getElementById('tab-tl-hod-pending');
-    if (btnHod) btnHod.style.display = '';
-    loadHodTeacherLeaves();
-  }
+  // DB.get('user') was never populated (always []), so the HOD tab never
+  // appeared. The server enforces HOD/Admin on these endpoints regardless.
+  var canReview = !!(currentUser && (currentUser.isHOD || currentUser.isHod || currentUser.isAdmin));
+  var btnHod = document.getElementById('tab-tl-hod-pending');
+  if (btnHod) btnHod.style.display = canReview ? '' : 'none';
+  if (canReview) loadHodTeacherLeaves();
+  switchTeacherLeaveSubTab(_tlCurrentSubTab || 'apps');
 }
 
 function switchTeacherLeaveSubTab(subTab) {
@@ -3864,7 +4749,7 @@ function loadHodTeacherLeaves() {
   if (!tbody) return;
   tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:24px;color:var(--tdi);">Loading department requests…</td></tr>';
 
-  fetch('/api/leave/teacher/pending-hod', { credentials: 'same-origin' })
+  fetch('/api/leave/teacher/pending-hod', { headers: authHeaders() })
     .then(function(res) { return res.json(); })
     .then(function(data) {
       _hodPendingLeaves = Array.isArray(data) ? data : [];
@@ -3894,16 +4779,16 @@ function renderHodTeacherLeavesTable() {
     var dateRange = l.fromDate === l.toDate ? l.fromDate : (l.fromDate + ' to ' + l.toDate);
     var subsHtml = (l.substitutions && l.substitutions.length > 0)
       ? l.substitutions.map(function(s) {
-          return '<div style="font-size:11px;margin:2px 0;"><strong>' + (s.className || 'Class') + ' · P' + s.periodNumber + ':</strong> ' + (s.substituteTeacherName || 'Substitute') + '</div>';
+          return '<div style="font-size:11px;margin:2px 0;"><strong>' + escapeHtml(s.className || 'Class') + ' · P' + escapeHtml(s.periodNumber) + ':</strong> ' + escapeHtml(s.substituteTeacherName || 'Substitute') + '</div>';
         }).join('')
       : '<span style="color:var(--tmu);font-size:11px;">None</span>';
 
     return '<tr>'
-      + '<td><strong>' + (l.teacherName || 'Faculty') + '</strong><div style="font-size:10.5px;color:var(--tmu);">' + (l.teacherEmpId || l.deptCode || '') + '</div></td>'
-      + '<td><span class="tt-slot-badge badge-theory">' + l.category + '</span><div style="font-size:10.5px;color:var(--tmu);">' + l.leaveType + '</div></td>'
+      + '<td><strong>' + escapeHtml(l.teacherName || 'Faculty') + '</strong><div style="font-size:10.5px;color:var(--tmu);">' + escapeHtml(l.employeeNo || l.teacherEmpId || l.deptCode || '') + '</div></td>'
+      + '<td><span class="tt-slot-badge badge-theory">' + escapeHtml(l.category) + '</span><div style="font-size:10.5px;color:var(--tmu);">' + escapeHtml(l.leaveType) + '</div></td>'
       + '<td><strong>' + dateRange + '</strong><div style="font-size:11px;color:var(--tdi);">' + (l.slot || 'Full Day') + '</div></td>'
       + '<td><strong>' + (l.daysCount || 1) + 'd</strong></td>'
-      + '<td style="font-size:11.5px;max-width:180px;white-space:normal;">' + (l.reason || '—') + '</td>'
+      + '<td style="font-size:11.5px;max-width:180px;white-space:normal;">' + escapeHtml(l.reason || '—') + '</td>'
       + '<td>' + subsHtml + '</td>'
       + '<td style="text-align:center;white-space:nowrap;">'
       + '  <button class="btno bsm" style="margin-right:6px;font-size:11px;padding:4px 10px;background:var(--gD);color:#fff;border-color:var(--gD);" onclick="approveTeacherLeaveHod(\'' + l._id + '\')">✓ Approve</button>'
@@ -3917,8 +4802,7 @@ function approveTeacherLeaveHod(id) {
   if (!confirm('Approve this faculty leave request?\n\nThis will automatically create Timetable Day Overrides for all arranged substitute slots and notify the substitute teachers.')) return;
   fetch('/api/leave/teacher/' + id + '/hod-approve', {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    credentials: 'same-origin'
+    headers: authHeaders({ 'Content-Type': 'application/json' })
   })
     .then(function(res) { return res.json(); })
     .then(function(data) {
@@ -3940,9 +4824,8 @@ function rejectTeacherLeaveHod(id) {
   if (reason === null) return;
   fetch('/api/leave/teacher/' + id + '/hod-reject', {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ remarks: reason }),
-    credentials: 'same-origin'
+    headers: authHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ remarks: reason })
   })
     .then(function(res) { return res.json(); })
     .then(function(data) {
@@ -3963,7 +4846,7 @@ function loadMyTeacherLeaves() {
   var tbodyApps = document.getElementById('tl-apps-tbody');
   if (tbodyApps) tbodyApps.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:24px;color:var(--tdi);">Loading your leave requests…</td></tr>';
 
-  fetch('/api/leave/teacher/my-requests', { credentials: 'same-origin' })
+  fetch('/api/leave/teacher/my-requests', { headers: authHeaders() })
     .then(function(res) { return res.json(); })
     .then(function(data) {
       _myTeacherLeaves = Array.isArray(data) ? data : [];
@@ -4009,7 +4892,7 @@ function renderTeacherLeavesTable() {
     var subsBadge = '';
     if (l.substitutions && l.substitutions.length > 0) {
       subsBadge = l.substitutions.map(function(s) {
-        return '<span class="tt-slot-badge badge-sub" style="display:inline-block;margin:2px 3px;font-size:10.5px;">P' + s.periodNumber + ': ' + s.substituteTeacherName + '</span>';
+        return '<span class="tt-slot-badge badge-sub" style="display:inline-block;margin:2px 3px;font-size:10.5px;">P' + escapeHtml(s.periodNumber) + ': ' + escapeHtml(s.substituteTeacherName) + '</span>';
       }).join('');
     } else {
       subsBadge = '<span style="color:var(--tdi);font-size:11px;">None</span>';
@@ -4024,10 +4907,10 @@ function renderTeacherLeavesTable() {
 
     return '<tr>'
       + '<td style="font-weight:600;font-size:12px;">' + appliedDate + '</td>'
-      + '<td><span class="tt-slot-badge badge-theory">' + l.category + '</span><div style="font-size:11px;color:var(--tmu);margin-top:2px;">' + l.leaveType + '</div></td>'
+      + '<td><span class="tt-slot-badge badge-theory">' + escapeHtml(l.category) + '</span><div style="font-size:11px;color:var(--tmu);margin-top:2px;">' + escapeHtml(l.leaveType) + '</div></td>'
       + '<td><div style="font-weight:700;font-size:12px;">' + dateRange + '</div><div style="font-size:11px;color:var(--tdi);">' + (l.slot || 'Full Day') + '</div></td>'
       + '<td style="font-weight:700;">' + (l.daysCount || 1) + 'd</td>'
-      + '<td style="font-size:12px;max-width:180px;white-space:normal;">' + (l.reason || '—') + '</td>'
+      + '<td style="font-size:12px;max-width:180px;white-space:normal;">' + escapeHtml(l.reason || '—') + '</td>'
       + '<td>' + subsBadge + '</td>'
       + '<td><span style="font-size:11px;font-weight:700;color:var(--td);">' + (l.hodStatus || 'Pending') + '</span></td>'
       + '<td><span style="display:inline-block;padding:3px 9px;border-radius:10px;font-size:11px;font-weight:800;background:' + statusBg + ';color:' + statusColor + ';">' + l.status + '</span></td>'
@@ -4040,28 +4923,77 @@ function renderTeacherSubstituteDuties() {
   var tbody = document.getElementById('tl-duties-tbody');
   if (!tbody) return;
 
-  fetch('/api/timetable/teacher-day-schedule?date=' + todayISO(), { credentials: 'same-origin' })
-    .then(function(res) { return res.json(); })
-    .then(function(data) {
-      var subs = (data?.schedule || []).filter(function(s) { return s.isSubstitute; });
-      if (!subs || subs.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:28px;color:var(--tdi);">No substitute duties assigned for today.</td></tr>';
+  var fromDate = todayISO();
+  var dTo = new Date();
+  dTo.setDate(dTo.getDate() + 13);
+  var toDate = localISO(dTo);
+
+  tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:24px;color:var(--tdi);">Loading substitution duties…</td></tr>';
+
+  fetch('/api/timetable/my-schedule?from=' + encodeURIComponent(fromDate) + '&to=' + encodeURIComponent(toDate), {
+    headers: authHeaders()
+  })
+    .then(function(res) {
+      if (!res.ok) throw new Error('Failed to load schedule');
+      return res.json();
+    })
+    .then(function(result) {
+      var days = result?.data?.days || [];
+      var duties = [];
+      days.forEach(function(day) {
+        (day.slots || []).forEach(function(slot) {
+          if (slot.role === 'substitute') {
+            duties.push(Object.assign({}, slot, {
+              date: day.date,
+              dayName: day.dayFull || day.day
+            }));
+          }
+        });
+      });
+
+      duties.sort(function(a, b) {
+        return (a.date || '').localeCompare(b.date || '') || (a.periodNumber || 0) - (b.periodNumber || 0);
+      });
+
+      if (duties.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:28px;color:var(--tdi);">No upcoming substitution duties assigned.</td></tr>';
         return;
       }
-      tbody.innerHTML = subs.map(function(s) {
+
+      var todayStr = todayISO();
+      tbody.innerHTML = duties.map(function(s) {
+        var isToday = s.date === todayStr;
+        var isMarked = s.attendance && s.attendance.marked;
+        var actionCol = '';
+
+        if (isToday) {
+          if (isMarked) {
+            actionCol = '<span style="color:#16a34a;font-weight:700;display:inline-flex;align-items:center;gap:4px;">✅ Done</span>';
+          } else {
+            actionCol = '<button class="attbtn" onclick="navigateToAttendance(\'' + (s.classId || '') + '\',\'' + (s.subjectId || '') + '\',' + (s.periodNumber || 1) + ',\'' + s.date + '\')">📋 Take Att.</button>';
+          }
+        } else if (s.date > todayStr) {
+          actionCol = '<span style="color:var(--tmu);font-size:12px;background:var(--bg2,#f1f5f9);padding:3px 8px;border-radius:6px;font-weight:600;">Upcoming</span>';
+        } else {
+          actionCol = isMarked
+            ? '<span style="color:#16a34a;font-size:12px;font-weight:700;">✅ Done</span>'
+            : '<span style="color:var(--tdi);font-size:12px;">Past</span>';
+        }
+
+        var timeDisplay = (s.start && s.end) ? ' (' + s.start + '–' + s.end + ')' : '';
         return '<tr>'
-          + '<td style="font-weight:700;">' + data.date + '</td>'
-          + '<td><strong>Period ' + s.periodNumber + '</strong> (' + (s.timing?.start || '') + '–' + (s.timing?.end || '') + ')</td>'
-          + '<td><span class="tt-slot-badge badge-comb">' + (s.slot?.className || '—') + '</span></td>'
-          + '<td><strong>' + (s.slot?.subjectName || '—') + '</strong></td>'
-          + '<td>' + (s.slot?.hallNo || '—') + '</td>'
-          + '<td><span class="tt-slot-badge badge-sub">Substitute for ' + (s.originalTeacher || 'Faculty') + '</span></td>'
-          + '<td><button class="attbtn" onclick="navigateToAttendance(\'' + (s.slot?.classId || '') + '\',\'\')">&#9989; Take Att.</button></td>'
+          + '<td style="font-weight:700;">' + escapeHtml(s.date) + '</td>'
+          + '<td><strong>Period ' + s.periodNumber + '</strong>' + timeDisplay + '</td>'
+          + '<td><span class="tt-slot-badge badge-comb">' + escapeHtml(s.className || '—') + '</span></td>'
+          + '<td><strong>' + escapeHtml(s.subjectName || '—') + '</strong>' + (s.subjectCode ? ' <span style="font-size:10.5px;color:var(--tmu);">(' + escapeHtml(s.subjectCode) + ')</span>' : '') + '</td>'
+          + '<td>' + escapeHtml(s.room || '—') + '</td>'
+          + '<td><span class="tt-slot-badge badge-sub">Substitute for ' + escapeHtml(s.originalTeacher || 'Faculty') + '</span></td>'
+          + '<td>' + actionCol + '</td>'
           + '</tr>';
       }).join('');
     })
     .catch(function() {
-      tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:28px;color:var(--tdi);">No substitute duties scheduled today.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:28px;color:var(--tdi);">No upcoming substitution duties assigned.</td></tr>';
     });
 }
 
@@ -4069,7 +5001,7 @@ function cancelTeacherLeaveReq(id) {
   if (!confirm('Are you sure you want to cancel this leave request?')) return;
   fetch('/api/leave/teacher/cancel/' + encodeURIComponent(id), {
     method: 'PUT',
-    credentials: 'same-origin'
+    headers: authHeaders()
   })
   .then(function(res) { return res.json(); })
   .then(function(data) {
@@ -4084,16 +5016,15 @@ function cancelTeacherLeaveReq(id) {
 
 // ── LEAVE APPLICATION & AFFECTED SLOTS MODAL ──
 
-function openTeacherApplyLeaveModal() {
-  var todayStr = todayISO();
+function openTeacherApplyLeaveModal(prefillDate) {
   var tomorrow = new Date();
   tomorrow.setDate(tomorrow.getDate() + 1);
-  var tomorrowStr = tomorrow.toISOString().split('T')[0];
+  var startStr = prefillDate || localISO(tomorrow);
 
   var fromEl = document.getElementById('tl-from');
   var toEl = document.getElementById('tl-to');
-  if (fromEl) fromEl.value = tomorrowStr;
-  if (toEl) toEl.value = tomorrowStr;
+  if (fromEl) fromEl.value = startStr;
+  if (toEl) toEl.value = startStr;
 
   var rEl = document.getElementById('tl-reason');
   if (rEl) rEl.value = '';
@@ -4120,7 +5051,7 @@ function fetchTeacherAffectedSlots() {
   if (cont) cont.innerHTML = '<div style="text-align:center;padding:16px;color:var(--tdi);font-size:12px;">🔍 Detecting scheduled teaching slots…</div>';
 
   fetch('/api/leave/affected-slots?fromDate=' + encodeURIComponent(fromDate) + '&toDate=' + encodeURIComponent(toDate) + '&slot=' + encodeURIComponent(slot), {
-    credentials: 'same-origin'
+    headers: authHeaders()
   })
   .then(function(res) { return res.json(); })
   .then(function(data) {
@@ -4171,7 +5102,7 @@ function renderAffectedSlotsList() {
 // ── TEACHER FREE-SLOT FINDER INTEGRATION (FEATURE 11) ──
 
 function loadFacultyDepartmentsForFinder() {
-  fetch('/api/departments', { credentials: 'same-origin' })
+  fetch('/api/departments', { headers: authHeaders() })
     .then(function(res) { return res.json(); })
     .then(function(depts) {
       var sel = document.getElementById('fsf-dept');
@@ -4218,7 +5149,7 @@ function runFreeSlotSearch() {
   if (deptId && deptId !== 'all') url += '&deptId=' + encodeURIComponent(deptId);
   if (search) url += '&search=' + encodeURIComponent(search);
 
-  fetch(url, { credentials: 'same-origin' })
+  fetch(url, { headers: authHeaders() })
     .then(function(res) { return res.json(); })
     .then(function(data) {
       var teachers = data.teachers || [];
@@ -4233,6 +5164,8 @@ function runFreeSlotSearch() {
 
       if (list) {
         list.innerHTML = teachers.map(function(t) {
+          t.fullName = t.fullName || t.name || 'Faculty';
+          t.periodStatus = t.periodStatus || {};
           var isSelf = t.trackId === currentUser.trackId || t._id === currentUser._id;
           var statusPill = '';
           var canAssign = false;
@@ -4263,8 +5196,8 @@ function runFreeSlotSearch() {
             + '<div style="display:flex;align-items:center;gap:10px;">'
             + '<div style="width:36px;height:36px;border-radius:50%;background:var(--gL);color:var(--gD);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;">' + (t.fullName[0] || 'T') + '</div>'
             + '<div>'
-            + '<div style="font-size:13px;font-weight:800;color:var(--td);">' + t.fullName + '</div>'
-            + '<div style="font-size:11px;color:var(--tmu);">' + (t.designation || 'Faculty') + ' • ' + (t.department || '') + '</div>'
+            + '<div style="font-size:13px;font-weight:800;color:var(--td);">' + escapeHtml(t.fullName) + '</div>'
+            + '<div style="font-size:11px;color:var(--tmu);">' + escapeHtml(t.designation || 'Faculty') + (t.department ? ' • ' + escapeHtml(t.department) : (t.employeeNo ? ' • ' + escapeHtml(t.employeeNo) : '')) + '</div>'
             + '</div>'
             + '</div>'
             + '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">'
@@ -4345,9 +5278,8 @@ function submitTeacherLeaveApplication() {
 
   fetch('/api/leave/teacher/apply', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-    credentials: 'same-origin'
+    headers: authHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify(payload)
   })
   .then(function(res) { return res.json(); })
   .then(function(data) {
@@ -4370,3 +5302,228 @@ document.addEventListener('keydown', function(e){
 });
 
 function hideMsgToast() { /* no-op - toast hidden by timer */ }
+
+// ─────────────────────────────────────────────────────────────
+// PHASE 4: LIVE SLOT WATCHER (AUTO-POPUP) & LIVE SLOT PROMPT
+// ─────────────────────────────────────────────────────────────
+
+var LiveSlotWatcher = (function () {
+  var TICK_MS = 30000, timer = null;
+
+  function isBusy() {
+    var attSheet = document.getElementById('attsheet');
+    if (attSheet && attSheet.style.display === 'block') return true;
+
+    var attendanceModals = ['modal-quick-pass', 'modal-qr-session', 'modal-rep-share', 'modal-qr-review'];
+    var hasOpenAttModal = attendanceModals.some(function(id) {
+      var m = document.getElementById(id);
+      return m && (m.style.display === 'flex' || m.style.display === 'block');
+    });
+    if (hasOpenAttModal) return true;
+
+    var anyModalBg = Array.from(document.querySelectorAll('.modal-bg.open')).some(function(el) {
+      return el.id !== 'm-live-slot';
+    });
+    if (anyModalBg) return true;
+
+    return false;
+  }
+
+  function candidates() {
+    var today = todayISO();
+    var dayData = getMyDay(today);
+    if (!dayData || !Array.isArray(dayData.slots) || dayData.isHoliday || dayData.onLeave) {
+      return [];
+    }
+
+    var now = Date.now();
+    var leadMin = (currentUser.preferences && currentUser.preferences.promptLeadMinutes !== undefined)
+      ? Number(currentUser.preferences.promptLeadMinutes)
+      : 5;
+    var leadMs = leadMin * 60 * 1000;
+
+    return dayData.slots.filter(function(slot) {
+      if (!['owner', 'substitute'].includes(slot.role)) return false;
+      if (slot.status !== 'scheduled') return false;
+      if (slot.attendance && slot.attendance.marked) return false;
+
+      var sTime = parseSlotTimeToMs(today, slot.start);
+      var eTime = parseSlotTimeToMs(today, slot.end);
+
+      // Within prompt window: start - lead <= now < end
+      if (now < sTime - leadMs || now >= eTime) return false;
+
+      // Check sessionStorage for dismiss or snooze
+      var k = 'eams_slotprompt_' + today + '_' + slot.classId + '_' + slot.periodNumber;
+      var rawPrompt = sessionStorage.getItem(k);
+      if (rawPrompt) {
+        try {
+          var parsed = JSON.parse(rawPrompt);
+          if (parsed.dismissed) return false;
+          if (parsed.snoozeUntil && parsed.snoozeUntil > now) return false;
+        } catch (e) {}
+      }
+
+      return true;
+    });
+  }
+
+  function tick() {
+    if (document.visibilityState !== 'visible' || isBusy()) return;
+    var autoPrompt = (currentUser.preferences && currentUser.preferences.autoAttendancePrompt !== undefined)
+      ? currentUser.preferences.autoAttendancePrompt
+      : true;
+    if (!autoPrompt) return;
+
+    var due = candidates();
+    if (due && due.length) {
+      LiveSlotPrompt.open(due);
+    }
+  }
+
+  function start() {
+    if (!timer) {
+      tick();
+      timer = setInterval(tick, TICK_MS);
+    }
+  }
+
+  document.addEventListener('visibilitychange', function() {
+    if (document.visibilityState === 'visible') tick();
+  });
+
+  return { start: start, tick: tick, candidates: candidates, isBusy: isBusy };
+})();
+window.LiveSlotWatcher = LiveSlotWatcher;
+
+var LiveSlotPrompt = (function () {
+  var _currentSlots = [];
+
+  function open(slots) {
+    if (!Array.isArray(slots) || !slots.length) return;
+    _currentSlots = slots;
+
+    var modalEl = document.getElementById('m-live-slot');
+    if (!modalEl) return;
+
+    var primarySlot = slots[0];
+    var titleEl = document.getElementById('mls-title');
+    var subEl = document.getElementById('mls-sub');
+    var bodyEl = document.getElementById('mls-body');
+
+    var isSub = primarySlot.role === 'substitute';
+    if (titleEl) {
+      titleEl.textContent = (slots.length > 1)
+        ? '✅ Classes starting now'
+        : (isSub ? '🔄 Substitution Class starting now' : '✅ Class starting now');
+    }
+
+    if (subEl) {
+      var roomStr = primarySlot.room || primarySlot.hallNo || 'Room TBD';
+      subEl.textContent = 'P' + primarySlot.periodNumber + ' · ' + primarySlot.start + '–' + primarySlot.end + ' · ' + roomStr;
+    }
+
+    if (bodyEl) {
+      bodyEl.innerHTML = slots.map(function(s) {
+        var subBadge = (s.role === 'substitute')
+          ? '<span class="badge-sub-role">🔄 Substitute for ' + escapeHtml(s.originalTeacher || 'Faculty') + '</span>'
+          : '';
+        return '<div class="mls-slot-card">'
+          + '<div class="mls-slot-header">'
+          +   '<div class="mls-class-name">' + escapeHtml(s.className) + '</div>'
+          +   '<span class="tt-slot-badge ' + (s.isLab ? 'badge-lab' : 'tt-badge') + '">' + escapeHtml(s.type || 'Theory') + '</span>'
+          + '</div>'
+          + '<div class="mls-subject-name">' + escapeHtml(s.subjectName || s.subject) + '</div>'
+          + (subBadge ? '<div style="margin-top:6px;">' + subBadge + '</div>' : '')
+          + '</div>';
+      }).join('');
+    }
+
+    // Check attendance settings toggles for method buttons
+    var pub = window._publicSettings || (DB.get('settings') || {}).public || {};
+    var att = pub.attendance || {};
+    var repBtn = document.getElementById('mls-rep');
+    if (repBtn) repBtn.style.display = (att.forwardToRep === false) ? 'none' : 'inline-flex';
+    var codeBtn = document.getElementById('mls-code');
+    if (codeBtn) codeBtn.style.display = (att.quickPass === false || att.liveSessions === false) ? 'none' : 'inline-flex';
+    var qrBtn = document.getElementById('mls-qr');
+    if (qrBtn) qrBtn.style.display = (att.liveSessions === false) ? 'none' : 'inline-flex';
+
+    modalEl.classList.add('open');
+    modalEl.style.display = 'flex';
+
+    var manualBtn = document.getElementById('mls-manual');
+    if (manualBtn) manualBtn.focus();
+  }
+
+  function close(action) {
+    var due = _currentSlots || [];
+    var today = todayISO();
+
+    due.forEach(function(s) {
+      var k = 'eams_slotprompt_' + today + '_' + s.classId + '_' + s.periodNumber;
+      if (action === 'dismiss') {
+        sessionStorage.setItem(k, JSON.stringify({ dismissed: true }));
+      } else if (action === 'snooze') {
+        sessionStorage.setItem(k, JSON.stringify({ snoozeUntil: Date.now() + 5 * 60 * 1000 }));
+      }
+    });
+
+    var modalEl = document.getElementById('m-live-slot');
+    if (modalEl) {
+      modalEl.classList.remove('open');
+      modalEl.style.display = 'none';
+    }
+    _currentSlots = [];
+  }
+
+  function method(m) {
+    var due = _currentSlots.slice();
+    if (!due.length) {
+      close('dismiss');
+      return;
+    }
+    var slot = due[0];
+
+    // Mark dismissed in sessionStorage so it doesn't re-prompt
+    var today = todayISO();
+    due.forEach(function(s) {
+      var k = 'eams_slotprompt_' + today + '_' + s.classId + '_' + s.periodNumber;
+      sessionStorage.setItem(k, JSON.stringify({ dismissed: true }));
+    });
+
+    var modalEl = document.getElementById('m-live-slot');
+    if (modalEl) {
+      modalEl.classList.remove('open');
+      modalEl.style.display = 'none';
+    }
+    _currentSlots = [];
+
+    navigateToAttendance(slot.classId, slot.subjectId, slot.periodNumber, today);
+
+    setTimeout(function() {
+      if (m === 'manual') {
+        loadAttendanceSheet();
+      } else {
+        triggerAttendanceMethod(m);
+      }
+    }, 450);
+  }
+
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+      var m = document.getElementById('m-live-slot');
+      if (m && (m.classList.contains('open') || m.style.display === 'flex')) {
+        close('dismiss');
+      }
+    }
+  });
+
+  return {
+    open: open,
+    close: close,
+    method: method,
+    get currentSlots() { return _currentSlots; }
+  };
+})();
+window.LiveSlotPrompt = LiveSlotPrompt;

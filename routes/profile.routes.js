@@ -74,7 +74,11 @@ router.get('/me', authMiddleware, async (req, res) => {
         isAdmin: !!userDoc.isAdmin,
         adminRights: userDoc.adminRights || [],
         specials: specials,
-        preferences: userDoc.preferences || { defaultAttendanceStatus: 'Present' },
+        preferences: Object.assign({
+          defaultAttendanceStatus: 'Present',
+          autoAttendancePrompt: true,
+          promptLeadMinutes: 5,
+        }, userDoc.preferences || {}),
       });
     } else if (req.user.role === 'student') {
       Object.assign(base, {
@@ -136,13 +140,34 @@ router.put('/me', authMiddleware, async (req, res) => {
       if (req.user.role === 'teacher') {
         if (updates.designation !== undefined) user.designation = updates.designation;
         if (updates.desig !== undefined) user.designation = updates.desig;
+        if (!user.preferences) user.preferences = {};
         if (updates.defaultAttendanceStatus) {
-          if (!user.preferences) user.preferences = {};
           user.preferences.defaultAttendanceStatus = updates.defaultAttendanceStatus;
         }
-        if (updates.preferences && typeof updates.preferences === 'object') {
-          user.preferences = { ...(user.preferences || {}), ...updates.preferences };
+        if (updates.autoAttendancePrompt !== undefined) {
+          user.preferences.autoAttendancePrompt = Boolean(updates.autoAttendancePrompt);
         }
+        if (updates.promptLeadMinutes !== undefined) {
+          const lead = Number(updates.promptLeadMinutes);
+          if ([0, 5, 10].includes(lead)) {
+            user.preferences.promptLeadMinutes = lead;
+          }
+        }
+        if (updates.preferences && typeof updates.preferences === 'object') {
+          if (updates.preferences.defaultAttendanceStatus) {
+            user.preferences.defaultAttendanceStatus = updates.preferences.defaultAttendanceStatus;
+          }
+          if (updates.preferences.autoAttendancePrompt !== undefined) {
+            user.preferences.autoAttendancePrompt = Boolean(updates.preferences.autoAttendancePrompt);
+          }
+          if (updates.preferences.promptLeadMinutes !== undefined) {
+            const lead = Number(updates.preferences.promptLeadMinutes);
+            if ([0, 5, 10].includes(lead)) {
+              user.preferences.promptLeadMinutes = lead;
+            }
+          }
+        }
+        user.markModified('preferences');
       }
     }
     // LOOP-06: Students can only edit fullName/firstName/lastName (common block above)

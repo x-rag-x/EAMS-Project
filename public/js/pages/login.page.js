@@ -27,10 +27,60 @@ document.addEventListener('DOMContentLoaded', function () {
       window.location.href = attReturnUrl;
       return;
     }
+function canUserAccessTimetable(user) {
+  if (!user) return false;
+  if (user.role === 'admin') return true;
+  if (user.isTimeTableCoordinator === true) return true;
+  if (user.isHod === true) return true;
+  var rights = Array.isArray(user.adminRights) ? user.adminRights : (user.adminRights ? [user.adminRights] : []);
+  if (rights.includes('timetablePage') || rights.includes('all')) return true;
+  if (user.role === 'teacher' && user.isAdmin && (rights.includes('all') || rights.includes('timetablePage'))) return true;
+  if (Array.isArray(user.specials) && user.specials.some(function (s) { return s && (s.option === 'isHod' || s.option === 'isTimeTableCoordinator'); })) return true;
+  return false;
+}
+
   } else if (returnUrl) {
     sessionStorage.setItem('eams_return_url', returnUrl);
-    pickRole('student');
-    history.replaceState({}, '', 'index.html?returnUrl=' + encodeURIComponent(returnUrl));
+    var verify = params.get('verify') === 'true';
+    if (verify) {
+      sessionStorage.setItem('eams_verify_return', 'true');
+    }
+    if (returnUrl.indexOf('timetable') !== -1 || returnUrl.indexOf('rooms') !== -1 || returnUrl.indexOf('admin') !== -1) {
+      pickRole('teacher');
+    } else {
+      pickRole('student');
+    }
+    history.replaceState({}, '', 'index.html?returnUrl=' + encodeURIComponent(returnUrl) + (verify ? '&verify=true' : ''));
+
+    // Check if user is already logged in
+    var existingToken = sessionStorage.getItem('token') || sessionStorage.getItem('eams_token');
+    var existingUser = null;
+    try { existingUser = JSON.parse(sessionStorage.getItem('user') || sessionStorage.getItem('eams_user')); } catch (e) {}
+    if (existingToken && existingUser) {
+      if (verify && returnUrl.indexOf('timetable') !== -1) {
+        if (canUserAccessTimetable(existingUser)) {
+          sessionStorage.removeItem('eams_return_url');
+          sessionStorage.removeItem('eams_verify_return');
+          window.location.href = returnUrl;
+          return;
+        } else {
+          sessionStorage.removeItem('eams_return_url');
+          sessionStorage.removeItem('eams_verify_return');
+          setTimeout(function() {
+            var eb = document.getElementById('login-error-box');
+            if (eb) {
+              eb.textContent = 'No access to timetable page. You do not have permission to view or manage timetables.';
+              eb.style.display = 'block';
+            }
+            msgToast('No access to timetable page. Coordinator or Admin credentials required.', 'error');
+          }, 150);
+        }
+      } else if (!verify) {
+        sessionStorage.removeItem('eams_return_url');
+        window.location.href = returnUrl;
+        return;
+      }
+    }
   } else {
     history.replaceState({}, '', 'index.html');
   }
@@ -154,16 +204,71 @@ function escapeHtml(str) {
 }
 
 let selectedRole = 'admin';
+let adminSubMode = 'admin';
 let signingIn = false;
 
 function pickRole(role) {
   if (signingIn) return;
   selectedRole = role;
-  document.getElementById('tab-student').classList.toggle('sel', role === 'student');
-  document.getElementById('tab-teacher').classList.toggle('sel', role === 'teacher');
-  document.getElementById('tab-admin').classList.toggle('sel', role === 'admin');
+  document.getElementById('tab-student')?.classList.toggle('sel', role === 'student');
+  document.getElementById('tab-teacher')?.classList.toggle('sel', role === 'teacher');
+  document.getElementById('tab-admin')?.classList.toggle('sel', role === 'admin');
   document.getElementById('lerr').style.display = 'none';
-  document.getElementById('lu').focus();
+
+  const subToggle = document.getElementById('admin-sub-toggle');
+  if (role === 'admin') {
+    if (subToggle) subToggle.style.display = 'flex';
+    switchAdminLoginMode(adminSubMode, false);
+  } else {
+    if (subToggle) subToggle.style.display = 'none';
+    const heading = document.getElementById('login-heading');
+    const lblU = document.getElementById('lbl-u');
+    const inpU = document.getElementById('lu');
+    const lblP = document.getElementById('lbl-p');
+    const inpP = document.getElementById('lp');
+    const lbnTxt = document.getElementById('lbn-txt');
+
+    if (heading) heading.textContent = 'EAMS Login';
+    if (lblU) lblU.textContent = 'Username';
+    if (inpU) inpU.placeholder = 'Enter username';
+    if (lblP) lblP.textContent = 'Password';
+    if (inpP) inpP.placeholder = 'Enter password';
+    if (lbnTxt) lbnTxt.textContent = 'Sign In';
+  }
+
+  document.getElementById('lu')?.focus();
+}
+
+function switchAdminLoginMode(mode, focus = true) {
+  adminSubMode = mode;
+  document.getElementById('sub-mode-admin')?.classList.toggle('sel', mode === 'admin');
+  document.getElementById('sub-mode-board')?.classList.toggle('sel', mode === 'board');
+  document.getElementById('lerr').style.display = 'none';
+
+  const heading = document.getElementById('login-heading');
+  const lblU = document.getElementById('lbl-u');
+  const inpU = document.getElementById('lu');
+  const lblP = document.getElementById('lbl-p');
+  const inpP = document.getElementById('lp');
+  const lbnTxt = document.getElementById('lbn-txt');
+
+  if (mode === 'board') {
+    if (heading) heading.textContent = 'Smart Board Kiosk Login';
+    if (lblU) lblU.textContent = 'Hardware Device ID';
+    if (inpU) inpU.placeholder = 'e.g. SB-LH101-001';
+    if (lblP) lblP.textContent = 'Board API Key / Passcode';
+    if (inpP) inpP.placeholder = 'Enter 64-char API key';
+    if (lbnTxt) lbnTxt.textContent = 'Connect Board';
+  } else {
+    if (heading) heading.textContent = 'EAMS Login';
+    if (lblU) lblU.textContent = 'Username';
+    if (inpU) inpU.placeholder = 'Enter username';
+    if (lblP) lblP.textContent = 'Password';
+    if (inpP) inpP.placeholder = 'Enter password';
+    if (lbnTxt) lbnTxt.textContent = 'Sign In';
+  }
+
+  if (focus && inpU) inpU.focus();
 }
 
 var pendingAuth = null;
@@ -182,9 +287,9 @@ function doSignIn() {
   }
 
   signingIn = true;
-  document.getElementById('tab-student').style.cursor = 'not-allowed';
-  document.getElementById('tab-teacher').style.cursor = 'not-allowed';
-  document.getElementById('tab-admin').style.cursor = 'not-allowed';
+  document.getElementById('tab-student')?.style.setProperty('cursor', 'not-allowed');
+  document.getElementById('tab-teacher')?.style.setProperty('cursor', 'not-allowed');
+  document.getElementById('tab-admin')?.style.setProperty('cursor', 'not-allowed');
   document.getElementById('lu').style.cursor = 'not-allowed';
   document.getElementById('lp').style.cursor = 'not-allowed';
   document.getElementById('lu').disabled = true;
@@ -192,9 +297,19 @@ function doSignIn() {
   document.querySelectorAll('.rtab').forEach(function (tab) {
     tab.style.pointerEvents = 'none';
   });
+  document.querySelectorAll('.admin-sub-btn').forEach(function (btn) {
+    btn.style.pointerEvents = 'none';
+  });
 
   signInButton.disabled = true;
   signInButton.innerHTML = '<div class="spin"></div><span>Signing In…</span>';
+
+  // Smart Board Bypass: Direct cryptographic handshake under Admin role
+  const isBoardMode = selectedRole === 'admin' && (adminSubMode === 'board' || (usernameInput.toUpperCase().startsWith('SB-') && passwordInput.length > 20));
+  if (isBoardMode) {
+    executeBoardLogin(usernameInput, passwordInput);
+    return;
+  }
 
   // Check if location permission is already granted for fast single-roundtrip sign in
   if (navigator.permissions && navigator.permissions.query) {
@@ -425,8 +540,27 @@ function handleLoginResponse(data, role) {
   sessionStorage.setItem('eams_login_time', Date.now().toString());
 
   var returnUrl = sessionStorage.getItem('eams_return_url');
+  var verifyReturn = sessionStorage.getItem('eams_verify_return') === 'true';
   if (returnUrl) {
     sessionStorage.removeItem('eams_return_url');
+    sessionStorage.removeItem('eams_verify_return');
+    if (verifyReturn && returnUrl.indexOf('timetable') !== -1) {
+      if (canUserAccessTimetable(data.user)) {
+        window.location.href = returnUrl;
+        return;
+      } else {
+        sessionStorage.removeItem('eams_token');
+        sessionStorage.removeItem('eams_user');
+        sessionStorage.removeItem('token');
+        sessionStorage.removeItem('user');
+        sessionStorage.removeItem('eams_sessionId');
+        errorBox.textContent = 'No access to timetable page. You do not have permission to view or manage timetables.';
+        errorBox.style.display = 'block';
+        msgToast('No access to timetable page. Coordinator or Admin credentials required.', 'error');
+        document.getElementById('lp').value = '';
+        return;
+      }
+    }
     window.location.href = returnUrl;
     return;
   }
@@ -497,12 +631,58 @@ function handleLocationDenied(usernameInput, role, reason) {
     });
 }
 
+function executeBoardLogin(deviceId, boardApiKey) {
+  var errorBox = document.getElementById('lerr');
+  var signInButton = document.getElementById('lbn');
+
+  fetch('/api/timetable/boards/auth/handshake', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      deviceId: deviceId.trim().toUpperCase(),
+      boardApiKey: boardApiKey.trim(),
+      clientInfo: {
+        userAgent: navigator.userAgent,
+        screenWidth: window.screen.width,
+        screenHeight: window.screen.height
+      }
+    })
+  })
+    .then(function (r) {
+      var status = r.status;
+      return r.json().then(function (data) { data._httpStatus = status; return data; });
+    })
+    .then(function (data) {
+      if (data.ok || data.success) {
+        localStorage.setItem('eams_board_deviceId', deviceId.trim().toUpperCase());
+        localStorage.setItem('eams_board_key', boardApiKey.trim());
+        if (data.token) {
+          sessionStorage.setItem('eams_token', data.token);
+          localStorage.setItem('eams_token', data.token);
+        }
+        window.location.href = 'board.html?device=' + encodeURIComponent(deviceId.trim().toUpperCase()) + '&key=' + encodeURIComponent(boardApiKey.trim());
+      } else {
+        resetSignInUI();
+        signInButton.disabled = false;
+        errorBox.textContent = data.error || 'Smart Board authentication failed. Verify Device ID and API key.';
+        errorBox.style.display = 'block';
+      }
+    })
+    .catch(function (err) {
+      resetSignInUI();
+      signInButton.disabled = false;
+      errorBox.textContent = 'Network or server error during board authentication.';
+      errorBox.style.display = 'block';
+    });
+}
+
 function resetSignInUI() {
   signingIn = false;
   var signInButton = document.getElementById('lbn');
+  var isBoard = selectedRole === 'admin' && adminSubMode === 'board';
   if (signInButton) {
     signInButton.disabled = false;
-    signInButton.innerHTML = '<span id="lbn-txt">Sign In</span>';
+    signInButton.innerHTML = isBoard ? '<span id="lbn-txt">Connect Board</span>' : '<span id="lbn-txt">Sign In</span>';
   }
   var tabStudent = document.getElementById('tab-student');
   if (tabStudent) tabStudent.style.cursor = '';
@@ -522,6 +702,9 @@ function resetSignInUI() {
   }
   document.querySelectorAll('.rtab').forEach(function (tab) {
     tab.style.pointerEvents = '';
+  });
+  document.querySelectorAll('.admin-sub-btn').forEach(function (btn) {
+    btn.style.pointerEvents = '';
   });
 }
 

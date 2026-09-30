@@ -68,6 +68,10 @@
 
         <button class="sb-item" onclick="window.location.href='timetable.html'"><span
             class="sbi-ic">🗓️</span>Timetable</button>
+        <button class="sb-item" onclick="window.location.href='rooms.html'"><span
+            class="sbi-ic">🏛️</span>Rooms &amp; Facilities</button>
+        <button class="sb-item" onclick="window.location.href='rooms.html#boards'"><span
+            class="sbi-ic">📺</span>Smart Boards</button>
         <button class="sb-item" onclick="window.location.href='manage.html'"><span
             class="sbi-ic">📤</span>Manage</button>
 
@@ -303,7 +307,7 @@
             <div class="card">
               <div class="card-hd">
                 <div class="card-title">👥 Recent Activity</div>
-                <button class="btn-out btn-sm" onclick="nav('logs')" style="border-radius:14px;">View All</button>
+                <button class="btn-out btn-sm" onclick="window.location.href='logs.html'" style="border-radius:14px;">View All</button>
               </div>
               <div id="activity-list" style="max-height:250px;overflow-y:auto;">
                 <div class="empty-state"><span class="ei">📋</span>
@@ -1067,8 +1071,12 @@
             <div class="fg"><label class="fl">Section<span style="color:var(--red);">*</span></label><input type="text"
                 class="fc2" id="nc-sec" placeholder="e.g. A / B" oninput="ncAutoName()" minlength="1" maxlength="1">
             </div>
-            <div class="fg"><label class="fl">Hall Number<span style="color:var(--red);">*</span></label><input
-                type="text" class="fc2" id="nc-hall" placeholder="e.g, LH01" minlength="4" maxlength="4"></div>
+            <div class="fg"><label class="fl">Assigned Room / Hall<span style="color:var(--red);">*</span></label>
+              <select class="fc2" id="nc-room" onchange="ncOnRoomChange()">
+                <option value="">— Select Room / Hall —</option>
+              </select>
+              <input type="hidden" id="nc-hall">
+            </div>
           </div>
           <div class="fg" style="margin-bottom:6px;"><label class="fl">Class Name <span
                 class="auto-txt">(auto)</span></label>
@@ -1113,8 +1121,12 @@
                 <option>III Year</option>
                 <option>IV Year</option>
               </select></div>
-            <div class="fg"><label class="fl">Hall Number</label><input type="text" class="fc2" id="ec-hall"
-                placeholder="e.g. LH01"></div>
+            <div class="fg"><label class="fl">Assigned Room / Hall</label>
+              <select class="fc2" id="ec-room" onchange="ecOnRoomChange()">
+                <option value="">— Select Room / Hall —</option>
+              </select>
+              <input type="hidden" id="ec-hall">
+            </div>
 
             <div class="fg"><label class="fl">Semester</label>
               <select class="fc2" id="ec-sem">
@@ -1167,11 +1179,20 @@
               <button class="btn-form-ghost bsm" id="cd-advisor-cancel-btn" style="display:none;" onclick="cancelAssignAdvisor()">Cancel</button>
             </div>
           </div>
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
-            <strong style="font-size:13px;color:var(--td);">📌 Subject Assignments</strong>
-            <button class="btn-out" onclick="oasc()">+ Assign Subject</button>
+          <!-- Room and Smart Board Integration Shortcut -->
+          <div style="background:var(--gLt, #e8f5e9);border:1.5px solid var(--gLr, #a5d6a7);border-radius:12px;padding:12px 14px;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
+            <div style="display:flex;align-items:center;gap:10px;">
+              <div style="width:36px;height:36px;border-radius:9px;background:#fff;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;box-shadow:0 1px 3px rgba(0,0,0,0.06);">📺</div>
+              <div>
+                <div style="font-size:10.5px;font-weight:700;color:var(--gD, #1b5e20);text-transform:uppercase;letter-spacing:.5px;">Room &amp; Smart Board Integration</div>
+                <div id="cd-room-board-title" style="font-size:13.5px;font-weight:700;color:var(--td, #1a2e1a);margin-top:1px;">Checking location…</div>
+                <div id="cd-room-board-sub" style="font-size:11.5px;color:var(--tmu, #64748b);margin-top:1px;">Facilities integration</div>
+              </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <button class="btn-pri bsm" id="cd-room-board-btn" onclick="openRoomBoardFromClass()">Open in Facilities Hub →</button>
+            </div>
           </div>
-          <div id="cd-asgn" style="margin-bottom:14px;"></div>
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
             <strong style="font-size:13px;color:var(--td);">👨‍🎓 Students (<span id="cd-sc">0</span>)</strong>
           </div>
@@ -1245,6 +1266,12 @@
           <div class="fg"><label class="fl">Subject Code <span class="auto-txt">(auto)</span></label><input type="text"
               class="fc2" id="ns-sc" style="cursor: not-allowed;" placeholder="Auto filled" readonly>
           </div>
+          <div class="fg" style="margin-top:10px;"><label class="fl">Regulation</label>
+            <select class="fc2" id="ns-reg">
+              <option value="2025" selected>Regulation 2025</option>
+              <option value="2021">Regulation 2021</option>
+            </select>
+          </div>
 
           <div class="required-note">⚠️ All the above fields are required.</div>
           <div style="height:16px;"></div>
@@ -1282,6 +1309,12 @@
 
             <div class="fg"><label class="fl">Subject Code <span class="auto-txt">(auto)</span>
               </label><input type="text" class="fc2" id="es-sc" placeholder="Auto filled" readonly></div>
+            <div class="fg"><label class="fl">Regulation</label>
+              <select class="fc2" id="es-reg">
+                <option value="2025">Regulation 2025</option>
+                <option value="2021">Regulation 2021</option>
+              </select>
+            </div>
           </div>
           <div class="form-actions">
             <button class="btn-form-ghost" onclick="closeModalBg('m-edit-subj')">Cancel</button>
