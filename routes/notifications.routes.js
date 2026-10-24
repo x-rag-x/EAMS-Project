@@ -1,18 +1,19 @@
 const express = require('express');
 const router = express.Router();
 const M = require('../models');
-const { authMiddleware, adminOnly } = require('../middleware/auth');
+const { authMiddleware, requirePage } = require('../middleware/auth');
 const { logAction } = require('../utils/logAction');
+const { isSudo } = require('../utils/access');
 
-router.get('/', authMiddleware, async (req, res) => {
+function getUserNotificationFilter(req) {
   const filter = {};
-  if (req.user.role === 'teacher') {
+  if (req.user.role === 'teacher' || req.user.role === 'hod') {
     const teacherId = req.user._id;
     const teacherTrackId = req.user.trackId;
     filter.$or = [
       { toTeacherId: teacherId },
       { toTeacherTrackId: teacherTrackId },
-      { toTeacherId: null, toTeacherTrackId: '', toStudentId: null, toStudentTrackId: '', type: { $nin: ['attendance-alert', 'leave-request', 'leave-approval', 'leave-rejection'] } }
+      { toTeacherId: null, toTeacherTrackId: '', toStudentId: null, toStudentTrackId: '', type: { $nin: ['attendance-alert', 'leave-request', 'leave-approval', 'leave-rejection', 'timetable-verification'] } }
     ];
   } else if (req.user.role === 'student') {
     const studentIdentifiers = [req.user.trackId, String(req.user._id), req.user.username, req.user.registerNo].filter(Boolean);
@@ -20,10 +21,12 @@ router.get('/', authMiddleware, async (req, res) => {
       { toStudentId: req.user._id },
       { toStudentTrackId: { $in: studentIdentifiers } }
     ];
-  } else if (req.user.role === 'admin') {
+  } else if (isSudo(req)) {
     filter.$and = [
-      { type: { $nin: ['leave-request', 'leave-approval', 'leave-rejection', 'attendance-alert'] } },
+      { type: { $nin: ['leave-request', 'leave-approval', 'leave-rejection', 'attendance-alert', 'timetable-verification'] } },
       { leaveRequestId: null },
+      { timetableVersionId: null },
+      { message: { $not: /timetable verification request/i } },
       { toTeacherId: null },
       { toStudentId: null },
       { toTeacherTrackId: { $in: ['', null] } },
@@ -31,7 +34,34 @@ router.get('/', authMiddleware, async (req, res) => {
       { fromRole: { $ne: 'student' } }
     ];
   }
-  res.json(await M.Notification.find(filter).sort({ time: -1, createdAt: -1 }).limit(50));
+  return filter;
+}
+
+router.get('/', authMiddleware, async (req, res) => {
+  const filter = getUserNotificationFilter(req);
+  const docs = await M.Notification.find(filter).sort({ time: -1, createdAt: -1 }).limit(50).lean();
+  const normalized = docs.map(d => {
+    let effectiveStatus = d.status;
+    if (d.read) {
+      if (d.status !== 'Solved' && d.status !== 'Cancelled') {
+        effectiveStatus = 'Read';
+      }
+    } else {
+      if (d.type !== 'request' && !d.grievanceId) {
+        effectiveStatus = 'Delivered';
+      } else if (!effectiveStatus || effectiveStatus === 'Pending') {
+        effectiveStatus = 'Pending';
+      }
+    }
+    return {
+      ...d,
+      status: effectiveStatus || (d.read ? 'Read' : 'Delivered'),
+      read: Boolean(d.read),
+      readAt: d.readAt || null,
+      time: d.time || d.createdAt || new Date()
+    };
+  });
+  res.json(normalized);
 });
 
 router.post('/', authMiddleware, async (req, res) => {
@@ -80,7 +110,7 @@ router.post('/', authMiddleware, async (req, res) => {
       req.ip,
       req.user.sessionId,
       {
-        module: req.user.role === 'admin' ? 'admin' : (req.user.role === 'teacher' ? 'teacher' : 'student'),
+        module: isSudo(req) ? 'admin' : (req.user.role === 'teacher' ? 'teacher' : 'student'),
         subType: 'action',
         trackId: req.user.trackId,
         actingWithAdminRights: req.user.actingWithAdminRights
@@ -91,7 +121,7 @@ router.post('/', authMiddleware, async (req, res) => {
 });
 
 // Bulk delete all notifications (admin only)
-router.delete('/all', authMiddleware, adminOnly, async (req, res) => {
+router.delete('/all', authMiddleware, requirePage('control', 'delete', { tab: 'broadcasts' }), async (req, res) => {
   try {
     const result = await M.Notification.deleteMany({});
     await logAction(
@@ -110,6 +140,36 @@ router.delete('/all', authMiddleware, adminOnly, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// Bulk mark all notifications as read for current user
+router.put('/read-all', authMiddleware, async (req, res) => {
+  try {
+    const baseFilter = getUserNotificationFilter(req);
+    const filter = {
+      $and: [
+        baseFilter,
+        { read: { $ne: true } }
+      ]
+    };
+    const now = new Date();
+    const result = await M.Notification.updateMany(filter, {
+      $set: {
+        read: true,
+        readAt: now
+      }
+    });
+
+    // Also update status to 'Read' where not Solved or Cancelled
+    await M.Notification.updateMany(
+      { ...baseFilter, status: { $nin: ['Solved', 'Cancelled'] }, read: true },
+      { $set: { status: 'Read' } }
+    );
+
+    res.json({ ok: true, message: 'All notifications marked as read', modifiedCount: result.modifiedCount });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 router.put('/:id', authMiddleware, async (req, res) => {
   try {
     const notif = await M.Notification.findById(req.params.id);
@@ -120,42 +180,63 @@ router.put('/:id', authMiddleware, async (req, res) => {
       const isMine = (notif.toStudentId && String(notif.toStudentId) === String(req.user._id)) ||
                      (notif.toStudentTrackId && notif.toStudentTrackId === req.user.trackId);
       if (!isMine) return res.status(403).json({ error: 'Cannot update notifications addressed to others' });
-      if (req.body.read !== undefined) notif.read = req.body.read;
+      if (req.body.read !== undefined) {
+        notif.read = Boolean(req.body.read);
+        if (notif.read) {
+          notif.readAt = new Date();
+          if (notif.status !== 'Solved' && notif.status !== 'Cancelled') notif.status = 'Read';
+        } else {
+          notif.readAt = null;
+          if (notif.status === 'Read') notif.status = 'Delivered';
+        }
+      }
       await notif.save();
       return res.json(notif);
     }
     if (req.user.role === 'teacher') {
       const isMine = (notif.toTeacherId && String(notif.toTeacherId) === String(req.user._id)) ||
                      (notif.toTeacherTrackId && notif.toTeacherTrackId === req.user.trackId) ||
-                     (!notif.toTeacherId && !notif.toTeacherTrackId);
+                     (!notif.toTeacherId && !notif.toTeacherTrackId) ||
+                     isSudo(req);
       if (!isMine) return res.status(403).json({ error: 'Cannot update notifications addressed to other teachers' });
     }
 
     // Whitelist updatable fields
     if (req.body.status) notif.status = req.body.status;
-    if (req.body.read !== undefined) notif.read = req.body.read;
+    if (req.body.read !== undefined) {
+      notif.read = Boolean(req.body.read);
+      if (notif.read) {
+        notif.readAt = new Date();
+        if (notif.status !== 'Solved' && notif.status !== 'Cancelled') notif.status = 'Read';
+      } else {
+        notif.readAt = null;
+        if (notif.status === 'Read') notif.status = 'Delivered';
+      }
+    }
     if (req.body.status === 'Solved') notif.solvedAt = new Date();
     if (req.body.status === 'Cancelled') notif.cancelledAt = new Date();
     await notif.save();
 
     if (req.body.status === 'Solved' && notif.grievanceId) await M.Grievance.findByIdAndUpdate(notif.grievanceId, { status: 'Resolved', resolvedAt: new Date(), resolvedBy: req.user.name });
     if (req.body.status === 'Cancelled' && notif.grievanceId) await M.Grievance.findByIdAndUpdate(notif.grievanceId, { status: 'Cancelled', cancelledAt: new Date() });
-    await logAction(
-      req.user.trackId || req.user._id,
-      req.user.name,
-      req.user.role,
-      'Notification ' + (req.body.status || 'Updated'),
-      '',
-      'data',
-      'info',
-      req.ip,
-      req.user.sessionId,
-      {
-        module: req.user.role === 'admin' ? 'admin' : (req.user.role === 'teacher' ? 'teacher' : 'student'),
-        subType: 'action',
-        trackId: req.user.trackId
-      }
-    );
+    if (req.body.status === 'Solved' || req.body.status === 'Cancelled') {
+      await logAction(
+        req.user.trackId || req.user._id,
+        req.user.name,
+        req.user.role,
+        'Notification ' + (req.body.status || 'Updated'),
+        '',
+        'data',
+        'info',
+        req.ip,
+        req.user.sessionId,
+        {
+          module: isSudo(req) ? 'admin' : (req.user.role === 'teacher' ? 'teacher' : 'student'),
+          subType: 'action',
+          trackId: req.user.trackId
+        }
+      );
+    }
     res.json(notif);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });

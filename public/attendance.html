@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Live Attendance – EAMS</title>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="js/core/escape.js"></script>
+  <script src="js/core/icons.js"></script>
   <link rel="stylesheet" href="/css/base.css">
   <link rel="stylesheet" href="/css/attendance.css">
 </head>
@@ -12,15 +14,15 @@
 
   <div class="att-container">
     <div class="brand-header">
-      <div class="brand-badge">⚡ Live Attendance</div>
+      <div class="brand-badge"><re-icon icon="bolt"></re-icon> Live Attendance</div>
       <div class="brand-title" id="inst-name">EAMS Portal</div>
       <div class="brand-sub">Fast &amp; Secure Student Check-in</div>
     </div>
 
     <!-- MODE SWITCHER -->
     <div class="mode-switcher" id="mode-switcher">
-      <button class="mode-btn active" id="btn-mode-qp" onclick="switchAttMode('quick-pass')">🔢 Quick Pass</button>
-      <button class="mode-btn" id="btn-mode-qr" onclick="switchAttMode('qr')">📷 QR Scan</button>
+      <button class="mode-btn active" id="btn-mode-qp" onclick="switchAttMode('quick-pass')"><re-icon icon="hashtag" size="14"></re-icon> Quick Pass</button>
+      <button class="mode-btn" id="btn-mode-qr" onclick="switchAttMode('qr')"><re-icon icon="camera" size="14"></re-icon> QR Scan</button>
     </div>
 
     <!-- 1A. QUICK PASS VIEW -->
@@ -59,7 +61,7 @@
       </div>
 
       <button type="button" id="btn-submit-qp" class="btn-primary" onclick="submitQuickPassCode()">
-        <span>✅ Mark Attendance</span>
+        <span><re-icon icon="check-circle"></re-icon> Mark Attendance</span>
       </button>
 
       <div style="margin-top:14px;font-size:11px;color:var(--text-muted);">
@@ -69,16 +71,16 @@
 
     <!-- 1B. QR SCAN PROMPT VIEW (When user clicks QR mode without scanned URL) -->
     <div id="view-qr-prompt" class="view-panel">
-      <div style="font-size:42px;margin-bottom:12px;">📷</div>
+      <div style="font-size:42px;margin-bottom:12px;"><re-icon icon="camera"></re-icon></div>
       <div style="font-size:18px;font-weight:800;color:var(--text-main);margin-bottom:8px;">Scan Live QR Code</div>
       <div style="font-size:12.5px;color:var(--text-muted);margin-bottom:20px;line-height:1.5;">
         Open your phone's camera or QR scanner app and point it at the QR code projected on the classroom screen.
       </div>
       <div style="background:rgba(46,125,50,0.08);border:1px solid rgba(46,125,50,0.2);border-radius:12px;padding:12px 14px;font-size:11.5px;color:#166534;margin-bottom:18px;text-align:left;">
-        💡 <b>Tip:</b> If your phone can't scan QR directly, ask your teacher for the 12-character <b>Quick Pass code</b> and switch to Quick Pass mode.
+        <re-icon icon="lightbulb"></re-icon> <b>Tip:</b> If your phone can't scan QR directly, ask your teacher for the 12-character <b>Quick Pass code</b> and switch to Quick Pass mode.
       </div>
       <button class="btn-primary" onclick="switchAttMode('quick-pass')">
-        <span>🔢 Enter Quick Pass Code Instead</span>
+        <span><re-icon icon="hashtag"></re-icon> Enter Quick Pass Code Instead</span>
       </button>
     </div>
 
@@ -123,7 +125,7 @@
     <!-- 4. SUCCESS / COMPLETED VIEW -->
     <div id="view-completed" class="view-panel">
       <div class="status-icon-wrap success">
-        <div class="status-symbol" style="color: var(--success);">&#10003;</div>
+        <div class="status-symbol" style="color: var(--success);"><re-icon icon="check"></re-icon></div>
       </div>
       <div class="status-title success">ATTENDANCE SAVED</div>
       <div class="status-desc">
@@ -142,7 +144,7 @@
     <!-- 5. PENDING VIEW -->
     <div id="view-pending" class="view-panel">
       <div class="status-icon-wrap pending">
-        <div class="status-symbol" style="color: var(--pending);">&#9203;</div>
+        <div class="status-symbol" style="color: var(--pending);"><re-icon icon="clock"></re-icon></div>
       </div>
       <div class="status-title pending">VERIFICATION PENDING</div>
       <div class="status-desc">
@@ -163,7 +165,7 @@
     <!-- 6. ERROR VIEW -->
     <div id="view-error" class="view-panel">
       <div class="status-icon-wrap error">
-        <div class="status-symbol" style="color: var(--danger);">&#10007;</div>
+        <div class="status-symbol" style="color: var(--danger);"><re-icon icon="x"></re-icon></div>
       </div>
       <div class="status-title error">Attendance Failed</div>
       <div id="error-desc-txt" class="status-desc">Could not verify attendance session.</div>
@@ -174,6 +176,10 @@
   </div>
 
   <script src="/js/core/toast.js"></script>
+  <script src="/js/core/modal.js"></script>
+  <script src="/js/core/popup.js"></script>
+  <script src="/js/core/deviceKey.js"></script>
+  <script src="/js/core/guard.js"></script>
   <script>
     var currentMode = 'quick-pass';
     var sessionTrackId = '';
@@ -185,6 +191,9 @@
     var countdownTimer = null;
 
     function getDeviceId() {
+      if (window.DeviceKey && typeof window.DeviceKey.getInstallId === 'function') {
+        return window.DeviceKey.getInstallId();
+      }
       var id = localStorage.getItem('eams_device_id');
       if (!id) {
         id = 'DEV_' + (window.crypto && crypto.randomUUID ? crypto.randomUUID() : (Date.now().toString(36) + Math.random().toString(36).substring(2, 9)));
@@ -322,27 +331,55 @@
       if (btn) btn.disabled = true;
 
       function doSubmit(locationCoords) {
-        var payload = { code: code };
+        var devId = getDeviceId();
+        var payload = { code: code, deviceId: devId };
         if (locationCoords) {
           payload.latitude = locationCoords.latitude;
           payload.longitude = locationCoords.longitude;
           payload.locationAccuracy = locationCoords.accuracy;
         }
 
-        fetch('/api/quick-pass/mark', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer ' + token,
-            'x-device-id': getDeviceId()
-          },
-          body: JSON.stringify(payload)
+        var proofPromise = Promise.resolve(null);
+        if (window.DeviceKey && typeof window.DeviceKey.createDeviceProof === 'function') {
+          proofPromise = DeviceKey.createDeviceProof({ sessionTrackId: '', code: code }, (user && (user.trackId || user._id)) || '')
+            .catch(function() { return null; });
+        }
+
+        proofPromise.then(function(deviceProof) {
+          if (deviceProof) payload.deviceProof = deviceProof;
+
+          return fetch('/api/quick-pass/mark', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer ' + token,
+              'x-device-id': devId
+            },
+            body: JSON.stringify(payload)
+          });
         })
-        .then(function(r) { return r.json(); })
+        .then(function(r) {
+          return r.json().then(function(data) {
+            data._httpStatus = r.status;
+            return data;
+          });
+        })
         .then(function(data) {
           if (btn) btn.disabled = false;
+          if (data._httpStatus === 401) {
+            showView('view-login');
+            return;
+          }
+          if (data._httpStatus === 403) {
+            showErrorView(data.error || 'Self-attendance is locked or restricted for your account.');
+            return;
+          }
           if (data.ok) {
-            showCompletedView();
+            if (data.status === 'pending' || data.requiresTeacherVerification) {
+              showPendingView(data.failReason || data.message || 'Marked! Teacher verification required.');
+            } else {
+              showCompletedView();
+            }
           } else {
             showErrorView(data.error || 'Failed to mark Quick Pass attendance');
           }
@@ -449,13 +486,25 @@
           payload.accuracy = locationCoords.accuracy;
         }
 
-        fetch('/api/qr-attendance/submit', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer ' + token
-          },
-          body: JSON.stringify(payload)
+        var proofPromise = Promise.resolve(null);
+        if (window.DeviceKey && typeof window.DeviceKey.createDeviceProof === 'function') {
+          proofPromise = DeviceKey.createDeviceProof(
+            { sessionTrackId: sessionTrackId, qrTrackId: qrTrackId },
+            (studentData && (studentData.trackId || studentData._id)) || ''
+          ).catch(function() { return null; });
+        }
+
+        proofPromise.then(function(deviceProof) {
+          if (deviceProof) payload.deviceProof = deviceProof;
+
+          return fetch('/api/qr-attendance/submit', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer ' + token
+            },
+            body: JSON.stringify(payload)
+          });
         })
         .then(function (r) {
           return r.json().then(function (data) {
@@ -466,6 +515,10 @@
         .then(function (res) {
           if (res._httpStatus === 401) {
             showView('view-login');
+            return;
+          }
+          if (res._httpStatus === 403) {
+            showErrorView(res.error || 'Self-attendance is locked or restricted for your account.');
             return;
           }
 

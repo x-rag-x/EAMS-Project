@@ -201,13 +201,15 @@
       const viewParams = config.viewParams || {};
       const id = config.id || buildTabId(viewType, viewParams);
       const title = config.title || 'Untitled View';
-      const icon = config.icon || '📅';
+      const rawIcon = config.icon || 'calendar';
+      const icon = rawIcon.includes('<') ? rawIcon : `<re-icon icon="${rawIcon}"></re-icon>`;
       const isPinned = Boolean(config.isPinned);
       const mode = config.mode || 'production';
       const activate = config.activate !== false;
 
-      // Invariant: Tabs are exclusively for class timetable views
-      if (viewType !== 'section' && !String(id).startsWith('section:')) {
+      // Invariant: Tabs are exclusively for class timetable views or the main matrix launcher
+      const isMatrixAllowed = (id === 'main-matrix' || viewType === 'matrix-launcher' || viewType === 'section' || String(id).startsWith('section:'));
+      if (!isMatrixAllowed) {
         if (typeof window.switchTab === 'function') {
           window.switchTab(viewType);
         }
@@ -228,13 +230,20 @@
       // 2. Tab Hard Cap Guard (Limit = 12) with Quick Action
       if (this.tabs.size >= this.tabCapHard) {
         const canAutoClose = Array.from(this.tabs.values()).some(t => !t.isPinned && !t.isDirty && t.id !== this.activeTabId);
-        if (canAutoClose && typeof window.confirm === 'function' && window.confirm('Tab limit reached (12 open tabs). Close oldest unused tab to make room?')) {
-          this.closeOldestUnpinnedTab();
+        if (canAutoClose && typeof (window.showConfirm || showConfirm) === 'function') {
+          const confFn = window.showConfirm || showConfirm;
+          confFn('Tab limit reached (12 open tabs). Close oldest unused tab to make room?', 'Tab Limit Reached').then(confirmed => {
+            if (confirmed) {
+              this.closeOldestUnpinnedTab();
+              this.openTab(def, activate);
+            }
+          });
+          return null;
         } else {
           if (typeof showToast === 'function') {
             showToast(`Tab limit reached (12 open tabs). Please close an unused tab.`, 'warn');
-          } else if (typeof alert === 'function') {
-            alert('Tab limit reached (12 open tabs). Please close an unused tab.');
+          } else if (typeof (window.showPopup || showPopup) === 'function') {
+            (window.showPopup || showPopup)('Tab limit reached (12 open tabs). Please close an unused tab.', 'Tab Limit Reached', 'warn');
           }
           return null;
         }
@@ -300,7 +309,7 @@
       if (!this.tabstripEl) return;
 
       const chip = document.createElement('div');
-      chip.className = 'tt-tab-chip';
+      chip.className = 'tt-tab-chip' + (tab.isPinned ? ' tt-tab-pinned' : '');
       chip.id = `tab-${tab.id.replace(/[^a-zA-Z0-9-_]/g, '_')}`;
       chip.dataset.tabId = tab.id;
       chip.setAttribute('role', 'tab');
@@ -494,7 +503,7 @@
             <span>${this._escapeHtml(tab.title)}</span>
             ${tab.isDirty ? '<span style="color:#d97706;font-size:9px;">●</span>' : ''}
           </span>
-          ${tab.isPinned ? '<span style="font-size:11px;opacity:0.6;">📌</span>' : ''}
+          ${tab.isPinned ? '<span style="font-size:11px;opacity:0.6;"><re-icon icon="pin"></re-icon></span>' : ''}
         `;
         item.addEventListener('click', () => {
           this.activateTab(tab.id);
@@ -600,7 +609,10 @@
           const userConfirmed = await this.confirmCloseDirty(tab);
           if (!userConfirmed) return false;
         } else {
-          const confirmed = window.confirm(`Tab "${tab.title}" has unsaved draft changes. Discard changes and close?`);
+          const confFn = window.showConfirm || window.customConfirm || showConfirm;
+          const confirmed = typeof confFn === 'function'
+            ? await confFn(`Tab "${tab.title}" has unsaved draft changes. Discard changes and close?`, 'Discard Draft Changes', null, null, { danger: true, confirmText: 'Discard & Close' })
+            : true;
           if (!confirmed) return false;
         }
       }
@@ -755,7 +767,7 @@
         const comp = this.openTab({
           id: buildTabId('section', { classId: candidate }),
           title: candidate,
-          icon: '📅',
+          icon: '<re-icon icon="calendar"></re-icon>',
           viewType: 'section',
           viewParams: { classId: candidate, sectionName: candidate },
           mode: this.getActiveTab()?.mode || 'production',
@@ -919,7 +931,7 @@
                 ${isVertical ? '⬒ Top/Bottom' : '⧉ Side-by-Side'}
               </button>
               <button type="button" class="tt-split-ctrl-btn" id="btn-swap-split" title="Swap Left and Right Panes">⇄ Swap</button>
-              <button type="button" class="tt-split-ctrl-btn" id="btn-close-split" title="Exit Split View">✕ Close</button>
+              <button type="button" class="tt-split-ctrl-btn" id="btn-close-split" title="Exit Split View"><re-icon icon="x"></re-icon> Close</button>
             </div>
           </div>
           <div id="tt-split-secondary-body" style="height:calc(100% - 35px);overflow:auto;"></div>
@@ -1244,7 +1256,7 @@
           secondaryTabId: this.secondaryTabId,
           splitRatio: this.splitRatio,
           tabs: Array.from(this.tabs.values())
-            .filter(t => t.viewType === 'section' || String(t.id).startsWith('section:'))
+            .filter(t => t.id === 'main-matrix' || t.viewType === 'matrix-launcher' || t.viewType === 'section' || String(t.id).startsWith('section:'))
             .map(t => ({
               id: t.id,
               title: t.title,
@@ -1272,8 +1284,8 @@
         const data = JSON.parse(raw);
         if (!data || !Array.isArray(data.tabs) || !data.tabs.length) return false;
 
-        const sectionTabs = data.tabs.filter(item => item.viewType === 'section' || String(item.id).startsWith('section:'));
-        for (const item of sectionTabs) {
+        const validTabs = data.tabs.filter(item => item.id === 'main-matrix' || item.viewType === 'matrix-launcher' || item.viewType === 'section' || String(item.id).startsWith('section:'));
+        for (const item of validTabs) {
           let verifiedMode = item.mode || 'production';
           if (item.viewType === 'section' && typeof revalidateDraftFn === 'function') {
             try {
@@ -1290,7 +1302,7 @@
             id: item.id,
             title: item.title,
             icon: item.icon,
-            viewType: 'section',
+            viewType: item.viewType || (item.id === 'main-matrix' ? 'matrix-launcher' : 'section'),
             viewParams: item.viewParams,
             isPinned: item.isPinned,
             mode: verifiedMode,

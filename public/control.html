@@ -8,6 +8,8 @@
   <link
     href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&family=Playfair+Display:wght@700&family=JetBrains+Mono:wght@400;600&display=swap"
     rel="stylesheet">
+  <script src="js/core/escape.js"></script>
+  <script src="js/core/icons.js"></script>
   <link rel="stylesheet" href="css/base.css">
   <link rel="stylesheet" href="css/control.css">
 </head>
@@ -44,23 +46,23 @@
 
     <div style="flex:1;overflow-y:auto;padding:6px 0;">
       <div class="sb-section-label">Overview</div>
-      <button class="sb-item act" onclick="nav('overview')"><span class="sbi-ic">🖥️</span>System Overview</button>
-      <button class="sb-item" onclick="nav('usergrid')"><span class="sbi-ic">👥</span>User Grid</button>
+      <button class="sb-item act" onclick="nav('overview')"><span class="sbi-ic"><re-icon icon="monitor"></re-icon></span>System Overview</button>
+      <button class="sb-item" onclick="nav('usergrid')"><span class="sbi-ic"><re-icon icon="users"></re-icon></span>User Grid</button>
 
       <div class="sb-section-label">Announcements</div>
-      <button class="sb-item" onclick="nav('broadcasts')"><span class="sbi-ic">📢</span>Broadcasts</button>
+      <button class="sb-item" onclick="nav('broadcasts')"><span class="sbi-ic"><re-icon icon="bullhorn"></re-icon></span>Broadcasts</button>
 
       <div class="sb-section-label">Danger Zone</div>
-      <button class="sb-item" onclick="nav('data')"><span class="sbi-ic">🗑️</span>Data Management</button>
-      <button class="sb-item" onclick="nav('backup')"><span class="sbi-ic">🗄️</span>Backup</button>
-      <button class="sb-item" onclick="nav('undo')"><span class="sbi-ic">↩️</span>Undo</button>
-      <button class="sb-item" onclick="nav('maintenance')"><span class="sbi-ic">🔧</span>Maintenance Mode</button>
+      <button class="sb-item" onclick="nav('data')"><span class="sbi-ic"><re-icon icon="trash2"></re-icon></span>Data Management</button>
+      <button class="sb-item" onclick="nav('backup')"><span class="sbi-ic"><re-icon icon="archive"></re-icon></span>Backup</button>
+      <button class="sb-item" id="sb-nav-recycle-bin" onclick="nav('recycle-bin')"><span class="sbi-ic"><re-icon icon="trash2"></re-icon></span>Recycle Bin <span class="sb-badge-count" id="sb-recycle-badge" style="display:none;margin-left:auto;padding:2px 7px;font-size:11px;font-weight:700;background:#ef4444;color:#fff;border-radius:12px;line-height:1;">0</span></button>
+      <button class="sb-item" onclick="nav('maintenance')"><span class="sbi-ic"><re-icon icon="sledgehammer"></re-icon></span>Maintenance Mode</button>
 
       <div class="sb-section-label">Configuration & Logs</div>
-      <a href="logs.html" class="sb-item" style="text-decoration:none;"><span class="sbi-ic">📋</span>Audit Logs →</a>
-      <a href="export.html" class="sb-item" style="text-decoration:none;"><span class="sbi-ic">📊</span>Export Center →</a>
-      <a href="settings.html" class="sb-item" style="text-decoration:none;"><span class="sbi-ic">⚙️</span>Settings &amp;
-        Security →</a>
+      <a href="logs.html" class="sb-item" style="text-decoration:none;"><span class="sbi-ic"><re-icon icon="clipboard-list"></re-icon></span>Audit Logs <re-icon icon="arrow-right"></re-icon></a>
+      <a href="export.html" class="sb-item" style="text-decoration:none;"><span class="sbi-ic"><re-icon icon="grid"></re-icon></span>Export Center <re-icon icon="arrow-right"></re-icon></a>
+      <a href="settings.html" class="sb-item" style="text-decoration:none;"><span class="sbi-ic"><re-icon icon="settings"></re-icon></span>Settings &amp;
+        Security <re-icon icon="arrow-right"></re-icon></a>
     </div>
 
     <div class="sb-bottom">
@@ -71,7 +73,7 @@
           <div class="sb-urole">Admin</div>
         </div>
       </div>
-      <button class="sb-back-btn" onclick="goBack()">← Back to Dashboard</button>
+      <button class="sb-back-btn" onclick="goBack()"><re-icon icon="arrow-left"></re-icon> Back to Dashboard</button>
       <button class="sb-logout-btn" onclick="doLogout()" title="Logout">
         <div class="logout-sign">
           <svg viewBox="0 0 512 512">
@@ -91,7 +93,7 @@
     <!-- TOP BAR -->
     <div class="topbar">
       <div class="topbar-title">
-        ⚙️ System Control Panel
+        <re-icon icon="settings"></re-icon> System Control Panel
         <span class="topbar-badge">ADMIN ONLY</span>
       </div>
       <div class="topbar-right">
@@ -152,7 +154,7 @@
       <!-- Recent Errors Card -->
       <div id="health-errors-card" class="card" style="margin-bottom:16px;display:none;">
         <div class="card-hd">
-          <div class="card-icon red">⚠️</div>
+          <div class="card-icon red"><re-icon icon="alert-triangle"></re-icon></div>
           <div>
             <div class="card-title">Recent Errors &amp; Warnings</div>
             <div class="card-desc" id="errors-card-desc">Last <span id="errors-count-label">20</span> error-level log
@@ -173,7 +175,7 @@
       </div>
 
       <div id="maint-banner" class="maint-banner hidden">
-        <div class="maint-banner-ic">🚧</div>
+        <div class="maint-banner-ic"><re-icon icon="traffic"></re-icon></div>
         <div>
           <div class="maint-banner-title">Maintenance Mode is ACTIVE</div>
           <div class="maint-banner-sub">Only admin accounts can access the system. Teachers and students are locked out.
@@ -184,7 +186,7 @@
       <!-- DB Collection Breakdown -->
       <div class="card" style="margin-bottom:16px;">
         <div class="card-hd">
-          <div class="card-icon blue">🗄️</div>
+          <div class="card-icon blue"><re-icon icon="archive"></re-icon></div>
           <div>
             <div class="card-title">Collection Overview</div>
             <div class="card-desc">Document counts per collection</div>
@@ -198,7 +200,7 @@
 
       <div class="card">
         <div class="card-hd">
-          <div class="card-icon green">📋</div>
+          <div class="card-icon green"><re-icon icon="clipboard-list"></re-icon></div>
           <div>
             <div class="card-title">System Activity Log</div>
             <div class="card-desc">Live control panel operations</div>
@@ -206,7 +208,7 @@
         </div>
         <div class="terminal" id="sys-log">
           <div class="terminal-line info"><span class="terminal-prompt">›</span>Control panel initialized</div>
-          <div class="terminal-line success"><span class="terminal-prompt">›</span>MongoDB connected ✓</div>
+          <div class="terminal-line success"><span class="terminal-prompt">›</span>MongoDB connected <re-icon icon="check"></re-icon></div>
           <div class="terminal-line info"><span class="terminal-prompt">›</span>Awaiting commands…</div>
         </div>
       </div>
@@ -217,92 +219,71 @@
       <div class="page-wrap">
         <div class="page-hd">
           <div>
-            <div class="page-title">👥 User Grid &amp; Identity Console</div>
+            <div class="page-title"><re-icon icon="users"></re-icon> User Grid &amp; Identity Console</div>
             <div class="page-sub">Centralized directory, inline/modal management, account unlock, password reset, and
               attendance audit</div>
           </div>
           <div class="page-actions">
-            <button class="btn-out" onclick="ugExportCSV()" title="Export current grid to CSV">📥 Export CSV</button>
+            <button class="btn-out" onclick="ugExportCSV()" title="Export current grid to CSV"><re-icon icon="download" size="14"></re-icon> Export CSV</button>
             <button class="btn-pri" onclick="ugRefresh()" title="Reload data from database">↻ Refresh Data</button>
           </div>
         </div>
 
-        <!-- Summary Stats Strip -->
+        <!-- Summary Stats Strip (Redesigned with Icons & Content like Teacher Page) -->
         <div class="ug-stats-strip" id="ug-stats-strip">
-          <div class="ug-stat-card">
-            <div class="ug-stat-num" id="ugs-total">0</div>
-            <div class="ug-stat-lbl">Total Records</div>
+          <div class="ug-stat-card total-card">
+            <div class="ug-stat-icon green" id="ugs-icon-total"><re-icon icon="graduation-cap"></re-icon></div>
+            <div class="ug-stat-content">
+              <div class="ug-stat-num" id="ugs-total">0</div>
+              <div class="ug-stat-lbl" id="ugs-lbl-total">Total Students</div>
+            </div>
           </div>
           <div class="ug-stat-card active-card">
-            <div class="ug-stat-num" id="ugs-active">0</div>
-            <div class="ug-stat-lbl">Active Accounts</div>
+            <div class="ug-stat-icon blue" id="ugs-icon-active"><re-icon icon="check-circle"></re-icon></div>
+            <div class="ug-stat-content">
+              <div class="ug-stat-num" id="ugs-active">0</div>
+              <div class="ug-stat-lbl" id="ugs-lbl-active">Active Accounts</div>
+            </div>
           </div>
           <div class="ug-stat-card inactive-card">
-            <div class="ug-stat-num" id="ugs-inactive">0</div>
-            <div class="ug-stat-lbl">Inactive</div>
+            <div class="ug-stat-icon amber" id="ugs-icon-inactive"><re-icon icon="pause"></re-icon></div>
+            <div class="ug-stat-content">
+              <div class="ug-stat-num" id="ugs-inactive">0</div>
+              <div class="ug-stat-lbl" id="ugs-lbl-inactive">Inactive</div>
+            </div>
           </div>
           <div class="ug-stat-card locked-card">
-            <div class="ug-stat-num" id="ugs-locked">0</div>
-            <div class="ug-stat-lbl">Locked (Brute-Force)</div>
+            <div class="ug-stat-icon red" id="ugs-icon-locked"><re-icon icon="lock"></re-icon></div>
+            <div class="ug-stat-content">
+              <div class="ug-stat-num" id="ugs-locked">0</div>
+              <div class="ug-stat-lbl" id="ugs-lbl-locked">Locked (Brute-Force)</div>
+            </div>
           </div>
         </div>
 
-        <!-- Filter & Control Bar -->
-        <div class="card" style="margin-bottom:14px;padding:14px 18px;">
-          <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:space-between;">
-            <!-- Role Tabs -->
-            <div
-              style="display:flex;gap:4px;background:var(--gLt);border-radius:12px;padding:4px;border:1px solid var(--brl);">
-              <button class="ug-tab act" id="ugt-student" onclick="ugSetRole('student',this)">🎓 Students</button>
-              <button class="ug-tab" id="ugt-teacher" onclick="ugSetRole('teacher',this)">👩‍🏫 Teachers</button>
-              <button class="ug-tab" id="ugt-admin" onclick="ugSetRole('admin',this)">🔑 Admins</button>
-              <button class="ug-tab" id="ugt-attendance" onclick="ugSetRole('attendance',this)">📅 Attendance</button>
+        <!-- Filter Toolbar Card (Redesigned Top GUI/UX with Dropdowns, Search & View Toggle) -->
+        <div class="card ug-toolbar-card">
+          <!-- Top Row: Role Navigation Pills + View Mode & Limit Controls -->
+          <div class="ug-toolbar-top">
+            <!-- Role Tabs / Pills -->
+            <div class="ug-role-pills" id="ug-role-pills">
+              <button class="ug-tab act" id="ugt-student" onclick="ugSetRole('student',this)">
+                <re-icon icon="graduation-cap" size="14"></re-icon> Students
+              </button>
+              <button class="ug-tab" id="ugt-teacher" onclick="ugSetRole('teacher',this)">
+                <re-icon icon="teacher" size="14"></re-icon> Teachers
+              </button>
+              <button class="ug-tab" id="ugt-admin" onclick="ugSetRole('admin',this)">
+                <re-icon icon="key" size="14"></re-icon> Admins
+              </button>
+              <button class="ug-tab" id="ugt-attendance" onclick="ugSetRole('attendance',this)">
+                <re-icon icon="calendar" size="14"></re-icon> Attendance
+              </button>
             </div>
 
-            <!-- Filters group -->
-            <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;flex:1;justify-content:flex-end;">
-              <!-- Dept filter -->
-              <select id="ug-dept-filter" class="form-input" style="max-width:170px;padding:7px 10px;font-size:12px;"
-                onchange="ugOnFilterChange()">
-                <option value="">All Departments</option>
-              </select>
-
-              <!-- Class filter (shows for students and attendance) -->
-              <select id="ug-class-filter" class="form-input" style="max-width:160px;padding:7px 10px;font-size:12px;"
-                onchange="ugOnFilterChange()">
-                <option value="">All Classes</option>
-              </select>
-
-              <!-- Status filter -->
-              <select id="ug-status-filter" class="form-input" style="max-width:140px;padding:7px 10px;font-size:12px;"
-                onchange="ugOnFilterChange()">
-                <option value="">All Statuses</option>
-                <option value="active">🟢 Active</option>
-                <option value="inactive">⚪ Inactive</option>
-                <option value="locked">🔴 Locked</option>
-              </select>
-
-              <!-- Date filter (shows for attendance) -->
-              <input type="date" id="ug-date-filter" class="form-input"
-                style="max-width:140px;padding:6px 10px;font-size:12px;display:none;" onchange="ugOnFilterChange()">
-
-              <!-- Search box without autofill -->
-              <form autocomplete="off" onsubmit="return false;" style="margin:0;display:contents;">
-                <input type="text" style="display:none;" name="fake_user_remembered" autocomplete="username">
-                <input type="password" style="display:none;" name="fake_password_remembered"
-                  autocomplete="current-password">
-                <div style="position:relative;min-width:210px;flex:1;max-width:320px;">
-                  <span
-                    style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--tdi);font-size:13px;pointer-events:none;">🔍</span>
-                  <input type="search" id="ug-search" placeholder="Search..." oninput="ugDebouncedSearch()"
-                    autocomplete="new-password" name="ug_search_no_autofill_val" spellcheck="false"
-                    style="width:100%;padding:7.5px 12px 7.5px 30px;border:1.5px solid var(--br);border-radius:9px;font-size:12px;font-family:'Poppins',sans-serif;outline:none;color:var(--td);background:#fff;box-sizing:border-box;">
-                </div>
-              </form>
-
-              <!-- Page limit -->
-              <select id="ug-limit-select" class="form-input" style="max-width:100px;padding:7px 8px;font-size:12px;"
-                onchange="ugOnLimitChange()">
+            <!-- Page Limit Dropdown -->
+            <div class="ug-limit-wrap">
+              <select id="ug-limit-select" class="ug-select-pill" onchange="ugOnLimitChange()" title="Items per page">
                 <option value="25">25 / page</option>
                 <option value="50" selected>50 / page</option>
                 <option value="100">100 / page</option>
@@ -311,22 +292,67 @@
             </div>
           </div>
 
+          <!-- Bottom Row: Filters (Dept, Class, Status, Date) & Search -->
+          <div class="ug-toolbar-filters">
+            <!-- Department Dropdown (Searchable) -->
+            <div class="ug-filter-field" id="ug-dept-wrap">
+              <select id="ug-dept-filter" class="ug-filter-select" onchange="ugOnFilterChange()">
+                <option value="">All Departments</option>
+              </select>
+            </div>
+
+            <!-- Class Filter (students / attendance, Searchable) -->
+            <div class="ug-filter-field" id="ug-class-wrap">
+              <select id="ug-class-filter" class="ug-filter-select" onchange="ugOnFilterChange()">
+                <option value="">All Classes</option>
+              </select>
+            </div>
+
+            <!-- Status Filter (Searchable) -->
+            <div class="ug-filter-field" id="ug-status-wrap">
+              <select id="ug-status-filter" class="ug-filter-select" onchange="ugOnFilterChange()">
+                <option value="">All Statuses</option>
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+                <option value="locked">Locked</option>
+              </select>
+            </div>
+
+            <!-- Attendance Date Filter -->
+            <div class="ug-filter-field" id="ug-date-wrap" style="display:none;">
+              <span class="ug-filter-icon"><re-icon icon="calendar" size="14"></re-icon></span>
+              <input type="date" id="ug-date-filter" class="ug-filter-input" onchange="ugOnFilterChange()">
+            </div>
+
+            <!-- Search input without autofill -->
+            <form autocomplete="off" onsubmit="return false;" style="margin:0;display:contents;">
+              <input type="text" style="display:none;" name="fake_user_remembered" autocomplete="username">
+              <input type="password" style="display:none;" name="fake_password_remembered" autocomplete="current-password">
+              <div class="ug-filter-search-wrap">
+                <span class="ug-search-icon"><re-icon icon="search" size="14"></re-icon></span>
+                <input type="search" id="ug-search" placeholder="Search by name, reg no, username, email…"
+                  oninput="ugDebouncedSearch()" autocomplete="new-password" name="ug_search_no_autofill_val" spellcheck="false"
+                  class="ug-filter-search">
+                <button type="button" id="ug-search-clear" class="ug-search-clear-btn" onclick="ugClearSearch()" title="Clear search" style="display:none;">✕</button>
+              </div>
+            </form>
+          </div>
+
           <!-- Bulk Actions Bar (Revealed when items checked) -->
           <div id="ug-bulk-bar" class="ug-bulk-bar" style="display:none;">
-            <div style="display:flex;align-items:center;gap:10px;">
+            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
               <span class="ug-bulk-count" id="ug-bulk-count">0 selected</span>
-              <button class="btn btn-sm btn-out" onclick="ugBulkAction('activate')">🟢 Activate</button>
-              <button class="btn btn-sm btn-out" onclick="ugBulkAction('deactivate')">⏸️ Deactivate</button>
-              <button class="btn btn-sm btn-out" onclick="ugBulkAction('unlock')">🔓 Unlock</button>
-              <button class="btn btn-sm btn-out" onclick="ugBulkAction('delete')"
-                style="color:#dc2626;border-color:#fca5a5;">🗑️ Delete Selected</button>
+              <button class="btn btn-sm btn-out" onclick="ugBulkAction('activate')"><span class="status-dot green"></span> Activate</button>
+              <button class="btn btn-sm btn-out" onclick="ugBulkAction('deactivate')"><re-icon icon="pause" size="13"></re-icon> Deactivate</button>
+              <button class="btn btn-sm btn-out" onclick="ugBulkAction('unlock')"><re-icon icon="lock-open" size="13"></re-icon> Unlock</button>
+              <button class="btn btn-sm btn-out" onclick="ugBulkAction('delete')" style="color:#dc2626;border-color:#fca5a5;"><re-icon icon="trash2" size="13"></re-icon> Delete Selected</button>
             </div>
             <button class="btn btn-sm btn-out" onclick="ugClearSelection()">Clear Selection</button>
           </div>
         </div>
 
         <!-- Data Table Card -->
-        <div class="card" style="padding:0;overflow:hidden;border:1px solid var(--brl);">
+        <div class="card" style="padding:0;overflow:hidden;border:1px solid var(--brl);margin-bottom:14px;">
           <div style="overflow-x:auto;">
             <table id="ug-table" class="ug-table">
               <thead id="ug-thead"></thead>
@@ -336,24 +362,23 @@
 
           <!-- Empty / Loading States -->
           <div id="ug-loading" style="text-align:center;padding:50px;color:var(--tmu);display:none;">
-            <div style="font-size:32px;margin-bottom:8px;animation:spin 1s linear infinite;display:inline-block;">⏳
+            <div style="font-size:32px;margin-bottom:8px;animation:spin 1s linear infinite;display:inline-block;"><re-icon icon="hourglass"></re-icon>
             </div>
             <div style="font-size:13px;font-weight:500;">Loading records from database…</div>
           </div>
           <div id="ug-empty" style="text-align:center;padding:50px;color:var(--tdi);display:none;">
-            <div style="font-size:36px;margin-bottom:8px;">📭</div>
+            <div style="font-size:36px;margin-bottom:8px;"><re-icon icon="inbox"></re-icon></div>
             <div style="font-size:14px;font-weight:600;color:var(--td);">No matching records found</div>
-            <div style="font-size:12px;color:var(--tmu);margin-top:4px;">Try adjusting your filters or search keywords
-            </div>
+            <div style="font-size:12px;color:var(--tmu);margin-top:4px;">Try adjusting your filters or search keywords</div>
           </div>
 
           <!-- Pagination Footer -->
-          <div id="ug-pagination" class="ug-pagination">
+          <div id="ug-pagination" class="ug-pagination" style="display:none;">
             <div id="ug-page-info" style="font-size:12px;color:var(--tmu);font-weight:500;">Showing 0 of 0 records</div>
             <div style="display:flex;gap:6px;align-items:center;">
-              <button class="btn btn-out btn-sm" id="ug-prev-btn" onclick="ugChangePage(-1)" disabled>← Prev</button>
+              <button class="btn btn-out btn-sm" id="ug-prev-btn" onclick="ugChangePage(-1)" disabled><re-icon icon="arrow-left"></re-icon> Prev</button>
               <div id="ug-page-numbers" style="display:flex;gap:4px;"></div>
-              <button class="btn btn-out btn-sm" id="ug-next-btn" onclick="ugChangePage(1)" disabled>Next →</button>
+              <button class="btn btn-out btn-sm" id="ug-next-btn" onclick="ugChangePage(1)" disabled>Next <re-icon icon="arrow-right"></re-icon></button>
             </div>
           </div>
         </div>
@@ -368,7 +393,7 @@
               <div style="display:flex;align-items:center;gap:12px;">
                 <div class="card-icon green"
                   style="width:38px;height:38px;font-size:18px;display:flex;align-items:center;justify-content:center;border-radius:10px;background:#fff;border:1px solid var(--gLr);"
-                  id="ug-edit-modal-ic">👤</div>
+                  id="ug-edit-modal-ic"><re-icon icon="user"></re-icon></div>
                 <div>
                   <div style="font-size:16px;font-weight:800;color:var(--td);letter-spacing:-0.2px;"
                     id="ug-edit-modal-title">Edit User Profile</div>
@@ -377,7 +402,7 @@
                 </div>
               </div>
               <button onclick="ugCloseEditModal()" class="modal-close-btn"
-                style="width:30px;height:30px;border-radius:50%;border:none;background:#fff;font-size:15px;cursor:pointer;color:var(--tmu);display:flex;align-items:center;justify-content:center;box-shadow:0 1px 4px rgba(0,0,0,0.06);transition:all .18s;">✖</button>
+                style="width:30px;height:30px;border-radius:50%;border:none;background:#fff;font-size:15px;cursor:pointer;color:var(--tmu);display:flex;align-items:center;justify-content:center;box-shadow:0 1px 4px rgba(0,0,0,0.06);transition:all .18s;" aria-label="Close modal"><re-icon icon="x" size="14"></re-icon></button>
             </div>
 
             <!-- Modal Body Form -->
@@ -399,9 +424,9 @@
                   <div class="fg">
                     <label class="fl">Account Status<span style="color:#dc2626;">*</span></label>
                     <select class="fc2" id="ug-e-status">
-                      <option value="active">🟢 Active</option>
-                      <option value="inactive">⚪ Inactive</option>
-                      <option value="locked">🔴 Locked (Brute-Force)</option>
+                      <option value="active">Active</option>
+                      <option value="inactive">Inactive</option>
+                      <option value="locked">Locked (Brute-Force)</option>
                     </select>
                   </div>
                 </div>
@@ -436,7 +461,7 @@
                   style="display:none;margin-top:14px;padding-top:14px;border-top:1.5px solid var(--brl);">
                   <div
                     style="font-size:11px;font-weight:700;color:var(--gD);text-transform:uppercase;letter-spacing:1px;margin-bottom:12px;display:flex;align-items:center;gap:6px;">
-                    <span>🎓</span> Student Academic Profile
+                    <span><re-icon icon="graduation-cap"></re-icon></span> Student Academic Profile
                   </div>
 
                   <!-- Reg No & Track ID -->
@@ -498,9 +523,26 @@
                     </div>
                   </div>
 
+                  <div class="form-grid form-grid-2" style="margin-top:10px;">
+                    <div class="fg">
+                      <label class="fl">Gender</label>
+                      <select class="fc2" id="ug-e-stu-gender">
+                        <option value="Male">Male</option>
+                        <option value="Female">Female</option>
+                      </select>
+                    </div>
+                    <div class="fg">
+                      <label class="fl">Dayscholar / Hosteler</label>
+                      <select class="fc2" id="ug-e-stu-residency">
+                        <option value="dayscholar">Dayscholar</option>
+                        <option value="hostel">Hosteler</option>
+                      </select>
+                    </div>
+                  </div>
+
                   <div style="margin-top:10px;">
                     <label class="chk-box" style="font-weight:600;color:var(--td);">
-                      <input type="checkbox" id="ug-e-stu-is-rep"> ⭐ Class Representative (Student Rep)
+                      <input type="checkbox" id="ug-e-stu-is-rep"> <re-icon icon="sparkles"></re-icon> Class Representative (Student Rep)
                     </label>
                   </div>
                 </div>
@@ -510,7 +552,7 @@
                   style="display:none;margin-top:14px;padding-top:14px;border-top:1.5px solid var(--brl);">
                   <div
                     style="font-size:11px;font-weight:700;color:var(--gD);text-transform:uppercase;letter-spacing:1px;margin-bottom:12px;display:flex;align-items:center;gap:6px;">
-                    <span>👩‍🏫</span> Faculty Position &amp; Permissions
+                    <span><re-icon icon="teacher"></re-icon></span> Faculty Position &amp; Permissions
                   </div>
                   <div class="form-grid form-grid-2">
                     <div class="fg">
@@ -553,7 +595,7 @@
                   <div
                     style="margin-top:12px;background:var(--gLt);border:1px solid var(--gLr);border-radius:12px;padding:14px 16px;">
                     <label class="chk-box" style="font-weight:700;color:var(--gD);margin-bottom:8px;">
-                      <input type="checkbox" id="ug-e-tch-is-admin" onchange="ugToggleAdminPrivs(this.checked)"> 🔑
+                      <input type="checkbox" id="ug-e-tch-is-admin" onchange="ugToggleAdminPrivs(this.checked)"> <re-icon icon="key"></re-icon>
                       Enable Sub-Admin Privileges
                     </label>
                     <div id="ug-tch-privs-wrap"
@@ -578,7 +620,7 @@
                   style="display:none;margin-top:14px;padding-top:14px;border-top:1.5px solid var(--brl);">
                   <div
                     style="font-size:11px;font-weight:700;color:var(--gD);text-transform:uppercase;letter-spacing:1px;margin-bottom:12px;display:flex;align-items:center;gap:6px;">
-                    <span>🔑</span> Administrator Workspace
+                    <span><re-icon icon="key"></re-icon></span> Administrator Workspace
                   </div>
                   <div class="form-grid form-grid-2">
                     <div class="fg">
@@ -615,7 +657,7 @@
             <div
               style="padding:14px 24px;border-top:1px solid var(--brl);display:flex;justify-content:space-between;align-items:center;background:var(--gLt);">
               <button class="btn-form-ghost" onclick="ugCloseEditModal()">Cancel</button>
-              <button class="btn-form-pri" onclick="ugSubmitEdit()">💾 Save Changes</button>
+              <button class="btn-form-pri" onclick="ugSubmitEdit()"><re-icon icon="save" size="14"></re-icon> Save Changes</button>
             </div>
           </div>
         </div>
@@ -629,14 +671,14 @@
               <div style="display:flex;align-items:center;gap:10px;">
                 <div class="card-icon amber"
                   style="width:36px;height:36px;font-size:18px;display:flex;align-items:center;justify-content:center;border-radius:10px;background:#fff;border:1px solid #fde68a;">
-                  🔑</div>
+                  <re-icon icon="key"></re-icon></div>
                 <div>
                   <div style="font-size:16px;font-weight:800;color:var(--td);">Reset User Password</div>
                   <div style="font-size:11px;color:var(--tmu);">Direct administrative credential override</div>
                 </div>
               </div>
               <button onclick="ugClosePwModal()" class="modal-close-btn"
-                style="width:30px;height:30px;border-radius:50%;border:none;background:#fff;font-size:15px;cursor:pointer;color:var(--tmu);display:flex;align-items:center;justify-content:center;">✖</button>
+                style="width:30px;height:30px;border-radius:50%;border:none;background:#fff;font-size:15px;cursor:pointer;color:var(--tmu);display:flex;align-items:center;justify-content:center;" aria-label="Close modal"><re-icon icon="x" size="14"></re-icon></button>
             </div>
             <div style="padding:22px 24px;">
               <p style="font-size:12px;color:var(--tmu);margin-bottom:16px;line-height:1.5;" id="ug-pw-user-desc">
@@ -661,7 +703,7 @@
             <div
               style="padding:14px 24px;border-top:1px solid var(--brl);display:flex;justify-content:flex-end;gap:10px;background:var(--gLt);">
               <button class="btn-form-ghost" onclick="ugClosePwModal()">Cancel</button>
-              <button class="btn-form-pri" onclick="ugSubmitPasswordReset()">🔑 Update Password</button>
+              <button class="btn-form-pri" onclick="ugSubmitPasswordReset()"><re-icon icon="key" size="14"></re-icon> Update Password</button>
             </div>
           </div>
         </div>
@@ -675,14 +717,14 @@
               <div style="display:flex;align-items:center;gap:10px;">
                 <div class="card-icon green"
                   style="width:36px;height:36px;font-size:18px;display:flex;align-items:center;justify-content:center;border-radius:10px;background:#fff;border:1px solid var(--gLr);">
-                  📅</div>
+                  <re-icon icon="calendar"></re-icon></div>
                 <div>
                   <div style="font-size:16px;font-weight:800;color:var(--td);">Edit Attendance Record</div>
                   <div style="font-size:11px;color:var(--tmu);">Modify student period attendance and remarks</div>
                 </div>
               </div>
               <button onclick="ugCloseAttModal()" class="modal-close-btn"
-                style="width:30px;height:30px;border-radius:50%;border:none;background:#fff;font-size:15px;cursor:pointer;color:var(--tmu);display:flex;align-items:center;justify-content:center;">✖</button>
+                style="width:30px;height:30px;border-radius:50%;border:none;background:#fff;font-size:15px;cursor:pointer;color:var(--tmu);display:flex;align-items:center;justify-content:center;" aria-label="Close modal"><re-icon icon="x" size="14"></re-icon></button>
             </div>
             <div style="padding:22px 24px;">
               <input type="hidden" id="ug-att-rec-id">
@@ -697,10 +739,10 @@
               <div class="fg" style="margin-bottom:14px;">
                 <label class="fl">Attendance Status</label>
                 <select class="fc2" id="ug-att-status">
-                  <option value="present">🟢 Present (P)</option>
-                  <option value="absent">🔴 Absent (AB)</option>
-                  <option value="od">🟡 On Duty (OD)</option>
-                  <option value="leave">🟣 Approved Leave</option>
+                  <option value="present">Present (P)</option>
+                  <option value="absent">Absent (AB)</option>
+                  <option value="od">On Duty (OD)</option>
+                  <option value="leave">Approved Leave</option>
                 </select>
               </div>
               <div class="fg">
@@ -711,7 +753,7 @@
             <div
               style="padding:14px 24px;border-top:1px solid var(--brl);display:flex;justify-content:flex-end;gap:10px;background:var(--gLt);">
               <button class="btn-form-ghost" onclick="ugCloseAttModal()">Cancel</button>
-              <button class="btn-form-pri" onclick="ugSubmitAttEdit()">💾 Save Record</button>
+              <button class="btn-form-pri" onclick="ugSubmitAttEdit()"><re-icon icon="save" size="14"></re-icon> Save Record</button>
             </div>
           </div>
         </div>
@@ -722,7 +764,7 @@
             style="width:390px;max-width:94vw;text-align:center;padding:26px 24px;border-radius:20px;box-shadow:0 24px 60px rgba(0,0,0,0.25);">
             <input type="hidden" id="ug-del-id">
             <input type="hidden" id="ug-del-role">
-            <div style="font-size:38px;margin-bottom:10px;">🗑️</div>
+            <div style="font-size:38px;margin-bottom:10px;"><re-icon icon="trash2"></re-icon></div>
             <div style="font-size:17px;font-weight:800;color:var(--td);margin-bottom:6px;" id="ug-del-title">Delete
               Record?</div>
             <div style="font-size:12.5px;color:var(--tmu);line-height:1.5;margin-bottom:20px;" id="ug-del-msg">Are you
@@ -731,7 +773,7 @@
               <button class="btn btn-out" style="flex:1;justify-content:center;"
                 onclick="ugCloseDeleteModal()">Cancel</button>
               <button class="btn btn-danger" style="flex:1;justify-content:center;" id="ug-del-confirm-btn"
-                onclick="ugConfirmDeleteRecord()">🗑️ Delete Now</button>
+                onclick="ugConfirmDeleteRecord()"><re-icon icon="trash2" size="14"></re-icon> Delete Now</button>
             </div>
           </div>
         </div>
@@ -741,13 +783,13 @@
     <!-- DATA MANAGEMENT PAGE -->
     <div class="pg" id="pg-data">
       <div class="page-hd">
-        <div class="page-title">🗑️ Data Management</div>
+        <div class="page-title"><re-icon icon="trash2"></re-icon> Data Management</div>
         <div class="page-sub">Irreversible operations — proceed with caution</div>
       </div>
 
       <div class="card">
         <div class="card-hd">
-          <div class="card-icon red">⚠️</div>
+          <div class="card-icon red"><re-icon icon="alert-triangle"></re-icon></div>
           <div>
             <div class="card-title">Danger Zone</div>
             <div class="card-desc">All actions below are permanent and cannot be undone</div>
@@ -758,7 +800,7 @@
 
           <div class="danger-row">
             <div>
-              <div class="danger-label">🗑️ Clear Cache</div>
+              <div class="danger-label"><re-icon icon="trash2"></re-icon> Clear Cache</div>
               <div class="danger-hint">Deletes all browser storage and cached data. Also runs automatically on logout.
               </div>
             </div>
@@ -767,7 +809,7 @@
 
           <div class="danger-row">
             <div>
-              <div class="danger-label">🗑️ Delete All Adder</div>
+              <div class="danger-label"><re-icon icon="trash2" size="14"></re-icon> Delete All Adder</div>
               <div class="danger-hint">Select and permanently delete Departments, Students, Teachers, Classes, or
                 Subjects from the database.</div>
             </div>
@@ -776,7 +818,7 @@
 
           <div class="danger-row">
             <div>
-              <div class="danger-label">🧹 Clear Attendance Records</div>
+              <div class="danger-label"><re-icon icon="eraser"></re-icon> Clear Attendance Records</div>
               <div class="danger-hint">Delete attendance records by date range, or wipe all records at once.</div>
             </div>
             <button class="btn btn-warn btn-sm" onclick="openAttendanceDateModal()">Clear Attendance</button>
@@ -784,7 +826,7 @@
 
           <div class="danger-row">
             <div>
-              <div class="danger-label">🧹 Clear Activity Logs</div>
+              <div class="danger-label"><re-icon icon="eraser"></re-icon> Clear Activity Logs</div>
               <div class="danger-hint">Permanently deletes all system activity and login logs. Admin only.</div>
             </div>
             <button class="btn btn-warn btn-sm" onclick="openConfirm('logs')">Clear Logs</button>
@@ -792,7 +834,7 @@
 
           <div class="danger-row">
             <div>
-              <div class="danger-label">💥 Clear Entire Database</div>
+              <div class="danger-label"><re-icon icon="forbidden-circle"></re-icon> Clear Entire Database</div>
               <div class="danger-hint">Wipes ALL collections: students, teachers, departments, classes, subjects,
                 attendance, timetables, notifications, logs. Admin account is preserved.</div>
             </div>
@@ -802,15 +844,15 @@
 
         </div>
 
-        <div class="warn-box">⚠️ All destructive actions require admin password confirmation. These operations call the
-          server API and immediately affect the MongoDB database. Deleted items can be undone within 10 days via the
-          Undo menu.</div>
+        <div class="warn-box"><re-icon icon="alert-triangle"></re-icon> All destructive actions require admin password confirmation. These operations call the
+          server API and immediately affect the MongoDB database. Deleted items can be restored or permanently purged within 10 days via the
+          Recycle Bin menu.</div>
       </div>
 
       <!-- Export Data (expanded) -->
       <div class="card">
         <div class="card-hd">
-          <div class="card-icon blue">📤</div>
+          <div class="card-icon blue"><re-icon icon="upload"></re-icon></div>
           <div>
             <div class="card-title">Export Data</div>
             <div class="card-desc">Password-protected JSON download — password mailed to admin</div>
@@ -818,7 +860,7 @@
         </div>
         <div
           style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:10px;padding:12px 16px;margin-bottom:14px;display:flex;align-items:center;gap:10px;">
-          <span style="font-size:20px;">👥</span>
+          <span style="font-size:20px;"><re-icon icon="users"></re-icon></span>
           <div>
             <div style="font-size:11px;color:var(--tmu);font-weight:600;">TOTAL STUDENTS IN DATABASE</div>
             <div style="font-size:22px;font-weight:800;color:#0369a1;" id="export-student-count">—</div>
@@ -828,14 +870,14 @@
             Count</button>
         </div>
         <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:14px;">
-          <button class="btn btn-out btn-sm" onclick="exportDataSecure('students')">⬇ Export Students</button>
-          <button class="btn btn-out btn-sm" onclick="exportDataSecure('teachers')">⬇ Export Teachers</button>
-          <button class="btn btn-out btn-sm" onclick="exportDataSecure('attendance')">⬇ Export Attendance</button>
-          <button class="btn btn-pri btn-sm" onclick="exportDataSecure('all')">⬇ Full Export (All Data)</button>
+          <button class="btn btn-out btn-sm" onclick="exportDataSecure('students')"><re-icon icon="download"></re-icon> Export Students</button>
+          <button class="btn btn-out btn-sm" onclick="exportDataSecure('teachers')"><re-icon icon="download"></re-icon> Export Teachers</button>
+          <button class="btn btn-out btn-sm" onclick="exportDataSecure('attendance')"><re-icon icon="download"></re-icon> Export Attendance</button>
+          <button class="btn btn-pri btn-sm" onclick="exportDataSecure('all')"><re-icon icon="download"></re-icon> Full Export (All Data)</button>
         </div>
         <div id="export-result-box"
           style="display:none;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:14px 16px;">
-          <div style="font-weight:700;font-size:13px;color:#15803d;margin-bottom:6px;">✅ Export ready — downloading…
+          <div style="font-weight:700;font-size:13px;color:#15803d;margin-bottom:6px;"><re-icon icon="check-circle"></re-icon> Export ready — downloading…
           </div>
           <div style="font-size:12px;color:var(--tmu);" id="export-result-details"></div>
           <div style="margin-top:10px;background:#fff;border:1px solid #d1fae5;border-radius:8px;padding:10px 14px;">
@@ -853,23 +895,23 @@
     <!-- BACKUP PAGE -->
     <div class="pg" id="pg-backup">
       <div class="page-hd">
-        <div class="page-title">🗄️ Backup</div>
+        <div class="page-title"><re-icon icon="archive"></re-icon> Backup</div>
         <div class="page-sub">Full database snapshots — uploaded to Google Drive &amp; password mailed to admin</div>
       </div>
       <div class="stats-strip" style="margin-bottom:18px;">
-        <div class="stat-chip"><span class="stat-chip-ic">🕐</span>
+        <div class="stat-chip"><span class="stat-chip-ic"><re-icon icon="history"></re-icon></span>
           <div>
             <div class="stat-chip-val" id="bk-last-date">—</div>
             <div class="stat-chip-label">Last Backup</div>
           </div>
         </div>
-        <div class="stat-chip"><span class="stat-chip-ic">📦</span>
+        <div class="stat-chip"><span class="stat-chip-ic"><re-icon icon="package"></re-icon></span>
           <div>
             <div class="stat-chip-val" id="bk-last-docs">—</div>
             <div class="stat-chip-label">Docs Backed Up</div>
           </div>
         </div>
-        <div class="stat-chip"><span class="stat-chip-ic">👤</span>
+        <div class="stat-chip"><span class="stat-chip-ic"><re-icon icon="user"></re-icon></span>
           <div>
             <div class="stat-chip-val" id="bk-last-by">—</div>
             <div class="stat-chip-label">Created By</div>
@@ -878,17 +920,19 @@
       </div>
       <div class="card" style="margin-bottom:16px;">
         <div class="card-hd">
-          <div class="card-icon green">☁️</div>
+          <div class="card-icon green"><re-icon icon="cloud"></re-icon></div>
           <div>
-            <div class="card-title">Create Full Backup</div>
-            <div class="card-desc">Fetches all collections, generates password, uploads to Google Drive — password
-              mailed to admin</div>
+            <div class="card-title">Create Full Encrypted Backup</div>
+            <div class="card-desc">Compiles all collections, encrypts with AES-256-GCM, uploads to Google Drive, and mails report with telemetry to Sudo Admin</div>
           </div>
+          <a href="bulk.html?tab=restore" class="btn btn-out" style="margin-left:auto;text-decoration:none;font-size:12px;display:flex;align-items:center;gap:6px;">
+            <re-icon icon="history" size="14"></re-icon> Restore Backup &rarr;
+          </a>
         </div>
         <div
           style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:12px 16px;margin-bottom:14px;font-size:12.5px;color:#15803d;">
-          ℹ️ This process fetches <strong>all collections</strong> (students, teachers, departments, classes, subjects,
-          attendance, assignments). It may take 10–30 seconds depending on data size.
+          <re-icon icon="info-circle"></re-icon> This process encrypts <strong>all database collections</strong> (students, teachers, departments, classes, subjects,
+          attendance, timetables, assignments) into a tamper-proof <code>.zip</code> file. It uploads automatically to the Google Drive <code>backup</code> folder and sends an email report with device telemetry to the Sudo Admin.
         </div>
         <div id="bk-progress-wrap" style="display:none;margin-bottom:14px;">
           <div style="font-size:12px;color:var(--tmu);margin-bottom:6px;" id="bk-progress-label">Preparing backup…</div>
@@ -899,23 +943,41 @@
           </div>
         </div>
         <div id="bk-result-box"
-          style="display:none;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:14px 16px;margin-bottom:14px;">
-          <div style="font-weight:700;font-size:13px;color:#15803d;margin-bottom:8px;">✅ Backup created successfully
+          style="display:none;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;padding:16px 18px;margin-bottom:16px;">
+          <div style="font-weight:700;font-size:14px;color:#15803d;margin-bottom:8px;display:flex;align-items:center;gap:6px;">
+            <re-icon icon="check-circle"></re-icon> Backup Created &amp; Synced Successfully
           </div>
-          <div style="font-size:12px;color:var(--tmu);" id="bk-result-details"></div>
-          <div style="margin-top:10px;background:#fff;border:1px solid #d1fae5;border-radius:8px;padding:10px 14px;">
-            <div style="font-size:11px;font-weight:600;color:var(--tmu);margin-bottom:4px;">BACKUP FILE PASSWORD (mailed
-              to admin)</div>
+          <div style="font-size:12.5px;color:var(--tmu);line-height:1.6;" id="bk-result-details"></div>
+          
+          <div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:14px;">
+            <a id="bk-drive-link" href="#" target="_blank" class="btn btn-pri" style="text-decoration:none;display:inline-flex;align-items:center;gap:8px;font-size:12.5px;padding:8px 18px;">
+              <re-icon icon="cloud" size="14"></re-icon> Open in Google Drive &rarr;
+            </a>
+            <a id="bk-download-btn" href="#" class="btn btn-out" style="text-decoration:none;display:inline-flex;align-items:center;gap:8px;font-size:12.5px;padding:8px 18px;">
+              <re-icon icon="download" size="14"></re-icon> Download Local ZIP
+            </a>
+            <a href="bulk.html?tab=restore" class="btn btn-out" style="text-decoration:none;display:inline-flex;align-items:center;gap:8px;font-size:12.5px;padding:8px 18px;">
+              <re-icon icon="history" size="14"></re-icon> Go to Bulk Restore &rarr;
+            </a>
+          </div>
+
+          <div style="margin-top:14px;background:#fff;border:1px solid #d1fae5;border-radius:10px;padding:12px 16px;">
+            <div style="font-size:11px;font-weight:700;color:var(--tmu);margin-bottom:4px;text-transform:uppercase;letter-spacing:0.5px;">
+              BACKUP DECRYPTION KEY (EAMS RESTORE KEY)
+            </div>
             <div
               style="font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:800;color:#15803d;letter-spacing:3px;"
               id="bk-password-display">—</div>
+            <div style="font-size:11px;color:#64748b;margin-top:4px;">
+              Mailed to Sudo Admin: <strong id="bk-mail-target">—</strong>
+            </div>
           </div>
         </div>
-        <button class="btn btn-pri" id="bk-create-btn" onclick="createBackup()">☁️ Start Full Backup Now</button>
+        <button class="btn btn-pri" id="bk-create-btn" onclick="createBackup()"><re-icon icon="cloud" size="14"></re-icon> ️ Start Full Backup Now</button>
       </div>
       <div class="card">
         <div class="card-hd">
-          <div class="card-icon blue">📋</div>
+          <div class="card-icon blue"><re-icon icon="clipboard-list"></re-icon></div>
           <div>
             <div class="card-title">Backup History</div>
             <div class="card-desc">All backup operations recorded in system logs</div>
@@ -930,58 +992,138 @@
       </div>
     </div>
 
-    <!-- UNDO PAGE -->
-    <div class="pg" id="pg-undo">
-      <div class="page-hd">
-        <div class="page-title">↩️ Undo</div>
-        <div class="page-sub">Restore accidentally deleted records within 10 days</div>
+    <!-- RECYCLE BIN PAGE -->
+    <div class="pg" id="pg-recycle-bin">
+      <div class="page-hd" style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+        <div>
+          <div class="page-title"><re-icon icon="trash2"></re-icon> Recycle Bin</div>
+          <div class="page-sub">Recover accidentally deleted records or permanently purge them. Deleted records are retained for 10 days.</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+          <button class="btn btn-out btn-sm" onclick="loadRecycleBinPage()"><re-icon icon="refresh" size="14"></re-icon> Refresh</button>
+          <button class="btn btn-pri btn-sm" id="rb-restore-all-btn" onclick="confirmRestoreAll()" style="display:none;"><re-icon icon="check-circle" size="14"></re-icon> Restore All</button>
+          <button class="btn btn-danger btn-sm" id="rb-empty-btn" onclick="confirmEmptyRecycleBin()" style="display:none;"><re-icon icon="trash2" size="14"></re-icon> Empty Recycle Bin</button>
+        </div>
       </div>
-      <div
-        style="background:#fffbeb;border:1px solid #fde68a;border-radius:12px;padding:14px 18px;margin-bottom:18px;font-size:13px;color:#92400e;">
-        ⚠️ Undo entries are automatically purged after <strong>10 days</strong>. Restoring re-inserts the record into
-        the database with a fresh ID.
-      </div>
-      <div class="card">
-        <div class="card-hd">
-          <div class="card-icon amber">↩️</div>
-          <div>
-            <div class="card-title">Restorable Deletions</div>
-            <div class="card-desc">Departments, classes, subjects, students and teachers deleted in the last 10 days
-            </div>
+
+      <!-- Quick Metrics Strip -->
+      <div class="recycle-metrics-grid" style="display:grid;grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));gap:12px;margin-bottom:18px;">
+        <div class="metric-card" style="background:#fff;padding:14px 18px;border-radius:12px;border:1.5px solid var(--br);display:flex;align-items:center;gap:12px;">
+          <div style="width:42px;height:42px;border-radius:10px;background:#eff6ff;color:#2563eb;display:flex;align-items:center;justify-content:center;font-size:20px;">
+            <re-icon icon="trash2"></re-icon>
           </div>
-          <button onclick="loadUndoPage()"
-            style="margin-left:auto;padding:6px 14px;background:var(--gLt);border:1px solid var(--gLr);border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;color:var(--gD);font-family:Poppins,sans-serif;">↻
-            Refresh</button>
+          <div>
+            <div style="font-size:11px;color:var(--tmu);font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">Items In Bin</div>
+            <div style="font-size:20px;font-weight:800;color:var(--td);" id="rb-stat-total">0</div>
+          </div>
         </div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;">
-          <button class="undo-filter-btn act" onclick="filterUndo('all',this)">All</button>
-          <button class="undo-filter-btn" onclick="filterUndo('departments',this)">Departments</button>
-          <button class="undo-filter-btn" onclick="filterUndo('classes',this)">Classes</button>
-          <button class="undo-filter-btn" onclick="filterUndo('subjects',this)">Subjects</button>
-          <button class="undo-filter-btn" onclick="filterUndo('students',this)">Students</button>
-          <button class="undo-filter-btn" onclick="filterUndo('teachers',this)">Teachers</button>
+        <div class="metric-card" style="background:#fff;padding:14px 18px;border-radius:12px;border:1.5px solid var(--br);display:flex;align-items:center;gap:12px;">
+          <div style="width:42px;height:42px;border-radius:10px;background:#fef2f2;color:#dc2626;display:flex;align-items:center;justify-content:center;font-size:20px;">
+            <re-icon icon="alert-triangle"></re-icon>
+          </div>
+          <div>
+            <div style="font-size:11px;color:var(--tmu);font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">Expiring Soon (&le; 2d)</div>
+            <div style="font-size:20px;font-weight:800;color:#dc2626;" id="rb-stat-expiring">0</div>
+          </div>
         </div>
-        <div id="undo-list" style="display:flex;flex-direction:column;gap:8px;">
-          <div style="color:var(--tmu);font-size:13px;text-align:center;padding:30px 0;">Loading…</div>
+        <div class="metric-card" style="background:#fff;padding:14px 18px;border-radius:12px;border:1.5px solid var(--br);display:flex;align-items:center;gap:12px;">
+          <div style="width:42px;height:42px;border-radius:10px;background:#ecfdf5;color:#059669;display:flex;align-items:center;justify-content:center;font-size:20px;">
+            <re-icon icon="shield-check"></re-icon>
+          </div>
+          <div>
+            <div style="font-size:11px;color:var(--tmu);font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">Retention Window</div>
+            <div style="font-size:16px;font-weight:800;color:#059669;">10 Days TTL</div>
+          </div>
         </div>
+        <div class="metric-card" style="background:#fff;padding:14px 18px;border-radius:12px;border:1.5px solid var(--br);display:flex;align-items:center;gap:12px;">
+          <div style="width:42px;height:42px;border-radius:10px;background:#f5f3ff;color:#7c3aed;display:flex;align-items:center;justify-content:center;font-size:20px;">
+            <re-icon icon="grid"></re-icon>
+          </div>
+          <div>
+            <div style="font-size:11px;color:var(--tmu);font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">Protected Types</div>
+            <div style="font-size:14px;font-weight:700;color:#7c3aed;" id="rb-stat-types">All Entities</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Main Card -->
+      <div class="card">
+        <!-- Search and Filter Bar -->
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:16px;">
+          <div style="position:relative;flex:1;min-width:240px;max-width:420px;">
+            <input type="text" id="rb-search-input" oninput="onRecycleSearchInput(this.value)" placeholder="Search by name, label, deleted by..."
+              style="width:100%;padding:8px 14px 8px 36px;border-radius:8px;border:1.5px solid var(--br);font-size:12.5px;font-family:Poppins,sans-serif;outline:none;transition:border-color .15s;">
+            <span style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--tmu);pointer-events:none;">
+              <re-icon icon="search" size="14"></re-icon>
+            </span>
+            <button id="rb-search-clear" onclick="clearRecycleSearch()" style="display:none;position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--tmu);cursor:pointer;font-size:12px;" title="Clear search">&times;</button>
+          </div>
+
+          <div style="display:flex;align-items:center;gap:10px;margin-left:auto;">
+            <label style="font-size:12px;font-weight:600;color:var(--tmu);">Sort:</label>
+            <select id="rb-sort-select" onchange="onRecycleSortChange(this.value)" style="padding:6px 12px;border-radius:8px;border:1.5px solid var(--br);font-size:12px;font-family:Poppins,sans-serif;background:#fff;color:var(--td);cursor:pointer;">
+              <option value="newest">Recently Deleted</option>
+              <option value="oldest">Oldest Deleted</option>
+              <option value="expiring">Expiring Soonest</option>
+              <option value="name">Name (A-Z)</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Category Filter Pills -->
+        <div id="rb-category-pills" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid #f1f5f9;">
+          <button class="undo-filter-btn act" onclick="filterRecycleCategory('all', this)">All <span class="rb-pill-count" id="rb-cnt-all">0</span></button>
+          <button class="undo-filter-btn" onclick="filterRecycleCategory('departments', this)">Departments <span class="rb-pill-count" id="rb-cnt-departments">0</span></button>
+          <button class="undo-filter-btn" onclick="filterRecycleCategory('classes', this)">Classes <span class="rb-pill-count" id="rb-cnt-classes">0</span></button>
+          <button class="undo-filter-btn" onclick="filterRecycleCategory('subjects', this)">Subjects <span class="rb-pill-count" id="rb-cnt-subjects">0</span></button>
+          <button class="undo-filter-btn" onclick="filterRecycleCategory('students', this)">Students <span class="rb-pill-count" id="rb-cnt-students">0</span></button>
+          <button class="undo-filter-btn" onclick="filterRecycleCategory('teachers', this)">Teachers <span class="rb-pill-count" id="rb-cnt-teachers">0</span></button>
+          <button class="undo-filter-btn" onclick="filterRecycleCategory('users', this)">Users <span class="rb-pill-count" id="rb-cnt-users">0</span></button>
+          <button class="undo-filter-btn" onclick="filterRecycleCategory('years', this)">Academic Years <span class="rb-pill-count" id="rb-cnt-years">0</span></button>
+          <button class="undo-filter-btn" onclick="filterRecycleCategory('assignments', this)">Assignments <span class="rb-pill-count" id="rb-cnt-assignments">0</span></button>
+          <button class="undo-filter-btn" onclick="filterRecycleCategory('exams', this)">Exams <span class="rb-pill-count" id="rb-cnt-exams">0</span></button>
+          <button class="undo-filter-btn" onclick="filterRecycleCategory('timetable', this)">Timetable <span class="rb-pill-count" id="rb-cnt-timetable">0</span></button>
+          <button class="undo-filter-btn" onclick="filterRecycleCategory('other', this)">Other <span class="rb-pill-count" id="rb-cnt-other">0</span></button>
+        </div>
+
+        <!-- Bulk Selection Bar (Dynamic) -->
+        <div id="rb-bulk-bar" style="display:none;align-items:center;justify-content:space-between;padding:10px 14px;background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:10px;margin-bottom:12px;">
+          <div style="display:flex;align-items:center;gap:10px;">
+            <input type="checkbox" id="rb-select-all-cb" onchange="toggleRecycleSelectAll(this.checked)" style="cursor:pointer;width:16px;height:16px;">
+            <span style="font-size:12.5px;font-weight:600;color:#166534;" id="rb-selected-count">0 items selected</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <button class="btn btn-pri btn-sm" onclick="bulkRestoreSelected()"><re-icon icon="check-circle" size="14"></re-icon> Restore Selected</button>
+            <button class="btn btn-danger btn-sm" onclick="bulkDeleteSelectedPermanently()"><re-icon icon="trash2" size="14"></re-icon> Delete Selected Permanently</button>
+          </div>
+        </div>
+
+        <!-- List Container -->
+        <div id="recycle-bin-list" style="display:flex;flex-direction:column;gap:10px;">
+          <div style="color:var(--tmu);font-size:13px;text-align:center;padding:30px 0;">Loading Recycle Bin…</div>
+        </div>
+        <!-- Alias fallback for legacy references -->
+        <div id="undo-list" style="display:none;"></div>
       </div>
     </div>
+    <!-- Legacy pg-undo alias mirror -->
+    <div class="pg" id="pg-undo" style="display:none;"></div>
 
     <!-- MAINTENANCE MODE PAGE -->
     <div class="pg" id="pg-maintenance">
       <div class="page-hd" style="display:flex;align-items:flex-start;justify-content:space-between;">
         <div>
-          <div class="page-title">🔧 Maintenance Mode</div>
+          <div class="page-title"><re-icon icon="sledgehammer"></re-icon> Maintenance Mode</div>
           <div class="page-sub">Control system access. All settings are saved to MongoDB and take effect immediately.
           </div>
         </div>
-        <button class="btn btn-out btn-sm" onclick="loadMaintenance()" style="margin-top:4px;">🔄 Refresh</button>
+        <button class="btn btn-out btn-sm" onclick="loadMaintenance()" style="margin-top:4px;"><re-icon icon="refresh" size="14"></re-icon> Refresh</button>
       </div>
 
       <!-- Status Banner -->
       <div id="maint-status-banner"
         style="border-radius:16px;padding:20px 24px;margin-bottom:20px;display:flex;align-items:center;gap:16px;border:2px solid #d1d5db;background:#f9fafb;transition:all .3s;">
-        <div style="font-size:36px;" id="maint-banner-icon">⏳</div>
+        <div style="font-size:36px;" id="maint-banner-icon"><re-icon icon="hourglass"></re-icon></div>
         <div style="flex:1;">
           <div style="font-size:16px;font-weight:800;color:var(--td);" id="maint-banner-title">Loading…</div>
           <div style="font-size:12.5px;color:var(--tmu);margin-top:3px;" id="maint-banner-sub">Fetching current state
@@ -997,7 +1139,7 @@
         <!-- LEFT: Configuration -->
         <div class="card" style="margin-bottom:0;">
           <div class="card-hd">
-            <div class="card-icon amber">⚙️</div>
+            <div class="card-icon amber"><re-icon icon="settings"></re-icon></div>
             <div>
               <div class="card-title">Configuration</div>
               <div class="card-desc">Set roles, end time and message — save to DB</div>
@@ -1012,7 +1154,7 @@
                 style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:11px;border:1.5px solid #e2e8f0;background:#f8fafc;cursor:pointer;transition:all .2s;font-size:13px;font-weight:500;color:var(--td);">
                 <input type="checkbox" id="maint-role-teacher" value="teacher" onchange="updateRoleChip('teacher')"
                   style="width:16px;height:16px;accent-color:var(--gD);">
-                <span style="font-size:17px;">👩‍🏫</span> Teachers
+                <span style="font-size:17px;"><re-icon icon="teacher"></re-icon></span> Teachers
                 <span id="role-chip-teacher"
                   style="margin-left:auto;font-size:10px;font-weight:700;padding:2px 9px;border-radius:10px;background:#f3f4f6;color:#6b7280;">Not
                   blocked</span>
@@ -1021,7 +1163,7 @@
                 style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:11px;border:1.5px solid #e2e8f0;background:#f8fafc;cursor:pointer;transition:all .2s;font-size:13px;font-weight:500;color:var(--td);">
                 <input type="checkbox" id="maint-role-student" value="student" onchange="updateRoleChip('student')"
                   style="width:16px;height:16px;accent-color:var(--gD);">
-                <span style="font-size:17px;">👨‍🎓</span> Students
+                <span style="font-size:17px;"><re-icon icon="graduation-cap"></re-icon></span> Students
                 <span id="role-chip-student"
                   style="margin-left:auto;font-size:10px;font-weight:700;padding:2px 9px;border-radius:10px;background:#f3f4f6;color:#6b7280;">Not
                   blocked</span>
@@ -1030,13 +1172,13 @@
                 style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:11px;border:1.5px solid #e2e8f0;background:#f8fafc;cursor:pointer;transition:all .2s;font-size:13px;font-weight:500;color:var(--td);">
                 <input type="checkbox" id="maint-role-subadmin" value="subadmin" onchange="updateRoleChip('subadmin')"
                   style="width:16px;height:16px;accent-color:var(--gD);">
-                <span style="font-size:17px;">🧑‍💼</span> Sub-Admins
+                <span style="font-size:17px;"><re-icon icon="user"></re-icon></span> Sub-Admins
                 <span id="role-chip-subadmin"
                   style="margin-left:auto;font-size:10px;font-weight:700;padding:2px 9px;border-radius:10px;background:#f3f4f6;color:#6b7280;">Not
                   blocked</span>
               </label>
             </div>
-            <div style="font-size:11px;color:var(--tdi);margin-top:8px;">⚠️ Admins always retain full access regardless
+            <div style="font-size:11px;color:var(--tdi);margin-top:8px;"><re-icon icon="alert-triangle"></re-icon> Admins always retain full access regardless
               of this setting.</div>
           </div>
 
@@ -1047,7 +1189,7 @@
             <label class="form-label">End Date &amp; Time <span style="color:#dc2626;font-weight:700;">*
                 Required</span></label>
             <input type="datetime-local" class="form-input" id="maint-end-time" required style="border-color:#e2e8f0;">
-            <div style="font-size:11px;color:var(--tmu);margin-top:5px;">⏳ A live countdown timer is displayed on the
+            <div style="font-size:11px;color:var(--tmu);margin-top:5px;"><re-icon icon="hourglass"></re-icon> A live countdown timer is displayed on the
               maintenance page. <span style="color:#dc2626;font-weight:600;">Must be set before enabling.</span></div>
           </div>
 
@@ -1060,11 +1202,11 @@
           </div>
 
           <div style="display:flex;gap:10px;">
-            <button class="btn btn-pri" onclick="saveMaintConfig()" style="flex:1;justify-content:center;">💾 Save to
+            <button class="btn btn-pri" onclick="saveMaintConfig()" style="flex:1;justify-content:center;"><re-icon icon="save" size="14"></re-icon> Save to
               Database</button>
           </div>
 
-          <div class="info-box" style="margin-top:14px;">ℹ️ Saved to MongoDB — affects all users in real time. End time
+          <div class="info-box" style="margin-top:14px;"><re-icon icon="info-circle"></re-icon> Saved to MongoDB — affects all users in real time. End time
             is mandatory so users see a countdown.</div>
         </div>
 
@@ -1074,7 +1216,7 @@
           <!-- Current State -->
           <div class="card" style="margin-bottom:0;">
             <div class="card-hd">
-              <div class="card-icon green">📊</div>
+              <div class="card-icon green"><re-icon icon="grid"></re-icon></div>
               <div>
                 <div class="card-title">Current State</div>
                 <div class="card-desc">Live — fetched from database on load</div>
@@ -1083,26 +1225,26 @@
             <div style="display:flex;flex-direction:column;">
               <div
                 style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--brl);">
-                <div style="font-size:12px;font-weight:600;color:var(--tmu);">🔌 Mode Status</div>
+                <div style="font-size:12px;font-weight:600;color:var(--tmu);"><re-icon icon="plug"></re-icon> Mode Status</div>
                 <div id="ms-active-val" style="font-size:13px;font-weight:800;color:var(--tdi);">Fetching…</div>
               </div>
               <div
                 style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--brl);">
-                <div style="font-size:12px;font-weight:600;color:var(--tmu);">👥 Blocked Roles</div>
+                <div style="font-size:12px;font-weight:600;color:var(--tmu);"><re-icon icon="users"></re-icon> Blocked Roles</div>
                 <div id="ms-roles-val" style="font-size:12px;font-weight:600;color:var(--td);">—</div>
               </div>
               <div
                 style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--brl);">
-                <div style="font-size:12px;font-weight:600;color:var(--tmu);">🏁 End Time</div>
+                <div style="font-size:12px;font-weight:600;color:var(--tmu);"><re-icon icon="flag"></re-icon> End Time</div>
                 <div id="ms-end-val" style="font-size:12px;color:var(--td);">Not set</div>
               </div>
               <div
                 style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--brl);">
-                <div style="font-size:12px;font-weight:600;color:var(--tmu);">⏱️ Started At</div>
+                <div style="font-size:12px;font-weight:600;color:var(--tmu);"><re-icon icon="timer"></re-icon> Started At</div>
                 <div id="ms-started-val" style="font-size:12px;color:var(--td);">—</div>
               </div>
               <div style="padding:10px 0;">
-                <div style="font-size:12px;font-weight:600;color:var(--tmu);margin-bottom:8px;">💬 Current Message</div>
+                <div style="font-size:12px;font-weight:600;color:var(--tmu);margin-bottom:8px;"><re-icon icon="message-square"></re-icon> Current Message</div>
                 <div id="ms-msg-val"
                   style="font-size:11.5px;color:var(--tmu);font-style:italic;background:#f8fafc;padding:8px 12px;border-radius:8px;border:1px solid #e2e8f0;">
                   —</div>
@@ -1113,7 +1255,7 @@
           <!-- Role Access Summary -->
           <div class="card" style="margin-bottom:0;">
             <div class="card-hd">
-              <div class="card-icon gray">👥</div>
+              <div class="card-icon gray"><re-icon icon="users"></re-icon></div>
               <div>
                 <div class="card-title">Role Access Summary</div>
                 <div class="card-desc">Current login permissions by role</div>
@@ -1125,7 +1267,7 @@
           <!-- Quick Actions — buttons sized to content -->
           <div class="card" style="margin-bottom:0;">
             <div class="card-hd">
-              <div class="card-icon blue">⚡</div>
+              <div class="card-icon blue"><re-icon icon="bolt"></re-icon></div>
               <div>
                 <div class="card-title">Quick Actions</div>
                 <div class="card-desc">Presets — sets end time and saves</div>
@@ -1155,18 +1297,16 @@
                 style="font-size:10.5px;font-weight:700;color:var(--tmu);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;">
                 Role Shortcuts</div>
               <div style="display:flex;gap:6px;flex-wrap:wrap;">
-                <button class="btn btn-out btn-sm" onclick="selectAllRoles()" style="font-size:11px;padding:5px 10px;">✅
-                  All</button>
-                <button class="btn btn-out btn-sm" onclick="clearAllRoles()" style="font-size:11px;padding:5px 10px;">☐
-                  None</button>
+                <button class="btn btn-out btn-sm" onclick="selectAllRoles()" style="font-size:11px;padding:5px 10px;"><re-icon icon="check-circle" size="14"></re-icon> All</button>
+                <button class="btn btn-out btn-sm" onclick="clearAllRoles()" style="font-size:11px;padding:5px 10px;"><re-icon icon="x-circle" size="14"></re-icon> None</button>
                 <button class="btn btn-out btn-sm" onclick="teachersOnly()"
-                  style="font-size:11px;padding:5px 10px;">👩‍🏫 Teachers</button>
+                  style="font-size:11px;padding:5px 10px;"><re-icon icon="teacher" size="14"></re-icon> Teachers</button>
                 <button class="btn btn-out btn-sm" onclick="studentsOnly()"
-                  style="font-size:11px;padding:5px 10px;">👨‍🎓 Students</button>
+                  style="font-size:11px;padding:5px 10px;"><re-icon icon="graduation-cap" size="14"></re-icon> Students</button>
               </div>
             </div>
             <a href="maintenance.html" target="_blank" class="btn btn-out btn-sm"
-              style="font-size:11px;padding:5px 12px;text-decoration:none;display:inline-flex;align-items:center;gap:4px;">👁
+              style="font-size:11px;padding:5px 12px;text-decoration:none;display:inline-flex;align-items:center;gap:4px;"><re-icon icon="eye"></re-icon>
               Preview Page</a>
           </div>
 
@@ -1180,17 +1320,17 @@
         <div class="card">
           <div class="card-hd" style="justify-content:space-between;">
             <div style="display:flex;align-items:center;gap:12px;">
-              <div class="card-icon gray">📋</div>
+              <div class="card-icon gray"><re-icon icon="clipboard-list"></re-icon></div>
               <div>
                 <div class="card-title">Maintenance Activity Log</div>
                 <div class="card-desc">Stored in MongoDB — all enable/disable events</div>
               </div>
             </div>
             <button class="btn btn-out btn-sm" onclick="loadMaintLogs()"
-              style="font-size:11px;padding:4px 10px;">🔄</button>
+              style="font-size:11px;padding:4px 10px;"><re-icon icon="refresh" size="14"></re-icon> </button>
           </div>
           <div id="maint-log-list" style="max-height:240px;overflow-y:auto;">
-            <div style="text-align:center;padding:20px;color:var(--tdi);font-size:13px;">⏳ Loading…</div>
+            <div style="text-align:center;padding:20px;color:var(--tdi);font-size:13px;"><re-icon icon="hourglass"></re-icon> Loading…</div>
           </div>
         </div>
 
@@ -1198,7 +1338,7 @@
         <div class="card">
           <div class="card-hd" style="justify-content:space-between;">
             <div style="display:flex;align-items:center;gap:12px;">
-              <div class="card-icon gray">🖥️</div>
+              <div class="card-icon gray"><re-icon icon="monitor"></re-icon></div>
               <div>
                 <div class="card-title">Server Logs</div>
                 <div class="card-desc">Live Node.js console output</div>
@@ -1206,9 +1346,9 @@
             </div>
             <div style="display:flex;gap:6px;">
               <button class="btn btn-out btn-sm" onclick="loadServerLogs()"
-                style="font-size:11px;padding:4px 10px;">🔄</button>
+                style="font-size:11px;padding:4px 10px;"><re-icon icon="refresh" size="14"></re-icon> </button>
               <button class="btn btn-out btn-sm" onclick="toggleServerLogPoll()" id="srvlog-poll-btn"
-                style="font-size:11px;padding:4px 10px;">▶ Auto</button>
+                style="font-size:11px;padding:4px 10px;"><re-icon icon="rocket" size="14"></re-icon> Auto</button>
             </div>
           </div>
           <div style="font-size:10.5px;color:var(--tmu);padding:0 0 8px;display:flex;gap:10px;align-items:center;">
@@ -1218,7 +1358,7 @@
             <span>Env: <b id="srv-env">—</b></span>
           </div>
           <div class="terminal" id="srv-log-terminal" style="max-height:352px;">
-            <div class="terminal-line info">Click 🔄 to load server logs…</div>
+            <div class="terminal-line info">Click <re-icon icon="refresh"></re-icon> to load server logs…</div>
           </div>
         </div>
 
@@ -1230,13 +1370,13 @@
     <div class="pg" id="pg-broadcasts">
       <div class="page-hd" style="display:flex;align-items:flex-start;justify-content:space-between;">
         <div>
-          <div class="page-title">📢 System Broadcasts &amp; Live Announcements</div>
+          <div class="page-title"><re-icon icon="bullhorn"></re-icon> System Broadcasts &amp; Live Announcements</div>
           <div class="page-sub">Dispatch real-time announcement popups, urgent circulars, and notifications across user
             portals</div>
         </div>
         <div style="display:flex;gap:8px;">
-          <button class="btn btn-danger btn-sm" onclick="clearActiveBroadcast()">🛑 Deactivate Banner</button>
-          <button class="btn btn-out btn-sm" onclick="loadBroadcastHistory()">🔄 Refresh History</button>
+          <button class="btn btn-danger btn-sm" onclick="clearActiveBroadcast()"><re-icon icon="ban" size="14"></re-icon> Deactivate Banner</button>
+          <button class="btn btn-out btn-sm" onclick="loadBroadcastHistory()"><re-icon icon="refresh" size="14"></re-icon> Refresh History</button>
         </div>
       </div>
 
@@ -1244,7 +1384,7 @@
       <div id="bc-active-banner"
         style="display:none;background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:14px;padding:16px 20px;margin-bottom:20px;align-items:center;justify-content:space-between;">
         <div style="display:flex;align-items:center;gap:12px;">
-          <span style="font-size:24px;" id="bc-active-icon">📢</span>
+          <span style="font-size:24px;" id="bc-active-icon"><re-icon icon="bullhorn"></re-icon></span>
           <div>
             <div style="font-weight:700;font-size:13.5px;color:#15803d;" id="bc-active-title">Live Broadcast Active
             </div>
@@ -1260,7 +1400,7 @@
         <!-- Broadcast Composer Card -->
         <div class="card" style="margin-bottom:0;">
           <div class="card-hd">
-            <div class="card-icon amber">📢</div>
+            <div class="card-icon amber"><re-icon icon="bullhorn"></re-icon></div>
             <div>
               <div class="card-title">Compose &amp; Dispatch Broadcast</div>
               <div class="card-desc">Send immediate popup circulars or push to inbox notifications</div>
@@ -1276,19 +1416,19 @@
                 style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;background:var(--gLt);padding:8px 14px;border-radius:10px;border:1px solid var(--br);">
                 <input type="checkbox" id="bc-role-teachers" value="teacher" checked
                   style="accent-color:var(--gD);width:16px;height:16px;">
-                <span>👩‍🏫 Teachers / Faculty</span>
+                <span><re-icon icon="teacher"></re-icon> Teachers / Faculty</span>
               </label>
               <label
                 style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;background:var(--gLt);padding:8px 14px;border-radius:10px;border:1px solid var(--br);">
                 <input type="checkbox" id="bc-role-students" value="student" checked
                   style="accent-color:var(--gD);width:16px;height:16px;">
-                <span>👨‍🎓 Students</span>
+                <span><re-icon icon="graduation-cap"></re-icon> Students</span>
               </label>
               <label
                 style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;background:#fef2f2;padding:8px 14px;border-radius:10px;border:1px solid #fecaca;">
                 <input type="checkbox" id="bc-role-all" onchange="toggleForceAllRoles(this)"
                   style="accent-color:#dc2626;width:16px;height:16px;">
-                <span style="color:#991b1b;font-weight:600;">🌐 All Users (Forced)</span>
+                <span style="color:#991b1b;font-weight:600;"><re-icon icon="globe"></re-icon> All Users (Forced)</span>
               </label>
             </div>
           </div>
@@ -1298,11 +1438,11 @@
             <div class="form-group">
               <label class="form-label">BROADCAST LEVEL</label>
               <select class="form-input" id="bc-level">
-                <option value="info">ℹ️ Info Announcement (Blue)</option>
-                <option value="warning">⚠️ Warning / Deadline (Amber)</option>
-                <option value="urgent">🚨 Urgent / Emergency (Red)</option>
-                <option value="success">✅ Achievement / Success (Green)</option>
-                <option value="message">💬 Push to User Notification Inbox</option>
+                <option value="info">Info Announcement (Blue)</option>
+                <option value="warning">Warning / Deadline (Amber)</option>
+                <option value="urgent">Urgent / Emergency (Red)</option>
+                <option value="success">Achievement / Success (Green)</option>
+                <option value="message">Push to User Notification Inbox</option>
               </select>
             </div>
             <div class="form-group">
@@ -1325,7 +1465,7 @@
           </div>
 
           <button class="btn btn-pri" id="bc-send-btn" onclick="sendBroadcast()"
-            style="width:100%;justify-content:center;font-size:13.5px;padding:12px 24px;">🚀 Dispatch Broadcast
+            style="width:100%;justify-content:center;font-size:13.5px;padding:12px 24px;"><re-icon icon="rocket" size="14"></re-icon> Dispatch Broadcast
             Now</button>
         </div>
 
@@ -1333,7 +1473,7 @@
         <div style="display:flex;flex-direction:column;gap:16px;">
           <div class="card" style="margin-bottom:0;">
             <div class="card-hd">
-              <div class="card-icon green">📊</div>
+              <div class="card-icon green"><re-icon icon="grid"></re-icon></div>
               <div>
                 <div class="card-title">Dispatch Summary</div>
                 <div class="card-desc">Real-time recipient metrics for latest broadcast</div>
@@ -1343,12 +1483,12 @@
             <div style="display:flex;flex-direction:column;gap:10px;">
               <div
                 style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;">
-                <span style="font-size:12.5px;font-weight:600;color:#15803d;">✅ Successfully Dispatched</span>
+                <span style="font-size:12.5px;font-weight:600;color:#15803d;"><re-icon icon="check-circle"></re-icon> Successfully Dispatched</span>
                 <strong style="font-size:18px;color:#15803d;" id="bc-stat-sent">0</strong>
               </div>
               <div
                 style="background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;">
-                <span style="font-size:12.5px;font-weight:600;color:#991b1b;">❌ Failed Recipients</span>
+                <span style="font-size:12.5px;font-weight:600;color:#991b1b;"><re-icon icon="x-circle"></re-icon> Failed Recipients</span>
                 <strong style="font-size:18px;color:#991b1b;" id="bc-stat-failed">0</strong>
               </div>
             </div>
@@ -1364,7 +1504,7 @@
 
           <div class="card" style="margin-bottom:0;">
             <div class="card-hd">
-              <div class="card-icon blue">ℹ️</div>
+              <div class="card-icon blue"><re-icon icon="info-circle"></re-icon></div>
               <div>
                 <div class="card-title">Broadcast Guidelines</div>
                 <div class="card-desc">How announcements appear to users</div>
@@ -1384,13 +1524,13 @@
       <div class="card">
         <div class="card-hd" style="justify-content:space-between;">
           <div style="display:flex;align-items:center;gap:12px;">
-            <div class="card-icon gray">📜</div>
+            <div class="card-icon gray"><re-icon icon="scroll"></re-icon></div>
             <div>
               <div class="card-title">Broadcast Dispatch History</div>
               <div class="card-desc">Record of all previous platform announcements</div>
             </div>
           </div>
-          <button class="btn btn-out btn-sm" onclick="loadBroadcastHistory()">🔄 Refresh</button>
+          <button class="btn btn-out btn-sm" onclick="loadBroadcastHistory()"><re-icon icon="refresh" size="14"></re-icon> Refresh</button>
         </div>
 
         <div id="bc-history-container" style="overflow-x:auto;">
@@ -1422,12 +1562,15 @@
   <!-- CONFIRM MODAL -->
   <div class="modal-overlay" id="confirm-modal">
     <div class="modal-box">
-      <div class="modal-icon" id="m-icon">⚠️</div>
+      <div class="modal-icon" id="m-icon"><re-icon icon="alert-triangle"></re-icon></div>
       <div class="modal-title" id="m-title">Are you sure?</div>
       <div class="modal-body" id="m-body">This action cannot be undone.</div>
       <div
         style="background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:10px 14px;font-size:12px;color:#991b1b;margin-bottom:16px;text-align:left;">
-        🔐 You will be asked to enter your admin password on the next step.
+        <re-icon icon="shield-lock"></re-icon> You will be asked to enter your admin password on the next step.
+      </div>
+      <div id="m-input-wrap" style="margin-bottom:14px;display:none;">
+        <input type="text" id="m-input" class="form-input" placeholder="Type CONFIRM to proceed" style="width:100%;text-align:center;font-weight:700;letter-spacing:1px;text-transform:uppercase;">
       </div>
       <div id="m-progress" class="progress-wrap">
         <div class="progress-bar-bg">
@@ -1437,7 +1580,33 @@
       </div>
       <div class="modal-actions">
         <button class="btn btn-out" onclick="closeConfirm()">Cancel</button>
-        <button class="btn btn-danger" id="m-confirm-btn" onclick="executeAction()">Continue →</button>
+        <button class="btn btn-danger" id="m-confirm-btn" onclick="executeAction()">Continue <re-icon icon="arrow-right"></re-icon></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- RECYCLE BIN INSPECT MODAL -->
+  <div class="modal-overlay" id="recycle-inspect-modal" style="display:none;align-items:center;justify-content:center;z-index:10002;">
+    <div class="modal-box" style="max-width:680px;width:92%;padding:24px 26px;max-height:85vh;display:flex;flex-direction:column;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <div class="card-icon blue" id="rb-inspect-icon"><re-icon icon="file-text"></re-icon></div>
+          <div>
+            <div class="modal-title" id="rb-inspect-title" style="margin:0;font-size:16px;">Deleted Record Snapshot</div>
+            <div class="modal-body" id="rb-inspect-sub" style="margin:0;font-size:12px;color:var(--tmu);">Inspect full captured data before restoring or purging</div>
+          </div>
+        </div>
+        <button onclick="closeRecycleInspectModal()" class="modal-close-btn" style="width:30px;height:30px;border-radius:50%;border:none;background:#f1f5f9;font-size:15px;cursor:pointer;color:var(--tmu);display:flex;align-items:center;justify-content:center;" aria-label="Close modal"><re-icon icon="x" size="14"></re-icon></button>
+      </div>
+      <div id="rb-inspect-meta" style="display:grid;grid-template-columns:repeat(auto-fit, minmax(130px, 1fr));gap:8px;background:#f8fafc;padding:10px 14px;border-radius:8px;border:1px solid #e2e8f0;margin-bottom:12px;font-size:11.5px;"></div>
+      <div style="flex:1;overflow:auto;background:#0f172a;border-radius:8px;padding:12px 14px;border:1px solid #1e293b;position:relative;max-height:360px;">
+        <button onclick="copyRecycleInspectJson()" style="position:absolute;top:8px;right:8px;padding:4px 10px;background:rgba(255,255,255,0.18);color:#fff;border:none;border-radius:6px;font-size:11px;cursor:pointer;font-family:Poppins,sans-serif;">Copy JSON</button>
+        <pre id="rb-inspect-json" style="margin:0;color:#38bdf8;font-family:'JetBrains Mono',monospace;font-size:12px;white-space:pre-wrap;word-break:break-all;"></pre>
+      </div>
+      <div class="modal-actions" style="margin-top:16px;">
+        <button class="btn btn-out" onclick="closeRecycleInspectModal()">Close</button>
+        <button class="btn btn-danger btn-sm" id="rb-inspect-del-btn" style="margin-left:auto;"><re-icon icon="trash2"></re-icon> Delete Permanently</button>
+        <button class="btn btn-pri btn-sm" id="rb-inspect-restore-btn"><re-icon icon="check-circle"></re-icon> Restore Record</button>
       </div>
     </div>
   </div>
@@ -1446,9 +1615,9 @@
   <div class="modal-overlay" id="m-special-pw"
     style="display:none;align-items:center;justify-content:center;z-index:10001;">
     <div class="modal-box" style="width:400px;padding:32px 28px;text-align:center;">
-      <div style="font-size:2.4rem;margin-bottom:10px;">🔐</div>
+      <div style="font-size:2.4rem;margin-bottom:10px;"><re-icon icon="shield-lock"></re-icon></div>
       <div class="modal-title" style="margin-bottom:6px;">Authentication Required</div>
-      <div style="font-size:13px;color:var(--tmu);margin-bottom:4px;">⚠️ Data Management actions require authentication.
+      <div style="font-size:13px;color:var(--tmu);margin-bottom:4px;"><re-icon icon="alert-triangle"></re-icon> Data Management actions require authentication.
       </div>
       <div style="font-size:12px;color:var(--tdi);margin-bottom:18px;">Enter your admin login password or the special
         management password.</div>
@@ -1460,13 +1629,13 @@
           style="width:100%;padding-right:42px;" onkeydown="if(event.key==='Enter')verifySpecialPw()">
         <button type="button" onclick="toggleSppwEye()" tabindex="-1"
           style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:16px;color:var(--tmu);"
-          id="sppw-eye-btn">👁</button>
+          id="sppw-eye-btn" aria-label="Toggle password visibility"><re-icon icon="eye" size="14"></re-icon></button>
       </div>
       <div style="display:flex;gap:10px;">
         <button class="btn btn-out" style="flex:1;justify-content:center;"
           onclick="closeModalBg('m-special-pw')">Cancel</button>
         <button class="btn btn-danger" style="flex:1;justify-content:center;" id="sppw-submit-btn"
-          onclick="verifySpecialPw()">Verify →</button>
+          onclick="verifySpecialPw()">Verify <re-icon icon="arrow-right"></re-icon></button>
       </div>
     </div>
   </div>
@@ -1474,7 +1643,7 @@
   <!-- MAINTENANCE EXPIRY DIALOG -->
   <div class="modal-overlay" id="maint-expiry-modal" style="z-index:10000;">
     <div class="modal-box" style="max-width:480px;padding:32px 28px;">
-      <div style="font-size:48px;margin-bottom:12px;">⏰</div>
+      <div style="font-size:48px;margin-bottom:12px;"><re-icon icon="timer"></re-icon></div>
       <div class="modal-title" style="font-size:20px;margin-bottom:8px;">Maintenance Window Ended</div>
       <div class="modal-body" style="margin-bottom:20px;">
         The scheduled end time has been reached. What would you like to do?
@@ -1484,21 +1653,17 @@
       </div>
       <!-- Extension options -->
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">
-        <button class="btn btn-warn" onclick="extendMaintenance(1)" style="justify-content:center;font-size:12px;">⏱
-          Extend +1 Hour</button>
-        <button class="btn btn-warn" onclick="extendMaintenance(2)" style="justify-content:center;font-size:12px;">⏱
-          Extend +2 Hours</button>
-        <button class="btn btn-warn" onclick="extendMaintenance(4)" style="justify-content:center;font-size:12px;">⏱
-          Extend +4 Hours</button>
-        <button class="btn btn-warn" onclick="extendMaintenance(24)" style="justify-content:center;font-size:12px;">⏱
-          Extend +1 Day</button>
+        <button class="btn btn-warn" onclick="extendMaintenance(1)" style="justify-content:center;font-size:12px;"><re-icon icon="timer" size="14"></re-icon> Extend +1 Hour</button>
+        <button class="btn btn-warn" onclick="extendMaintenance(2)" style="justify-content:center;font-size:12px;"><re-icon icon="timer" size="14"></re-icon> Extend +2 Hours</button>
+        <button class="btn btn-warn" onclick="extendMaintenance(4)" style="justify-content:center;font-size:12px;"><re-icon icon="timer" size="14"></re-icon> Extend +4 Hours</button>
+        <button class="btn btn-warn" onclick="extendMaintenance(24)" style="justify-content:center;font-size:12px;"><re-icon icon="timer" size="14"></re-icon> Extend +1 Day</button>
       </div>
       <div style="border-top:1px solid #e2e8f0;margin:10px 0 14px;"></div>
       <button class="btn btn-pri" onclick="disableMaintenanceFromExpiry()"
-        style="width:100%;justify-content:center;font-size:13px;margin-bottom:8px;">✅ Disable Maintenance — System Back
+        style="width:100%;justify-content:center;font-size:13px;margin-bottom:8px;"><re-icon icon="check-circle" size="14"></re-icon> Disable Maintenance — System Back
         Online</button>
       <button class="btn btn-out" onclick="dismissExpiryDialog()"
-        style="width:100%;justify-content:center;font-size:12px;color:var(--tmu);">🔕 Dismiss (keep maintenance
+        style="width:100%;justify-content:center;font-size:12px;color:var(--tmu);"><re-icon icon="bell-off" size="14"></re-icon> Dismiss (keep maintenance
         active)</button>
     </div>
   </div>
@@ -1509,7 +1674,7 @@
   <!-- DB SYNC TOAST -->
   <div id="db-sync-toast"
     style="position:fixed;bottom:80px;right:28px;background:#1a2e1a;color:#fff;padding:14px 20px;border-radius:14px;font-size:13px;font-weight:600;z-index:10000;display:flex;align-items:center;gap:12px;box-shadow:0 8px 30px rgba(0,0,0,.25);transform:translateY(100px);opacity:0;transition:all .4s cubic-bezier(.34,1.56,.64,1);">
-    <span style="font-size:16px;">✅</span>
+    <span style="font-size:16px;"><re-icon icon="check-circle"></re-icon></span>
     <div>
       <div style="font-weight:700;font-size:13px;">Synced from MongoDB</div>
       <div style="font-size:11px;opacity:.8;margin-top:2px;"><span id="db-sync-settings">—</span> &nbsp;·&nbsp; <span
@@ -1523,9 +1688,9 @@
     <div
       style="background:#fff;border-radius:20px;padding:28px 24px;width:480px;max-width:96vw;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.3);">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
-        <div style="font-size:16px;font-weight:800;color:var(--td);">🗑️ Delete All Adder</div>
+        <div style="font-size:16px;font-weight:800;color:var(--td);"><re-icon icon="trash2" size="14"></re-icon> Delete All Adder</div>
         <button onclick="closeModalBg('m-delete-adder')"
-          style="background:none;border:none;font-size:18px;cursor:pointer;color:var(--tmu);">✖</button>
+          style="background:none;border:none;font-size:18px;cursor:pointer;color:var(--tmu);" aria-label="Close modal"><re-icon icon="x" size="16"></re-icon></button>
       </div>
       <div style="font-size:12px;color:var(--tmu);margin-bottom:16px;">Select which collections to permanently delete
         from the database. This cannot be undone.</div>
@@ -1538,46 +1703,46 @@
           style="display:flex;align-items:center;gap:12px;font-size:13.5px;cursor:pointer;padding:8px 10px;background:#fff;border-radius:8px;border:1px solid var(--br);">
           <input type="checkbox" class="adder-chk" value="departments"
             style="accent-color:#ef4444;width:15px;height:15px;">
-          <span>🏛️ Departments</span><span style="margin-left:auto;font-size:11px;color:var(--tmu);">All dept
+          <span><re-icon icon="building2"></re-icon> Departments</span><span style="margin-left:auto;font-size:11px;color:var(--tmu);">All dept
             records</span>
         </label>
         <label
           style="display:flex;align-items:center;gap:12px;font-size:13.5px;cursor:pointer;padding:8px 10px;background:#fff;border-radius:8px;border:1px solid var(--br);">
           <input type="checkbox" class="adder-chk" value="students"
             style="accent-color:#ef4444;width:15px;height:15px;">
-          <span>👨‍🎓 Students</span><span style="margin-left:auto;font-size:11px;color:var(--tmu);">All student records
+          <span><re-icon icon="graduation-cap"></re-icon> Students</span><span style="margin-left:auto;font-size:11px;color:var(--tmu);">All student records
             &amp; accounts</span>
         </label>
         <label
           style="display:flex;align-items:center;gap:12px;font-size:13.5px;cursor:pointer;padding:8px 10px;background:#fff;border-radius:8px;border:1px solid var(--br);">
           <input type="checkbox" class="adder-chk" value="teachers"
             style="accent-color:#ef4444;width:15px;height:15px;">
-          <span>👩‍🏫 Teachers</span><span style="margin-left:auto;font-size:11px;color:var(--tmu);">All teacher
+          <span><re-icon icon="teacher"></re-icon> Teachers</span><span style="margin-left:auto;font-size:11px;color:var(--tmu);">All teacher
             accounts &amp; assignments</span>
         </label>
         <label
           style="display:flex;align-items:center;gap:12px;font-size:13.5px;cursor:pointer;padding:8px 10px;background:#fff;border-radius:8px;border:1px solid var(--br);">
           <input type="checkbox" class="adder-chk" value="classes" style="accent-color:#ef4444;width:15px;height:15px;">
-          <span>🏫 Classes</span><span style="margin-left:auto;font-size:11px;color:var(--tmu);">All class
+          <span><re-icon icon="chalkboard"></re-icon> Classes</span><span style="margin-left:auto;font-size:11px;color:var(--tmu);">All class
             records</span>
         </label>
         <label
           style="display:flex;align-items:center;gap:12px;font-size:13.5px;cursor:pointer;padding:8px 10px;background:#fff;border-radius:8px;border:1px solid var(--br);">
           <input type="checkbox" class="adder-chk" value="subjects"
             style="accent-color:#ef4444;width:15px;height:15px;">
-          <span>📚 Subjects</span><span style="margin-left:auto;font-size:11px;color:var(--tmu);">All subject
+          <span><re-icon icon="book-open"></re-icon> Subjects</span><span style="margin-left:auto;font-size:11px;color:var(--tmu);">All subject
             records</span>
         </label>
       </div>
       <div
         style="background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:10px 14px;font-size:12px;color:#991b1b;margin-bottom:16px;">
-        🔐 Admin password confirmation required on the next step.
+        <re-icon icon="shield-lock"></re-icon> Admin password confirmation required on the next step.
       </div>
       <div style="display:flex;gap:10px;">
         <button class="btn btn-out" style="flex:1;justify-content:center;"
           onclick="closeModalBg('m-delete-adder')">Cancel</button>
         <button class="btn btn-danger" style="flex:1;justify-content:center;" onclick="confirmDeleteAdder()">Delete
-          Selected →</button>
+          Selected <re-icon icon="arrow-right"></re-icon></button>
       </div>
     </div>
   </div>
@@ -1587,18 +1752,18 @@
     <div
       style="background:#fff;border-radius:20px;padding:28px 24px;width:500px;max-width:96vw;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.3);">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
-        <div style="font-size:16px;font-weight:800;color:var(--td);">🧹 Clear Attendance Records</div>
+        <div style="font-size:16px;font-weight:800;color:var(--td);"><re-icon icon="eraser"></re-icon> Clear Attendance Records</div>
         <button onclick="closeModalBg('m-attendance-date')"
-          style="background:none;border:none;font-size:18px;cursor:pointer;color:var(--tmu);">✖</button>
+          style="background:none;border:none;font-size:18px;cursor:pointer;color:var(--tmu);" aria-label="Close modal"><re-icon icon="x" size="16"></re-icon></button>
       </div>
       <div style="font-size:12px;color:var(--tmu);margin-bottom:16px;">Choose a date range to delete, or wipe all
         records at once.</div>
-      <div id="att-date-loading" style="text-align:center;padding:20px;color:var(--tmu);font-size:13px;">⏳ Loading
+      <div id="att-date-loading" style="text-align:center;padding:20px;color:var(--tmu);font-size:13px;"><re-icon icon="hourglass"></re-icon> Loading
         available dates from database…</div>
       <div id="att-date-content" style="display:none;">
         <div
           style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:12px;color:#0369a1;">
-          📅 <strong id="att-date-range-info">Fetching date range…</strong>
+          <re-icon icon="calendar"></re-icon> <strong id="att-date-range-info">Fetching date range…</strong>
         </div>
         <div
           style="background:var(--gLt);border:1px solid var(--br);border-radius:12px;padding:14px 16px;margin-bottom:14px;">
@@ -1618,7 +1783,7 @@
             </div>
           </div>
           <button class="btn btn-warn btn-sm" style="width:100%;justify-content:center;"
-            onclick="confirmAttendanceDelete('range')">🧹 Delete Range →</button>
+            onclick="confirmAttendanceDelete('range')"><re-icon icon="eraser" size="14"></re-icon> Delete Range <re-icon icon="arrow-right"></re-icon></button>
         </div>
         <div
           style="background:#fef2f2;border:1px solid #fecaca;border-radius:12px;padding:14px 16px;margin-bottom:12px;">
@@ -1628,7 +1793,7 @@
           <div style="font-size:12px;color:#7f1d1d;margin-bottom:10px;">Permanently removes every attendance record from
             the database.</div>
           <button class="btn btn-danger btn-sm" style="width:100%;justify-content:center;"
-            onclick="confirmAttendanceDelete('all')">💥 Delete All Records →</button>
+            onclick="confirmAttendanceDelete('all')"><re-icon icon="forbidden-circle" size="14"></re-icon> Delete All Records <re-icon icon="arrow-right"></re-icon></button>
         </div>
       </div>
       <div id="att-date-error"
@@ -1646,9 +1811,9 @@
     <div
       style="background:#fff;border-radius:20px;padding:28px 24px;width:500px;max-width:96vw;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.3);">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;">
-        <div style="font-size:16px;font-weight:800;color:var(--td);">🗑️ Clear Browser Cache</div>
+        <div style="font-size:16px;font-weight:800;color:var(--td);"><re-icon icon="trash2"></re-icon> Clear Browser Cache</div>
         <button onclick="closeModalBg('m-clear-storage')"
-          style="background:none;border:none;font-size:18px;cursor:pointer;color:var(--tmu);">✖</button>
+          style="background:none;border:none;font-size:18px;cursor:pointer;color:var(--tmu);" aria-label="Close modal"><re-icon icon="x" size="16"></re-icon></button>
       </div>
       <div style="font-size:14px;margin-bottom:4px;">Choose what to clear from <strong>this browser's session
           data</strong>.</div>
@@ -1662,17 +1827,17 @@
           style="font-size:11px;font-weight:700;color:var(--tmu);text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px;">
           sessionStorage (session data)</div>
         <label style="display:flex;align-items:center;gap:10px;font-size:13px;cursor:pointer;"><input type="checkbox"
-            class="clr-chk clr-ss" value="eams_token" style="accent-color:#b45309;width:14px;height:14px;"> 🔑 Auth
+            class="clr-chk clr-ss" value="eams_token" style="accent-color:#b45309;width:14px;height:14px;"> <re-icon icon="key"></re-icon> Auth
           Token <span style="font-size:11px;color:#b45309;margin-left:4px;">(logs you out)</span></label>
         <label style="display:flex;align-items:center;gap:10px;font-size:13px;cursor:pointer;"><input type="checkbox"
-            class="clr-chk clr-ss" value="eams_user" style="accent-color:#b45309;width:14px;height:14px;"> 👤 Session
+            class="clr-chk clr-ss" value="eams_user" style="accent-color:#b45309;width:14px;height:14px;"> <re-icon icon="user"></re-icon> Session
           User Profile</label>
       </div>
 
       <div style="display:flex;gap:10px;margin-top:4px;">
         <button class="btn btn-out" style="flex:1;justify-content:center;"
           onclick="closeModalBg('m-clear-storage')">Cancel</button>
-        <button class="btn btn-danger" style="flex:1;justify-content:center;" onclick="confirmClearStorage()">🗑️ Clear
+        <button class="btn btn-danger" style="flex:1;justify-content:center;" onclick="confirmClearStorage()"><re-icon icon="trash2" size="14"></re-icon> ️ Clear
           Selected</button>
       </div>
     </div>
@@ -1681,4 +1846,7 @@
   <script src="js/core/api.js"></script>
   <script src="js/core/toast.js"></script>
   <script src="js/core/modal.js"></script>
+  <script src="js/core/popup.js"></script>
+  <script src="js/core/guard.js"></script>
+  <script src="js/core/searchableDropdown.js"></script>
   <script src="js/pages/control.page.js"></script>

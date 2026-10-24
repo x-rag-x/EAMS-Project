@@ -4,11 +4,12 @@ const crypto = require('crypto');
 const mongoose = require('mongoose');
 const M = require('../models');
 const { authMiddleware } = require('../middleware/auth');
-const { liveSessionMarkLimiter } = require('../utils/rateLimiters');
+const { liveSessionMarkLimiter, liveSessionMarkIpLimiter } = require('../utils/rateLimiters');
 const { checkLiveSessionGuard } = require('../middleware/portalGuard');
 const { verifyTeacherAssignment, verifySessionOwner } = require('../utils/assignmentAuth');
 const { isCampusIpAllowed } = require('../utils/ipCheck');
 const { logAction } = require('../utils/logAction');
+const { evaluateDeviceTrust } = require('../utils/deviceTrust');
 
 function generate12CharCode() {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -276,11 +277,11 @@ router.post('/rotate/:sessionId', authMiddleware, async (req, res) => {
 });
 
 // 4. Mark attendance with Quick Pass code (Student)
-router.post('/mark', liveSessionMarkLimiter, authMiddleware, checkLiveSessionGuard, async (req, res) => {
+router.post('/mark', authMiddleware, liveSessionMarkIpLimiter, liveSessionMarkLimiter, checkLiveSessionGuard, async (req, res) => {
   if (req.user.role !== 'student') return res.status(403).json({ error: 'Students only' });
 
   try {
-    const { code, latitude, longitude, locationAccuracy } = req.body;
+    const { code, latitude, longitude, locationAccuracy, deviceId, deviceProof } = req.body;
     if (!code) return res.status(400).json({ error: 'Please enter the Quick Pass code' });
 
     const cleanCode = String(code).trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
@@ -351,12 +352,52 @@ router.post('/mark', liveSessionMarkLimiter, authMiddleware, checkLiveSessionGua
       return res.json({ ok: true, alreadyMarked: true, message: 'You have already marked attendance for this session.' });
     }
 
+    // Anti-proxy cross device check
+    const effectiveDeviceId = (deviceId || req.headers['x-device-id'] || deviceProof?.installId || '').trim();
+    if (effectiveDeviceId) {
+      const proxyCheck = session.records.some(r =>
+        (r.deviceId === effectiveDeviceId || (deviceProof?.installId && r.security?.deviceTrackId === deviceProof.installId)) &&
+        String(r.studentId) !== String(student._id) &&
+        r.status === 'completed'
+      );
+      if (proxyCheck) {
+        return res.status(403).json({ error: 'This physical device was already used by another student for this session.' });
+      }
+    }
+
+    // Evaluate Device Trust & Risk Gate (§7, §9, T2.1-T2.5)
+    const trustEval = await evaluateDeviceTrust({
+      student,
+      deviceProof,
+      payload: { sessionTrackId: session.sessionTrackId, code: cleanCode },
+      location: {
+        latitude: latitude !== undefined ? Number(latitude) : undefined,
+        longitude: longitude !== undefined ? Number(longitude) : undefined,
+        accuracy: locationAccuracy !== undefined ? Number(locationAccuracy) : undefined,
+        isClassroomRadiusOk: true,
+        locationOk: true
+      },
+      ip: req.ip,
+      deviceId: effectiveDeviceId
+    });
+
+    if (!trustEval.allowed) {
+      return res.status(403).json({
+        error: trustEval.error,
+        code: trustEval.code,
+        trustScore: trustEval.trustScore,
+        isLocked: trustEval.isLocked
+      });
+    }
+
+    const recordStatus = trustEval.requiresTeacherVerification ? 'pending' : 'completed';
+
     // Record attendance
     session.records.push({
       studentId: student._id,
       studentTrackId: student.trackId || String(student._id),
       regNo: student.registerNo || student.regNo || '',
-      studentName: student.name || '',
+      studentName: student.fullName || student.name || '',
       codeUsed: cleanCode,
       rotation: session.currentRotation,
       markedAt: new Date(),
@@ -364,16 +405,25 @@ router.post('/mark', liveSessionMarkLimiter, authMiddleware, checkLiveSessionGua
       longitude: longitude ? Number(longitude) : undefined,
       locationAccuracy: locationAccuracy ? Number(locationAccuracy) : undefined,
       ipAddress: req.ip || '',
-      deviceId: req.headers['x-device-id'] || '',
-      userAgent: req.headers['user-agent'] || ''
+      deviceId: effectiveDeviceId,
+      userAgent: req.headers['user-agent'] || '',
+      status: recordStatus,
+      security: trustEval.security
     });
 
     await session.save();
 
     res.json({
       ok: true,
-      message: 'Attendance successfully marked!',
-      markedAt: new Date()
+      status: recordStatus,
+      pendingVerification: trustEval.requiresTeacherVerification,
+      requiresTeacherVerification: trustEval.requiresTeacherVerification,
+      riskLevel: trustEval.security.riskLevelAtMark,
+      message: trustEval.requiresTeacherVerification
+        ? 'Quick Pass recorded and pending teacher verification.'
+        : 'Attendance successfully marked!',
+      markedAt: new Date(),
+      security: trustEval.security
     });
   } catch (err) {
     console.error('Quick Pass mark error:', err);

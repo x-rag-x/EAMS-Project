@@ -11,6 +11,7 @@
  */
 
 const M = require('../models');
+const { isSudoAdmin } = require('./access');
 
 const DAY_FULL = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const DAY_ABBR = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -39,7 +40,28 @@ async function getTimingSets() {
   if (_timingCache.docs && Date.now() - _timingCache.at < 60000) {
     return _timingCache.docs;
   }
-  const docs = await M.TimingSet.find({}).lean();
+  let docs = await M.TimingSet.find({}).lean();
+  if (docs && docs.length) {
+    const s1 = docs.find(s => s.code === 'SET_1');
+    if (s1 && (s1.lunchAfter === 6 || !s1.periods || !s1.periods.some(p => p.isBreak && p.start === '12:30'))) {
+      s1.lunchAfter = 5;
+      s1.periods = [
+        { periodNumber: 1, number: 1, start: '08:30', end: '09:15', label: 'Period 1', isBreak: false, breakType: 'None' },
+        { periodNumber: 2, number: 2, start: '09:15', end: '10:00', label: 'Period 2', isBreak: false, breakType: 'None' },
+        { periodNumber: 0, number: 0, start: '10:00', end: '10:15', label: 'Morning Break', isBreak: true, breakType: 'Interval' },
+        { periodNumber: 3, number: 3, start: '10:15', end: '11:00', label: 'Period 3', isBreak: false, breakType: 'None' },
+        { periodNumber: 4, number: 4, start: '11:00', end: '11:45', label: 'Period 4', isBreak: false, breakType: 'None' },
+        { periodNumber: 5, number: 5, start: '11:45', end: '12:30', label: 'Period 5', isBreak: false, breakType: 'None' },
+        { periodNumber: 0, number: 0, start: '12:30', end: '13:15', label: 'Lunch Break', isBreak: true, breakType: 'Lunch' },
+        { periodNumber: 6, number: 6, start: '13:15', end: '14:00', label: 'Period 6', isBreak: false, breakType: 'None' },
+        { periodNumber: 7, number: 7, start: '14:00', end: '14:45', label: 'Period 7', isBreak: false, breakType: 'None' },
+        { periodNumber: 0, number: 0, start: '14:45', end: '15:00', label: 'Tea Break', isBreak: true, breakType: 'Tea' },
+        { periodNumber: 8, number: 8, start: '15:00', end: '15:45', label: 'Period 8', isBreak: false, breakType: 'None' },
+        { periodNumber: 9, number: 9, start: '15:45', end: '16:30', label: 'Period 9', isBreak: false, breakType: 'None' }
+      ];
+      M.TimingSet.updateOne({ code: 'SET_1' }, { $set: { lunchAfter: 5, periods: s1.periods } }).catch(() => {});
+    }
+  }
   _timingCache = { at: Date.now(), docs };
   return docs;
 }
@@ -95,10 +117,20 @@ function normalizeYear(yr) {
   return s.toUpperCase();
 }
 
-function timingForClass(cls, sets = []) {
+function timingForClass(cls, sets = [], section = null, rawSlot = null) {
   if (!sets || !sets.length) return null;
-  if (cls && cls.year) {
-    const yrStr = String(cls.year).trim();
+
+  // 1. Explicit timingSetCode on slot, section, or class
+  const explicitCode = rawSlot?.timingSetCode || section?.timingSetCode || cls?.timingSetCode;
+  if (explicitCode) {
+    const direct = sets.find(ts => ts.code === explicitCode);
+    if (direct) return direct;
+  }
+
+  // 2. Class year field
+  const yrCandidate = cls?.year || '';
+  if (yrCandidate) {
+    const yrStr = String(yrCandidate).trim();
     const yrRoman = normalizeYear(yrStr);
     const yrNum = FROM_ROMAN[yrStr.toLowerCase()] || yrStr;
     const match = sets.find(ts => {
@@ -107,6 +139,18 @@ function timingForClass(cls, sets = []) {
     });
     if (match) return match;
   }
+
+  // 3. Class name / Section name heuristics
+  const nameCandidate = String(section?.className || cls?.name || '').toUpperCase();
+  if (/\b(II|III|2ND|3RD|Y2|Y3|YEAR\s*[23]|SEM\s*[3456]|25-29|24-28)\b/i.test(nameCandidate)) {
+    const s2 = sets.find(ts => ts.code === 'SET_2');
+    if (s2) return s2;
+  }
+  if (/\b(I|IV|1ST|4TH|Y1|Y4|YEAR\s*[14]|SEM\s*[1278]|26-30|23-27)\b/i.test(nameCandidate)) {
+    const s1 = sets.find(ts => ts.code === 'SET_1');
+    if (s1) return s1;
+  }
+
   return sets.find(ts => ts.isDefault) || sets[0] || null;
 }
 
@@ -160,18 +204,14 @@ function buildOverrideSlot(s = {}) {
 
 async function getTeacherIdentity(user, trackIdOverride) {
   let teacherDoc = null;
-  if (trackIdOverride && user && user.role === 'admin') {
+  if (trackIdOverride && user && isSudoAdmin(user)) {
     teacherDoc = await M.Teacher.findOne({ trackId: trackIdOverride }).lean();
   } else if (user) {
-    if (user.role === 'teacher') {
-      if (user.trackId) {
-        teacherDoc = await M.Teacher.findOne({ trackId: user.trackId }).lean();
-      }
-      if (!teacherDoc && user._id) {
-        teacherDoc = await M.Teacher.findById(user._id).lean();
-      }
-    } else if (user.role === 'admin' && user.trackId) {
+    if (user.trackId) {
       teacherDoc = await M.Teacher.findOne({ trackId: user.trackId }).lean();
+    }
+    if (!teacherDoc && user._id) {
+      teacherDoc = await M.Teacher.findById(user._id).lean();
     }
   }
 
@@ -218,24 +258,42 @@ function refMatches(slot, idn) {
 
 // ── Canonical Slot Builder ──
 
-function normalizeProdSlot(key, raw, section, classDoc, timingSet) {
+function normalizeProdSlot(key, raw, section, classDoc, timingSet, timingSets = [], allClasses = []) {
+  const isCont = Boolean(raw.isSpanContinuation);
   const pNum = parsePeriod(raw.period, key);
   const span = Number(raw.span || raw.duration || 1) || 1;
-  const periods = Array.from({ length: span }, (_, i) => pNum + i);
+  const periods = isCont ? [pNum] : Array.from({ length: span }, (_, i) => pNum + i);
+
+  let effectiveTimingSet = timingSet;
+  const directCode = raw.timingSetCode || section?.timingSetCode;
+  if (directCode && Array.isArray(timingSets) && timingSets.length) {
+    const found = timingSets.find(ts => ts.code === directCode);
+    if (found) effectiveTimingSet = found;
+  }
 
   // Resolve start/end timings from timing set
   let start = '08:30';
   let end = '09:15';
-  if (timingSet && Array.isArray(timingSet.periods)) {
-    const pStartObj = timingSet.periods.find(p => p.periodNumber === pNum || p.number === pNum);
-    const pEndObj = timingSet.periods.find(p => p.periodNumber === (pNum + span - 1) || p.number === (pNum + span - 1));
+  if (effectiveTimingSet && Array.isArray(effectiveTimingSet.periods)) {
+    const endPeriodNum = isCont ? pNum : (pNum + span - 1);
+    const pStartObj = effectiveTimingSet.periods.find(p => p.periodNumber === pNum || p.number === pNum);
+    const pEndObj = effectiveTimingSet.periods.find(p => p.periodNumber === endPeriodNum || p.number === endPeriodNum);
     if (pStartObj?.start) start = pStartObj.start;
     if (pEndObj?.end) end = pEndObj.end;
   }
 
   const dFull = dayFull(raw.day);
   const isLab = Boolean(raw.isLab || raw.type === 'Lab');
-  const type = (raw.activityId || raw.activityLabel) ? 'Activity' : (isLab ? 'Lab' : 'Theory');
+  const combinedWith = Array.isArray(raw.combinedWith) ? raw.combinedWith.filter(Boolean) : [];
+  const isCombined = raw.type === 'Combined' || combinedWith.length > 0;
+  const combinedClassIds = [];
+  if (Array.isArray(allClasses)) {
+    combinedWith.forEach(name => {
+      const found = allClasses.find(c => c.name && c.name.toLowerCase().trim() === name.toLowerCase().trim());
+      if (found) combinedClassIds.push(String(found._id));
+    });
+  }
+  const type = (raw.activityId || raw.activityLabel) ? 'Activity' : (isLab ? 'Lab' : (isCombined ? 'Combined' : 'Theory'));
 
   return {
     key: `${dFull}_${pNum}`,
@@ -245,11 +303,14 @@ function normalizeProdSlot(key, raw, section, classDoc, timingSet) {
     className: section.className || classDoc?.name || 'Class',
     deptName: section.deptName || classDoc?.deptName || '',
     periodNumber: pNum,
-    span,
+    span: isCont ? 1 : span,
+    isSpanContinuation: isCont,
+    spanIndex: Number(raw.spanIndex) || 0,
+    spanRootPeriod: Number(raw.spanRootPeriod) || pNum,
     periods,
     start,
     end,
-    timingSetCode: timingSet?.code || 'SET_1',
+    timingSetCode: effectiveTimingSet?.code || 'SET_1',
     subject: raw.subject || raw.subjectName || '',
     subjectName: raw.subjectName || raw.subject || '',
     subjectId: raw.subjectId ? String(raw.subjectId) : null,
@@ -259,8 +320,9 @@ function normalizeProdSlot(key, raw, section, classDoc, timingSet) {
     room: raw.room || raw.hallNo || '',
     type,
     isLab,
-    combinedWith: Array.isArray(raw.combinedWith) ? raw.combinedWith : [],
-    combinedClassIds: [],
+    isCombined,
+    combinedWith,
+    combinedClassIds,
     role: 'owner',
     status: 'scheduled',
     originalTeacher: null,
@@ -272,13 +334,30 @@ function normalizeProdSlot(key, raw, section, classDoc, timingSet) {
   };
 }
 
+function matchSubjectDoc(rawSubject, subjectsList = []) {
+  if (!rawSubject || !Array.isArray(subjectsList)) return null;
+  const raw = String(rawSubject).trim().toLowerCase();
+  return subjectsList.find(s => {
+    const sId = String(s._id);
+    const code = (s.code || s.subjectCode || '').trim().toLowerCase();
+    const name = (s.name || '').trim().toLowerCase();
+    const sName = (s.shortName || '').trim().toLowerCase();
+    if (sId === raw) return true;
+    if (code && raw.includes(code)) return true;
+    if (name && (raw === name || raw.includes(name))) return true;
+    if (sName && (raw === sName || raw.endsWith(' ' + sName))) return true;
+    return false;
+  }) || null;
+}
+
 // ── Weekly Template Builder ──
 
 async function buildWeeklyTemplate(idn) {
-  const [sections, timingSets, classes] = await Promise.all([
+  const [sections, timingSets, classes, subjects] = await Promise.all([
     getProductionSections(),
     getTimingSets(),
-    M.Class.find({}).lean()
+    M.Class.find({}).lean(),
+    M.Subject.find({}).lean()
   ]);
 
   const classesMap = new Map();
@@ -289,14 +368,52 @@ async function buildWeeklyTemplate(idn) {
 
   sections.forEach(section => {
     const classDoc = classesMap.get(String(section.classId));
-    const clsTiming = timingForClass(classDoc, timingSets);
     const sectionSlots = section.slots || {};
 
     Object.entries(sectionSlots).forEach(([key, raw]) => {
       if (!raw) return;
       if (refMatches(raw, idn)) {
-        const canonical = normalizeProdSlot(key, raw, section, classDoc, clsTiming);
+        const slotTiming = timingForClass(classDoc, timingSets, section, raw);
+        const canonical = normalizeProdSlot(key, raw, section, classDoc, slotTiming, timingSets, classes);
+        if (!canonical.subjectId && canonical.subject) {
+          const matchSub = matchSubjectDoc(canonical.subject, subjects);
+          if (matchSub) {
+            canonical.subjectId = String(matchSub._id);
+            if (!canonical.subjectName || canonical.subjectName === 'Subject') {
+              canonical.subjectName = matchSub.name || canonical.subject;
+            }
+          }
+        }
         slots.push(canonical);
+
+        // If this is a multi-period slot whose continuation periods are not stored as separate keys in sectionSlots,
+        // expand them into canonical continuation slots so the teacher's schedule covers all periods:
+        const pNum = parsePeriod(raw.period, key);
+        const span = Math.max(1, Number(raw.span || raw.duration || 1));
+        if (span > 1 && !raw.isSpanContinuation) {
+          const dFull = dayFull(raw.day || key.split('_')[0]);
+          for (let offset = 1; offset < span; offset++) {
+            const nextPNum = pNum + offset;
+            const nextKey = `${dFull}_${nextPNum}`;
+            if (!sectionSlots[nextKey]) {
+              const contRaw = {
+                ...raw,
+                period: nextPNum,
+                span,
+                spanIndex: offset,
+                spanRootPeriod: pNum,
+                isSpanContinuation: true
+              };
+              const contTiming = timingForClass(classDoc, timingSets, section, contRaw);
+              const contCanonical = normalizeProdSlot(nextKey, contRaw, section, classDoc, contTiming, timingSets, classes);
+              if (canonical.subjectId) {
+                contCanonical.subjectId = canonical.subjectId;
+                contCanonical.subjectName = canonical.subjectName;
+              }
+              slots.push(contCanonical);
+            }
+          }
+        }
       }
     });
   });
@@ -340,23 +457,30 @@ async function resolveTeacherRange(idn, fromISO, toISO) {
     cur.setUTCDate(cur.getUTCDate() + 1);
   }
 
-  const [weeklyTemplate, calendarDays, leaves, assignments, classes, sections] = await Promise.all([
+  const [weeklyTemplate, calendarDays, leaves, assignments, classes, sections, subjects] = await Promise.all([
     buildWeeklyTemplate(idn),
     M.CalendarDay.find({ date: { $gte: fromDate, $lte: toDate } }).lean(),
     M.TeacherLeaveRequest.find({
       status: 'Approved',
-      $or: [
-        { teacherTrackId: idn.trackId },
-        { teacherId: idn._id }
-      ],
-      $or: [
-        { dates: { $in: dateStrings } },
-        { fromDate: { $lte: to }, toDate: { $gte: from } }
+      $and: [
+        {
+          $or: [
+            { teacherTrackId: idn.trackId },
+            { teacherId: idn._id }
+          ]
+        },
+        {
+          $or: [
+            { dates: { $in: dateStrings } },
+            { fromDate: { $lte: to }, toDate: { $gte: from } }
+          ]
+        }
       ]
     }).lean(),
     M.Assignment.find({}).lean(),
     M.Class.find({}).lean(),
-    getProductionSections()
+    getProductionSections(),
+    M.Subject.find({}).lean()
   ]);
 
   const classesMap = new Map();
@@ -488,10 +612,11 @@ async function resolveTeacherRange(idn, fromISO, toISO) {
         }
       }
 
-      // Check Day Overrides for this class & period
+      // Check Day Overrides for this class & period (confirmed only per LD9)
       const classOv = dayOverrides.find(ov =>
         String(ov.classId) === String(slot.classId) &&
-        ov.period === slot.periodNumber
+        ov.period === slot.periodNumber &&
+        (!ov.status || ov.status === 'confirmed')
       );
 
       if (classOv) {
@@ -515,7 +640,7 @@ async function resolveTeacherRange(idn, fromISO, toISO) {
       const attDoc = dayAttendance.find(att => String(att.classId) === String(slot.classId));
       if (attDoc && Array.isArray(attDoc.periods)) {
         const matchPeriod = attDoc.periods.find(p => (p.periodNumbers || []).includes(slot.periodNumber));
-        if (matchPeriod) {
+        if (matchPeriod && slot) {
           slot.attendance = {
             marked: true,
             finalized: Boolean(matchPeriod.isFinal)
@@ -523,23 +648,33 @@ async function resolveTeacherRange(idn, fromISO, toISO) {
         }
       }
 
-      // Resolve subjectId from Assignment if missing
+      // Resolve subjectId from Assignment or Subject if missing
       if (!slot.subjectId) {
         const assign = assignments.find(a =>
           String(a.classId) === String(slot.classId) &&
-          normName(a.subjectName) === normName(slot.subject)
+          (normName(a.subjectName) === normName(slot.subject) ||
+           (slot.subject && a.subjectName && slot.subject.toLowerCase().includes(a.subjectName.toLowerCase())))
         );
         if (assign?.subjectId) {
           slot.subjectId = String(assign.subjectId);
+        } else {
+          const matchSub = matchSubjectDoc(slot.subject, subjects);
+          if (matchSub) {
+            slot.subjectId = String(matchSub._id);
+            if (!slot.subjectName || slot.subjectName === 'Subject') {
+              slot.subjectName = matchSub.name || slot.subject;
+            }
+          }
         }
       }
 
       daySlots.push(slot);
     }
 
-    // 2. Process Substitute-In Overrides (where this teacher is substituting for another class)
+    // 2. Process Substitute-In Overrides (where this teacher is substituting for another class, confirmed only per LD9)
     const subInOverrides = dayOverrides.filter(ov =>
       ov.type === 'substitute' &&
+      (!ov.status || ov.status === 'confirmed') &&
       refMatches(ov.newSlot, idn) &&
       !daySlots.some(s => s.overrideId && String(s.overrideId) === String(ov._id))
     );
@@ -585,7 +720,12 @@ async function resolveTeacherRange(idn, fromISO, toISO) {
         timingSetCode: clsTiming?.code || 'SET_1',
         subject: subInfo.subject || origInfo.subject || origRaw?.subject || 'Subject',
         subjectName: subInfo.subjectName || origInfo.subjectName || origRaw?.subjectName || 'Subject',
-        subjectId: origRaw?.subjectId ? String(origRaw.subjectId) : null,
+        subjectId: (function() {
+          if (origRaw?.subjectId) return String(origRaw.subjectId);
+          const rawSub = subInfo.subject || origInfo.subject || origRaw?.subject;
+          const mSub = matchSubjectDoc(rawSub, subjects);
+          return mSub ? String(mSub._id) : null;
+        })(),
         teacher: subInfo.teacher || idn.fullName,
         teacherName: subInfo.teacherName || idn.fullName,
         teacherTrackId: idn.trackId,
@@ -608,7 +748,7 @@ async function resolveTeacherRange(idn, fromISO, toISO) {
       const attDoc = dayAttendance.find(att => String(att.classId) === String(subSlot.classId));
       if (attDoc && Array.isArray(attDoc.periods)) {
         const matchPeriod = attDoc.periods.find(p => (p.periodNumbers || []).includes(subSlot.periodNumber));
-        if (matchPeriod) {
+        if (matchPeriod && subSlot) {
           subSlot.attendance = {
             marked: true,
             finalized: Boolean(matchPeriod.isFinal)

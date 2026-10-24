@@ -2,11 +2,22 @@ const express = require('express');
 const router = express.Router();
 const mongoose = require('mongoose');
 const M = require('../models');
-const { authMiddleware, adminOnly, requireRole } = require('../middleware/auth');
-const { attendanceClearLimiter, attendanceMarkLimiter, attendanceUpdateLimiter } = require('../utils/rateLimiters');
+const { authMiddleware, requireRole, requirePage } = require('../middleware/auth');
+const {
+  attendanceClearLimiter,
+  attendanceMarkLimiter,
+  attendanceMarkIpLimiter,
+  attendanceUpdateLimiter,
+  attendanceUpdateIpLimiter
+} = require('../utils/rateLimiters');
 const { sanitizeToString } = require('../utils/sanitizeQuery');
 const { checkAttendanceMarkGuard, getCachedSettings } = require('../middleware/portalGuard');
 const { verifyTeacherAssignment } = require('../utils/assignmentAuth');
+const { isSudoAdmin } = require('../utils/access');
+const { resolveEntitlements, enforceAttendancePolicy } = require('../utils/attendancePolicy');
+const { onAttendanceSaved } = require('../utils/sessionHooks');
+const { logAction } = require('../utils/logAction');
+const { todayInInstitutionTz, todayIST } = require('../utils/institutionTime');
 
 function parseYearNum(val) {
   if (typeof val === 'number') return val;
@@ -49,6 +60,33 @@ async function syncStudentAttendanceCounters(studentTrackId, targetClassId) {
   }
 }
 
+
+// GET /api/attendance/entitlements - Fetch active entitlements (OD / Leave) for a class session
+router.get('/entitlements', authMiddleware, async (req, res) => {
+  try {
+    const classId = sanitizeToString(req.query.classId);
+    const date = sanitizeToString(req.query.date);
+    const periodNumber = req.query.period ? parseInt(req.query.period, 10) : null;
+
+    if (!classId || !date) {
+      return res.status(400).json({ error: 'classId and date are required query parameters' });
+    }
+
+    const entitlementsMap = await resolveEntitlements({ classId, date, periodNumber });
+    const entitlementsList = Array.from(entitlementsMap.values());
+
+    return res.json({
+      ok: true,
+      classId,
+      date,
+      periodNumber,
+      entitlements: entitlementsList
+    });
+  } catch (err) {
+    console.error('[Attendance Entitlements Error]:', err);
+    return res.status(500).json({ error: 'Failed to resolve attendance entitlements' });
+  }
+});
 
 // GET /api/attendance - Query attendance records with search, filters, and pagination
 router.get('/', authMiddleware, async (req, res) => {
@@ -159,7 +197,7 @@ router.get('/', authMiddleware, async (req, res) => {
 
     let flattened = [];
     for (const doc of classAttDocs) {
-      const dateStr = doc.date ? new Date(doc.date).toISOString().split('T')[0] : '';
+      const dateStr = doc.date ? (typeof doc.date === 'string' ? doc.date.split('T')[0] : todayIST(doc.date)) : '';
       const clsObj = classMap.get(doc.classId);
       const className = clsObj ? clsObj.name : doc.classId;
 
@@ -336,7 +374,7 @@ router.get('/period-notes', authMiddleware, async (req, res) => {
 
     const results = [];
     for (const doc of docs) {
-      const dateStr = doc.date ? new Date(doc.date).toISOString().split('T')[0] : '';
+      const dateStr = doc.date ? (typeof doc.date === 'string' ? doc.date.split('T')[0] : todayIST(doc.date)) : '';
       const className = classMap.get(String(doc.classId)) || classMap.get(doc.classId) || doc.classId;
 
       for (let pIdx = 0; pIdx < (doc.periods || []).length; pIdx++) {
@@ -413,7 +451,7 @@ router.put('/period-notes/:docId/:periodIndex', authMiddleware, async (req, res)
     }
 
     const attSettings = await getCachedSettings('attendance');
-    if (req.user.role !== 'admin' && attSettings.allowAttendanceEdit === false) {
+    if (!isSudoAdmin(req.user) && attSettings.allowAttendanceEdit === false) {
       return res.status(403).json({ error: 'Editing attendance or notes is locked by administrator.' });
     }
 
@@ -488,7 +526,7 @@ async function appendAttendanceChangeToDailyLog(classId, dateStr, periodNum, stu
 }
 
 // POST /api/attendance/update - Update an individual attendance record
-router.post('/update/:id?', attendanceUpdateLimiter, authMiddleware, requireRole('teacher', 'admin'), checkAttendanceMarkGuard, async (req, res) => {
+router.post('/update/:id?', authMiddleware, requireRole('teacher', 'admin'), attendanceUpdateIpLimiter, attendanceUpdateLimiter, checkAttendanceMarkGuard, async (req, res) => {
   try {
     const { status, remarks, studentTrackId, date, periodNumber } = req.body;
     const idParam = req.params.id;
@@ -496,7 +534,7 @@ router.post('/update/:id?', attendanceUpdateLimiter, authMiddleware, requireRole
     // Check institutional attendance editing policy
     const settingsDoc = await M.Settings.findOne({ key: 'attendance' }).lean();
     const attConfig = settingsDoc?.value || {};
-    if (req.user.role !== 'admin') {
+    if (!isSudoAdmin(req.user)) {
       if (attConfig.allowAttendanceEdit === false) {
         return res.status(403).json({ error: 'Attendance editing has been locked by institution policy.' });
       }
@@ -517,7 +555,7 @@ router.post('/update/:id?', attendanceUpdateLimiter, authMiddleware, requireRole
         const period = classAttDoc.periods[pIdx];
 
         // Policy & assignment check for non-admins
-        if (req.user.role !== 'admin') {
+        if (!isSudoAdmin(req.user)) {
           const autoLockHours = Number(attConfig.autoLockAttendanceHours);
           if (autoLockHours > 0) {
             const classDate = classAttDoc.date ? new Date(classAttDoc.date) : (period.markedAt ? new Date(period.markedAt) : null);
@@ -543,6 +581,11 @@ router.post('/update/:id?', attendanceUpdateLimiter, authMiddleware, requireRole
         }
 
         const rec = period.records[rIdx];
+        if (rec.locked && !isSudoAdmin(req.user)) {
+          return res.status(403).json({
+            error: `Cannot modify record: Student has an approved ${rec.reason ? rec.reason.toUpperCase() : 'entitlement'} locked on this period.`
+          });
+        }
         if (status) rec.status = normalizeStatus(status);
         if (remarks !== undefined) rec.remarks = remarks;
         classAttDoc.periods[pIdx].records[rIdx] = rec;
@@ -552,7 +595,7 @@ router.post('/update/:id?', attendanceUpdateLimiter, authMiddleware, requireRole
         if (rec.studentTrackId) {
           syncStudentAttendanceCounters(rec.studentTrackId, classAttDoc.classId).catch(() => {});
           const pNum = period.periodNumber || (pIdx + 1);
-          const dStr = classAttDoc.date ? new Date(classAttDoc.date).toISOString().split('T')[0] : (date || '');
+          const dStr = classAttDoc.date ? (typeof classAttDoc.date === 'string' ? classAttDoc.date.split('T')[0] : todayIST(classAttDoc.date)) : (date || '');
           appendAttendanceChangeToDailyLog(classAttDoc.classId, dStr, pNum, rec.studentTrackId, rec.status, req).catch(() => {});
         }
         return res.json({ success: true, message: 'Attendance record updated successfully', record: rec });
@@ -574,7 +617,7 @@ router.post('/update/:id?', attendanceUpdateLimiter, authMiddleware, requireRole
         if (periodNumber && p.periodNumber !== Number(periodNumber)) continue;
         const rec = p.records.find(r => r.studentTrackId === effectiveStudentTrackId);
         if (rec) {
-          if (req.user.role !== 'admin') {
+          if (!isSudoAdmin(req.user)) {
             const autoLockHours = Number(attConfig.autoLockAttendanceHours);
             if (autoLockHours > 0) {
               const classDate = attDoc.date ? new Date(attDoc.date) : (p.markedAt ? new Date(p.markedAt) : null);
@@ -599,6 +642,11 @@ router.post('/update/:id?', attendanceUpdateLimiter, authMiddleware, requireRole
             }
           }
 
+          if (rec.locked && !isSudoAdmin(req.user)) {
+            return res.status(403).json({
+              error: `Cannot modify record: Student has an approved ${rec.reason ? rec.reason.toUpperCase() : 'entitlement'} locked on this period.`
+            });
+          }
           if (status) rec.status = normalizeStatus(status);
           if (remarks !== undefined) rec.remarks = remarks;
           matchedRec = rec;
@@ -611,7 +659,7 @@ router.post('/update/:id?', attendanceUpdateLimiter, authMiddleware, requireRole
         attDoc.updatedAt = new Date();
         await attDoc.save();
         syncStudentAttendanceCounters(effectiveStudentTrackId, attDoc.classId).catch(() => {});
-        const dStr = attDoc.date ? new Date(attDoc.date).toISOString().split('T')[0] : (date || '');
+        const dStr = attDoc.date ? (typeof attDoc.date === 'string' ? attDoc.date.split('T')[0] : todayIST(attDoc.date)) : (date || '');
         appendAttendanceChangeToDailyLog(attDoc.classId, dStr, matchedPeriodNumber, effectiveStudentTrackId, matchedRec.status, req).catch(() => {});
         return res.json({ success: true, message: 'Attendance record updated successfully', record: matchedRec });
       }
@@ -624,31 +672,57 @@ router.post('/update/:id?', attendanceUpdateLimiter, authMiddleware, requireRole
 });
 
 // POST /api/attendance - Save or batch update class attendance records
-router.post('/', attendanceMarkLimiter, authMiddleware, requireRole('teacher', 'admin'), checkAttendanceMarkGuard, async (req, res) => {
+router.post('/', authMiddleware, requireRole('teacher', 'admin'), attendanceMarkIpLimiter, attendanceMarkLimiter, checkAttendanceMarkGuard, async (req, res) => {
   try {
     const isBatch = Array.isArray(req.body.records);
     const rawRecords = isBatch ? req.body.records : [req.body];
 
     const classIdInput = req.body.classId || (rawRecords[0] && rawRecords[0].classId);
     const subjectIdInput = req.body.subjectId || (rawRecords[0] && rawRecords[0].subjectId);
-    const dateInput = req.body.date || (rawRecords[0] && rawRecords[0].date) || new Date().toISOString().split('T')[0];
+    const todayDateStr = await todayInInstitutionTz();
+    const rawDateInput = req.body.date || (rawRecords[0] && rawRecords[0].date) || todayDateStr;
+    const dateInput = String(rawDateInput).trim();
     const periodNumInput = Number(req.body.periodNumber || req.body.period || (rawRecords[0] && rawRecords[0].periodNumber)) || 1;
 
     if (!classIdInput || !subjectIdInput) {
       return res.status(400).json({ error: 'classId and subjectId are required' });
     }
 
+    // Validate date format strictly (YYYY-MM-DD)
+    const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
+    if (!DATE_REGEX.test(dateInput)) {
+      return res.status(400).json({ error: 'Date must be a valid date in YYYY-MM-DD format' });
+    }
+    const [dYear, dMonth, dDay] = dateInput.split('-').map(Number);
+    const targetDate = new Date(Date.UTC(dYear, dMonth - 1, dDay, 0, 0, 0, 0));
+    if (
+      isNaN(targetDate.getTime()) ||
+      targetDate.getUTCFullYear() !== dYear ||
+      targetDate.getUTCMonth() !== dMonth - 1 ||
+      targetDate.getUTCDate() !== dDay
+    ) {
+      return res.status(400).json({ error: 'Invalid calendar date' });
+    }
+
     // Verify attendance policy constraints for non-admin roles
     const settings = await getCachedSettings();
     const attSettings = settings.attendance || {};
 
-    if (req.user.role !== 'admin') {
+    if (!isSudoAdmin(req.user)) {
+      const [tYear, tMonth, tDay] = todayDateStr.split('-').map(Number);
+      const todayDate = new Date(Date.UTC(tYear, tMonth - 1, tDay, 0, 0, 0, 0));
+      const diffDays = Math.floor((todayDate - targetDate) / (1000 * 60 * 60 * 24));
+
+      // Reject future dates for non-sudo users
+      if (diffDays < 0) {
+        return res.status(403).json({
+          error: 'Marking attendance for future dates is not permitted.',
+          futureDateBlocked: true
+        });
+      }
+
       // Verify max attendance backdate limit
       const maxBackdate = attSettings.maxAttendanceBackdateDays !== undefined ? Number(attSettings.maxAttendanceBackdateDays) : 3;
-      const targetDate = new Date(dateInput + 'T00:00:00.000Z');
-      const today = new Date();
-      today.setUTCHours(0, 0, 0, 0);
-      const diffDays = Math.floor((today - targetDate) / (1000 * 60 * 60 * 24));
       if (diffDays > maxBackdate) {
         return res.status(403).json({
           error: `Attendance marking for dates older than ${maxBackdate} day(s) is locked by administrator.`,
@@ -667,20 +741,23 @@ router.post('/', attendanceMarkLimiter, authMiddleware, requireRole('teacher', '
       }
     }
 
-    // Resolve Class
+    // Resolve Class - match by _id or classTrackId only (never by non-unique name)
     const classQuery = [];
     if (mongoose.isValidObjectId(classIdInput)) {
       classQuery.push({ _id: classIdInput });
     }
     classQuery.push({ classTrackId: classIdInput });
-    classQuery.push({ name: classIdInput });
 
     const cls = await M.Class.findOne({ $or: classQuery }).lean();
-    const targetClassId = cls ? (cls.classTrackId || String(cls._id)) : classIdInput;
-    const batch = cls ? cls.batch : '2025-2029';
-    const year = cls ? parseYearNum(cls.year) : 1;
-    const sem = cls ? parseSemNum(cls.sem) : 1;
-    const departmentCode = cls ? (cls.deptCode || cls.deptName || 'GEN') : 'GEN';
+    if (!cls) {
+      return res.status(404).json({ error: 'Class not found' });
+    }
+
+    const targetClassId = cls.classTrackId || String(cls._id);
+    const batch = cls.batch || '2025-2029';
+    const year = parseYearNum(cls.year) || 1;
+    const sem = parseSemNum(cls.sem) || 1;
+    const departmentCode = cls.deptCode || cls.deptName || 'GEN';
 
     // Resolve Subject
     const subjectQuery = [];
@@ -741,13 +818,20 @@ router.post('/', attendanceMarkLimiter, authMiddleware, requireRole('teacher', '
     // Normalize session date to UTC midnight
     const sessionDate = new Date(dateInput + 'T00:00:00.000Z');
 
-    // Find or create ClassAttendance document for this class and date
+    // Find existing ClassAttendance document for this class and date
     let classAttDoc = await M.ClassAttendance.findOne({
       classId: targetClassId,
-      date: {
-        $gte: new Date(dateInput + 'T00:00:00.000Z'),
-        $lte: new Date(dateInput + 'T23:59:59.999Z')
-      }
+      date: sessionDate
+    });
+
+    // Enforce attendance entitlement policy (OD locks Present, Leave locks Absent)
+    const enforcedRecords = await enforceAttendancePolicy({
+      classId: targetClassId,
+      date: dateInput,
+      periodNumber: periodNumInput,
+      records: formattedRecords,
+      actorTrackId: teacherTrackId,
+      actorRole: req.user.role
     });
 
     const periodObj = {
@@ -759,19 +843,20 @@ router.post('/', attendanceMarkLimiter, authMiddleware, requireRole('teacher', '
       markedAt: new Date(),
       topic: String(req.body.topic || '').trim(),
       notes: String(req.body.notes || '').trim(),
-      records: formattedRecords
+      records: enforcedRecords
     };
 
-    if (classAttDoc) {
+    let existingPeriodIdx = -1;
+    if (classAttDoc && Array.isArray(classAttDoc.periods)) {
       // Check if period for this subject and period number already exists
-      const existingPeriodIdx = classAttDoc.periods.findIndex(p =>
+      existingPeriodIdx = classAttDoc.periods.findIndex(p =>
         (p.subjectTrackId === targetSubjectTrackId || String(p.subjectTrackId) === String(targetSubjectTrackId)) &&
         (Number(p.periodNumber) === periodNumInput || (Array.isArray(p.periodNumbers) && p.periodNumbers.includes(periodNumInput)))
       );
 
       if (existingPeriodIdx !== -1) {
         // Verify attendance edit permissions
-        if (req.user.role !== 'admin' && attSettings.allowAttendanceEdit === false) {
+        if (!isSudoAdmin(req.user) && attSettings.allowAttendanceEdit === false) {
           return res.status(403).json({
             error: 'Modifying previously saved attendance is locked by administrator.',
             editLocked: true
@@ -780,7 +865,7 @@ router.post('/', attendanceMarkLimiter, authMiddleware, requireRole('teacher', '
 
         // Verify auto-lock threshold for finalized attendance
         const autoLockHours = Number(attSettings.autoLockAttendanceHours) || 0;
-        if (req.user.role !== 'admin' && autoLockHours > 0) {
+        if (!isSudoAdmin(req.user) && autoLockHours > 0) {
           const existingPeriod = classAttDoc.periods[existingPeriodIdx];
           const markedAtTime = existingPeriod.markedAt ? new Date(existingPeriod.markedAt).getTime() : new Date(classAttDoc.createdAt).getTime();
           const ageHours = (Date.now() - markedAtTime) / (1000 * 60 * 60);
@@ -791,24 +876,88 @@ router.post('/', attendanceMarkLimiter, authMiddleware, requireRole('teacher', '
             });
           }
         }
-
-        classAttDoc.periods[existingPeriodIdx] = periodObj;
-      } else {
-        classAttDoc.periods.push(periodObj);
       }
-      classAttDoc.updatedAt = new Date();
-      await classAttDoc.save();
+    }
+
+    // Atomic update or upsert with array push per period (prevents duplicate documents)
+    if (existingPeriodIdx !== -1) {
+      // Case 1: Update the existing period in-place using arrayFilters
+      classAttDoc = await M.ClassAttendance.findOneAndUpdate(
+        {
+          classId: targetClassId,
+          date: sessionDate,
+          'periods.periodNumbers': periodNumInput
+        },
+        {
+          $set: {
+            'periods.$[elem]': periodObj,
+            updatedAt: new Date()
+          }
+        },
+        {
+          arrayFilters: [{ 'elem.periodNumbers': periodNumInput }],
+          returnDocument: 'after'
+        }
+      );
     } else {
-      classAttDoc = await M.ClassAttendance.create({
-        batch,
-        year,
-        sem,
-        classId: targetClassId,
-        departmentCode,
-        date: sessionDate,
-        periods: [periodObj],
-        isFinalized: false
-      });
+      classAttDoc = null;
+    }
+
+    // Case 2: Period does not exist in the document yet (or document does not exist)
+    if (!classAttDoc) {
+      try {
+        classAttDoc = await M.ClassAttendance.findOneAndUpdate(
+          { classId: targetClassId, date: sessionDate },
+          {
+            $setOnInsert: {
+              batch,
+              year,
+              sem,
+              classId: targetClassId,
+              departmentCode,
+              date: sessionDate,
+              isFinalized: false,
+              createdAt: new Date()
+            },
+            $push: { periods: periodObj },
+            $set: { updatedAt: new Date() }
+          },
+          { upsert: true, returnDocument: 'after' }
+        );
+      } catch (upsertErr) {
+        if (upsertErr.code === 11000 || (upsertErr.message && upsertErr.message.includes('E11000'))) {
+          // Document was concurrently created; retry updating or pushing into existing document
+          classAttDoc = await M.ClassAttendance.findOneAndUpdate(
+            {
+              classId: targetClassId,
+              date: sessionDate,
+              'periods.periodNumbers': periodNumInput
+            },
+            {
+              $set: {
+                'periods.$[elem]': periodObj,
+                updatedAt: new Date()
+              }
+            },
+            {
+              arrayFilters: [{ 'elem.periodNumbers': periodNumInput }],
+              returnDocument: 'after'
+            }
+          );
+          if (!classAttDoc) {
+            classAttDoc = await M.ClassAttendance.findOneAndUpdate(
+              { classId: targetClassId, date: sessionDate },
+              {
+                $push: { periods: periodObj },
+                $set: { updatedAt: new Date() }
+              },
+              { returnDocument: 'after' }
+            );
+          }
+        } else {
+          throw upsertErr;
+        }
+      }
     }
 
     // Sync student counters asynchronously
@@ -816,7 +965,38 @@ router.post('/', attendanceMarkLimiter, authMiddleware, requireRole('teacher', '
       await syncStudentAttendanceCounters(stTrackId, targetClassId);
     }
 
+    // Trigger Live Day ClassSession hook for real-time Live Board updates and on-time evaluation
+    try {
+      const pRecords = periodObj.records || [];
+      const pCount = pRecords.filter(r => r.status === 'P').length;
+      const abCount = pRecords.filter(r => r.status === 'AB').length;
+      const odCount = pRecords.filter(r => r.reason === 'od').length;
+      const leaveCount = pRecords.filter(r => r.reason === 'leave').length;
+
+      onAttendanceSaved({
+        classId: targetClassId,
+        date: dateInput,
+        periodNumber: periodNumInput,
+        savedBy: markedBy,
+        counts: {
+          present: pCount,
+          absent: abCount,
+          od: odCount,
+          leave: leaveCount,
+          total: pRecords.length
+        }
+      }).catch(hookErr => console.warn('[Attendance Save Hook Error]:', hookErr.message));
+    } catch (e) {
+      console.warn('[Attendance Hook Invocation Error]:', e.message);
+    }
     // Consolidated Daily Class Attendance Logging (1 log per class per day, appended with period changes & student reg numbers)
+    const dateStr = dateInput;
+    const className = cls ? (cls.name || cls.classTrackId || targetClassId) : targetClassId;
+    const teacherName = (req.user.firstName && req.user.lastName)
+      ? `${req.user.firstName} ${req.user.lastName}`.trim()
+      : (req.user.fullName || req.user.name || req.user.username || 'Teacher');
+    const teacherSessionId = req.user.sessionId || (req.session && req.session.sessionId) || '';
+
     try {
       // Determine capture method
       let captureMethod = 'Manual';
@@ -824,12 +1004,6 @@ router.post('/', attendanceMarkLimiter, authMiddleware, requireRole('teacher', '
       else if (req.body.scanLiveSessionId) captureMethod = 'Live QR';
       else if (req.body.repShareSessionId) captureMethod = 'Rep Share';
       else if (req.body.method && typeof req.body.method === 'string') captureMethod = req.body.method;
-
-      const teacherName = (req.user.firstName && req.user.lastName)
-        ? `${req.user.firstName} ${req.user.lastName}`.trim()
-        : (req.user.fullName || req.user.name || req.user.username || 'Teacher');
-      const teacherSessionId = req.user.sessionId || (req.session && req.session.sessionId) || '';
-      const teacherTrackId = req.user.trackId || String(req.user._id);
 
       // Build student records with register numbers
       const periodStudentRecords = [];
@@ -1030,7 +1204,7 @@ router.post('/', attendanceMarkLimiter, authMiddleware, requireRole('teacher', '
 });
 
 // Bulk delete all attendance (admin only)
-router.delete('/all', attendanceClearLimiter, authMiddleware, adminOnly, async (req, res) => {
+router.delete('/all', authMiddleware, requirePage('control', 'delete', { tab: 'data' }), attendanceClearLimiter, async (req, res) => {
   try {
     const res1 = await M.ClassAttendance.deleteMany({});
     const res2 = await M.StudentAttendance.deleteMany({});
@@ -1051,7 +1225,7 @@ router.delete('/all', attendanceClearLimiter, authMiddleware, adminOnly, async (
 });
 
 // Delete attendance records within a date range (inclusive)
-router.delete('/clear', attendanceClearLimiter, authMiddleware, adminOnly, async (req, res) => {
+router.delete('/clear', authMiddleware, requirePage('control', 'delete', { tab: 'data' }), attendanceClearLimiter, async (req, res) => {
   try {
     const { from, to } = req.body;
     if (!from || !to) return res.status(400).json({ error: 'from and to dates are required' });
@@ -1078,18 +1252,31 @@ router.delete('/clear', attendanceClearLimiter, authMiddleware, adminOnly, async
 });
 
 // Delete single session/record
-router.delete('/:id', authMiddleware, adminOnly, async (req, res) => {
+router.delete('/:id', authMiddleware, requirePage('admin', 'delete', { tab: 'reports' }), async (req, res) => {
   try {
-    await M.ClassAttendance.findByIdAndDelete(req.params.id);
+    const att = await M.ClassAttendance.findById(req.params.id).lean();
+    if (att) {
+      await M.UndoLog.create({
+        collectionName: 'attendance',
+        label: `Attendance Session: ${att.className || att.classId || 'Class'} (${att.date ? new Date(att.date).toLocaleDateString('en-IN') : 'Date'}) - Period ${att.period || ''}`,
+        snapshot: att,
+        deletedBy: req.user?.name || req.user?.username || 'admin',
+        expiresAt: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000)
+      }).catch(err => console.warn('[UndoLog Error]:', err.message));
+      await M.ClassAttendance.findByIdAndDelete(req.params.id);
+    }
     res.json({ deleted: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-router.get('/unmarked-teachers', authMiddleware, adminOnly, async (req, res) => {
+router.get('/unmarked-teachers', authMiddleware, requirePage('admin', 'view', { tab: 'reports' }), async (req, res) => {
   try {
-    const today = new Date(), monday = new Date(today);
+    const todayStr = await todayInInstitutionTz();
+    const [tY, tM, tD] = todayStr.split('-').map(Number);
+    const today = new Date(tY, tM - 1, tD);
+    const monday = new Date(today);
     monday.setDate(today.getDate() - ((today.getDay() + 6) % 7));
-    const weekDates = Array.from({ length: 5 }, (_, i) => { const d = new Date(monday); d.setDate(monday.getDate() + i); return d.toISOString().split('T')[0]; });
+    const weekDates = Array.from({ length: 5 }, (_, i) => { const d = new Date(monday); d.setDate(monday.getDate() + i); return todayIST(d); });
     const assignments = await M.Assignment.find().lean();
     const classAttDocs = await M.ClassAttendance.find().lean();
 
@@ -1097,7 +1284,7 @@ router.get('/unmarked-teachers', authMiddleware, adminOnly, async (req, res) => 
     for (const a of assignments) {
       const markedDates = [];
       for (const doc of classAttDocs) {
-        const docDateStr = doc.date ? new Date(doc.date).toISOString().split('T')[0] : '';
+        const docDateStr = doc.date ? (typeof doc.date === 'string' ? doc.date.split('T')[0] : todayIST(doc.date)) : '';
         if (doc.classId === a.classId || doc.classId === a.classTrackId) {
           for (const p of doc.periods || []) {
             if (p.teacherTrackId === a.teacherId || p.teacherTrackId === a.teacherTrackId) {

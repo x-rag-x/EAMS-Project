@@ -1,0 +1,52 @@
+{
+  "type": "subject",
+  "totalRows": 3,
+  "eligibleCount": 1,
+  "skippedCount": 2,
+  "eligibleRows": [
+    {
+      "rowNumber": 2,
+      "data": {
+        "name": "Data Structures",
+        "code": "CS201",
+        "subjectCode": "CSE-CS201",
+        "credits": 4,
+        "type": "Theory",
+        "deptId": "60d5ec49f1b2c8b1f8e4e1a1",
+        "deptName": "Computer Science & Engineering",
+        "deptCode": "CSE"
+      },
+      "isVerified": true
+    }
+  ],
+  "skippedRows": [
+    {
+      "rowNumber": 3,
+      "name": "Algorithms Laboratory",
+      "issues": [
+        "SubjectCode missing"
+      ],
+      "data": {
+        "name": "Algorithms Laboratory",
+        "code": "",
+        "credits": "2",
+        "type": "Practical",
+        "department": "Computer Science & Engineering"
+      }
+    },
+    {
+      "rowNumber": 4,
+      "name": "Database Systems",
+      "issues": [
+        "Department missing"
+      ],
+      "data": {
+        "name": "Database Systems",
+        "code": "CS202",
+        "credits": "3",
+        "type": "Theory",
+        "department": ""
+      }
+    }
+  ]
+}

@@ -1,17 +1,19 @@
 const express = require('express');
 const router = express.Router();
 const M = require('../models');
-const { authMiddleware, logsAdminOnly } = require('../middleware/auth');
+const { authMiddleware, requirePage } = require('../middleware/auth');
 const { logAction, normalizeIp } = require('../utils/logAction');
 const { decryptLog } = require('../utils/logCrypto');
+const { isSudo } = require('../utils/access');
 const { sanitizeToString } = require('../utils/sanitizeQuery');
+const { getStartOfInstitutionDaySync } = require('../utils/institutionTime');
 const escapeRegex = s => String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 // GET /api/logs/stats — Server-aggregated status cards metrics
-router.get('/stats', authMiddleware, logsAdminOnly, async (req, res) => {
+router.get('/stats', authMiddleware, requirePage('logs', 'view'), async (req, res) => {
   try {
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
+    const todayStart = getStartOfInstitutionDaySync();
+    // normalized to institution start of day
 
     const [
       totalLogs,
@@ -25,21 +27,19 @@ router.get('/stats', authMiddleware, logsAdminOnly, async (req, res) => {
       lockedCount
     ] = await Promise.all([
       M.Log.countDocuments({}),
-      M.Log.countDocuments({ $or: [{ module: 'admin' }, { role: 'admin' }] }),
+      M.Log.countDocuments({ $or: [{ module: 'admin' }, { role: 'admin' }, { actingWithAdminRights: true }] }),
       M.Log.countDocuments({ $or: [{ module: 'teacher' }, { role: 'teacher' }] }),
       M.Log.countDocuments({ $or: [{ module: 'student' }, { role: 'student' }] }),
       M.Log.countDocuments({ $or: [{ module: { $in: ['system', 'control', 'settings', 'manage'] } }, { category: 'security' }] }),
       M.Log.countDocuments({ createdAt: { $gte: todayStart } }),
       M.Log.countDocuments({ severity: 'critical' }),
-      M.LoginHistory.aggregate([
-        { $unwind: '$history' },
-        { $match: { 'history.active': true, 'history.current': 'Logged In' } },
-        { $count: 'count' }
-      ]),
+      M.LoginSession.countDocuments({ active: true }),
       M.User.countDocuments({ status: 'locked' })
     ]);
 
-    const activeSessions = activeSessionsList[0]?.count || 0;
+    const activeSessions = typeof activeSessionsList === 'number'
+      ? activeSessionsList
+      : (activeSessionsList?.[0]?.count || 0);
 
     res.json({
       totalLogs,
@@ -58,7 +58,7 @@ router.get('/stats', authMiddleware, logsAdminOnly, async (req, res) => {
 });
 
 // GET /api/logs — Fetch filtered audit logs with decrypted payload & joined session history
-router.get('/', authMiddleware, logsAdminOnly, async (req, res) => {
+router.get('/', authMiddleware, requirePage('logs', 'view'), async (req, res) => {
   try {
     const limitParam = sanitizeToString(req.query.limit);
     const limit = Math.min(100, Math.max(1, parseInt(limitParam, 10) || 50));
@@ -72,7 +72,7 @@ router.get('/', authMiddleware, logsAdminOnly, async (req, res) => {
     const moduleFilter = sanitizeToString(req.query.module);
     if (moduleFilter && moduleFilter !== 'all' && moduleFilter !== 'overview') {
       if (moduleFilter === 'admin') {
-        filter.$or = [{ module: 'admin' }, { role: 'admin' }];
+        filter.$or = [{ module: 'admin' }, { role: 'admin' }, { actingWithAdminRights: true }];
       } else if (moduleFilter === 'teacher') {
         filter.$or = [{ module: 'teacher' }, { role: 'teacher' }];
       } else if (moduleFilter === 'student') {
@@ -130,29 +130,71 @@ router.get('/', authMiddleware, logsAdminOnly, async (req, res) => {
 
     const logs = await M.Log.find(filter).sort({ createdAt: -1 }).limit(limit).lean();
 
-    // Batch join LoginHistory for all logs with sessionId
+    // Batch join sessions directly from LoginSession by sessionId (indexed O(1)) (§3.10, S7.5)
     const sessionLogs = logs.filter(l => l.sessionId);
-    const trackIdsToFetch = [...new Set(sessionLogs.map(l => l.trackId).filter(Boolean))];
     const sessionIdsToFetch = [...new Set(sessionLogs.map(l => l.sessionId).filter(Boolean))];
 
-    const loginHistories = (trackIdsToFetch.length || sessionIdsToFetch.length)
-      ? await M.LoginHistory.find({
-          $or: [
-            ...(trackIdsToFetch.length ? [{ trackId: { $in: trackIdsToFetch } }] : []),
-            ...(sessionIdsToFetch.length ? [{ "history.sessionId": { $in: sessionIdsToFetch } }] : [])
-          ]
-        }).lean()
-      : [];
+    const sessionMap = new Map();
 
-    const historySessionMap = new Map();
-    loginHistories.forEach(lh => {
-      (lh.history || []).forEach(sess => {
-        if (sess.sessionId) {
-          historySessionMap.set(`${lh.trackId}_${sess.sessionId}`, sess);
-          historySessionMap.set(sess.sessionId, sess);
+    if (sessionIdsToFetch.length) {
+      const loginSessions = await M.LoginSession.find({
+        sessionId: { $in: sessionIdsToFetch }
+      }).lean();
+
+      loginSessions.forEach(ls => {
+        if (ls.sessionId) {
+          const sessObj = {
+            sessionId: ls.sessionId,
+            loginTime: ls.loginTime || ls.createdAt,
+            logoutTime: ls.logoutAt || null,
+            logoutMethod: ls.logoutMethod || (ls.logoutAt ? 'manual' : null),
+            current: ls.active ? 'Logged In' : 'Logged Out',
+            active: !!ls.active,
+            ip: normalizeIp(ls.ip || ''),
+            deviceType: ls.deviceInfo?.type || 'Desktop',
+            browser: ls.deviceInfo?.browser || 'Chrome',
+            os: ls.deviceInfo?.os || 'Windows',
+            location: ls.location || { address: '', latitude: null, longitude: null }
+          };
+          sessionMap.set(ls.sessionId, sessObj);
+          if (ls.trackId) {
+            sessionMap.set(`${ls.trackId}_${ls.sessionId}`, sessObj);
+          }
         }
       });
-    });
+
+      // Migration fallback: For legacy log records created before LoginSession, check LoginHistory
+      const missingSessionIds = sessionIdsToFetch.filter(sid => !sessionMap.has(sid));
+      if (missingSessionIds.length) {
+        const legacyHistories = await M.LoginHistory.find({
+          "history.sessionId": { $in: missingSessionIds }
+        }).lean();
+
+        legacyHistories.forEach(lh => {
+          (lh.history || []).forEach(sess => {
+            if (sess.sessionId && !sessionMap.has(sess.sessionId)) {
+              const legacyObj = {
+                sessionId: sess.sessionId,
+                loginTime: sess.loginTime || sess.time,
+                logoutTime: sess.logoutTime || null,
+                logoutMethod: sess.logoutMethod || (sess.logoutTime ? 'manual' : null),
+                current: sess.current,
+                active: sess.active && sess.current === 'Logged In',
+                ip: normalizeIp(sess.ip || ''),
+                deviceType: sess.deviceType || 'Desktop',
+                browser: sess.browser || 'Chrome',
+                os: sess.os || 'Windows',
+                location: sess.location || { address: '', latitude: null, longitude: null }
+              };
+              sessionMap.set(sess.sessionId, legacyObj);
+              if (lh.trackId) {
+                sessionMap.set(`${lh.trackId}_${sess.sessionId}`, legacyObj);
+              }
+            }
+          });
+        });
+      }
+    }
 
     // Decrypt and enrich log documents
     const enrichedLogs = logs.map(l => {
@@ -164,6 +206,10 @@ router.get('/', authMiddleware, logsAdminOnly, async (req, res) => {
         if (payload && typeof payload === 'object') {
           if (payload.details) decryptedDetails = payload.details;
           if (payload.changes) decryptedChanges = payload.changes;
+          if (!l.deviceId && payload.deviceId) l.deviceId = payload.deviceId;
+          if (!l.deviceName && payload.deviceName) l.deviceName = payload.deviceName;
+          if (!l.deviceInstallId && payload.deviceInstallId) l.deviceInstallId = payload.deviceInstallId;
+          if (!l.deviceInfo && payload.deviceInfo) l.deviceInfo = payload.deviceInfo;
         }
       }
 
@@ -171,23 +217,11 @@ router.get('/', authMiddleware, logsAdminOnly, async (req, res) => {
       let loc = l.location || null;
 
       if (l.sessionId) {
-        const histSess = historySessionMap.get(`${l.trackId}_${l.sessionId}`) || historySessionMap.get(l.sessionId);
-        if (histSess) {
-          sessionInfo = {
-            sessionId: histSess.sessionId,
-            loginTime: histSess.loginTime || histSess.time,
-            logoutTime: histSess.logoutTime || null,
-            logoutMethod: histSess.logoutMethod || (histSess.logoutTime ? 'manual' : null),
-            current: histSess.current,
-            active: histSess.active && histSess.current === 'Logged In',
-            ip: normalizeIp(histSess.ip || l.ip),
-            deviceType: histSess.deviceType || 'Desktop',
-            browser: histSess.browser || 'Chrome',
-            os: histSess.os || 'Windows',
-            location: histSess.location || { address: '', latitude: null, longitude: null }
-          };
+        const sess = sessionMap.get(l.sessionId) || sessionMap.get(`${l.trackId}_${l.sessionId}`);
+        if (sess) {
+          sessionInfo = sess;
           if (!loc || (!loc.latitude && !loc.address)) {
-            loc = histSess.location || null;
+            loc = sess.location || null;
           }
         }
       }
@@ -200,7 +234,7 @@ router.get('/', authMiddleware, logsAdminOnly, async (req, res) => {
       const resolvedTrackId = l.trackId || (
         (l.role === 'system' || l.userName === 'SYSTEM') ? 'TR-SYS-001' : 
         (l.userName === 'START-MENU' ? 'TR-SYS-CLI' : 
-        (l.role === 'admin' ? 'TR-ADMIN001' : 'TR-SYS-001'))
+        (['admin', 'sudo'].includes(l.role) ? 'TR-ADMIN001' : 'TR-SYS-001'))
       );
 
       return {
@@ -225,7 +259,7 @@ router.get('/', authMiddleware, logsAdminOnly, async (req, res) => {
 });
 
 // GET /api/logs/detail/:id — Fetch single log with full decrypted details & session joins
-router.get('/detail/:id', authMiddleware, logsAdminOnly, async (req, res) => {
+router.get('/detail/:id', authMiddleware, requirePage('logs', 'view'), async (req, res) => {
   try {
     const id = req.params.id;
     const log = await M.Log.findOne({
@@ -245,6 +279,10 @@ router.get('/detail/:id', authMiddleware, logsAdminOnly, async (req, res) => {
       if (payload && typeof payload === 'object') {
         if (payload.details) decryptedDetails = payload.details;
         if (payload.changes) decryptedChanges = payload.changes;
+        if (!log.deviceId && payload.deviceId) log.deviceId = payload.deviceId;
+        if (!log.deviceName && payload.deviceName) log.deviceName = payload.deviceName;
+        if (!log.deviceInstallId && payload.deviceInstallId) log.deviceInstallId = payload.deviceInstallId;
+        if (!log.deviceInfo && payload.deviceInfo) log.deviceInfo = payload.deviceInfo;
       }
     }
 
@@ -252,7 +290,7 @@ router.get('/detail/:id', authMiddleware, logsAdminOnly, async (req, res) => {
     const resolvedTrackId = log.trackId || (
       (log.role === 'system' || log.userName === 'SYSTEM') ? 'TR-SYS-001' : 
       (log.userName === 'START-MENU' ? 'TR-SYS-CLI' : 
-      (log.role === 'admin' ? 'TR-ADMIN001' : 'TR-SYS-001'))
+      (['admin', 'sudo'].includes(log.role) ? 'TR-ADMIN001' : 'TR-SYS-001'))
     );
 
     let sessionInfo = null;
@@ -318,7 +356,7 @@ router.post('/page-access', authMiddleware, async (req, res) => {
     const role = req.user.role;
     let mod = clientModule;
     if (!mod) {
-      if (role === 'admin') mod = 'admin';
+      if (isSudo(req)) mod = 'admin';
       else if (role === 'teacher') mod = 'teacher';
       else if (role === 'student') mod = 'student';
       else mod = 'system';
@@ -352,7 +390,7 @@ router.post('/page-access', authMiddleware, async (req, res) => {
 });
 
 // POST /api/logs/export — Decrypted CSV export
-router.post('/export', authMiddleware, logsAdminOnly, async (req, res) => {
+router.post('/export', authMiddleware, requirePage('logs', 'export'), async (req, res) => {
   try {
     const { module: modFilter, subType, category, severity, role, from, to, search } = req.body;
     const filter = {};
@@ -397,7 +435,7 @@ router.post('/export', authMiddleware, logsAdminOnly, async (req, res) => {
       const resolvedTrackId = l.trackId || (
         (l.role === 'system' || l.userName === 'SYSTEM') ? 'TR-SYS-001' : 
         (l.userName === 'START-MENU' ? 'TR-SYS-CLI' : 
-        (l.role === 'admin' ? 'TR-ADMIN001' : 'TR-SYS-001'))
+        (['admin', 'sudo'].includes(l.role) ? 'TR-ADMIN001' : 'TR-SYS-001'))
       );
       return [
         logTrackId,
@@ -424,7 +462,7 @@ router.post('/export', authMiddleware, logsAdminOnly, async (req, res) => {
 });
 
 // DELETE /api/logs/all
-router.delete('/all', authMiddleware, logsAdminOnly, async (req, res) => {
+router.delete('/all', authMiddleware, requirePage('logs', 'delete'), async (req, res) => {
   try {
     await M.Log.deleteMany({});
     await logAction(
@@ -446,7 +484,7 @@ router.delete('/all', authMiddleware, logsAdminOnly, async (req, res) => {
 });
 
 // DELETE /api/logs/:id
-router.delete('/:id', authMiddleware, logsAdminOnly, async (req, res) => {
+router.delete('/:id', authMiddleware, requirePage('logs', 'delete'), async (req, res) => {
   try {
     await M.Log.findByIdAndDelete(req.params.id);
     res.json({ deleted: true });

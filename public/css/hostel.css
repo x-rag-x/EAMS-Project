@@ -1,0 +1,414 @@
+/* ── EAMS HOSTEL MANAGEMENT STYLING ── */
+
+:root {
+  --hostel-bg: #f4f7f4;
+  --hostel-card-bg: #ffffff;
+  --hostel-border: rgba(27, 94, 32, 0.14);
+  --hostel-text: #1a2e1a;
+  --hostel-muted: #5a7a5a;
+  --hostel-green: #2e7d32;
+  --hostel-dark-green: #1b5e20;
+}
+
+/* Corridor Dark Mode / High Contrast Toggle */
+body.corridor-dark-mode {
+  --hostel-bg: #0f1712;
+  --hostel-card-bg: #18231c;
+  --hostel-border: rgba(74, 222, 128, 0.18);
+  --hostel-text: #f0fdf4;
+  --hostel-muted: #86efac;
+  --gP: #0f1712;
+  --td: #f0fdf4;
+  background: #0f1712 !important;
+  color: #f0fdf4 !important;
+}
+
+.hostel-container {
+  width: 100%;
+  max-width: 1140px;
+  margin: 0 auto;
+  padding: 16px 20px 48px;
+  box-sizing: border-box;
+}
+
+/* ── HEADER & BLOCK BANNER ── */
+.hostel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding: 18px 24px;
+  background: var(--hostel-card-bg);
+  border: 1.5px solid var(--hostel-border);
+  border-radius: 16px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
+  margin-bottom: 20px;
+}
+
+.hostel-title-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.hostel-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--hostel-green);
+}
+
+.hostel-title {
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--hostel-text);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.hostel-status-pill {
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.hostel-status-pill.scheduled { background: #fef3c7; color: #92400e; border: 1px solid #fde68a; }
+.hostel-status-pill.open { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; animation: pulse 2s infinite; }
+.hostel-status-pill.closed { background: #e0e7ff; color: #3730a3; border: 1px solid #c7d2fe; }
+.hostel-status-pill.verified { background: #d1fae5; color: #065f46; border: 1px solid #a7f3d0; }
+
+@keyframes pulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.04); }
+  100% { transform: scale(1); }
+}
+
+.hostel-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* ── SUMMARY STATS GRID ── */
+.hostel-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 12px;
+  margin-bottom: 22px;
+}
+
+.hostel-stat-card {
+  background: var(--hostel-card-bg);
+  border: 1.5px solid var(--hostel-border);
+  border-radius: 14px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.02);
+  transition: transform 0.15s ease;
+}
+
+.hostel-stat-card:hover {
+  transform: translateY(-2px);
+}
+
+.stat-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--hostel-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.stat-val {
+  font-size: 24px;
+  font-weight: 800;
+  color: var(--hostel-text);
+  font-family: 'DM Mono', monospace;
+}
+
+.stat-card-present .stat-val { color: #16a34a; }
+.stat-card-late .stat-val { color: #d97706; }
+.stat-card-leave .stat-val { color: #2563eb; }
+.stat-card-medical .stat-val { color: #dc2626; }
+.stat-card-excused .stat-val { color: #7c3aed; }
+.stat-card-absent .stat-val { color: #e11d48; }
+
+/* ── TAB NAVIGATION ── */
+.hostel-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 18px;
+  border-bottom: 2px solid var(--hostel-border);
+  padding-bottom: 8px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.hostel-tab-btn {
+  background: none;
+  border: none;
+  padding: 9px 18px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--hostel-muted);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.18s ease;
+}
+
+.hostel-tab-btn:hover {
+  background: rgba(27, 94, 32, 0.06);
+  color: var(--hostel-green);
+}
+
+.hostel-tab-btn.active {
+  background: var(--hostel-green);
+  color: #ffffff;
+  box-shadow: 0 4px 12px rgba(46, 125, 50, 0.25);
+}
+
+/* ── SEARCH & FILTER BAR ── */
+.roster-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.roster-search-input {
+  flex: 1;
+  min-width: 220px;
+  height: 42px;
+  padding: 0 16px;
+  border-radius: 10px;
+  border: 1.5px solid var(--hostel-border);
+  font-size: 13px;
+  background: var(--hostel-card-bg);
+  color: var(--hostel-text);
+  outline: none;
+}
+
+.roster-search-input:focus {
+  border-color: var(--hostel-green);
+  box-shadow: 0 0 0 3px rgba(46, 125, 50, 0.15);
+}
+
+/* ── RESIDENT ROSTER CARDS ── */
+.roster-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 14px;
+}
+
+.resident-card {
+  background: var(--hostel-card-bg);
+  border: 1.5px solid var(--hostel-border);
+  border-radius: 14px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.02);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.resident-card:hover {
+  border-color: var(--hostel-green);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.06);
+}
+
+.resident-card.spot-check-flag {
+  border-color: #f59e0b;
+  background: rgba(245, 158, 11, 0.04);
+}
+
+.resident-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.resident-info {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.resident-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: #e2e8f0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  font-weight: 700;
+  color: #475569;
+  flex-shrink: 0;
+}
+
+.resident-name {
+  font-size: 14.5px;
+  font-weight: 700;
+  color: var(--hostel-text);
+  line-height: 1.2;
+}
+
+.resident-sub {
+  font-size: 11.5px;
+  color: var(--hostel-muted);
+  margin-top: 2px;
+  font-family: 'DM Mono', monospace;
+}
+
+.room-bed-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 800;
+  background: #f1f5f9;
+  color: #334155;
+  border: 1px solid #cbd5e1;
+}
+
+.resident-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding-top: 8px;
+  border-top: 1px solid var(--hostel-border);
+}
+
+.quick-btn {
+  height: 32px;
+  padding: 0 10px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: all 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.btn-present { background: #dcfce7; color: #166534; border-color: #bbf7d0; }
+.btn-present:hover { background: #bbf7d0; }
+
+.btn-late { background: #fef3c7; color: #92400e; border-color: #fde68a; }
+.btn-late:hover { background: #fde68a; }
+
+.btn-absent { background: #ffe4e6; color: #9f1239; border-color: #fecdd3; }
+.btn-absent:hover { background: #fecdd3; }
+
+.btn-call { background: #e0e7ff; color: #3730a3; border-color: #c7d2fe; margin-left: auto; }
+.btn-call:hover { background: #c7d2fe; }
+
+/* ── ROTATING QR LOBBY DISPLAY MODAL ── */
+.qr-modal-body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  text-align: center;
+}
+
+.qr-canvas-wrap {
+  background: #ffffff;
+  padding: 16px;
+  border-radius: 16px;
+  border: 2px solid var(--hostel-border);
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.12);
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 260px;
+  min-height: 260px;
+}
+
+.qr-timer-bar {
+  width: 100%;
+  max-width: 280px;
+  height: 6px;
+  background: #e2e8f0;
+  border-radius: 3px;
+  overflow: hidden;
+  margin-bottom: 12px;
+}
+
+.qr-timer-progress {
+  height: 100%;
+  background: var(--hostel-green);
+  width: 100%;
+  transition: width 0.2s linear;
+}
+
+/* ── LEAVE QUEUE CARDS ── */
+.leave-card {
+  background: var(--hostel-card-bg);
+  border: 1.5px solid var(--hostel-border);
+  border-radius: 14px;
+  padding: 16px;
+  margin-bottom: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.leave-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.smart-check-pill {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.smart-check-pass { background: #dcfce7; color: #166534; }
+.smart-check-warn { background: #fef3c7; color: #92400e; }
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .hostel-container {
+    padding: 10px 12px 60px;
+  }
+  .hostel-header {
+    padding: 14px 16px;
+  }
+  .hostel-title {
+    font-size: 18px;
+  }
+  .roster-grid {
+    grid-template-columns: 1fr;
+  }
+}

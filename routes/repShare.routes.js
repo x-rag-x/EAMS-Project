@@ -4,6 +4,7 @@ const crypto = require('crypto');
 const mongoose = require('mongoose');
 const M = require('../models');
 const { authMiddleware } = require('../middleware/auth');
+const { isSudoAdmin } = require('../utils/access');
 const { verifyTeacherAssignment } = require('../utils/assignmentAuth');
 const { logAction } = require('../utils/logAction');
 
@@ -233,7 +234,7 @@ router.get('/session/:sessionId', authMiddleware, async (req, res) => {
     const isAssigningTeacher = (session.teacherTrackId && req.user.trackId && String(req.user.trackId) === String(session.teacherTrackId)) ||
       (session.teacherId && (String(req.user._id) === String(session.teacherId) || String(req.user.roleId) === String(session.teacherId)));
 
-    if (!isAssignedRep && !isAssigningTeacher && req.user.role !== 'admin') {
+    if (!isAssignedRep && !isAssigningTeacher && !isSudoAdmin(req.user)) {
       return res.status(403).json({ error: 'Access denied to this session' });
     }
 
@@ -351,7 +352,7 @@ router.get('/draft/:sessionId', authMiddleware, async (req, res) => {
     const isAssigningTeacher = (session.teacherTrackId && req.user.trackId && String(req.user.trackId) === String(session.teacherTrackId)) ||
       (session.teacherId && (String(req.user._id) === String(session.teacherId) || String(req.user.roleId) === String(session.teacherId)));
 
-    if (req.user.role !== 'admin' && !isAssigningTeacher) {
+    if (!isSudoAdmin(req.user) && !isAssigningTeacher) {
       return res.status(403).json({ error: 'Only the assigning teacher can review drafts' });
     }
 
@@ -384,7 +385,7 @@ router.post('/cancel/:sessionId', authMiddleware, async (req, res) => {
     const isAssigningTeacher = (session.teacherTrackId && req.user.trackId && String(req.user.trackId) === String(session.teacherTrackId)) ||
       (session.teacherId && (String(req.user._id) === String(session.teacherId) || String(req.user.roleId) === String(session.teacherId)));
 
-    if (req.user.role !== 'admin' && !isAssigningTeacher) {
+    if (!isSudoAdmin(req.user) && !isAssigningTeacher) {
       return res.status(403).json({ error: 'Only the assigning teacher can cancel this session' });
     }
 

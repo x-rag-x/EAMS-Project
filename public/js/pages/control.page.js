@@ -10,16 +10,18 @@ var PAGE_NAMES = [
   "broadcasts",
   "data",
   "backup",
+  "recycle-bin",
   "undo",
   "maintenance",
 ];
 
 // Guard
 (function () {
-  currentUser = checkAuth("admin", "controlPage");
+  currentUser = getUser();
   if (!currentUser) return;
   applyControlTabRestrictions();
   refreshExportCount();
+  updateRecycleBadge();
 
   var urlParams = new URLSearchParams(window.location.search);
   var tabParam = urlParams.get('tab') || urlParams.get('page');
@@ -33,10 +35,11 @@ var PAGE_NAMES = [
 function applyControlTabRestrictions() {
   var backBtn = document.querySelector('.sb-back-btn');
   if (backBtn) {
-    if (currentUser && currentUser.role === 'teacher') {
-      backBtn.textContent = '← Back to Hub';
+    var isAdm = typeof isAdminUser === 'function' ? isAdminUser(currentUser) : (currentUser && (['admin', 'sudo'].includes(currentUser.role) || Boolean(currentUser.isAdmin)));
+    if (currentUser && (currentUser.role === 'teacher' || isAdm)) {
+      backBtn.innerHTML = '<re-icon icon="arrow-left"></re-icon> Back to Hub';
     } else {
-      backBtn.textContent = '← Back to Dashboard';
+      backBtn.innerHTML = '<re-icon icon="arrow-left"></re-icon> Back to Dashboard';
     }
   }
 }
@@ -57,6 +60,7 @@ setInterval(updateClock, 1000);
 
 // Nav
 function nav(page) {
+  if (page === 'undo') page = 'recycle-bin';
   if (PAGE_NAMES.indexOf(page) === -1) page = 'overview';
 
   if (window.history && window.history.replaceState) {
@@ -69,13 +73,23 @@ function nav(page) {
     el.classList.remove("act");
   });
   var pg = document.getElementById("pg-" + page);
+  if (!pg && page === "recycle-bin") pg = document.getElementById("pg-undo");
   if (pg) pg.classList.add("act");
+
   document.querySelectorAll(".sb-item").forEach(function (el) {
     el.classList.remove("act");
   });
-  var idx = PAGE_NAMES.indexOf(page);
-  var items = document.querySelectorAll(".sb-item");
-  if (idx >= 0 && items[idx]) items[idx].classList.add("act");
+  var activeBtn = document.querySelector('.sb-item[onclick*="' + page + '"]');
+  if (!activeBtn && page === 'recycle-bin') {
+    activeBtn = document.getElementById('sb-nav-recycle-bin') || document.querySelector('.sb-item[onclick*="undo"]');
+  }
+  if (activeBtn) {
+    activeBtn.classList.add("act");
+  } else {
+    var idx = PAGE_NAMES.indexOf(page);
+    var items = document.querySelectorAll(".sb-item");
+    if (idx >= 0 && items[idx]) items[idx].classList.add("act");
+  }
 
   if (page === "overview") {
     loadOverview();
@@ -90,7 +104,7 @@ function nav(page) {
   }
   if (page === "data") refreshExportCount();
   if (page === "backup") loadBackupPage();
-  if (page === "undo") loadUndoPage();
+  if (page === "recycle-bin" || page === "undo") loadRecycleBinPage();
   if (page === "maintenance") loadMaintenance();
 }
 
@@ -239,18 +253,18 @@ function loadMaintenance() {
   document.getElementById("ms-active-val").textContent = "Fetching…";
   document.getElementById("ms-active-val").style.color = "var(--tdi)";
   document.getElementById("ms-roles-val").textContent = "…";
-  document.getElementById("ms-end-val").textContent = "…";
-  document.getElementById("ms-started-val").textContent = "…";
+  document.getElementById("ms-end-val").innerHTML = "…";
+  document.getElementById("ms-started-val").innerHTML = "…";
   document.getElementById("ms-msg-val").textContent = "…";
   var tb = document.getElementById("maint-toggle-main-btn");
   tb.disabled = true;
   tb.textContent = "Loading…";
   document.getElementById("maint-log-list").innerHTML =
-    '<div style="text-align:center;padding:20px;color:var(--tdi);font-size:13px;">⏱️ Loading logs from database…</div>';
+    '<div style="text-align:center;padding:20px;color:var(--tdi);font-size:13px;"><re-icon icon="timer"></re-icon> Loading logs from database…</div>';
   apiCall("GET", "/settings/maintenance")
     .then(function (d) {
       if (!d || d.error) {
-        showToast("⚠️ " + (d && d.error ? d.error : "Load failed"));
+        showToast("" + (d && d.error ? d.error : "Load failed"));
         return;
       }
       _maintData = d;
@@ -265,7 +279,7 @@ function loadMaintenance() {
       }
     })
     .catch(function (e) {
-      showToast("❌ Failed to load: " + e.message);
+      showToast("Failed to load: " + e.message);
       document.getElementById("ms-active-val").textContent = "Error";
       document.getElementById("ms-active-val").style.color = "#dc2626";
       tb.textContent = "Retry";
@@ -288,14 +302,14 @@ function renderMaintUI(d) {
   if (isActive) {
     banner.style.background = "linear-gradient(135deg,#fff3cd,#fff8e1)";
     banner.style.borderColor = "#f59e0b";
-    bannerIcon.textContent = "🛠️";
+    bannerIcon.innerHTML = '<re-icon icon="settings"></re-icon>';
     bannerTitle.textContent = "Maintenance Mode is ACTIVE";
     var rLabels = affectedRoleLabels(affected);
     bannerSub.textContent =
       (rLabels.length
         ? rLabels.join(", ") + " are blocked."
         : "No roles blocked.") + " Admins retain full access.";
-    toggleBtn.textContent = "ℹ️ Disable Maintenance";
+    toggleBtn.innerHTML = '<re-icon icon="info-circle"></re-icon> Disable Maintenance';
     toggleBtn.style.background = "#dc2626";
     toggleBtn.style.color = "#fff";
     var tb = document.getElementById("maint-banner");
@@ -303,11 +317,11 @@ function renderMaintUI(d) {
   } else {
     banner.style.background = "linear-gradient(135deg,#f0fdf4,#ecfdf5)";
     banner.style.borderColor = "#4ade80";
-    bannerIcon.textContent = "🛠️";
+    bannerIcon.innerHTML = '<re-icon icon="settings"></re-icon>';
     bannerTitle.textContent = "System is Online  — All users can log in";
     bannerSub.textContent =
       "Configure roles, end time and message below, then enable.";
-    toggleBtn.textContent = "⚠️ Enable Maintenance";
+    toggleBtn.innerHTML = '<re-icon icon="alert-triangle"></re-icon> Enable Maintenance';
     toggleBtn.style.background = "#f59e0b";
     toggleBtn.style.color = "#fff";
     var tb2 = document.getElementById("maint-banner");
@@ -334,21 +348,21 @@ function renderMaintUI(d) {
   document.getElementById("maint-msg").value = d.message || "";
   // — — State card
   var activeEl = document.getElementById("ms-active-val");
-  activeEl.textContent = isActive ? "⚠️ ENABLED" : "⚠️ Disabled";
+  activeEl.innerHTML = isActive ? '<re-icon icon="alert-triangle"></re-icon> ENABLED' : '<re-icon icon="alert-triangle"></re-icon> Disabled';
   activeEl.style.color = isActive ? "#dc2626" : "#16a34a";
   var rLabels2 = affectedRoleLabels(affected);
   document.getElementById("ms-roles-val").textContent = rLabels2.length
     ? rLabels2.join(", ")
     : "None selected";
-  document.getElementById("ms-end-val").textContent = d.endTime
+  document.getElementById("ms-end-val").innerHTML = d.endTime
     ? fmtDateTime(d.endTime)
-    : "⚠️ Not set";
-  document.getElementById("ms-started-val").textContent = d.startedAt
+    : '<re-icon icon="alert-triangle"></re-icon> Not set';
+  document.getElementById("ms-started-val").innerHTML = d.startedAt
     ? fmtDateTime(d.startedAt)
     : isActive
       ? "Now"
-      : "ℹ️ ";
-  document.getElementById("ms-msg-val").textContent = d.message || "ℹ️ ";
+      : '<re-icon icon="info-circle"></re-icon> —';
+  document.getElementById("ms-msg-val").innerHTML = d.message || '<re-icon icon="info-circle"></re-icon> —';
   // — — Role access table
   renderRoleTable(isActive, affected);
 }
@@ -405,12 +419,12 @@ function saveMaintConfig() {
   var endEl = document.getElementById("maint-end-time");
   // Validate required fields
   if (!msg) {
-    showToast("⚠️ Message is required.");
+    showToast("Message is required.");
     return;
   }
   if (!endVal) {
     endEl.style.borderColor = "#dc2626";
-    showToast("⚠️ End date & time is required  — shown as countdown to users.");
+    showToast("End date & time is required  — shown as countdown to users.");
     endEl.focus();
     return;
   }
@@ -429,12 +443,12 @@ function saveMaintConfig() {
   apiCall("PUT", "/settings/maintenance", { value: payload })
     .then(function (d) {
       if (d && d.error) {
-        showToast("❌ " + d.error);
+        showToast("" + d.error);
         return;
       }
       _maintData = d;
       renderMaintUI(d);
-      showToast("✅ Configuration saved to database");
+      showToast("Configuration saved to database");
       logLine(
         "Maintenance config saved  — roles: [" +
         roles.join(", ") +
@@ -445,12 +459,12 @@ function saveMaintConfig() {
       loadMaintLogs();
     })
     .catch(function (e) {
-      showToast("❌ Save failed: " + e.message);
+      showToast("Save failed: " + e.message);
     });
 }
 function doToggleMaintenance() {
   if (!_maintData) {
-    showToast("⚠️ Settings not loaded yet.");
+    showToast("Settings not loaded yet.");
     return;
   }
   var roles = getSelectedRoles();
@@ -463,13 +477,12 @@ function doToggleMaintenance() {
   // Validate before enabling
   if (nowActive) {
     if (roles.length === 0) {
-      showToast("⚠️ Select at least one role to block.");
+      showToast("Select at least one role to block.");
       return;
     }
     if (!endVal) {
       endEl.style.borderColor = "#dc2626";
-      showToast(
-        "⚠️ End date & time is required to show countdown on maintenance page.",
+      showToast("End date & time is required to show countdown on maintenance page.",
       );
       endEl.focus();
       return;
@@ -492,17 +505,17 @@ function doToggleMaintenance() {
   apiCall("PUT", "/settings/maintenance", { value: payload })
     .then(function (d) {
       if (d && d.error) {
-        showToast("❌ " + d.error);
+        showToast("" + d.error);
         toggleBtn.disabled = false;
         return;
       }
       _maintData = d;
       renderMaintUI(d);
       var msg2 = nowActive
-        ? "⚠️ Maintenance ENABLED  — " +
+        ? '<re-icon icon="alert-triangle"></re-icon> Maintenance ENABLED  — ' +
         affectedRoleLabels(roles).join(", ") +
         " redirected to maintenance page"
-        : "✅ Maintenance DISABLED  — All users can now log in";
+        : '<re-icon icon="check-circle"></re-icon> Maintenance DISABLED  — All users can now log in';
       showToast(msg2);
       logLine(
         nowActive ? "MAINTENANCE ENABLED" : "MAINTENANCE DISABLED",
@@ -520,7 +533,7 @@ function doToggleMaintenance() {
       }
     })
     .catch(function (e) {
-      showToast("❌ Toggle failed: " + e.message);
+      showToast("Toggle failed: " + e.message);
       toggleBtn.disabled = false;
     });
 }
@@ -532,7 +545,7 @@ function setMaintPreset(hours) {
     .toISOString()
     .slice(0, 16);
   document.getElementById("maint-end-time").style.borderColor = "#e2e8f0";
-  showToast("⏱️ End time set: +" + hours + " hr" + (hours > 1 ? "s" : ""));
+  showToast('<re-icon icon="timer"></re-icon> End time set: +' + hours + " hr" + (hours > 1 ? "s" : ""));
 }
 function selectAllRoles() {
   ["teacher", "student", "subadmin"].forEach(function (r) {
@@ -566,13 +579,13 @@ function renderRoleTable(maintActive, affected) {
   var roles = [
     {
       role: "Admin",
-      icon: "🛠️",
+      icon: '<re-icon icon="settings"></re-icon>',
       blocked: false,
       note: "Always has full access",
     },
     {
       role: "Teacher",
-      icon: "🧑‍🏫",
+      icon: '<re-icon icon="teacher"></re-icon>',
       blocked: maintActive && affected.includes("teacher"),
       note:
         maintActive && affected.includes("teacher")
@@ -581,7 +594,7 @@ function renderRoleTable(maintActive, affected) {
     },
     {
       role: "Student",
-      icon: "🎓",
+      icon: '<re-icon icon="graduation-cap"></re-icon>',
       blocked: maintActive && affected.includes("student"),
       note:
         maintActive && affected.includes("student")
@@ -590,7 +603,7 @@ function renderRoleTable(maintActive, affected) {
     },
     {
       role: "Sub-Admin",
-      icon: "⚠️ — =+",
+      icon: '<re-icon icon="user"></re-icon>',
       blocked: maintActive && affected.includes("subadmin"),
       note:
         maintActive && affected.includes("subadmin")
@@ -602,7 +615,7 @@ function renderRoleTable(maintActive, affected) {
     .map(function (r) {
       var color = r.blocked ? "#dc2626" : "#16a34a";
       var bg = r.blocked ? "#fef2f2" : "#f0fdf4";
-      var status = r.blocked ? "⚠️ Blocked" : "ℹ️ OK";
+      var status = r.blocked ? '<re-icon icon="alert-triangle"></re-icon> Blocked' : '<re-icon icon="info-circle"></re-icon> OK';
       return (
         '<div style="display:flex;align-items:center;justify-content:space-between;padding:9px 12px;background:' +
         bg +
@@ -633,13 +646,13 @@ function renderRoleTable(maintActive, affected) {
 function loadMaintLogs() {
   var el = document.getElementById("maint-log-list");
   el.innerHTML =
-    '<div style="text-align:center;padding:16px;color:var(--tdi);font-size:12px;">⏱️ Loading from database…</div>';
+    '<div style="text-align:center;padding:16px;color:var(--tdi);font-size:12px;"><re-icon icon="timer"></re-icon> Loading from database…</div>';
   apiCall("GET", "/logs?category=maintenance&limit=50")
     .then(function (res) {
       var logs = (res && res.logs) || [];
       if (!logs || !logs.length) {
         el.innerHTML =
-          '<div style="text-align:center;padding:24px;color:var(--tdi);font-size:13px;">⚠️ No maintenance events logged yet. Enable/disable maintenance to create logs.</div>';
+          '<div style="text-align:center;padding:24px;color:var(--tdi);font-size:13px;"><re-icon icon="alert-triangle"></re-icon> No maintenance events logged yet. Enable/disable maintenance to create logs.</div>';
         return;
       }
       el.innerHTML = logs
@@ -665,7 +678,7 @@ function loadMaintLogs() {
             ';flex-shrink:0;margin-top:5px;"></div>' +
             '<div style="flex:1;min-width:0;">' +
             '<div style="font-size:12.5px;font-weight:700;color:var(--td);">' +
-            (l.action || "ℹ️ ") +
+            (l.action || '<re-icon icon="info-circle"></re-icon> ') +
             "</div>" +
             '<div style="font-size:11px;color:var(--tmu);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' +
             (l.userName || "") +
@@ -691,7 +704,7 @@ var _srvLogPollInterval = null;
 var _srvLogSince = null;
 function loadServerLogs() {
   var url =
-    "/api/system/serverlogs" +
+    "/system/serverlogs" +
     (_srvLogSince ? "?since=" + encodeURIComponent(_srvLogSince) : "");
   apiCall("GET", url)
     .then(function (d) {
@@ -701,8 +714,8 @@ function loadServerLogs() {
         d.uptime,
       );
       document.getElementById("srv-mem").textContent = d.memMB + " MB";
-      document.getElementById("srv-node").textContent = d.nodeVersion || "ℹ️ ";
-      document.getElementById("srv-env").textContent = d.env || "ℹ️ ";
+      document.getElementById("srv-node").textContent = d.nodeVersion || "—";
+      document.getElementById("srv-env").textContent = d.env || "—";
       if (d.logs && d.logs.length) {
         var terminal = document.getElementById("srv-log-terminal");
         var wasBottom =
@@ -719,24 +732,24 @@ function loadServerLogs() {
                   : "success";
             // Colour specific patterns
             if (
-              l.text.includes("✅ ") ||
+              l.text.includes('<re-icon icon="check-circle"></re-icon> ') ||
               l.text.includes("connected") ||
               l.text.includes("seeded")
             )
               cls = "success";
             if (
-              l.text.includes("❌ ") ||
+              l.text.includes('<re-icon icon="x-circle"></re-icon> ') ||
               l.text.includes("error") ||
               l.text.includes("Error")
             )
               cls = "danger";
             if (
-              l.text.includes("⚠️") ||
+              l.text.includes('<re-icon icon="alert-triangle"></re-icon>') ||
               l.text.includes("warn") ||
               l.text.includes("MAINT")
             )
               cls = "warn";
-            if (l.text.includes("🛠️") || l.text.includes("ℹ️")) cls = "info";
+            if (l.text.includes('<re-icon icon="settings"></re-icon>') || l.text.includes('<re-icon icon="info-circle"></re-icon>')) cls = "info";
             var ts = new Date(l.time).toLocaleTimeString("en-IN", {
               hour: "2-digit",
               minute: "2-digit",
@@ -786,7 +799,7 @@ function escHtml(str) {
     .replace(/>/g, "&gt;");
 }
 function formatUptime(secs) {
-  if (!secs) return "ℹ️ ";
+  if (!secs) return '<re-icon icon="info-circle"></re-icon> ';
   var h = Math.floor(secs / 3600),
     m = Math.floor((secs % 3600) / 60),
     s = secs % 60;
@@ -799,7 +812,7 @@ function toggleServerLogPoll() {
   if (_srvLogPollInterval) {
     clearInterval(_srvLogPollInterval);
     _srvLogPollInterval = null;
-    btn.textContent = "ℹ️ Auto";
+    btn.innerHTML = '<re-icon icon="info-circle"></re-icon> Auto';
     btn.style.background = "";
     showToast("Auto-refresh stopped");
   } else {
@@ -814,10 +827,50 @@ function toggleServerLogPoll() {
 // Maintenance Expiry Polling
 var _expiryPollInterval = null;
 var _expiryDialogDismissed = false;
+
+function showExpiryDialog() {
+  var modal = document.getElementById("maint-expiry-modal");
+  if (!modal) return;
+  var sumEl = document.getElementById("expiry-maint-summary");
+  if (sumEl && _maintData) {
+    var endStr = _maintData.endTime ? fmtDateTime(_maintData.endTime) : "Scheduled end time";
+    var roles = (_maintData.affectedRoles || []).join(", ") || "All";
+    sumEl.textContent = "Scheduled End: " + endStr + "\nAffected Roles: " + roles + "\nMessage: " + (_maintData.message || "None");
+  }
+  modal.classList.add("open");
+}
+
+function startExpiryPolling() {
+  if (_expiryPollInterval) {
+    clearInterval(_expiryPollInterval);
+    _expiryPollInterval = null;
+  }
+  _expiryDialogDismissed = false;
+
+  _expiryPollInterval = setInterval(function () {
+    if (!_maintData || !_maintData.active || !_maintData.endTime) {
+      if (_expiryPollInterval) {
+        clearInterval(_expiryPollInterval);
+        _expiryPollInterval = null;
+      }
+      return;
+    }
+    if (Date.now() >= new Date(_maintData.endTime).getTime()) {
+      if (_expiryPollInterval) {
+        clearInterval(_expiryPollInterval);
+        _expiryPollInterval = null;
+      }
+      if (!_expiryDialogDismissed) {
+        showExpiryDialog();
+      }
+    }
+  }, 10000);
+}
+
 function dismissExpiryDialog() {
   _expiryDialogDismissed = true;
   document.getElementById("maint-expiry-modal").classList.remove("open");
-  showToast("⚠️ Dismissed  — maintenance still active");
+  showToast("Dismissed  — maintenance still active");
 }
 function extendMaintenance(hours) {
   if (!_maintData) return;
@@ -834,14 +887,14 @@ function extendMaintenance(hours) {
   apiCall("PUT", "/settings/maintenance", { value: payload })
     .then(function (d) {
       if (d && d.error) {
-        showToast("❌ " + d.error);
+        showToast("" + d.error);
         return;
       }
       _maintData = d;
       renderMaintUI(d);
       document.getElementById("maint-expiry-modal").classList.remove("open");
       showToast(
-        "⏱️ Extended +" +
+        '<re-icon icon="timer"></re-icon> Extended +' +
         hours +
         " hr" +
         (hours > 1 ? "s" : "") +
@@ -859,7 +912,7 @@ function extendMaintenance(hours) {
       startExpiryPolling(); // restart for the new end time
     })
     .catch(function (e) {
-      showToast("❌ Extend failed: " + e.message);
+      showToast("Extend failed: " + e.message);
     });
 }
 function disableMaintenanceFromExpiry() {
@@ -876,18 +929,18 @@ function disableMaintenanceFromExpiry() {
   apiCall("PUT", "/settings/maintenance", { value: payload })
     .then(function (d) {
       if (d && d.error) {
-        showToast("❌ " + d.error);
+        showToast("" + d.error);
         return;
       }
       _maintData = d;
       renderMaintUI(d);
       document.getElementById("maint-expiry-modal").classList.remove("open");
-      showToast("✅ Maintenance DISABLED  — System is back online");
+      showToast("Maintenance DISABLED  — System is back online");
       logLine("Maintenance DISABLED after expiry", "success");
       loadMaintLogs();
     })
     .catch(function (e) {
-      showToast("ℹ️ " + e.message);
+      showToast("" + e.message);
     });
 }
 // Legacy stubs
@@ -947,23 +1000,22 @@ function saveSettings(section) {
       maxLogin: document.getElementById("sec-maxlogin").value,
     };
   }
-  showToast("⏱️ Saving to Database...");
+  showToast('<re-icon icon="timer"></re-icon> Saving to Database...');
   apiCall("PUT", "/settings/" + section, { value: payload })
     .then(function (d) {
       if (d && d.error) {
-        showToast("❌ Save failed: " + d.error);
+        showToast("Save failed: " + d.error);
         return;
       }
       logLine("Settings saved to DB: " + section, "success");
-      showToast(
-        "ℹ️ " +
+      showToast("" +
         section.charAt(0).toUpperCase() +
         section.slice(1) +
         " settings saved to MongoDB",
       );
     })
     .catch(function (e) {
-      showToast("❌ Network error  — settings NOT saved: " + (e.message || ""));
+      showToast("Network error  — settings NOT saved: " + (e.message || ""));
       logLine(
         "Settings save failed: " +
         section +
@@ -1037,12 +1089,12 @@ function loadAllSettings() {
         logLine("Settings loaded from MongoDB", "success");
       } else {
         logLine("Settings could not be loaded: " + (d && d.error ? d.error : "unknown error"), "danger");
-        showToast("❌ Could not load settings from database");
+        showToast("Could not load settings from database");
       }
     })
     .catch(function (e) {
       logLine("Settings load failed: " + (e.message || "network error"), "danger");
-      showToast("❌ Could not reach the server to load settings");
+      showToast("Could not reach the server to load settings");
     })
     .finally(function () {
       showLoadingOverlay(false);
@@ -1050,79 +1102,83 @@ function loadAllSettings() {
 }
 
 // Admin password reset
-function resetAdminPassword() {
+async function resetAdminPassword() {
   var nw = document.getElementById("admin-pw-new").value.trim();
   var conf = document.getElementById("admin-pw-conf").value.trim();
   if (!nw || !conf) {
-    showToast("⚠️ Please fill both fields", "warn");
+    showToast("Please fill both fields", "warn");
     return;
   }
   if (nw.length < 6) {
-    showToast("⚠️ Password must be at least 6 characters", "warn");
+    showToast("Password must be at least 6 characters", "warn");
     return;
   }
   if (nw !== conf) {
-    showToast("⚠️ Passwords do not match", "warn");
+    showToast("Passwords do not match", "warn");
     return;
   }
+
+  var currentPassword = await showPrompt("Enter your current admin password:", "", "Admin Verification", { type: "password" });
+  if (currentPassword === null) return;
+
   apiCall("POST", "/auth/change-password", {
-    currentPassword: prompt("Enter your current admin password:"),
+    currentPassword: currentPassword,
     newPassword: nw,
   })
     .then(function (d) {
       if (d.error) {
-        showToast("❌ " + d.error, "danger");
+        showToast("" + d.error, "danger");
         return;
       }
       document.getElementById("admin-pw-new").value = "";
       document.getElementById("admin-pw-conf").value = "";
       logLine("Admin password reset successfully", "success");
-      showToast("✅ Admin password updated successfully");
+      showToast("Admin password updated successfully");
     })
     .catch(function () {
-      showToast("❌ Server error", "danger");
+      showToast("Server error", "danger");
     });
 }
 
 // Confirm modal
 var ACTIONS = {
   teachers: {
-    icon: "⚠️",
+    icon: '<re-icon icon="alert-triangle"></re-icon>',
     title: "Delete All Teachers?",
     body: "This will permanently delete ALL teacher accounts and their subject assignments. Admin account is NOT affected.",
     btn: "Delete Teachers",
     cls: "btn-danger",
   },
   students: {
-    icon: "⚠️",
+    icon: '<re-icon icon="alert-triangle"></re-icon>',
     title: "Delete All Students?",
     body: "This will permanently delete ALL student records, their login accounts, and attendance data.",
     btn: "Delete Students",
     cls: "btn-danger",
   },
   attendance: {
-    icon: "⚠️",
+    icon: '<re-icon icon="alert-triangle"></re-icon>',
     title: "Clear Attendance?",
     body: "This will permanently delete ALL attendance records. Students and teachers are kept.",
     btn: "Clear Attendance",
     cls: "btn-warn",
   },
   logs: {
-    icon: "⚠️",
+    icon: '<re-icon icon="alert-triangle"></re-icon>',
     title: "Clear Activity Logs?",
     body: "This will permanently delete ALL system logs and login history.",
     btn: "Clear Logs",
     cls: "btn-warn",
   },
   clearall: {
-    icon: "⚠️",
+    icon: '<re-icon icon="alert-triangle"></re-icon>',
     title: "Clear Entire Database?",
     body: "This will wipe ALL data: students, teachers, departments, classes, subjects, attendance, notifications, and logs. Your admin account will be preserved. This is IRREVERSIBLE.",
     btn: "Wipe Database",
     cls: "btn-danger",
   },
   resetSettings: {
-    icon: "⚠️",
+    icon: '<re-icon icon="alert-triangle"></re-icon>',
     title: "Reset All Settings?",
     body: "All settings will be restored to factory defaults. Data is NOT affected.",
     btn: "Reset Settings",
@@ -1131,29 +1187,51 @@ var ACTIONS = {
 };
 function openConfirm(action) {
   currentAction = action;
+  window._customRequireText = true;
   var cfg = ACTIONS[action] || {};
-  document.getElementById("m-icon").textContent = cfg.icon || "⚠️";
-  document.getElementById("m-title").textContent = cfg.title || "Are you sure?";
-  document.getElementById("m-body").textContent =
-    cfg.body || "This cannot be undone.";
-  document.getElementById("m-input").value = "";
-  document.getElementById("m-progress").style.display = "none";
+  var iconEl = document.getElementById("m-icon");
+  if (iconEl) iconEl.innerHTML = cfg.icon || '<re-icon icon="alert-triangle"></re-icon>';
+  var titleEl = document.getElementById("m-title");
+  if (titleEl) titleEl.textContent = cfg.title || "Are you sure?";
+  var bodyEl = document.getElementById("m-body");
+  if (bodyEl) bodyEl.textContent = cfg.body || "This cannot be undone.";
+  var inputWrap = document.getElementById("m-input-wrap");
+  if (inputWrap) inputWrap.style.display = "block";
+  var inputEl = document.getElementById("m-input");
+  if (inputEl) inputEl.value = "";
+  var progEl = document.getElementById("m-progress");
+  if (progEl) progEl.style.display = "none";
   var btn = document.getElementById("m-confirm-btn");
-  btn.textContent = cfg.btn || "Confirm";
-  btn.className = "btn " + (cfg.cls || "btn-danger");
-  document.getElementById("confirm-modal").classList.add("open");
+  if (btn) {
+    btn.textContent = cfg.btn || "Confirm";
+    btn.className = "btn " + (cfg.cls || "btn-danger");
+    btn.disabled = false;
+  }
+  var modal = document.getElementById("confirm-modal");
+  if (modal) modal.classList.add("open");
 }
 function closeConfirm() {
-  document.getElementById("confirm-modal").classList.remove("open");
+  var modal = document.getElementById("confirm-modal");
+  if (modal) modal.classList.remove("open");
+  var inputWrap = document.getElementById("m-input-wrap");
+  if (inputWrap) inputWrap.style.display = "none";
   currentAction = null;
+  window._customConfirmFn = null;
+  window._customRequireText = false;
 }
 function executeAction() {
-  var input = document.getElementById("m-input").value.trim().toUpperCase();
-  if (input !== "CONFIRM") {
-    showToast("⚠️ Type CONFIRM to proceed", "warn");
-    return;
+  var inputWrap = document.getElementById("m-input-wrap");
+  var isTextRequired = (inputWrap && inputWrap.style.display !== "none") || window._customRequireText;
+  if (isTextRequired) {
+    var inputEl = document.getElementById("m-input");
+    var input = (inputEl ? inputEl.value : "").trim().toUpperCase();
+    if (input !== "CONFIRM") {
+      showToast("Type CONFIRM to proceed", "warn");
+      return;
+    }
   }
-  document.getElementById("m-confirm-btn").disabled = true;
+  var btn = document.getElementById("m-confirm-btn");
+  if (btn) btn.disabled = true;
   showProgress("Processing…", 10);
   if (
     currentAction === "__custom__" &&
@@ -1195,11 +1273,11 @@ function executeAction() {
         applySettingsToForm(defaults);
         closeConfirm();
         logLine("All settings reset to factory defaults in MongoDB", "warn");
-        showToast("✅ Settings reset to factory defaults");
+        showToast("Settings reset to factory defaults");
       })
       .catch(function (e) {
         closeConfirm();
-        showToast("❌ Reset failed: " + (e.message || "network error"));
+        showToast("Reset failed: " + (e.message || "network error"));
       });
     return;
   }
@@ -1375,7 +1453,7 @@ function runSteps(steps, idx) {
     setTimeout(function () {
       closeConfirm();
       logLine(currentAction + " operation completed  — ", "success");
-      showToast("✅ Operation completed successfully");
+      showToast("Operation completed successfully");
       loadOverview();
       document.getElementById("m-confirm-btn").disabled = false;
     }, 600);
@@ -1395,7 +1473,7 @@ function runSteps(steps, idx) {
         "Error: " + (err && err.message ? err.message : "Unknown error"),
         "danger",
       );
-      showToast("❌ Error during operation. Check logs.", "danger");
+      showToast("Error during operation. Check logs.", "danger");
       closeConfirm();
       document.getElementById("m-confirm-btn").disabled = false;
     });
@@ -1416,7 +1494,7 @@ function refreshExportCount() {
       var el = document.getElementById("export-student-count");
       if (el)
         el.textContent =
-          (d.count !== undefined ? d.count : "ℹ️ ") + " students";
+          (d.count !== undefined ? d.count : '<re-icon icon="info-circle"></re-icon> ') + " students";
     })
     .catch(function () { });
 }
@@ -1426,7 +1504,7 @@ function exportDataSecure(type) {
   var detailsEl = document.getElementById("export-result-details");
   var pwEl = document.getElementById("export-password-display");
   if (resultBox) resultBox.style.display = "none";
-  showToast("⏱️ Preparing export…");
+  showToast('<re-icon icon="timer"></re-icon> Preparing export…');
   fetch("/api/system/export", {
     method: "POST",
     headers: {
@@ -1440,7 +1518,7 @@ function exportDataSecure(type) {
     })
     .then(function (d) {
       if (d.error) {
-        showToast("❌ Export failed: " + d.error, "danger");
+        showToast("Export failed: " + d.error, "danger");
         return;
       }
       var blob = new Blob([JSON.stringify(d.payload, null, 2)], {
@@ -1453,12 +1531,12 @@ function exportDataSecure(type) {
         "eams_export_" +
         type +
         "_" +
-        new Date().toISOString().split("T")[0] +
+        todayIST() +
         ".json";
       a.click();
       URL.revokeObjectURL(url);
       if (resultBox) resultBox.style.display = "block";
-      if (pwEl) pwEl.textContent = d.exportPassword || "ℹ️ ";
+      if (pwEl) pwEl.textContent = d.exportPassword || "—";
       if (detailsEl)
         detailsEl.textContent =
           "Type: " +
@@ -1472,10 +1550,10 @@ function exportDataSecure(type) {
         "Export " + type + " done  — password: " + d.exportPassword,
         "success",
       );
-      showToast("✅ Export ready  — check your downloads");
+      showToast("Export ready  — check your downloads");
     })
     .catch(function (err) {
-      showToast("❌ Export error: " + (err.message || "network"), "danger");
+      showToast("Export error: " + (err.message || "network"), "danger");
     });
 }
 // Legacy alias (keep in case anything still calls exportData)
@@ -1492,12 +1570,11 @@ function pingServer() {
     .then(function (r) {
       var ms = Date.now() - start;
       document.getElementById("ping-result").innerHTML =
-        "⚠️ Server responded in <strong>" + ms + "ms</strong>";
+        '<re-icon icon="alert-triangle"></re-icon> Server responded in <strong>' + ms + "ms</strong>";
       logLine("Ping: " + ms + "ms", "success");
     })
     .catch(function () {
-      document.getElementById("ping-result").textContent =
-        "⚠️ Server not responding";
+      document.getElementById("ping-result").innerHTML = '<re-icon icon="alert-triangle"></re-icon> Server not responding';
       logLine("Ping failed  — server offline?", "danger");
     });
 }
@@ -1505,21 +1582,18 @@ function checkDB() {
   apiCall("GET", "/dashboard/summary")
     .then(function (d) {
       if (d.students !== undefined) {
-        document.getElementById("ping-result").textContent =
-          "⚠️ MongoDB connected  — " +
+        document.getElementById("ping-result").innerHTML = '<re-icon icon="alert-triangle"></re-icon> MongoDB connected  — ' +
           d.students +
           " students, " +
           d.teachers +
           " teachers";
         logLine("DB check: Connected  — ", "success");
       } else {
-        document.getElementById("ping-result").textContent =
-          "⚠️ DB response unexpected";
+        document.getElementById("ping-result").innerHTML = '<re-icon icon="alert-triangle"></re-icon> DB response unexpected';
       }
     })
     .catch(function () {
-      document.getElementById("ping-result").textContent =
-        "⚠️ DB connection failed";
+      document.getElementById("ping-result").innerHTML = '<re-icon icon="alert-triangle"></re-icon> DB connection failed';
       logLine("DB check: Failed", "danger");
     });
 }
@@ -1542,7 +1616,7 @@ function loadHealth() {
       var dbVal = document.getElementById("hc-db-val");
       if (dbDot)
         dbDot.className = "health-dot " + (d.dbConnected ? "green" : "red");
-      if (dbVal) dbVal.textContent = d.dbStatus || "ℹ️ ";
+      if (dbVal) dbVal.textContent = d.dbStatus || "—";
       var up = document.getElementById("hc-uptime");
       if (up) {
         var s = d.serverUptime || 0;
@@ -1608,13 +1682,13 @@ function loadHealth() {
               (e.userName ? " - " + e.userName : "") +
               (e.ip ? " - " + e.ip : "");
             return `
-<div class="error-log" style="--log-color:${col}">
-<span class="error-severity">[${e.severity.toUpperCase()}]</span>
+<div class="error-log" style="--log-color:${escapeHtml(col)}">
+<span class="error-severity">[${escapeHtml(e.severity ? e.severity.toUpperCase() : '')}]</span>
 <div class="error-content">
-<div class="error-title">${e.action} — ${e.details}</div>
-<div class="error-meta">${meta}</div>
+<div class="error-title">${escapeHtml(e.action || '')} — ${escapeHtml(e.details || '')}</div>
+<div class="error-meta">${escapeHtml(meta || '')}</div>
 </div>
-<button class="error-delete" onclick="deleteSingleErrorLog('${e._id}', this)" title="Delete">✖</button>
+<button class="error-delete" onclick="deleteSingleErrorLog('${escapeHtml(e._id || '')}', this)" title="Delete"><re-icon icon="x"></re-icon></button>
 </div>
 `;
           })
@@ -1703,7 +1777,7 @@ function deleteSingleErrorLog(id, btn) {
 // — — Clear all error/warning logs (from overview card)
 function clearErrorLogs() {
   openConfirmEx({
-    icon: "🛠️",
+    icon: '<re-icon icon="settings"></re-icon>',
     title: "Clear All Error Logs?",
     body: "This will permanently delete all warning, error, and critical log entries. System and info logs are preserved.",
     btn: "Clear Logs",
@@ -1734,12 +1808,12 @@ function clearErrorLogs() {
         .then(function () {
           closeConfirm();
           logLine("All error/warning logs cleared", "warn");
-          showToast("⚠️ Error logs cleared");
+          showToast("Error logs cleared");
           loadHealth();
         })
         .catch(function (e) {
           closeConfirm();
-          showToast("❌ Clear failed: " + (e.message || "network"));
+          showToast("Clear failed: " + (e.message || "network"));
         });
     },
   });
@@ -1749,15 +1823,15 @@ function deleteSingleErrorLog(id, btn) {
   apiCall("DELETE", "/logs/" + id)
     .then(function (d) {
       if (d && d.deleted) {
-        showToast("⚠️ Log entry deleted");
+        showToast("Log entry deleted");
         loadHealth();
       } else {
-        showToast("❌ Delete failed");
+        showToast("Delete failed");
         if (btn) btn.disabled = false;
       }
     })
     .catch(function () {
-      showToast("❌ Delete failed");
+      showToast("Delete failed");
       if (btn) btn.disabled = false;
     });
 }
@@ -1765,17 +1839,27 @@ function deleteSingleErrorLog(id, btn) {
 function openConfirmEx(cfg) {
   currentAction = "__custom__";
   window._customConfirmFn = cfg.onConfirm;
-  document.getElementById("m-icon").textContent = cfg.icon || "⚠️";
-  document.getElementById("m-title").textContent = cfg.title || "Are you sure?";
-  document.getElementById("m-body").textContent =
-    cfg.body || "This cannot be undone.";
-  document.getElementById("m-input").value = "";
-  document.getElementById("m-progress").style.display = "none";
+  window._customRequireText = Boolean(cfg.requireText);
+  var iconEl = document.getElementById("m-icon");
+  if (iconEl) iconEl.innerHTML = cfg.icon || '<re-icon icon="alert-triangle"></re-icon>';
+  var titleEl = document.getElementById("m-title");
+  if (titleEl) titleEl.textContent = cfg.title || "Are you sure?";
+  var bodyEl = document.getElementById("m-body");
+  if (bodyEl) bodyEl.textContent = cfg.body || "This cannot be undone.";
+  var inputWrap = document.getElementById("m-input-wrap");
+  if (inputWrap) inputWrap.style.display = cfg.requireText ? "block" : "none";
+  var inputEl = document.getElementById("m-input");
+  if (inputEl) inputEl.value = "";
+  var progEl = document.getElementById("m-progress");
+  if (progEl) progEl.style.display = "none";
   var btn = document.getElementById("m-confirm-btn");
-  btn.textContent = cfg.btn || "Confirm";
-  btn.className = "btn " + (cfg.cls || "btn-danger");
-  btn.disabled = false;
-  document.getElementById("confirm-modal").classList.add("open");
+  if (btn) {
+    btn.textContent = cfg.btn || "Confirm";
+    btn.className = "btn " + (cfg.cls || "btn-danger");
+    btn.disabled = false;
+  }
+  var modal = document.getElementById("confirm-modal");
+  if (modal) modal.classList.add("open");
 }
 
 // Backup page
@@ -1799,15 +1883,15 @@ function loadBackupPage() {
       var ld = document.getElementById("bk-last-date");
       if (ld) ld.textContent = new Date(last.time).toLocaleDateString("en-IN");
       var lb = document.getElementById("bk-last-by");
-      if (lb) lb.textContent = last.userName || "ℹ️ ";
+      if (lb) lb.textContent = last.userName || "—";
       var ldocs = document.getElementById("bk-last-docs");
       if (ldocs)
-        ldocs.textContent = (last.details || "ℹ️ ").split(" docs")[0] || "ℹ️ ";
+        ldocs.textContent = (last.details || "—").split(" docs")[0] || "—";
       list.innerHTML = logs
         .map(function (l) {
           return (
             '<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;background:#f8fafc;border-radius:10px;border:1px solid #e2e8f0;">' +
-            '<div><div style="font-weight:600;font-size:13px;color:var(--td);">⚠️ ' +
+            '<div><div style="font-weight:600;font-size:13px;color:var(--td);"><re-icon icon="alert-triangle"></re-icon> ' +
             (l.details || "Full backup") +
             "</div>" +
             '<div style="font-size:11px;color:var(--tmu);">' +
@@ -1836,33 +1920,44 @@ function createBackup() {
   var resultBox = document.getElementById("bk-result-box");
   var resultDet = document.getElementById("bk-result-details");
   var pwEl = document.getElementById("bk-password-display");
+  var driveLink = document.getElementById("bk-drive-link");
+  var dlBtn = document.getElementById("bk-download-btn");
+  var mailTarget = document.getElementById("bk-mail-target");
+
   if (btn) btn.disabled = true;
   if (resultBox) resultBox.style.display = "none";
   if (progWrap) progWrap.style.display = "block";
   var pct = 0;
   var stages = [
     "Connecting to database…",
-    "Fetching students…",
-    "Fetching teachers…",
-    "Fetching departments & classes…",
-    "Fetching attendance records…",
-    "Compressing payload…",
-    "Uploading to Google Drive (stub)…",
-    "Mailing password (stub)…",
+    "Fetching all collections…",
+    "Encrypting payload with AES-256-GCM…",
+    "Building secure .zip archive…",
+    "Uploading to Google Drive cloud…",
+    "Mailing report with device telemetry to Sudo Admin…",
+    "Recording audit action…"
   ];
   var fakeTimer = setInterval(function () {
-    pct = Math.min(pct + 4, 85);
+    pct = Math.min(pct + 5, 88);
     if (progFill) progFill.style.width = pct + "%";
     if (progLabel)
       progLabel.textContent =
-        stages[Math.min(Math.floor(pct / 12), stages.length - 1)];
-  }, 400);
+        stages[Math.min(Math.floor(pct / 13), stages.length - 1)];
+  }, 450);
+
+  var clientDeviceInfo = {
+    screen: window.screen ? (window.screen.width + "x" + window.screen.height) : "",
+    os: (navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || "",
+    browser: navigator.userAgent || ""
+  };
+
   fetch("/api/system/backup", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       Authorization: "Bearer " + tok,
     },
+    body: JSON.stringify({ clientDeviceInfo: clientDeviceInfo })
   })
     .then(function (r) {
       return r.json();
@@ -1872,212 +1967,723 @@ function createBackup() {
       if (progFill) progFill.style.width = "100%";
       if (d.error) {
         if (progLabel) progLabel.textContent = "Error: " + d.error;
-        showToast("❌ Backup failed: " + d.error, "danger");
+        showToast("Backup failed: " + d.error, "danger");
         if (btn) btn.disabled = false;
         return;
       }
       setTimeout(function () {
         if (progWrap) progWrap.style.display = "none";
         if (resultBox) resultBox.style.display = "block";
-        if (pwEl) pwEl.textContent = d.backupPassword || "ℹ️ ";
+        if (pwEl) pwEl.textContent = d.backupPassword || "—";
+        if (driveLink && d.driveUrl) driveLink.href = d.driveUrl;
+        if (dlBtn && d.downloadUrl) dlBtn.href = d.downloadUrl;
+        if (mailTarget) {
+          mailTarget.textContent = (d.adminEmail || "Sudo Admin") + (d.emailDispatched ? " (✓ Delivered via Gmail)" : " (Logged)");
+        }
+
         var cols = d.collections || {};
-        if (resultDet)
+        if (resultDet) {
           resultDet.innerHTML =
-            "Total docs: <strong>" +
-            d.totalDocs +
-            "</strong>" +
-            " | Students: " +
-            cols.students +
-            " | Teachers: " +
-            cols.teachers +
-            " | Departments: " +
-            cols.departments +
-            " | Classes: " +
-            cols.classes +
-            "<br><em>GDrive upload: wire uploadToGDrive() - Password mail: wire sendMail() to activate</em>";
+            "Total Records Backed Up: <strong>" + (d.totalDocs || 0) + "</strong> (" + (d.zipSizeMB || "—") + " MB)" +
+            "<br><span style='font-size:11.5px;color:#475569;'>Students: " + (cols.students || 0) +
+            " &bull; Teachers: " + (cols.teachers || 0) +
+            " &bull; Classes: " + (cols.classes || 0) +
+            " &bull; Attendance: " + ((cols.classAttendance || 0) + (cols.studentAttendance || 0)) +
+            " &bull; Timetables: " + (cols.timetables || 0) + "</span>" +
+            (d.driveUrl ? "<br><span style='color:#059669;font-weight:600;'>&#9729; Synced to Google Drive folder: backup</span>" : "");
+        }
+
         logLine(
-          "Backup created  — " +
+          "Backup created & synced — " +
           d.totalDocs +
-          " docs | pw: " +
-          d.backupPassword,
+          " docs | GDrive: " +
+          (d.driveFileId || "synced") +
+          " | Sudo Mail: " +
+          (d.adminEmail || "dispatched"),
           "success",
         );
-        showToast("✅ Backup created  — " + d.totalDocs + " docs");
+        showToast("Backup created & synced to Google Drive (" + d.totalDocs + " docs)");
         loadBackupPage();
       }, 500);
       if (btn) btn.disabled = false;
     })
     .catch(function (err) {
       clearInterval(fakeTimer);
-      if (progLabel) progLabel.textContent = "Backup failed  — check server";
-      showToast("❌ Backup error: " + (err.message || "network"), "danger");
+      if (progLabel) progLabel.textContent = "Backup failed — check server";
+      showToast("Backup error: " + (err.message || "network"), "danger");
       if (btn) btn.disabled = false;
     });
 }
 
-// Undo page
-var _undoData = [];
-var _undoFilter = "all";
-function loadUndoPage() {
+// ==========================================
+// RECYCLE BIN CONTROLLER (formerly Undo)
+// ==========================================
+var _recycleData = [];
+var _recycleStats = null;
+var _recycleCategory = "all";
+var _recycleSearch = "";
+var _recycleSort = "newest";
+var _recycleSelectedIds = new Set();
+var _recycleCurrentInspectEntry = null;
+
+function loadRecycleBinPage() {
   var tok = sessionStorage.getItem("eams_token") || TOKEN || "";
-  var list = document.getElementById("undo-list");
-  if (list)
+  var list = document.getElementById("recycle-bin-list") || document.getElementById("undo-list");
+  if (list) {
     list.innerHTML =
-      '<div style="color:var(--tmu);font-size:13px;text-align:center;padding:30px 0;">Loading…</div>';
-  fetch("/api/undo", { headers: { Authorization: "Bearer " + tok } })
+      '<div style="color:var(--tmu);font-size:13px;text-align:center;padding:30px 0;"><re-icon icon="refresh" size="18"></re-icon> Loading Recycle Bin…</div>';
+  }
+
+  fetch("/api/recycle-bin", { headers: { Authorization: "Bearer " + tok } })
     .then(function (r) {
       return r.json();
     })
     .then(function (data) {
-      _undoData = data || [];
-      renderUndoList();
+      if (Array.isArray(data)) {
+        _recycleData = data;
+        _recycleStats = null;
+      } else if (data && data.items) {
+        _recycleData = data.items || [];
+        _recycleStats = data.stats || null;
+      } else {
+        _recycleData = [];
+        _recycleStats = null;
+      }
+      _recycleSelectedIds.clear();
+      updateRecycleBadge(_recycleStats ? _recycleStats.total : _recycleData.length);
+      renderRecycleBin();
     })
     .catch(function () {
-      if (list)
+      if (list) {
         list.innerHTML =
-          '<div style="color:#dc2626;font-size:13px;text-align:center;padding:20px 0;">Failed to load undo entries.</div>';
+          '<div style="color:#dc2626;font-size:13px;text-align:center;padding:24px 0;"><re-icon icon="alert-triangle"></re-icon> Failed to load recycle bin entries. Please verify network or authentication.</div>';
+      }
     });
 }
-function filterUndo(col, btn) {
-  _undoFilter = col;
-  document.querySelectorAll(".undo-filter-btn").forEach(function (b) {
+
+// Backward-compatibility alias
+function loadUndoPage() {
+  loadRecycleBinPage();
+}
+
+function updateRecycleBadge(count) {
+  var badge = document.getElementById("sb-recycle-badge");
+  if (!badge) return;
+  if (typeof count === "number") {
+    badge.textContent = count > 99 ? "99+" : String(count);
+    badge.style.display = count > 0 ? "inline-block" : "none";
+  } else {
+    // Background fetch count if not supplied
+    var tok = sessionStorage.getItem("eams_token") || TOKEN || "";
+    if (!tok) return;
+    fetch("/api/recycle-bin", { headers: { Authorization: "Bearer " + tok } })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        var num = Array.isArray(data) ? data.length : (data && data.stats ? data.stats.total : (data.items ? data.items.length : 0));
+        badge.textContent = num > 99 ? "99+" : String(num);
+        badge.style.display = num > 0 ? "inline-block" : "none";
+      })
+      .catch(function () {});
+  }
+}
+
+function filterRecycleCategory(cat, btn) {
+  _recycleCategory = cat || "all";
+  document.querySelectorAll("#rb-category-pills .undo-filter-btn").forEach(function (b) {
     b.classList.remove("act");
   });
   if (btn) btn.classList.add("act");
-  renderUndoList();
+  renderRecycleBin();
 }
-function renderUndoList() {
-  var list = document.getElementById("undo-list");
+
+function onRecycleSearchInput(val) {
+  _recycleSearch = (val || "").toLowerCase().trim();
+  var clearBtn = document.getElementById("rb-search-clear");
+  if (clearBtn) clearBtn.style.display = _recycleSearch ? "block" : "none";
+  renderRecycleBin();
+}
+
+function clearRecycleSearch() {
+  var input = document.getElementById("rb-search-input");
+  if (input) input.value = "";
+  onRecycleSearchInput("");
+}
+
+function onRecycleSortChange(val) {
+  _recycleSort = val || "newest";
+  renderRecycleBin();
+}
+
+function toggleRecycleSelectAll(checked) {
+  var visibleItems = getFilteredRecycleItems();
+  if (checked) {
+    visibleItems.forEach(function (item) {
+      _recycleSelectedIds.add(String(item._id));
+    });
+  } else {
+    _recycleSelectedIds.clear();
+  }
+  updateBulkBar();
+  renderRecycleBinCardsOnly();
+}
+
+function toggleRecycleItemSelection(id, checked) {
+  var idStr = String(id);
+  if (checked) _recycleSelectedIds.add(idStr);
+  else _recycleSelectedIds.delete(idStr);
+  updateBulkBar();
+  renderRecycleBinCardsOnly();
+}
+
+function updateBulkBar() {
+  var bulkBar = document.getElementById("rb-bulk-bar");
+  var countEl = document.getElementById("rb-selected-count");
+  var selectAllCb = document.getElementById("rb-select-all-cb");
+  var sz = _recycleSelectedIds.size;
+
+  if (bulkBar) bulkBar.style.display = sz > 0 ? "flex" : "none";
+  if (countEl) countEl.textContent = sz + " item" + (sz === 1 ? "" : "s") + " selected";
+
+  var visibleItems = getFilteredRecycleItems();
+  if (selectAllCb) {
+    selectAllCb.checked = visibleItems.length > 0 && visibleItems.every(function (item) {
+      return _recycleSelectedIds.has(String(item._id));
+    });
+  }
+}
+
+function getFilteredRecycleItems() {
+  return _recycleData.filter(function (x) {
+    var col = (x.collectionName || "").toLowerCase();
+    var matchCat = true;
+    if (_recycleCategory !== "all") {
+      if (_recycleCategory === "timetable") {
+        matchCat = col === "timetable" || col === "timetables" || col === "rooms" || col === "room";
+      } else if (_recycleCategory === "other") {
+        var known = ["departments", "classes", "subjects", "students", "teachers", "users", "years", "assignments", "exams", "timetable", "timetables", "rooms"];
+        matchCat = !known.includes(col);
+      } else {
+        matchCat = col.startsWith(_recycleCategory);
+      }
+    }
+    if (!matchCat) return false;
+
+    if (_recycleSearch) {
+      var label = (x.label || "").toLowerCase();
+      var author = (x.deletedBy || "").toLowerCase();
+      var id = String(x._id || "").toLowerCase();
+      var matchQuery = label.includes(_recycleSearch) || author.includes(_recycleSearch) || col.includes(_recycleSearch) || id.includes(_recycleSearch);
+      if (!matchQuery) return false;
+    }
+    return true;
+  });
+}
+
+function renderRecycleBin() {
+  var list = document.getElementById("recycle-bin-list") || document.getElementById("undo-list");
   if (!list) return;
-  var items =
-    _undoFilter === "all"
-      ? _undoData
-      : _undoData.filter(function (x) {
-        return x.collectionName === _undoFilter;
-      });
+
+  var items = getFilteredRecycleItems();
+
+  // Sorting
+  var now = Date.now();
+  items.sort(function (a, b) {
+    if (_recycleSort === "oldest") {
+      return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+    }
+    if (_recycleSort === "expiring") {
+      var expA = a.expiresAt ? new Date(a.expiresAt).getTime() : now + 864000000;
+      var expB = b.expiresAt ? new Date(b.expiresAt).getTime() : now + 864000000;
+      return expA - expB;
+    }
+    if (_recycleSort === "name") {
+      return (a.label || "").localeCompare(b.label || "");
+    }
+    // Default newest
+    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+  });
+
+  // Update Metrics
+  var statTotal = document.getElementById("rb-stat-total");
+  var statExpiring = document.getElementById("rb-stat-expiring");
+  var statTypes = document.getElementById("rb-stat-types");
+
+  var expiringCount = 0;
+  var distinctTypes = new Set();
+  _recycleData.forEach(function (e) {
+    distinctTypes.add((e.collectionName || "").toLowerCase());
+    if (e.expiresAt) {
+      var diff = new Date(e.expiresAt).getTime() - now;
+      if (diff <= 2 * 24 * 60 * 60 * 1000) expiringCount++;
+    }
+  });
+
+  if (statTotal) statTotal.textContent = String(_recycleData.length);
+  if (statExpiring) statExpiring.textContent = String(expiringCount);
+  if (statTypes) statTypes.textContent = distinctTypes.size > 0 ? distinctTypes.size + " Categories" : "All Entities";
+
+  // Update Category Pill Counts
+  var counts = { all: _recycleData.length };
+  _recycleData.forEach(function (e) {
+    var c = (e.collectionName || "").toLowerCase();
+    if (c.startsWith("dept")) counts.departments = (counts.departments || 0) + 1;
+    else if (c.startsWith("class")) counts.classes = (counts.classes || 0) + 1;
+    else if (c.startsWith("subj")) counts.subjects = (counts.subjects || 0) + 1;
+    else if (c.startsWith("student")) counts.students = (counts.students || 0) + 1;
+    else if (c.startsWith("teacher")) counts.teachers = (counts.teachers || 0) + 1;
+    else if (c.startsWith("user")) counts.users = (counts.users || 0) + 1;
+    else if (c.startsWith("year")) counts.years = (counts.years || 0) + 1;
+    else if (c.startsWith("asgn") || c.startsWith("assign")) counts.assignments = (counts.assignments || 0) + 1;
+    else if (c.startsWith("exam")) counts.exams = (counts.exams || 0) + 1;
+    else if (c.startsWith("time") || c.startsWith("room")) counts.timetable = (counts.timetable || 0) + 1;
+    else counts.other = (counts.other || 0) + 1;
+  });
+
+  var pillKeys = ["all", "departments", "classes", "subjects", "students", "teachers", "users", "years", "assignments", "exams", "timetable", "other"];
+  pillKeys.forEach(function (k) {
+    var el = document.getElementById("rb-cnt-" + k);
+    if (el) el.textContent = String(counts[k] || 0);
+  });
+
+  // Header buttons visibility
+  var restoreAllBtn = document.getElementById("rb-restore-all-btn");
+  var emptyBtn = document.getElementById("rb-empty-btn");
+  if (restoreAllBtn) restoreAllBtn.style.display = _recycleData.length > 0 ? "inline-flex" : "none";
+  if (emptyBtn) emptyBtn.style.display = _recycleData.length > 0 ? "inline-flex" : "none";
+
+  updateBulkBar();
+
+  // Render cards
   if (!items.length) {
+    var emptyMsg = _recycleData.length === 0
+      ? "Your Recycle Bin is empty. No deleted records found."
+      : "No deleted items match the selected filter or search criteria.";
     list.innerHTML =
-      '<div style="color:var(--tmu);font-size:13px;text-align:center;padding:30px 0;">No restorable deletions' +
-      (_undoFilter !== "all" ? " for " + _undoFilter : "") +
-      ".</div>";
+      '<div class="rb-empty-state">' +
+      '<div class="rb-empty-icon"><re-icon icon="trash2"></re-icon></div>' +
+      '<div style="font-weight:700;font-size:15px;color:var(--td);margin-bottom:4px;">No Records in Recycle Bin</div>' +
+      '<div style="font-size:12.5px;color:var(--tmu);max-width:380px;">' + emptyMsg + '</div>' +
+      '</div>';
     return;
   }
-  var colIcons = {
-    departments: "🧑‍🏫",
-    classes: "🎓",
-    subjects: "🛠️",
-    students: "🎓",
-    teachers: "🧑‍🏫",
+
+  var colConfig = {
+    departments: { cls: "dept", icon: "chalkboard", label: "Department" },
+    classes: { cls: "class", icon: "users", label: "Class" },
+    subjects: { cls: "subj", icon: "book-open", label: "Subject" },
+    students: { cls: "student", icon: "graduation-cap", label: "Student" },
+    teachers: { cls: "teacher", icon: "teacher", label: "Teacher" },
+    users: { cls: "user", icon: "user", label: "User Account" },
+    years: { cls: "year", icon: "calendar-days", label: "Academic Year" },
+    assignments: { cls: "asgn", icon: "clipboard-list", label: "Assignment" },
+    exams: { cls: "exam", icon: "alert-triangle", label: "Exam" },
+    timetable: { cls: "timetable", icon: "grid", label: "Timetable Slot" },
+    timetables: { cls: "timetable", icon: "grid", label: "Timetable" },
+    rooms: { cls: "timetable", icon: "building2", label: "Room" },
+    calendar: { cls: "year", icon: "calendar-days", label: "Calendar Override" },
+    notifications: { cls: "other", icon: "bullhorn", label: "Notification" },
+    attendance: { cls: "student", icon: "check-circle", label: "Attendance" }
   };
-  var now = Date.now();
+
   list.innerHTML = items
     .map(function (e) {
-      var daysLeft = Math.ceil(
-        (new Date(e.expiresAt).getTime() - now) / 86400000,
-      );
-      var urgency =
-        daysLeft <= 2 ? "#dc2626" : daysLeft <= 5 ? "#d97706" : "#16a34a";
+      var colKey = (e.collectionName || "other").toLowerCase();
+      var cfg = colConfig[colKey] || { cls: "other", icon: "settings", label: e.collectionName || "Item" };
+
+      var expTime = e.expiresAt ? new Date(e.expiresAt).getTime() : now + 10 * 86400000;
+      var msLeft = expTime - now;
+      var daysLeft = Math.ceil(msLeft / 86400000);
+      var hoursLeft = Math.max(0, Math.ceil(msLeft / 3600000));
+
+      var countdownText = "";
+      var urgencyClass = "safe";
+      if (daysLeft > 2) {
+        countdownText = daysLeft + " days left";
+        urgencyClass = daysLeft <= 5 ? "medium" : "safe";
+      } else if (hoursLeft > 0) {
+        countdownText = hoursLeft + "h left (Auto-purge)";
+        urgencyClass = "danger";
+      } else {
+        countdownText = "Expiring soon";
+        urgencyClass = "danger";
+      }
+
+      var isSelected = _recycleSelectedIds.has(String(e._id));
+      var cardClass = "rb-card" + (isSelected ? " selected" : "");
+
+      var createdDate = new Date(e.createdAt || Date.now());
+      var dateDisp = createdDate.toLocaleDateString("en-IN", { month: "short", day: "numeric", year: "numeric" });
+      var timeDisp = createdDate.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
+
       return (
-        '<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;background:#fff;border-radius:10px;border:1.5px solid #e2e8f0;">' +
-        '<div style="display:flex;align-items:center;gap:10px;">' +
-        '<span style="font-size:20px;">' +
-        (colIcons[e.collectionName] || "🛠️") +
-        "</span>" +
-        '<div><div style="font-weight:600;font-size:13px;color:var(--td);">' +
-        e.label +
-        "</div>" +
-        '<div style="font-size:11px;color:var(--tmu);">' +
-        e.collectionName +
-        " - deleted by " +
-        (e.deletedBy || "admin") +
-        " - " +
-        new Date(e.createdAt).toLocaleString("en-IN") +
-        "</div></div></div>" +
-        '<div style="display:flex;align-items:center;gap:8px;">' +
-        '<span style="font-size:11px;font-weight:700;color:' +
-        urgency +
-        ';">' +
-        daysLeft +
-        "d left</span>" +
-        "<button onclick=\"doUndo('" +
-        e._id +
-        '\', this)" class="btn btn-pri btn-sm">✅ Restore</button>' +
-        "<button onclick=\"dismissUndo('" +
-        e._id +
-        '\', this)" class="btn btn-out btn-sm" style="color:#dc2626;border-color:#fca5a5;">✖</button>' +
-        "</div></div>"
+        '<div class="' + cardClass + '" id="rb-card-' + e._id + '">' +
+        '  <div style="display:flex;align-items:center;gap:12px;flex:1;min-width:0;">' +
+        '    <input type="checkbox" onchange="toggleRecycleItemSelection(\'' + e._id + '\', this.checked)" ' +
+        (isSelected ? "checked " : "") + 'style="cursor:pointer;width:16px;height:16px;flex-shrink:0;">' +
+        '    <div style="flex:1;min-width:0;">' +
+        '      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:3px;">' +
+        '        <span class="rb-type-badge ' + cfg.cls + '"><re-icon icon="' + cfg.icon + '" size="12"></re-icon> ' + cfg.label + '</span>' +
+        '        <span class="rb-urgency-pill ' + urgencyClass + '"><re-icon icon="clock" size="11"></re-icon> ' + countdownText + '</span>' +
+        '      </div>' +
+        '      <div style="font-weight:700;font-size:13.5px;color:var(--td);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="' + (e.label || "").replace(/"/g, "&quot;") + '">' +
+        (e.label || "Untitled Record") +
+        '      </div>' +
+        '      <div style="font-size:11px;color:var(--tmu);margin-top:2px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">' +
+        '        <span>Deleted by <strong>' + (e.deletedBy || "admin") + '</strong></span>' +
+        '        <span>&bull;</span>' +
+        '        <span>' + dateDisp + ' at ' + timeDisp + '</span>' +
+        '        <span>&bull;</span>' +
+        '        <span style="font-family:\'JetBrains Mono\',monospace;font-size:10.5px;color:#64748b;">ID: ' + String(e._id).slice(-6) + '</span>' +
+        '      </div>' +
+        '    </div>' +
+        '  </div>' +
+        '  <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">' +
+        '    <button onclick="openRecycleInspectModal(\'' + e._id + '\')" class="btn btn-out btn-sm" title="Inspect Record Data" style="padding:6px 10px;">' +
+        '      <re-icon icon="eye" size="13"></re-icon> Inspect' +
+        '    </button>' +
+        '    <button onclick="doRestoreRecycleItem(\'' + e._id + '\', \'' + (e.label || "Record").replace(/'/g, "\\'") + '\')" class="btn btn-pri btn-sm" title="Restore this record back to database">' +
+        '      <re-icon icon="check-circle" size="13"></re-icon> Restore' +
+        '    </button>' +
+        '    <button onclick="doPermanentDeleteRecycleItem(\'' + e._id + '\', \'' + (e.label || "Record").replace(/'/g, "\\'") + '\')" class="btn btn-danger btn-sm" style="padding:6px 10px;" title="Permanently delete forever">' +
+        '      <re-icon icon="trash2" size="13"></re-icon>' +
+        '    </button>' +
+        '  </div>' +
+        '</div>'
       );
     })
     .join("");
 }
-function doUndo(id, btn) {
+
+function renderRecycleBinCardsOnly() {
+  var visibleItems = getFilteredRecycleItems();
+  visibleItems.forEach(function (e) {
+    var card = document.getElementById("rb-card-" + e._id);
+    if (card) {
+      var isSelected = _recycleSelectedIds.has(String(e._id));
+      if (isSelected) card.classList.add("selected");
+      else card.classList.remove("selected");
+      var cb = card.querySelector("input[type=checkbox]");
+      if (cb) cb.checked = isSelected;
+    }
+  });
+}
+
+function doRestoreRecycleItem(id, label) {
   openConfirmEx({
-    icon: "✅",
+    icon: '<re-icon icon="check-circle"></re-icon>',
     title: "Restore Record?",
-    body: "This will re-insert the deleted record back into the database with a fresh ID. All fields will be restored.",
-    btn: "✅ Restore",
+    body: "Re-insert \"" + (label || "this record") + "\" back into the active database with all original associations?",
+    btn: "Restore Record",
     cls: "btn-pri",
+    requireText: false,
     onConfirm: function () {
-      if (btn) btn.disabled = true;
-      showProgress("Restoring record…", 30);
+      showProgress("Restoring record…", 40);
       var tok = sessionStorage.getItem("eams_token") || TOKEN || "";
-      fetch("/api/undo/" + id, {
+      fetch("/api/recycle-bin/" + id + "/restore", {
         method: "POST",
-        headers: { Authorization: "Bearer " + tok },
+        headers: { Authorization: "Bearer " + tok, "Content-Type": "application/json" }
       })
-        .then(function (r) {
-          return r.json();
-        })
+        .then(function (r) { return r.json(); })
         .then(function (d) {
           showProgress("Done!", 100);
           setTimeout(function () {
             closeConfirm();
             if (d.error) {
-              showToast("❌ Restore failed: " + d.error);
-              if (btn) btn.disabled = false;
+              showToast("Restore failed: " + d.error, "danger");
               return;
             }
-            showToast("✅ Restored: " + d.label);
-            logLine("Undo restore: " + d.label, "success");
-            loadUndoPage();
+            showToast("Successfully restored: " + (d.label || label), "success");
+            logLine("Recycle bin restored: " + (d.label || label), "success");
+            loadRecycleBinPage();
+          }, 350);
+        })
+        .catch(function (err) {
+          closeConfirm();
+          showToast("Error: " + (err.message || "Network issue"), "danger");
+        });
+    }
+  });
+}
+
+function doPermanentDeleteRecycleItem(id, label) {
+  openConfirmEx({
+    icon: '<re-icon icon="trash2"></re-icon>',
+    title: "Permanently Delete Record?",
+    body: "Warning: Permanently purging \"" + (label || "this record") + "\" CANNOT be undone. The record will be permanently erased from the database.",
+    btn: "Delete Permanently",
+    cls: "btn-danger",
+    requireText: false,
+    onConfirm: function () {
+      showProgress("Permanently deleting…", 50);
+      var tok = sessionStorage.getItem("eams_token") || TOKEN || "";
+      fetch("/api/recycle-bin/" + id, {
+        method: "DELETE",
+        headers: { Authorization: "Bearer " + tok }
+      })
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          showProgress("Done!", 100);
+          setTimeout(function () {
+            closeConfirm();
+            if (d.error) {
+              showToast("Delete failed: " + d.error, "danger");
+              return;
+            }
+            showToast("Permanently purged: " + (label || "Record"), "success");
+            logLine("Recycle bin permanently purged: " + (label || "Record"), "warn");
+            loadRecycleBinPage();
+          }, 350);
+        })
+        .catch(function (err) {
+          closeConfirm();
+          showToast("Error: " + (err.message || "Failed to purge"), "danger");
+        });
+    }
+  });
+}
+
+function bulkRestoreSelected() {
+  var ids = Array.from(_recycleSelectedIds);
+  if (!ids.length) return;
+
+  openConfirmEx({
+    icon: '<re-icon icon="check-circle"></re-icon>',
+    title: "Restore Selected Records?",
+    body: "Re-insert " + ids.length + " selected record(s) back into active database collections?",
+    btn: "Restore " + ids.length + " Records",
+    cls: "btn-pri",
+    requireText: false,
+    onConfirm: function () {
+      showProgress("Restoring records…", 30);
+      var tok = sessionStorage.getItem("eams_token") || TOKEN || "";
+      fetch("/api/recycle-bin/bulk-restore", {
+        method: "POST",
+        headers: { Authorization: "Bearer " + tok, "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: ids })
+      })
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          showProgress("Done!", 100);
+          setTimeout(function () {
+            closeConfirm();
+            if (d.error) {
+              showToast("Bulk restore failed: " + d.error, "danger");
+              return;
+            }
+            showToast("Successfully restored " + d.restoredCount + " record(s)!", "success");
+            logLine("Bulk restored " + d.restoredCount + " records from Recycle Bin", "success");
+            _recycleSelectedIds.clear();
+            loadRecycleBinPage();
           }, 400);
         })
         .catch(function (err) {
           closeConfirm();
-          showToast("❌ Error: " + (err.message || "network"));
-          if (btn) btn.disabled = false;
+          showToast("Error: " + (err.message || "network"), "danger");
         });
-    },
+    }
   });
 }
-function dismissUndo(id, btn) {
+
+function bulkDeleteSelectedPermanently() {
+  var ids = Array.from(_recycleSelectedIds);
+  if (!ids.length) return;
+
   openConfirmEx({
-    icon: "🛠️",
-    title: "Discard Undo Entry?",
-    body: "This will permanently delete the undo entry. The record cannot be recovered once discarded.",
-    btn: "⚠️ Discard",
+    icon: '<re-icon icon="trash2"></re-icon>',
+    title: "Permanently Delete Selected?",
+    body: "This will permanently erase " + ids.length + " selected record(s). This operation CANNOT be undone.",
+    btn: "Permanently Delete (" + ids.length + ")",
     cls: "btn-danger",
+    requireText: false,
     onConfirm: function () {
-      showProgress("Discarding entry…", 50);
+      showProgress("Purging records…", 40);
       var tok = sessionStorage.getItem("eams_token") || TOKEN || "";
-      fetch("/api/undo/" + id, {
-        method: "DELETE",
-        headers: { Authorization: "Bearer " + tok },
+      fetch("/api/recycle-bin/bulk-delete", {
+        method: "POST",
+        headers: { Authorization: "Bearer " + tok, "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: ids })
       })
-        .then(function () {
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
           showProgress("Done!", 100);
           setTimeout(function () {
             closeConfirm();
-            showToast("⚠️ Undo entry discarded");
-            loadUndoPage();
+            if (d.error) {
+              showToast("Bulk deletion failed: " + d.error, "danger");
+              return;
+            }
+            showToast("Permanently purged " + d.deletedCount + " record(s).", "success");
+            logLine("Permanently purged " + d.deletedCount + " records from Recycle Bin", "warn");
+            _recycleSelectedIds.clear();
+            loadRecycleBinPage();
+          }, 400);
+        })
+        .catch(function (err) {
+          closeConfirm();
+          showToast("Error: " + (err.message || "network"), "danger");
+        });
+    }
+  });
+}
+
+function confirmRestoreAll() {
+  var visibleItems = getFilteredRecycleItems();
+  if (!visibleItems.length) return;
+
+  var ids = visibleItems.map(function (x) { return x._id; });
+  openConfirmEx({
+    icon: '<re-icon icon="check-circle"></re-icon>',
+    title: "Restore All Records in View?",
+    body: "Re-insert all " + ids.length + " record(s) back into active database collections?",
+    btn: "Restore All (" + ids.length + ")",
+    cls: "btn-pri",
+    requireText: false,
+    onConfirm: function () {
+      showProgress("Restoring all records…", 20);
+      var tok = sessionStorage.getItem("eams_token") || TOKEN || "";
+      fetch("/api/recycle-bin/bulk-restore", {
+        method: "POST",
+        headers: { Authorization: "Bearer " + tok, "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: ids })
+      })
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          showProgress("Done!", 100);
+          setTimeout(function () {
+            closeConfirm();
+            showToast("Restored " + (d.restoredCount || 0) + " record(s)!", "success");
+            logLine("Restored " + (d.restoredCount || 0) + " records from Recycle Bin", "success");
+            _recycleSelectedIds.clear();
+            loadRecycleBinPage();
           }, 400);
         })
         .catch(function () {
           closeConfirm();
-          showToast("❌ Failed to discard");
+          showToast("Failed to restore all", "danger");
         });
-    },
+    }
   });
+}
+
+function confirmEmptyRecycleBin() {
+  var count = _recycleData.length;
+  if (!count) return;
+
+  openConfirmEx({
+    icon: '<re-icon icon="trash2"></re-icon>',
+    title: "Empty Entire Recycle Bin?",
+    body: "CRITICAL: This will permanently purge all " + count + " record(s) currently stored in the Recycle Bin. There is NO way to recover these documents once purged. Type CONFIRM below to proceed.",
+    btn: "Empty Recycle Bin Permanently",
+    cls: "btn-danger",
+    requireText: true,
+    onConfirm: function () {
+      showProgress("Emptying Recycle Bin…", 40);
+      var tok = sessionStorage.getItem("eams_token") || TOKEN || "";
+      fetch("/api/recycle-bin/empty", {
+        method: "DELETE",
+        headers: { Authorization: "Bearer " + tok }
+      })
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          showProgress("Done!", 100);
+          setTimeout(function () {
+            closeConfirm();
+            showToast("Recycle bin emptied (" + (d.purgedCount || 0) + " permanently removed)", "success");
+            logLine("Emptied Recycle Bin — " + (d.purgedCount || 0) + " documents purged", "warn");
+            _recycleSelectedIds.clear();
+            loadRecycleBinPage();
+          }, 400);
+        })
+        .catch(function () {
+          closeConfirm();
+          showToast("Failed to empty recycle bin", "danger");
+        });
+    }
+  });
+}
+
+function openRecycleInspectModal(id) {
+  var entry = _recycleData.find(function (x) { return String(x._id) === String(id); });
+  if (!entry) return;
+  _recycleCurrentInspectEntry = entry;
+
+  var modal = document.getElementById("recycle-inspect-modal");
+  var titleEl = document.getElementById("rb-inspect-title");
+  var subEl = document.getElementById("rb-inspect-sub");
+  var metaEl = document.getElementById("rb-inspect-meta");
+  var jsonEl = document.getElementById("rb-inspect-json");
+  var delBtn = document.getElementById("rb-inspect-del-btn");
+  var resBtn = document.getElementById("rb-inspect-restore-btn");
+
+  if (titleEl) titleEl.textContent = entry.label || "Deleted Record";
+  if (subEl) subEl.textContent = "Collection: " + (entry.collectionName || "unknown") + " • Deleted by " + (entry.deletedBy || "admin");
+
+  if (metaEl) {
+    var created = new Date(entry.createdAt || Date.now()).toLocaleString("en-IN");
+    var expires = entry.expiresAt ? new Date(entry.expiresAt).toLocaleDateString("en-IN") : "10 days";
+    metaEl.innerHTML =
+      '<div class="rb-inspect-chip"><div class="rb-inspect-chip-label">Collection</div><div class="rb-inspect-chip-val">' + (entry.collectionName || '—') + '</div></div>' +
+      '<div class="rb-inspect-chip"><div class="rb-inspect-chip-label">Deleted By</div><div class="rb-inspect-chip-val">' + (entry.deletedBy || 'admin') + '</div></div>' +
+      '<div class="rb-inspect-chip"><div class="rb-inspect-chip-label">Deleted Date</div><div class="rb-inspect-chip-val">' + created + '</div></div>' +
+      '<div class="rb-inspect-chip"><div class="rb-inspect-chip-label">Auto-Purge Date</div><div class="rb-inspect-chip-val">' + expires + '</div></div>';
+  }
+
+  if (jsonEl) {
+    jsonEl.textContent = JSON.stringify(entry.snapshot || {}, null, 2);
+  }
+
+  if (delBtn) {
+    delBtn.onclick = function () {
+      closeRecycleInspectModal();
+      doPermanentDeleteRecycleItem(entry._id, entry.label);
+    };
+  }
+
+  if (resBtn) {
+    resBtn.onclick = function () {
+      closeRecycleInspectModal();
+      doRestoreRecycleItem(entry._id, entry.label);
+    };
+  }
+
+  if (modal) {
+    modal.style.display = "flex";
+    modal.classList.add("open");
+  }
+}
+
+function closeRecycleInspectModal() {
+  var modal = document.getElementById("recycle-inspect-modal");
+  if (modal) {
+    modal.style.display = "none";
+    modal.classList.remove("open");
+  }
+  _recycleCurrentInspectEntry = null;
+}
+
+function copyRecycleInspectJson() {
+  if (!_recycleCurrentInspectEntry) return;
+  var str = JSON.stringify(_recycleCurrentInspectEntry.snapshot || {}, null, 2);
+  navigator.clipboard.writeText(str)
+    .then(function () {
+      showToast("Snapshot JSON copied to clipboard", "success");
+    })
+    .catch(function () {
+      showToast("Could not copy JSON", "warn");
+    });
+}
+
+// Legacy backward-compatibility stubs
+function doUndo(id, btn) {
+  var item = _recycleData.find(function (x) { return String(x._id) === String(id); });
+  doRestoreRecycleItem(id, item ? item.label : "Record");
+}
+function dismissUndo(id, btn) {
+  var item = _recycleData.find(function (x) { return String(x._id) === String(id); });
+  doPermanentDeleteRecycleItem(id, item ? item.label : "Record");
+}
+function filterUndo(col, btn) {
+  filterRecycleCategory(col, btn);
 }
 // — — Legacy saveBackup stub (runSteps calls this — no-op now)
 function saveBackup(label, data) {
@@ -2114,9 +2720,32 @@ var _ugState = {
 function ugInit() {
   if (!_ugState.isInitialized) {
     _ugState.isInitialized = true;
+    initUGSearchableDropdowns();
     ugLoadFilterOptions();
   }
   ugLoadData();
+}
+
+function initUGSearchableDropdowns() {
+  if (typeof SearchableDropdown === 'undefined') return;
+
+  SearchableDropdown.attach('ug-dept-filter', {
+    kind: 'dept',
+    placeholder: 'All Departments',
+    searchPlaceholder: 'Search department name, code…'
+  });
+
+  SearchableDropdown.attach('ug-class-filter', {
+    kind: 'class',
+    placeholder: 'All Classes',
+    searchPlaceholder: 'Search class, section, batch…'
+  });
+
+  SearchableDropdown.attach('ug-status-filter', {
+    kind: 'status',
+    placeholder: 'All Statuses',
+    searchPlaceholder: 'Search status…'
+  });
 }
 
 function ugLoadFilterOptions() {
@@ -2168,10 +2797,9 @@ function ugLoadFilterOptions() {
       }
     });
 
-  // Load departments for filter and modal dropdowns (supports both /api/depts and /api/departments)
-  fetch("/api/depts", { headers: h })
+  // Load departments for filter and modal dropdowns
+  fetch("/api/departments", { headers: h })
     .then(function (r) {
-      if (!r.ok) return fetch("/api/departments", { headers: h }).then(function (res) { return res.json(); });
       return r.json();
     })
     .then(function (depts) {
@@ -2196,7 +2824,10 @@ function ugLoadFilterOptions() {
             return '<option value="' + escapeHtml(val) + '" data-id="' + (d._id || '') + '" data-code="' + (d.code || '') + '">' + escapeHtml(label) + '</option>';
           }).join("");
 
-        if (deptFilter) deptFilter.innerHTML = filterOpts;
+        if (deptFilter) {
+          deptFilter.innerHTML = filterOpts;
+          if (typeof SearchableDropdown !== 'undefined') SearchableDropdown.sync('ug-dept-filter');
+        }
         if (stuDeptModal) stuDeptModal.innerHTML = modalOpts;
         if (tchDeptModal) tchDeptModal.innerHTML = modalOpts;
         if (admDeptModal) admDeptModal.innerHTML = modalOpts;
@@ -2219,7 +2850,10 @@ function ugLoadFilterOptions() {
             return '<option value="' + escapeHtml(val) + '">' + escapeHtml(label) + '</option>';
           }).join("");
 
-        if (classFilter) classFilter.innerHTML = filterOpts;
+        if (classFilter) {
+          classFilter.innerHTML = filterOpts;
+          if (typeof SearchableDropdown !== 'undefined') SearchableDropdown.sync('ug-class-filter');
+        }
         updateUGStuClassList();
       }
     })
@@ -2331,8 +2965,9 @@ function onUGStuRegNoChange() {
 
   var yr = regNo.substring(4, 6);
   var deptNum = regNo.substring(6, 9);
-  var acYear = '20' + yr + '-' + (parseInt(yr, 10) + 1);
-  var batch = '20' + yr + '-' + (parseInt(yr, 10) + 4);
+  var startYr = 2000 + parseInt(yr, 10);
+  var acYear = startYr + '-' + (startYr + 1);
+  var batch = startYr + '-' + (startYr + 4);
 
   var yrEl = document.getElementById("ug-e-stu-year");
   if (yrEl) {
@@ -2429,15 +3064,19 @@ function ugSetRole(role, btn) {
     if (defaultBtn) defaultBtn.classList.add("act");
   }
 
-  var clsFilter = document.getElementById("ug-class-filter");
-  var dateFilter = document.getElementById("ug-date-filter");
-  var deptFilter = document.getElementById("ug-dept-filter");
-  var statusFilter = document.getElementById("ug-status-filter");
+  var clsWrap = document.getElementById("ug-class-wrap") || document.getElementById("ug-class-filter");
+  var dateWrap = document.getElementById("ug-date-wrap") || document.getElementById("ug-date-filter");
+  var deptWrap = document.getElementById("ug-dept-wrap") || document.getElementById("ug-dept-filter");
+  var statusWrap = document.getElementById("ug-status-wrap") || document.getElementById("ug-status-filter");
 
-  if (clsFilter) clsFilter.style.display = (role === "student" || role === "attendance") ? "" : "none";
-  if (dateFilter) dateFilter.style.display = (role === "attendance") ? "" : "none";
-  if (deptFilter) deptFilter.style.display = (role !== "admin") ? "" : "none";
-  if (statusFilter) statusFilter.style.display = (role !== "attendance") ? "" : "none";
+  if (clsWrap) clsWrap.style.display = (role === "student" || role === "attendance") ? "" : "none";
+  if (dateWrap) dateWrap.style.display = (role === "attendance") ? "" : "none";
+  if (deptWrap) deptWrap.style.display = (role !== "admin") ? "" : "none";
+  if (statusWrap) statusWrap.style.display = (role !== "attendance") ? "" : "none";
+
+  if (typeof SearchableDropdown !== "undefined") {
+    SearchableDropdown.closeAll();
+  }
 
   ugLoadData();
 }
@@ -2451,10 +3090,33 @@ function ugOnFilterChange() {
   ugLoadData();
 }
 
+function ugApplyFilters() {
+  if (typeof ugOnFilterChange === "function") {
+    ugOnFilterChange();
+  } else if (typeof ugLoadData === "function") {
+    ugLoadData();
+  }
+}
+
+function ugClearSearch() {
+  var searchEl = document.getElementById("ug-search");
+  var clearBtn = document.getElementById("ug-search-clear");
+  if (searchEl) searchEl.value = "";
+  if (clearBtn) clearBtn.style.display = "none";
+  _ugState.search = "";
+  _ugState.page = 1;
+  ugLoadData();
+}
+
 function ugDebouncedSearch() {
+  var searchEl = document.getElementById("ug-search");
+  var clearBtn = document.getElementById("ug-search-clear");
+  if (clearBtn && searchEl) {
+    clearBtn.style.display = searchEl.value.trim().length ? "block" : "none";
+  }
+
   clearTimeout(_ugState.searchTimer);
   _ugState.searchTimer = setTimeout(function () {
-    var searchEl = document.getElementById("ug-search");
     _ugState.search = searchEl ? searchEl.value.trim() : "";
     _ugState.page = 1;
     ugLoadData();
@@ -2581,18 +3243,52 @@ function ugUpdateStats() {
   if (iEl) iEl.textContent = s.inactive;
   if (lEl) lEl.textContent = s.locked;
 
-  var aCardLbl = document.querySelector(".ug-stat-card.active-card .ug-stat-lbl");
-  var iCardLbl = document.querySelector(".ug-stat-card.inactive-card .ug-stat-lbl");
-  var lCardLbl = document.querySelector(".ug-stat-card.locked-card .ug-stat-lbl");
+  var tCardLbl = document.getElementById("ugs-lbl-total");
+  var aCardLbl = document.getElementById("ugs-lbl-active") || document.querySelector(".ug-stat-card.active-card .ug-stat-lbl");
+  var iCardLbl = document.getElementById("ugs-lbl-inactive") || document.querySelector(".ug-stat-card.inactive-card .ug-stat-lbl");
+  var lCardLbl = document.getElementById("ugs-lbl-locked") || document.querySelector(".ug-stat-card.locked-card .ug-stat-lbl");
+
+  var tIcon = document.getElementById("ugs-icon-total");
+  var aIcon = document.getElementById("ugs-icon-active");
+  var iIcon = document.getElementById("ugs-icon-inactive");
+  var lIcon = document.getElementById("ugs-icon-locked");
 
   if (role === "attendance") {
+    if (tCardLbl) tCardLbl.textContent = "Total Records";
     if (aCardLbl) aCardLbl.textContent = "Present Records";
     if (iCardLbl) iCardLbl.textContent = "Absent Records";
     if (lCardLbl) lCardLbl.textContent = "OD / Approved Leave";
-  } else {
+    if (tIcon) tIcon.innerHTML = '<re-icon icon="calendar"></re-icon>';
+    if (aIcon) aIcon.innerHTML = '<re-icon icon="check-circle"></re-icon>';
+    if (iIcon) iIcon.innerHTML = '<re-icon icon="pause"></re-icon>';
+    if (lIcon) lIcon.innerHTML = '<re-icon icon="lock"></re-icon>';
+  } else if (role === "student") {
+    if (tCardLbl) tCardLbl.textContent = "Total Students";
     if (aCardLbl) aCardLbl.textContent = "Active Accounts";
     if (iCardLbl) iCardLbl.textContent = "Inactive";
     if (lCardLbl) lCardLbl.textContent = "Locked (Brute-Force)";
+    if (tIcon) tIcon.innerHTML = '<re-icon icon="graduation-cap"></re-icon>';
+    if (aIcon) aIcon.innerHTML = '<re-icon icon="check-circle"></re-icon>';
+    if (iIcon) iIcon.innerHTML = '<re-icon icon="pause"></re-icon>';
+    if (lIcon) lIcon.innerHTML = '<re-icon icon="lock"></re-icon>';
+  } else if (role === "teacher") {
+    if (tCardLbl) tCardLbl.textContent = "Total Faculty";
+    if (aCardLbl) aCardLbl.textContent = "Active Faculty";
+    if (iCardLbl) iCardLbl.textContent = "Inactive";
+    if (lCardLbl) lCardLbl.textContent = "Locked (Brute-Force)";
+    if (tIcon) tIcon.innerHTML = '<re-icon icon="teacher"></re-icon>';
+    if (aIcon) aIcon.innerHTML = '<re-icon icon="check-circle"></re-icon>';
+    if (iIcon) iIcon.innerHTML = '<re-icon icon="pause"></re-icon>';
+    if (lIcon) lIcon.innerHTML = '<re-icon icon="lock"></re-icon>';
+  } else {
+    if (tCardLbl) tCardLbl.textContent = "Total Admins";
+    if (aCardLbl) aCardLbl.textContent = "Active Admins";
+    if (iCardLbl) iCardLbl.textContent = "Inactive";
+    if (lCardLbl) lCardLbl.textContent = "Locked (Brute-Force)";
+    if (tIcon) tIcon.innerHTML = '<re-icon icon="key"></re-icon>';
+    if (aIcon) aIcon.innerHTML = '<re-icon icon="check-circle"></re-icon>';
+    if (iIcon) iIcon.innerHTML = '<re-icon icon="pause"></re-icon>';
+    if (lIcon) lIcon.innerHTML = '<re-icon icon="lock"></re-icon>';
   }
 }
 
@@ -2616,6 +3312,8 @@ function renderUGTable() {
     thead.innerHTML = "";
     tbody.innerHTML = "";
     if (empty) empty.style.display = "block";
+    var pagEl = document.getElementById("ug-pagination");
+    if (pagEl) pagEl.style.display = "none";
     return;
   }
   if (empty) empty.style.display = "none";
@@ -2638,7 +3336,7 @@ function renderUGTable() {
     tbody.innerHTML = data.map(function (rec) {
       var isChecked = _ugState.selectedIds.has(rec._id);
       var badgeCls = (rec.status === "present") ? "badge-active" : ((rec.status === "absent") ? "badge-locked" : "badge-inactive");
-      var statusLbl = (rec.status === "present") ? "🟢 Present" : ((rec.status === "absent") ? "🔴 Absent" : ((rec.status === "od") ? "🟡 On Duty" : "🟣 Leave"));
+      var statusLbl = (rec.status === "present") ? '<span class="status-dot green"></span> Present' : ((rec.status === "absent") ? '<span class="status-dot red"></span> Absent' : ((rec.status === "od") ? '<span class="status-dot amber"></span> On Duty' : '<span class="status-dot purple"></span> Leave'));
 
       return '<tr class="' + (isChecked ? 'ug-row-selected' : '') + '">' +
         '<td style="text-align:center;"><input type="checkbox" onchange="ugToggleRowSelect(\'' + rec._id + '\')" ' + (isChecked ? 'checked' : '') + '></td>' +
@@ -2650,8 +3348,8 @@ function renderUGTable() {
         '<td style="font-size:11.5px;color:var(--tmu);">' + escapeHtml(rec.remarks || '—') + '</td>' +
         '<td style="text-align:center;width:170px;">' +
         '<div class="ug-actions-cell">' +
-        '<button class="ug-action-btn edit" onclick="openUGAttEdit(\'' + rec._id + '\')" title="Edit Attendance">✏️ Edit</button>' +
-        '<button class="ug-action-btn del" onclick="openUGDeleteModal(\'' + rec._id + '\')" title="Delete Entry">🗑️ Delete</button>' +
+        '<button class="ug-action-btn edit" onclick="openUGAttEdit(\'' + rec._id + '\')" title="Edit Attendance"><re-icon icon="edit"></re-icon> Edit</button>' +
+        '<button class="ug-action-btn del" onclick="openUGDeleteModal(\'' + rec._id + '\')" title="Delete Entry"><re-icon icon="trash2"></re-icon> Delete</button>' +
         '</div>' +
         '</td>' +
         '</tr>';
@@ -2674,13 +3372,13 @@ function renderUGTable() {
     tbody.innerHTML = data.map(function (u) {
       var isChecked = _ugState.selectedIds.has(u._id);
       var badgeCls = (u.status === "active") ? "badge-active" : ((u.status === "locked") ? "badge-locked" : "badge-inactive");
-      var badgeLbl = (u.status === "active") ? "🟢 Active" : ((u.status === "locked") ? "🔴 Locked" : "⚪ Inactive");
+      var badgeLbl = (u.status === "active") ? '<span class="status-dot green"></span> Active' : ((u.status === "locked") ? '<span class="status-dot red"></span> Locked' : '<span class="status-dot gray"></span> Inactive');
 
       var idDisplay = "";
       var subInfo = "";
       if (role === "student") {
         idDisplay = '<div style="font-weight:700;font-family:\'JetBrains Mono\',monospace;color:var(--gD);">' + escapeHtml(u.registerNo || '—') + '</div>';
-        subInfo = '<div style="font-weight:600;">' + escapeHtml(u.class || '—') + (u.section ? ' (' + u.section + ')' : '') + (u.isRep ? ' ⭐ Rep' : '') + '</div>' +
+        subInfo = '<div style="font-weight:600;">' + escapeHtml(u.class || '—') + (u.section ? ' (' + u.section + ')' : '') + (u.isRep ? ' <re-icon icon="sparkles"></re-icon> Rep' : '') + '</div>' +
           '<div style="font-size:11px;color:var(--tmu);">' + escapeHtml(u.department || '') + '</div>';
       } else if (role === "teacher") {
         idDisplay = '<div style="font-weight:700;font-family:\'JetBrains Mono\',monospace;color:var(--gD);">' + escapeHtml(u.employeeNo || '—') + '</div>';
@@ -2693,11 +3391,11 @@ function renderUGTable() {
 
       var statusBtn = "";
       if (u.status === "locked") {
-        statusBtn = '<button class="ug-action-btn unlock" onclick="ugUnlockAccount(\'' + u._id + '\')" title="Unlock Brute-Force Locked Account">🔓 Unlock</button>';
+        statusBtn = '<button class="ug-action-btn unlock" onclick="ugUnlockAccount(\'' + u._id + '\')" title="Unlock Brute-Force Locked Account"><re-icon icon="lock-open"></re-icon> Unlock</button>';
       } else if (u.status === "active") {
-        statusBtn = '<button class="ug-action-btn status deact" onclick="ugToggleStatus(\'' + u._id + '\',\'' + u.status + '\')" title="Deactivate Account">⚡ Deactivate</button>';
+        statusBtn = '<button class="ug-action-btn status deact" onclick="ugToggleStatus(\'' + u._id + '\',\'' + u.status + '\')" title="Deactivate Account"><re-icon icon="bolt"></re-icon> Deactivate</button>';
       } else {
-        statusBtn = '<button class="ug-action-btn status" onclick="ugToggleStatus(\'' + u._id + '\',\'' + u.status + '\')" title="Activate Account">🟢 Activate</button>';
+        statusBtn = '<button class="ug-action-btn status" onclick="ugToggleStatus(\'' + u._id + '\',\'' + u.status + '\')" title="Activate Account"><span class="status-dot green"></span> Activate</button>';
       }
 
       return '<tr class="' + (isChecked ? 'ug-row-selected' : '') + '">' +
@@ -2712,10 +3410,10 @@ function renderUGTable() {
         '<td><span class="badge ' + badgeCls + '">' + badgeLbl + '</span>' + (u.failedLogins > 0 ? ' <span style="font-size:10px;color:#dc2626;">(' + u.failedLogins + ' fails)</span>' : '') + '</td>' +
         '<td style="text-align:center;width:330px;">' +
         '<div class="ug-actions-cell">' +
-        '<button class="ug-action-btn edit" onclick="openUGEdit(\'' + u._id + '\')" title="Edit Profile">✏️ Edit</button>' +
-        '<button class="ug-action-btn pw" onclick="openUGPasswordReset(\'' + u._id + '\')" title="Reset Password">🔑 Password</button>' +
+        '<button class="ug-action-btn edit" onclick="openUGEdit(\'' + u._id + '\')" title="Edit Profile"><re-icon icon="edit"></re-icon> Edit</button>' +
+        '<button class="ug-action-btn pw" onclick="openUGPasswordReset(\'' + u._id + '\')" title="Reset Password"><re-icon icon="key"></re-icon> Password</button>' +
         statusBtn +
-        '<button class="ug-action-btn del" onclick="openUGDeleteModal(\'' + u._id + '\')" title="Delete User">🗑️ Delete</button>' +
+        '<button class="ug-action-btn del" onclick="openUGDeleteModal(\'' + u._id + '\')" title="Delete User"><re-icon icon="trash2"></re-icon> Delete</button>' +
         '</div>' +
         '</td>' +
         '</tr>';
@@ -2724,6 +3422,7 @@ function renderUGTable() {
 }
 
 function ugUpdatePagination() {
+  var pagEl = document.getElementById("ug-pagination");
   var infoEl = document.getElementById("ug-page-info");
   var prevBtn = document.getElementById("ug-prev-btn");
   var nextBtn = document.getElementById("ug-next-btn");
@@ -2733,6 +3432,16 @@ function ugUpdatePagination() {
   var pages = _ugState.pages;
   var total = _ugState.total;
   var limit = _ugState.limit;
+  var data = _ugState.data;
+
+  // When list is empty, remove/hide the pagination bar completely
+  if (pagEl) {
+    if (!data || data.length === 0 || total === 0) {
+      pagEl.style.display = "none";
+      return;
+    }
+    pagEl.style.display = "flex";
+  }
 
   if (infoEl) {
     if (limit === 0 || limit >= total) {
@@ -2740,7 +3449,7 @@ function ugUpdatePagination() {
     } else {
       var start = (page - 1) * limit + 1;
       var end = Math.min(page * limit, total);
-      infoEl.textContent = 'Showing ' + (total === 0 ? 0 : start) + '–' + end + ' of ' + total + ' record(s)';
+      infoEl.textContent = 'Showing ' + start + '–' + end + ' of ' + total + ' record(s)';
     }
   }
 
@@ -2806,15 +3515,22 @@ function ugUpdateBulkBar() {
   }
 }
 
-function ugBulkAction(action) {
+async function ugBulkAction(action) {
   var selected = Array.from(_ugState.selectedIds);
   if (selected.length === 0) {
-    showToast("⚠️ No items selected", "warning");
+    showToast("No items selected", "warning");
     return;
   }
 
   if (action === "delete") {
-    if (!confirm("Are you sure you want to delete/deactivate " + selected.length + " selected user(s)?")) return;
+    const ok = await showConfirm(
+      "Are you sure you want to delete/deactivate " + selected.length + " selected user(s)?",
+      "Bulk Delete Users",
+      null,
+      null,
+      { danger: true, confirmText: "Delete Users" }
+    );
+    if (!ok) return;
   }
 
   var tok = getToken();
@@ -2828,16 +3544,16 @@ function ugBulkAction(action) {
     .then(function (r) { return r.json(); })
     .then(function (res) {
       if (res.error) {
-        showToast("❌ " + res.error, "danger");
+        showToast("" + res.error, "danger");
         return;
       }
-      showToast("✅ " + (res.message || "Bulk action completed successfully"));
+      showToast("" + (res.message || "Bulk action completed successfully"));
       _ugState.selectedIds.clear();
       ugUpdateBulkBar();
       ugLoadData();
     })
     .catch(function (err) {
-      showToast("❌ Bulk action failed: " + (err.message || ""), "danger");
+      showToast("Bulk action failed: " + (err.message || ""), "danger");
     });
 }
 
@@ -2879,7 +3595,7 @@ function openUGEdit(id) {
 
   document.getElementById("ug-fields-student").style.display = (user.role === "student") ? "block" : "none";
   document.getElementById("ug-fields-teacher").style.display = (user.role === "teacher") ? "block" : "none";
-  document.getElementById("ug-fields-admin").style.display = (user.role === "admin") ? "block" : "none";
+  document.getElementById("ug-fields-admin").style.display = (['admin', 'sudo'].includes(user.role)) ? "block" : "none";
 
   if (user.role === "student") {
     document.getElementById("ug-e-stu-regno").value = user.registerNo || "";
@@ -2903,29 +3619,33 @@ function openUGEdit(id) {
     if (secEl && user.section) secEl.value = user.section;
 
     document.getElementById("ug-e-stu-is-rep").checked = !!user.isRep;
+    var genEl = document.getElementById("ug-e-stu-gender");
+    if (genEl) genEl.value = (user.gender && String(user.gender).toLowerCase() === 'female') ? 'Female' : 'Male';
+    var resEl = document.getElementById("ug-e-stu-residency");
+    if (resEl) resEl.value = (user.residency === 'hostel' || user.residency === 'hosteler') ? 'hostel' : 'dayscholar';
   } else if (user.role === "teacher") {
     document.getElementById("ug-e-tch-empno").value = user.employeeNo || "";
     document.getElementById("ug-e-tch-dept").value = user.department || "";
     document.getElementById("ug-e-tch-desig").value = user.designation || "Assistant Professor";
     document.getElementById("ug-e-tch-def-att").value = user.defaultAttendanceStatus || "Present";
 
-    var rights = Array.isArray(user.adminRights) ? user.adminRights : (user.adminRights ? [user.adminRights] : []);
-    var isAll = rights.includes("all") || user.adminRights === "all";
-    var hasAdmin = isAll || rights.some(function (r) { return r && r !== "none"; }) || !!user.isAdmin;
+    var pageRights = Array.isArray(user.pageRights) ? user.pageRights : [];
+    var hasAdmin = !!user.isSudoAdmin || !!user.isSuperAdmin || !!user.isSubAdmin || pageRights.some(function (p) { return p && p.enabled !== false; }) || (Array.isArray(user.specials) && user.specials.some(function (s) { return s && s.option === "isAdmin" && s.value !== false; }));
+    var isAll = !!user.isSudoAdmin || pageRights.some(function (p) { return p && p.enabled !== false && p.page === "*"; });
 
     document.getElementById("ug-e-tch-is-admin").checked = hasAdmin;
     ugToggleAdminPrivs(hasAdmin);
 
-    document.getElementById("ug-e-right-control").checked = isAll || rights.includes("controlPage");
-    document.getElementById("ug-e-right-manage").checked = isAll || rights.includes("managePage");
-    document.getElementById("ug-e-right-timetable").checked = isAll || rights.includes("timetablePage");
-    document.getElementById("ug-e-right-bulk").checked = isAll || rights.includes("bulkPage");
-    document.getElementById("ug-e-right-settings").checked = isAll || rights.includes("settingsPage");
-    document.getElementById("ug-e-right-reports").checked = isAll || rights.includes("reportsModule");
-    document.getElementById("ug-e-right-download").checked = isAll || rights.includes("downloadDatas");
-    document.getElementById("ug-e-right-adders").checked = isAll || rights.includes("adderModules");
-    document.getElementById("ug-e-right-deletings").checked = isAll || rights.includes("deletings");
-  } else if (user.role === "admin") {
+    document.getElementById("ug-e-right-control").checked = isAll || pageRights.some(function (p) { return p && p.enabled !== false && p.page === "control"; });
+    document.getElementById("ug-e-right-manage").checked = isAll || pageRights.some(function (p) { return p && p.enabled !== false && p.page === "manage"; });
+    document.getElementById("ug-e-right-timetable").checked = isAll || pageRights.some(function (p) { return p && p.enabled !== false && p.page === "timetable"; });
+    document.getElementById("ug-e-right-bulk").checked = isAll || pageRights.some(function (p) { return p && p.enabled !== false && p.page === "bulk"; });
+    document.getElementById("ug-e-right-settings").checked = isAll || pageRights.some(function (p) { return p && p.enabled !== false && p.page === "settings"; });
+    document.getElementById("ug-e-right-reports").checked = isAll || pageRights.some(function (p) { return p && p.enabled !== false && p.page === "export"; });
+    document.getElementById("ug-e-right-download").checked = isAll || pageRights.some(function (p) { return p && p.enabled !== false && p.page === "control" && p.actions && p.actions.includes("export"); });
+    document.getElementById("ug-e-right-adders").checked = isAll || pageRights.some(function (p) { return p && p.enabled !== false && p.actions && p.actions.includes("create"); });
+    document.getElementById("ug-e-right-deletings").checked = isAll || pageRights.some(function (p) { return p && p.enabled !== false && p.actions && p.actions.includes("delete"); });
+  } else if (['admin', 'sudo'].includes(user.role)) {
     document.getElementById("ug-e-adm-dept").value = user.department || "Administration";
     document.getElementById("ug-e-adm-empno").value = user.employeeNo || "";
   }
@@ -2952,7 +3672,7 @@ function ugSubmitEdit() {
   var mustChangePw = document.getElementById("ug-e-must-change-pw").checked;
 
   if (!fullName || !username) {
-    showToast("⚠️ Full Name and Username are required", "warning");
+    showToast("Full Name and Username are required", "warning");
     return;
   }
 
@@ -2979,6 +3699,10 @@ function ugSubmitEdit() {
     payload.batch = document.getElementById("ug-e-stu-batch").value;
     payload.batchTrackId = document.getElementById("ug-e-stu-batch").value;
     payload.isRep = document.getElementById("ug-e-stu-is-rep").checked;
+    var genEl = document.getElementById("ug-e-stu-gender");
+    if (genEl) payload.gender = genEl.value;
+    var resEl = document.getElementById("ug-e-stu-residency");
+    if (resEl) payload.residency = resEl.value;
   } else if (role === "teacher") {
     payload.employeeNo = document.getElementById("ug-e-tch-empno").value.trim();
     payload.department = document.getElementById("ug-e-tch-dept").value.trim();
@@ -2986,27 +3710,27 @@ function ugSubmitEdit() {
     payload.defaultAttendanceStatus = document.getElementById("ug-e-tch-def-att").value;
 
     var isAdmin = document.getElementById("ug-e-tch-is-admin").checked;
-    payload.isAdmin = isAdmin;
+    payload.userIsAdmin = isAdmin;
     if (isAdmin) {
-      var rights = [];
-      if (document.getElementById("ug-e-right-control").checked) rights.push("controlPage");
-      if (document.getElementById("ug-e-right-manage").checked) rights.push("managePage");
-      if (document.getElementById("ug-e-right-timetable").checked) rights.push("timetablePage");
-      if (document.getElementById("ug-e-right-bulk").checked) rights.push("bulkPage");
-      if (document.getElementById("ug-e-right-settings").checked) rights.push("settingsPage");
-      if (document.getElementById("ug-e-right-reports").checked) rights.push("reportsModule");
-      if (document.getElementById("ug-e-right-download").checked) rights.push("downloadDatas");
-      if (document.getElementById("ug-e-right-adders").checked) rights.push("adderModules");
-      if (document.getElementById("ug-e-right-deletings").checked) rights.push("deletings");
-      payload.adminRights = rights.length ? rights : ["none"];
+      var newPageRights = [];
+      if (document.getElementById("ug-e-right-control").checked) newPageRights.push({ page: "control", module: "*", accessRole: "staff", scope: "institution", deptId: null, actions: ["view", "edit"], enabled: true });
+      if (document.getElementById("ug-e-right-manage").checked) newPageRights.push({ page: "manage", module: "*", accessRole: "staff", scope: "institution", deptId: null, actions: ["view", "edit", "create", "delete"], enabled: true });
+      if (document.getElementById("ug-e-right-timetable").checked) newPageRights.push({ page: "timetable", module: "*", accessRole: "staff", scope: "institution", deptId: null, actions: ["view", "edit", "create"], enabled: true });
+      if (document.getElementById("ug-e-right-bulk").checked) newPageRights.push({ page: "bulk", module: "*", accessRole: "staff", scope: "institution", deptId: null, actions: ["view", "create", "edit"], enabled: true });
+      if (document.getElementById("ug-e-right-settings").checked) newPageRights.push({ page: "settings", module: "*", accessRole: "staff", scope: "institution", deptId: null, actions: ["view", "edit"], enabled: true });
+      if (document.getElementById("ug-e-right-reports").checked) newPageRights.push({ page: "export", module: "*", accessRole: "staff", scope: "institution", deptId: null, actions: ["view", "export"], enabled: true });
+      if (document.getElementById("ug-e-right-download").checked) newPageRights.push({ page: "control", module: "data-export", accessRole: "staff", scope: "institution", deptId: null, actions: ["export"], enabled: true });
+      if (document.getElementById("ug-e-right-adders").checked) newPageRights.push({ page: "*", module: "*", accessRole: "staff", scope: "institution", deptId: null, actions: ["create"], enabled: true });
+      if (document.getElementById("ug-e-right-deletings").checked) newPageRights.push({ page: "*", module: "*", accessRole: "staff", scope: "institution", deptId: null, actions: ["delete"], enabled: true });
+      payload.pageRights = newPageRights;
     } else {
-      payload.adminRights = ["none"];
+      payload.pageRights = [];
     }
-  } else if (role === "admin") {
+  } else if (['admin', 'sudo'].includes(role)) {
     payload.department = document.getElementById("ug-e-adm-dept").value.trim();
     payload.employeeNo = document.getElementById("ug-e-adm-empno").value.trim();
-    payload.adminRights = ["all"];
-    payload.isAdmin = true;
+    payload.userIsAdmin = true;
+    payload.pageRights = [{ page: "*", module: "*", accessRole: "sudoAdmin", scope: "institution", deptId: null, actions: ["view", "create", "edit", "delete", "export", "import", "manage", "execute"], enabled: true }];
   }
 
   showToast("Saving user changes to DB…", "info");
@@ -3019,22 +3743,22 @@ function ugSubmitEdit() {
     .then(function (r) { return r.json(); })
     .then(function (res) {
       if (res.error) {
-        showToast("❌ " + res.error, "danger");
+        showToast("" + res.error, "danger");
         return;
       }
-      showToast("✅ User details updated successfully");
+      showToast("User details updated successfully");
       ugCloseEditModal();
       ugLoadData();
     })
     .catch(function (err) {
-      showToast("❌ Failed to update user: " + (err.message || ""), "danger");
+      showToast("Failed to update user: " + (err.message || ""), "danger");
     });
 }
 
 function ugExportCSV() {
   var data = _ugState.data || [];
   if (data.length === 0) {
-    showToast("⚠️ No data available to export", "warning");
+    showToast("No data available to export", "warning");
     return;
   }
 
@@ -3075,11 +3799,12 @@ function ugExportCSV() {
     csvRows.push([
       "Employee Number", "Track ID", "Full Name", "First Name", "Last Name",
       "Username", "Email", "Department", "Designation",
-      "Default Attendance Status", "Is Admin", "Admin Rights",
+      "Default Attendance Status", "Is Admin", "Page Rights",
       "Status", "Failed Logins", "Last Active", "Created At"
     ]);
     data.forEach(function (u) {
-      var rights = Array.isArray(u.adminRights) ? u.adminRights.join("; ") : (u.adminRights || "");
+      var rights = Array.isArray(u.pageRights) ? u.pageRights.map(function(p){ return p.page; }).join("; ") : "";
+      var isAdm = !!u.isSudoAdmin || !!u.isSuperAdmin || !!u.isSubAdmin || (Array.isArray(u.specials) && u.specials.some(function(s){ return s && s.option === "isAdmin"; }));
       csvRows.push([
         u.employeeNo || "",
         u.trackId || "",
@@ -3091,7 +3816,7 @@ function ugExportCSV() {
         u.department || "",
         u.designation || "Faculty",
         u.defaultAttendanceStatus || "Present",
-        u.isAdmin ? "Yes" : "No",
+        isAdm ? "Yes" : "No",
         rights,
         u.status || "active",
         u.failedLogins || 0,
@@ -3099,7 +3824,7 @@ function ugExportCSV() {
         u.createdAt ? new Date(u.createdAt).toISOString() : ""
       ]);
     });
-  } else if (role === "admin") {
+  } else if (['admin', 'sudo'].includes(role)) {
     csvRows.push([
       "Employee Number / ID", "Track ID", "Full Name", "Username",
       "Email", "Department", "Role", "Admin Rights",
@@ -3153,11 +3878,11 @@ function ugExportCSV() {
   var encodedUri = encodeURI(csvContent);
   var link = document.createElement("a");
   link.setAttribute("href", encodedUri);
-  link.setAttribute("download", "eams_" + role + "_full_export_" + (new Date().toISOString().slice(0, 10)) + ".csv");
+  link.setAttribute("download", "eams_" + role + "_full_export_" + todayIST() + ".csv");
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
-  showToast("📥 Exported " + data.length + " " + role + " records with all fields to CSV");
+  showToast('<re-icon icon="download"></re-icon> Exported ' + data.length + " " + role + " records with all fields to CSV");
 }
 
 function openUGPasswordReset(id) {
@@ -3188,15 +3913,15 @@ function ugSubmitPasswordReset() {
   var forceChange = document.getElementById("ug-pw-force-change").checked;
 
   if (!nw || !conf) {
-    showToast("⚠️ Please enter and confirm the new password", "warning");
+    showToast("Please enter and confirm the new password", "warning");
     return;
   }
   if (nw.length < 8) {
-    showToast("⚠️ Password must be at least 8 characters long", "warning");
+    showToast("Password must be at least 8 characters long", "warning");
     return;
   }
   if (nw !== conf) {
-    showToast("⚠️ Passwords do not match", "warning");
+    showToast("Passwords do not match", "warning");
     return;
   }
 
@@ -3211,15 +3936,15 @@ function ugSubmitPasswordReset() {
     .then(function (r) { return r.json(); })
     .then(function (res) {
       if (res.error) {
-        showToast("❌ " + res.error, "danger");
+        showToast("" + res.error, "danger");
         return;
       }
-      showToast("✅ Password reset successfully");
+      showToast("Password reset successfully");
       ugClosePwModal();
       ugLoadData();
     })
     .catch(function (err) {
-      showToast("❌ Password reset failed: " + (err.message || ""), "danger");
+      showToast("Password reset failed: " + (err.message || ""), "danger");
     });
 }
 
@@ -3234,14 +3959,14 @@ function ugUnlockAccount(id) {
     .then(function (r) { return r.json(); })
     .then(function (res) {
       if (res.error) {
-        showToast("❌ " + res.error, "danger");
+        showToast("" + res.error, "danger");
         return;
       }
-      showToast("✅ Account unlocked successfully");
+      showToast("Account unlocked successfully");
       ugLoadData();
     })
     .catch(function (err) {
-      showToast("❌ Failed to unlock account", "danger");
+      showToast("Failed to unlock account", "danger");
     });
 }
 
@@ -3259,14 +3984,14 @@ function ugToggleStatus(id, currentStatus) {
     .then(function (r) { return r.json(); })
     .then(function (res) {
       if (res.error) {
-        showToast("❌ " + res.error, "danger");
+        showToast("" + res.error, "danger");
         return;
       }
-      showToast("✅ Account set to " + newStatus);
+      showToast("Account set to " + newStatus);
       ugLoadData();
     })
     .catch(function () {
-      showToast("❌ Failed to toggle account status", "danger");
+      showToast("Failed to toggle account status", "danger");
     });
 }
 
@@ -3316,17 +4041,17 @@ function ugConfirmDeleteRecord() {
     .then(function (r) { return r.json(); })
     .then(function (res) {
       if (res.error) {
-        showToast("❌ " + res.error, "danger");
+        showToast("" + res.error, "danger");
         return;
       }
-      showToast("✅ Record removed / snapshot saved to Undo Log");
+      showToast("Record removed / snapshot saved to Undo Log");
       ugCloseDeleteModal();
       _ugState.selectedIds.delete(id);
       ugUpdateBulkBar();
       ugLoadData();
     })
     .catch(function (err) {
-      showToast("❌ Delete failed: " + (err.message || ""), "danger");
+      showToast("Delete failed: " + (err.message || ""), "danger");
     });
 }
 
@@ -3365,15 +4090,15 @@ function ugSubmitAttEdit() {
     .then(function (r) { return r.json(); })
     .then(function (res) {
       if (res.error) {
-        showToast("❌ " + res.error, "danger");
+        showToast("" + res.error, "danger");
         return;
       }
-      showToast("✅ Attendance record updated successfully");
+      showToast("Attendance record updated successfully");
       ugCloseAttModal();
       ugLoadData();
     })
     .catch(function (err) {
-      showToast("❌ Failed to update attendance: " + (err.message || ""), "danger");
+      showToast("Failed to update attendance: " + (err.message || ""), "danger");
     });
 }
 
@@ -3414,7 +4139,7 @@ function confirmClearStorage() {
   );
 
   if (checked.length === 0) {
-    showToast("⚠️ Select at least one item");
+    showToast("Select at least one item");
     return;
   }
 
@@ -3427,22 +4152,29 @@ function confirmClearStorage() {
   closeModalBg("m-clear-storage");
 
   if (clearedToken) {
-    showToast("✅ Session cleared — logging out");
+    showToast("Session cleared — logging out");
     setTimeout(function () {
       window.location.href = "index.html";
     }, 600);
   } else {
-    showToast("✅ Cleared " + checked.length + " item(s)");
+    showToast("Cleared " + checked.length + " item(s)");
   }
 }
 function openAttendanceDateModal() {
   openModal("m-attendance-date");
 }
-function confirmAttendanceDelete(mode) {
+async function confirmAttendanceDelete(mode) {
   var tok = getToken();
 
   if (mode === "all") {
-    if (!confirm("Delete ALL attendance records?")) return;
+    const ok = await showConfirm(
+      "Delete ALL attendance records?\n\nThis will purge all class session attendance data permanently.",
+      "Clear All Attendance",
+      null,
+      null,
+      { danger: true, confirmText: "Delete All Records" }
+    );
+    if (!ok) return;
 
     fetch("/api/attendance/all", {
       method: "DELETE",
@@ -3471,6 +4203,15 @@ function confirmAttendanceDelete(mode) {
       return;
     }
 
+    const okRange = await showConfirm(
+      "Clear attendance records from " + from + " to " + to + "?",
+      "Clear Attendance Range",
+      null,
+      null,
+      { danger: true, confirmText: "Clear Range" }
+    );
+    if (!okRange) return;
+
     fetch("/api/attendance/clear", {
       method: "DELETE",
       headers: {
@@ -3495,10 +4236,17 @@ function confirmAttendanceDelete(mode) {
   }
 }
 
-function deleteAttendance(id) {
+async function deleteAttendance(id) {
   var tok = getToken();
 
-  if (!confirm("Delete this attendance record?")) return;
+  const ok = await showConfirm(
+    "Delete this attendance record? This cannot be undone.",
+    "Delete Attendance Record",
+    null,
+    null,
+    { danger: true, confirmText: "Delete Record" }
+  );
+  if (!ok) return;
 
   fetch("/api/attendance/" + id, {
     method: "DELETE",
@@ -3549,12 +4297,12 @@ function verifySpecialPw() {
 
     .then(function (d) {
       if (d.verified) {
-        showToast("✅ Verified");
+        showToast("Verified");
         closeModalBg("m-special-pw");
         if (onSuccess && typeof window[onSuccess] === "function")
           window[onSuccess]();
       } else {
-        showToast("❌ " + (d.error || "Wrong password"), "danger");
+        showToast("" + (d.error || "Wrong password"), "danger");
       }
     })
     .catch(function () {
@@ -3600,7 +4348,7 @@ function formatEta(ms) {
       if (_etaMs > 0) {
         loaderEtaEl.innerHTML = 'ETA: <span class="eta-time">' + formatEta(_etaMs) + '</span> — loading control telemetry';
       } else {
-        loaderEtaEl.innerHTML = '✔ Finalizing system panel…';
+        loaderEtaEl.innerHTML = '<re-icon icon="check"></re-icon> Finalizing system panel…';
       }
     }
   }, 200);
@@ -3621,7 +4369,7 @@ function formatEta(ms) {
   setTimeout(function () {
     setLoaderMsg(4, 'Readying Control Panel…');
     clearInterval(_etaTick);
-    if (loaderEtaEl) loaderEtaEl.innerHTML = '✔ System ready';
+    if (loaderEtaEl) loaderEtaEl.innerHTML = '<re-icon icon="check"></re-icon> System ready';
     var loader = document.getElementById('page-loader');
     if (loader) {
       loader.classList.add('loader-fade');
@@ -3657,7 +4405,7 @@ function openDeleteAdderModal() {
   openModal("m-delete-adder");
 }
 
-function confirmDeleteAdder() {
+async function confirmDeleteAdder() {
   var selected = Array.from(
     document.querySelectorAll(".adder-chk:checked"),
   ).map(function (c) {
@@ -3669,12 +4417,14 @@ function confirmDeleteAdder() {
     return;
   }
 
-  if (
-    !confirm(
-      "Permanently delete: " + selected.join(", ") + "? This cannot be undone.",
-    )
-  )
-    return;
+  const ok = await showConfirm(
+    "Permanently delete: " + selected.join(", ") + "? This cannot be undone.",
+    "Permanent Deletion",
+    null,
+    null,
+    { danger: true, confirmText: "Permanently Delete" }
+  );
+  if (!ok) return;
 
   var tok = getToken();
 
@@ -3694,7 +4444,7 @@ function confirmDeleteAdder() {
 
     .then(function (d) {
       if (d.success) {
-        showToast("✅ Deleted: " + d.deleted + " records");
+        showToast("Deleted: " + d.deleted + " records");
         closeModalBg("m-delete-adder");
       } else {
         showToast(d.error || "Delete failed", "danger");
@@ -3714,7 +4464,8 @@ function toggleClearAll(el) {
 
 // Navigation helpers
 function goBack() {
-  if (currentUser && currentUser.role === 'teacher') {
+  var isAdm = typeof isAdminUser === 'function' ? isAdminUser(currentUser) : (currentUser && (['admin', 'sudo'].includes(currentUser.role) || Boolean(currentUser.isAdmin)));
+  if (currentUser && (currentUser.role === 'teacher' || isAdm)) {
     window.location.href = "selector.html";
   } else {
     window.location.href = "admin.html";
@@ -3762,10 +4513,10 @@ function loadActiveBroadcastStatus() {
         var lvl = bcast.systemBannerLevel || 'info';
         if (titleEl) titleEl.textContent = 'Active Banner (' + lvl.toUpperCase() + ')';
         if (iconEl) {
-          if (lvl === 'warning') iconEl.textContent = '⚠️';
-          else if (lvl === 'urgent') iconEl.textContent = '🚨';
-          else if (lvl === 'success') iconEl.textContent = '✅';
-          else iconEl.textContent = '📢';
+          if (lvl === 'warning') iconEl.innerHTML = '<re-icon icon="alert-triangle"></re-icon>';
+          else if (lvl === 'urgent') iconEl.innerHTML = '<re-icon icon="siren"></re-icon>';
+          else if (lvl === 'success') iconEl.innerHTML = '<re-icon icon="check-circle"></re-icon>';
+          else iconEl.innerHTML = '<re-icon icon="bullhorn"></re-icon>';
         }
       } else {
         banner.style.display = 'none';
@@ -3777,7 +4528,7 @@ function loadActiveBroadcastStatus() {
 function sendBroadcast() {
   var msg = document.getElementById('bc-msg').value.trim();
   if (!msg) {
-    showToast('⚠️ Announcement message is required');
+    showToast('Announcement message is required');
     return;
   }
 
@@ -3791,7 +4542,7 @@ function sendBroadcast() {
   }
 
   if (targetRoles.length === 0) {
-    showToast('⚠️ Please select at least one target audience');
+    showToast('Please select at least one target audience');
     return;
   }
 
@@ -3800,7 +4551,7 @@ function sendBroadcast() {
   var sendBtn = document.getElementById('bc-send-btn');
   if (sendBtn) {
     sendBtn.disabled = true;
-    sendBtn.textContent = '🚀 Dispatching Broadcast…';
+    sendBtn.innerHTML = '<re-icon icon="rocket"></re-icon> Dispatching Broadcast…';
   }
 
   var payload = {
@@ -3823,15 +4574,15 @@ function sendBroadcast() {
     .then(function (res) {
       if (sendBtn) {
         sendBtn.disabled = false;
-        sendBtn.textContent = '🚀 Dispatch Broadcast Now';
+        sendBtn.innerHTML = '<re-icon icon="rocket"></re-icon> Dispatch Broadcast Now';
       }
 
       if (res && res.error) {
-        showToast('❌ Dispatch failed: ' + res.error);
+        showToast('Dispatch failed: ' + res.error);
         return;
       }
 
-      showToast('✅ Broadcast successfully dispatched to ' + (res.sentCount || 0) + ' recipient(s)');
+      showToast('Broadcast successfully dispatched to ' + (res.sentCount || 0) + ' recipient(s)');
 
       // Update Summary
       var sentEl = document.getElementById('bc-stat-sent');
@@ -3854,9 +4605,9 @@ function sendBroadcast() {
     .catch(function (err) {
       if (sendBtn) {
         sendBtn.disabled = false;
-        sendBtn.textContent = '🚀 Dispatch Broadcast Now';
+        sendBtn.innerHTML = '<re-icon icon="rocket"></re-icon> Dispatch Broadcast Now';
       }
-      showToast('❌ Network error: ' + (err.message || ''));
+      showToast('Network error: ' + (err.message || ''));
     });
 }
 
@@ -3871,15 +4622,15 @@ function clearActiveBroadcast() {
     .then(function (r) { return r.json(); })
     .then(function (res) {
       if (res && res.success) {
-        showToast('✅ Broadcast banner deactivated');
+        showToast('Broadcast banner deactivated');
         var banner = document.getElementById('bc-active-banner');
         if (banner) banner.style.display = 'none';
       } else {
-        showToast('❌ ' + (res.error || 'Deactivation failed'));
+        showToast('' + (res.error || 'Deactivation failed'));
       }
     })
     .catch(function (err) {
-      showToast('❌ ' + (err.message || 'Network error'));
+      showToast('' + (err.message || 'Network error'));
     });
 }
 
@@ -3893,19 +4644,19 @@ function loadBroadcastHistory() {
     .then(function (r) { return r.json(); })
     .then(function (list) {
       if (!Array.isArray(list) || list.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:30px;color:var(--tmu);">📭 No broadcasts dispatched yet.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:30px;color:var(--tmu);"><re-icon icon="inbox"></re-icon> No broadcasts dispatched yet.</td></tr>';
         return;
       }
 
       var html = list.map(function (item) {
         var lvlBadge = '<span style="padding:2px 8px;border-radius:6px;font-size:10.5px;font-weight:700;font-family:\'JetBrains Mono\',monospace;';
-        if (item.level === 'urgent') lvlBadge += 'background:#fef2f2;color:#dc2626;">🚨 URGENT</span>';
-        else if (item.level === 'warning') lvlBadge += 'background:#fffbeb;color:#d97706;">⚠️ WARN</span>';
-        else if (item.level === 'success') lvlBadge += 'background:#f0fdf4;color:#16a34a;">✅ SUCCESS</span>';
-        else if (item.level === 'message') lvlBadge += 'background:#f5f3ff;color:#7c3aed;">💬 INBOX</span>';
-        else lvlBadge += 'background:#eff6ff;color:#2563eb;">ℹ️ INFO</span>';
+        if (item.level === 'urgent') lvlBadge += 'background:#fef2f2;color:#dc2626;"><re-icon icon="siren"></re-icon> URGENT</span>';
+        else if (item.level === 'warning') lvlBadge += 'background:#fffbeb;color:#d97706;"><re-icon icon="alert-triangle"></re-icon> WARN</span>';
+        else if (item.level === 'success') lvlBadge += 'background:#f0fdf4;color:#16a34a;"><re-icon icon="check-circle"></re-icon> SUCCESS</span>';
+        else if (item.level === 'message') lvlBadge += 'background:#f5f3ff;color:#7c3aed;"><re-icon icon="message-square"></re-icon> INBOX</span>';
+        else lvlBadge += 'background:#eff6ff;color:#2563eb;"><re-icon icon="info-circle"></re-icon> INFO</span>';
 
-        var audienceStr = (item.isForcedAll || (item.targetRoles && item.targetRoles.includes('all'))) ? '🌐 All Users' : (item.targetRoles || []).join(', ');
+        var audienceStr = (item.isForcedAll || (item.targetRoles && item.targetRoles.includes('all'))) ? '<re-icon icon="globe"></re-icon> All Users' : (item.targetRoles || []).join(', ');
         var sentStr = '<span style="color:#16a34a;font-weight:600;">' + (item.sentCount || 0) + ' sent</span>';
         if (item.failedCount > 0) sentStr += ' / <span style="color:#dc2626;font-weight:600;">' + item.failedCount + ' fail</span>';
 
@@ -3927,6 +4678,6 @@ function loadBroadcastHistory() {
       tbody.innerHTML = html;
     })
     .catch(function (err) {
-      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:30px;color:#dc2626;">❌ Error loading history: ' + escapeHtml(err.message || '') + '</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:30px;color:#dc2626;"><re-icon icon="x-circle"></re-icon> Error loading history: ' + escapeHtml(err.message || '') + '</td></tr>';
     });
 }

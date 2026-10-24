@@ -40,11 +40,13 @@ const path = require('path');
 require('dotenv').config({ path: path.resolve(__dirname, '..', '.env') });
 
 const mongoose = require('mongoose');
-const bcrypt   = require('bcryptjs');
+const bcrypt   = require('@node-rs/bcrypt');
 const readline = require('readline');
 const crypto   = require('crypto');
 const cfg      = require('../config');
 const M        = require('../models');
+const { assertNotLastSudoAdmin } = require('../utils/adminGuards');
+const { normalizeYearRange } = require('../utils/yearFormat');
 
 let COLLECTION;
 
@@ -153,7 +155,15 @@ async function cleanExit(code) {
 
 // ── Helpers: id generators (mirrors server.js conventions) ─────────────
 const genTrackId = (prefix) => 'TR' + prefix + '_' + crypto.randomBytes(5).toString('hex').toUpperCase();
-const genStudentTrackId = () => 'TRSTU_' + Math.random().toString(36).substr(2, 9).toUpperCase();
+const genStudentTrackId = (regNo, dept, batch, acadYear, allDepts) => {
+  if (regNo) {
+    try {
+      const { buildStudentTrackId } = require('../utils/yearFormat');
+      return buildStudentTrackId(regNo, dept, batch, acadYear, allDepts);
+    } catch {}
+  }
+  return 'TRSTU_' + Math.random().toString(36).substr(2, 9).toUpperCase();
+};
 const genTeacherTrackId = () => 'TRTCH_' + Math.random().toString(36).substr(2, 9).toUpperCase();
 const genClassTrackId = () => 'TRCLS_' + crypto.randomBytes(5).toString('hex').toUpperCase();
 const genSubjectTrackId = () => 'TRSUB_' + crypto.randomBytes(5).toString('hex').toUpperCase();
@@ -218,9 +228,9 @@ async function addUserMenu() {
   }
 }
 
-// ── Add Admin — fields per models.js Admin schema ─────────────────────
+// ── Add Admin — fields per models.js Teacher schema with isAdmin special ──
 async function addAdmin() {
-  head('🏛️  ADD ADMIN / EXECUTIVE  (M.Admin)');
+  head('🏛️  ADD ADMIN / EXECUTIVE  (Teacher with isAdmin special)');
   const fullName   = await ask('Full Name', 'New Administrator');
   if (!fullName) { warn('Full name is required.'); return; }
   const nameParts  = fullName.split(/\s+/).filter(Boolean);
@@ -229,41 +239,73 @@ async function addAdmin() {
   let username     = await ask('Username', '');
   if (!username) { warn('Username is required.'); return; }
   username = username.toLowerCase().trim();
-  if (await M.Admin.findOne({ username })) { warn(`Username "${username}" already exists in Admin collection.`); return; }
+  if (await M.Teacher.findOne({ username })) { warn(`Username "${username}" already exists in Teacher collection.`); return; }
   const employeeNo  = await ask('Employee No', '');
   const department  = await ask('Department (free text, optional)', '');
 
   let adminFlag = 'superadmin';
   if (username === 'admin') {
     adminFlag = 'superadmin';
-    info('Username "admin" is reserved as the primary Super Administrator.');
+    info('Username "admin" is reserved as the primary Sudo Administrator.');
   } else {
     console.log(`\n  ${C.dim}Select Admin Role Type:`);
     console.log(`  1) Principal (Controller Hub - College-wide oversight)`);
     console.log(`  2) Sub-Admin (Admin Privileges & Workspace Hub access)`);
-    console.log(`  3) Super Admin (Full Admin Console access)${C.reset}`);
+    console.log(`  3) Sudo Admin (Full Admin Console access)${C.reset}`);
     const flagChoice = await ask('Admin Role Type', '1');
     adminFlag = flagChoice === '2' ? 'subadmin' : (flagChoice === '3' ? 'superadmin' : 'principal');
   }
 
-  const adminRights = await ask('Admin Rights ("all" or comma list e.g. controlPage, managePage)', adminFlag === 'subadmin' ? 'controlPage, timetablePage' : 'all');
   const password    = await askPassword('Password', 'admin123');
   const trackId      = await ask('Track ID', genTrackId(adminFlag === 'principal' ? 'PRIN' : 'ADMIN'));
   const mustChangePw = await askYN('Force password change on first login?', true);
   const active        = await askYN('Active?', true);
 
   const hash = await bcrypt.hash(password, cfg.BCRYPT_ROUNDS);
-  await M.Admin.create({
+  const isPrincipal = adminFlag === 'principal';
+  const specials = [{ option: 'isAdmin', value: true }];
+  if (isPrincipal) specials.push({ option: 'isPrincipal', value: true });
+
+  let pageRights = [];
+  if (adminFlag === 'superadmin' || adminFlag === 'principal') {
+    pageRights = [{ page: '*', module: '*', accessRole: 'sudoAdmin', scope: 'institution', deptId: null, actions: ['view', 'create', 'edit', 'delete', 'export', 'import', 'manage', 'execute'], enabled: true }];
+  } else {
+    const rawPages = await ask('Allowed Pages (comma list e.g. control, timetable, manage, export)', 'control, timetable');
+    const pageList = rawPages.split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+    pageRights = pageList.map(pg => ({
+      page: pg,
+      module: '*',
+      accessRole: 'staff',
+      scope: 'institution',
+      deptId: null,
+      actions: ['view', 'edit', 'create'],
+      enabled: true
+    }));
+  }
+
+  const designation = username === 'admin'
+    ? 'System Administrator'
+    : (isPrincipal ? 'Principal' : (adminFlag === 'superadmin' ? 'Administrator' : 'Sub-Administrator'));
+
+  await M.Teacher.create({
     fullName, firstName, lastName, username, password: hash,
     employeeNo, department, trackId,
-    isAdmin: true,
-    adminFlag,
-    adminRights: adminRights === 'all' ? 'all' : adminRights.split(',').map(s => s.trim()).filter(Boolean),
-    active, mustChangePassword: mustChangePw,
+    specials,
+    pageRights,
+    designation,
+    status: active ? 'active' : 'inactive',
+    mustChangePassword: mustChangePw,
   });
-  await M.User.create({ username, trackId, role: 'admin', status: 'active', online: false });
+  await M.User.create({ username, trackId, role: 'teacher', status: 'active', online: false });
+  if (M.Password) {
+    await M.Password.updateOne(
+      { trackId },
+      { $set: { trackId, username, hash, status: 'active', mustChangePassword: mustChangePw } },
+      { upsert: true }
+    );
+  }
   await logSetup('Admin Created (CLI)', `${fullName} (@${username} - ${adminFlag.toUpperCase()})`);
-  ok(`Admin "${fullName}" (@${username} | Role: ${adminFlag.toUpperCase()}) created. Password: ${password}`);
+  ok(`Admin "${fullName}" (@${username} | Role: ${adminFlag === 'superadmin' ? 'SUDOADMIN' : adminFlag.toUpperCase()}) created. Password: ${password}`);
 }
 
 // ── Add Teacher — fields per models.js Teacher schema ──────────────────
@@ -358,6 +400,7 @@ async function addStudent(quick) {
 
   const section     = await ask('Section', classNameDefaultSection(className));
   const courseType  = await ask('Course Type (UG/PG/B.E/B.TECH/M.E/M.TECH)', 'UG');
+  const branch      = (dept && dept.branch) ? dept.branch : (quick ? 'B.E' : await ask('Branch (B.E/B.TECH/M.E/M.TECH)', 'B.E'));
   const currYearDoc = await M.Year.findOne({ isCurrent: true }).lean();
   const defaultAcadYear = currYearDoc ? currYearDoc.academicYear : '2026-2027';
   const admissionYear = await ask('Academic Year', defaultAcadYear);
@@ -367,7 +410,7 @@ async function addStudent(quick) {
   const password       = await askPassword('Password', cfg.STUDENT_PASSWORD || 'student123');
   const isRep           = !quick && await askYN('Is Class Representative?', false);
 
-  const trackId = genStudentTrackId();
+  const trackId = genStudentTrackId(registerNo, deptName || deptId, '', admissionYear);
   const hash = await bcrypt.hash(password, cfg.BCRYPT_ROUNDS);
   await M.Student.create({
     fullName, firstName, lastName, registerNo,
@@ -377,6 +420,22 @@ async function addStudent(quick) {
     trackId, isRep, active: true, mustChangePassword: true,
   });
   await M.User.create({ username: username.toLowerCase(), trackId, role: 'student', status: 'active', online: false });
+  if (M.Password) {
+    await M.Password.updateOne(
+      { trackId },
+      {
+        $set: {
+          trackId,
+          username: username.toLowerCase(),
+          hash,
+          status: 'active',
+          mustChangePassword: true,
+          passwordChangedAt: new Date()
+        }
+      },
+      { upsert: true }
+    );
+  }
   await logSetup('Student Created (CLI)', `${fullName} (${registerNo}) trackId=${trackId}`);
   ok(`Student "${fullName}" (${registerNo}) created. Password: ${password} | trackId: ${trackId}`);
 }
@@ -431,7 +490,7 @@ async function addClass() {
   head('🏫  ADD CLASS  (M.Class)');
   const dept = await pickDepartment('Select Department for new Class');
   if (!dept) { warn('A department is required — none selected.'); return; }
-  const batch   = await ask('Batch (e.g. 2025-29)', '2025-29');
+  const batch   = normalizeYearRange(await ask('Batch (e.g. 2025-2029)', '2025-2029'));
   const year    = await ask('Year (I Year/II Year/III Year/IV Year)', 'I Year');
   const sem     = await ask('Semester (I..VIII)', 'I');
   const section = await ask('Section (single letter)', 'A');
@@ -498,14 +557,14 @@ const DEMO = {
   // Subjects pool per department (code must be unique system-wide)
   subjectsByDept: {
     CSE:  [
-      { name:'Data Structures and Algorithms',  code:'CS6301', credits:4, type:'Theory' },
-      { name:'Operating Systems',               code:'CS6401', credits:4, type:'Theory' },
-      { name:'Database Management Systems',     code:'CS6302', credits:4, type:'Theory' },
-      { name:'Computer Networks',               code:'CS6501', credits:4, type:'Theory' },
-      { name:'Software Engineering',            code:'CS6403', credits:3, type:'Theory' },
-      { name:'Object Oriented Programming',     code:'CS6202', credits:4, type:'Theory' },
-      { name:'DBMS Lab',                        code:'CS6312', credits:2, type:'Lab'    },
-      { name:'Networks Lab',                    code:'CS6511', credits:2, type:'Lab'    },
+      { name:'Data Structures and Algorithms',  code:'25CSS301', shortName:'DSA', regulation:'2025', credits:4, type:'Theory' },
+      { name:'Operating Systems',               code:'CS6401', shortName:'OS', regulation:'2025', credits:4, type:'Theory' },
+      { name:'Database Management Systems',     code:'CS6302', shortName:'DBMS', regulation:'2025', credits:4, type:'Theory' },
+      { name:'Computer Networks',               code:'CS6501', shortName:'CN', regulation:'2021', credits:4, type:'Theory' },
+      { name:'Software Engineering',            code:'CS6403', shortName:'SE', regulation:'2025', credits:3, type:'Theory' },
+      { name:'Object Oriented Programming',     code:'CS6202', shortName:'OOP', regulation:'2025', credits:4, type:'Theory' },
+      { name:'DBMS Lab',                        code:'CS6312', shortName:'DBMS Lab', regulation:'2025', credits:2, type:'Lab'    },
+      { name:'Networks Lab',                    code:'CS6511', shortName:'Networks Lab', regulation:'2025', credits:2, type:'Lab'    },
     ],
     ECE:  [
       { name:'Signals and Systems',             code:'EC6303', credits:4, type:'Theory' },
@@ -707,6 +766,8 @@ async function _demoSubjects(perDept) {
       await M.Subject.create({
         subjectTrackId: genSubjectTrackId(),
         name: subj.name, code: subj.code, subjectCode,
+        shortName: subj.shortName || '',
+        regulation: subj.regulation || '2025',
         credits: subj.credits, type: subj.type,
         deptId: dept._id, deptName: dept.name, deptCode: dept.code,
       });
@@ -775,35 +836,53 @@ async function _demoTeachers(count) {
 async function _demoAdmins(count) {
   let created = 0, skipped = 0;
 
-  // 1. Ensure master superadmin 'admin' exists
-  if (!await M.Admin.findOne({ username: 'admin' })) {
+  // 1. Ensure master sudoadmin 'admin' exists
+  if (!await M.Teacher.findOne({ username: 'admin' })) {
     const hash = await bcrypt.hash('admin123', cfg.BCRYPT_ROUNDS);
-    await M.Admin.create({
-      fullName: 'Super Administrator', firstName: 'Super', lastName: 'Admin',
+    await M.Teacher.create({
+      fullName: 'System Administrator', firstName: 'System', lastName: 'Admin',
       username: 'admin', password: hash, employeeNo: 'ADM001',
       department: 'Central Administration', trackId: 'TR-ADMIN001',
-      isAdmin: true, adminFlag: 'superadmin', adminRights: 'all',
-      active: true, mustChangePassword: false
+      designation: 'System Administrator',
+      specials: [{ option: 'isAdmin', value: true }],
+      pageRights: [{ page: '*', module: '*', accessRole: 'sudoAdmin', scope: 'institution', deptId: null, actions: ['view', 'create', 'edit', 'delete', 'export', 'import', 'manage', 'execute'], enabled: true }],
+      status: 'active', mustChangePassword: false
     });
     if (!await M.User.findOne({ username: 'admin' })) {
-      await M.User.create({ username: 'admin', trackId: 'TR-ADMIN001', role: 'admin', status: 'active', online: false });
+      await M.User.create({ username: 'admin', trackId: 'TR-ADMIN001', role: 'teacher', status: 'active', online: false });
     }
-    ok(`  SuperAdmin "Super Administrator" (@admin | Role: SUPERADMIN) created | pass: admin123`);
+    if (M.Password) {
+      await M.Password.updateOne(
+        { trackId: 'TR-ADMIN001' },
+        { $set: { trackId: 'TR-ADMIN001', username: 'admin', hash, status: 'active', mustChangePassword: false } },
+        { upsert: true }
+      );
+    }
+    ok(`  SudoAdmin "System Administrator" (@admin | Role: SUDOADMIN) created | pass: admin123`);
     created++;
   }
 
   // 2. Ensure college Principal exists
-  if (!await M.Admin.findOne({ username: 'principal' })) {
+  if (!await M.Teacher.findOne({ username: 'principal' })) {
     const hash = await bcrypt.hash('principal123', cfg.BCRYPT_ROUNDS);
-    await M.Admin.create({
+    await M.Teacher.create({
       fullName: 'Dr. P. Principal', firstName: 'Principal', lastName: 'Executive',
       username: 'principal', password: hash, employeeNo: 'PRIN001',
       department: 'Office of the Principal', trackId: 'TR-PRIN001',
-      isAdmin: true, adminFlag: 'principal', adminRights: 'all',
-      active: true, mustChangePassword: false
+      designation: 'Principal',
+      specials: [{ option: 'isPrincipal', value: true }],
+      pageRights: [],
+      status: 'active', mustChangePassword: false
     });
     if (!await M.User.findOne({ username: 'principal' })) {
-      await M.User.create({ username: 'principal', trackId: 'TR-PRIN001', role: 'admin', status: 'active', online: false });
+      await M.User.create({ username: 'principal', trackId: 'TR-PRIN001', role: 'teacher', status: 'active', online: false });
+    }
+    if (M.Password) {
+      await M.Password.updateOne(
+        { trackId: 'TR-PRIN001' },
+        { $set: { trackId: 'TR-PRIN001', username: 'principal', hash, status: 'active', mustChangePassword: false } },
+        { upsert: true }
+      );
     }
     ok(`  Principal "Dr. P. Principal" (@principal | Role: PRINCIPAL) created | pass: principal123`);
     created++;
@@ -815,7 +894,7 @@ async function _demoAdmins(count) {
     const username = `subadmin${i}`;
     const password = 'admin@123';
 
-    if (await M.Admin.findOne({ username })) {
+    if (await M.Teacher.findOne({ username })) {
       warn(`  SubAdmin "@${username}" already exists — skipping.`);
       skipped++; continue;
     }
@@ -823,15 +902,29 @@ async function _demoAdmins(count) {
     const hash    = await bcrypt.hash(password, cfg.BCRYPT_ROUNDS);
     const trackId = genTrackId('SUBADM');
 
-    await M.Admin.create({
+    await M.Teacher.create({
       fullName, firstName, lastName, username, password: hash,
       employeeNo: `EMP${String(i).padStart(3,'0')}`,
       department: 'Administration',
-      trackId, isAdmin: true, adminFlag: 'subadmin',
-      adminRights: ['controlPage', 'timetablePage', 'managePage', 'reportsModule'],
-      active: true, mustChangePassword: true,
+      trackId,
+      designation: 'Sub-Administrator',
+      specials: [{ option: 'isAdmin', value: true }],
+      pageRights: [
+        { page: 'control', module: '*', accessRole: 'staff', scope: 'institution', deptId: null, actions: ['view', 'edit'], enabled: true },
+        { page: 'timetable', module: '*', accessRole: 'staff', scope: 'institution', deptId: null, actions: ['view', 'edit', 'create'], enabled: true },
+        { page: 'manage', module: '*', accessRole: 'staff', scope: 'institution', deptId: null, actions: ['view', 'edit', 'create', 'delete'], enabled: true },
+        { page: 'export', module: '*', accessRole: 'staff', scope: 'institution', deptId: null, actions: ['view', 'export'], enabled: true }
+      ],
+      status: 'active', mustChangePassword: true,
     });
-    await M.User.create({ username, trackId, role: 'admin', status: 'active', online: false });
+    await M.User.create({ username, trackId, role: 'teacher', status: 'active', online: false });
+    if (M.Password) {
+      await M.Password.updateOne(
+        { trackId },
+        { $set: { trackId, username, hash, status: 'active', mustChangePassword: true } },
+        { upsert: true }
+      );
+    }
 
     ok(`  SubAdmin "${fullName}" (@${username} | Role: SUBADMIN) | pass: ${password}`);
     created++;
@@ -1130,7 +1223,7 @@ async function demoClassesMenu() {
 
   const perDeptRaw = await ask('How many classes per department?', '2');
   const perDept    = Math.max(1, Math.min(5, parseInt(perDeptRaw,10) || 2));
-  const batch      = await ask('Batch (e.g. 2025-29)', '2025-29');
+  const batch      = normalizeYearRange(await ask('Batch (e.g. 2025-2029)', '2025-2029'));
   const yearRaw    = await ask('Year (I / II / III / IV)', 'I');
 
   console.log(`\n  ${C.bold}Preview:${C.reset} ${perDept * depts.length} classes (${perDept}/dept × ${depts.length} depts), batch ${batch}`);
@@ -1363,25 +1456,44 @@ async function additionMenu() {
 
 async function deleteSingleUser() {
   head('🗑️  DELETE SINGLE USER');
-  console.log(`  ${C.dim}1) Admin   2) Teacher   3) Student   0) Cancel${C.reset}`);
+  console.log(`  ${C.dim}1) Admin (Teacher with isAdmin)   2) Teacher   3) Student   0) Cancel${C.reset}`);
   const roleChoice = await ask('Role', '0');
-  const map = { '1': { model: M.Admin, label: 'Admin' }, '2': { model: M.Teacher, label: 'Teacher' }, '3': { model: M.Student, label: 'Student' } };
-  if (!map[roleChoice]) return;
-  const { model, label } = map[roleChoice];
+  if (!['1', '2', '3'].includes(roleChoice)) return;
 
-  const docs = await model.find().select(label === 'Student' ? 'fullName registerNo username' : 'fullName username').lean();
+  let docs, label, queryModel = M.Teacher;
+  if (roleChoice === '1') {
+    label = 'Admin';
+    docs = await M.Teacher.find({ 'specials.option': 'isAdmin' }).select('fullName username specials pageRights').lean();
+  } else if (roleChoice === '2') {
+    label = 'Teacher';
+    docs = await M.Teacher.find({ 'specials.option': { $ne: 'isAdmin' } }).select('fullName username specials pageRights').lean();
+  } else {
+    label = 'Student';
+    queryModel = M.Student;
+    docs = await M.Student.find().select('fullName registerNo username').lean();
+  }
+
   const labelFn = (d) => label === 'Student'
     ? `${d.fullName}  ${C.dim}(${d.registerNo} · @${d.username})${C.reset}`
     : `${d.fullName}  ${C.dim}(@${d.username})${C.reset}`;
   const target = await pickFromList(docs, labelFn, `Select ${label} to delete`);
   if (!target) return;
 
+  if (label === 'Admin') {
+    const lastCheck = await assertNotLastSudoAdmin(target._id);
+    if (!lastCheck.allowed) {
+      err(`Cannot delete: ${lastCheck.reason}`);
+      return;
+    }
+  }
+
   const sure = await confirmPhrase('DELETE', `This will permanently delete ${label} "${target.fullName}".`);
   if (!sure) { info('Cancelled.'); return; }
 
-  await model.findByIdAndDelete(target._id);
-  if (label === 'Teacher') await M.Assignment.deleteMany({ teacherId: target._id });
+  await queryModel.findByIdAndDelete(target._id);
+  if (label === 'Teacher' || label === 'Admin') await M.Assignment.deleteMany({ teacherId: target._id });
   await M.User.deleteOne({ username: target.username }); // remove shadow if present
+  if (M.Password) await M.Password.deleteOne({ username: target.username });
   await logSetup(`${label} Deleted (CLI)`, target.fullName, 'warning');
   ok(`${label} "${target.fullName}" deleted.`);
 }
@@ -1415,20 +1527,30 @@ async function deleteAllOfRole() {
   head('🗑️  DELETE ALL OF A ROLE');
   console.log(`  ${C.dim}1) All Teachers   2) All Admins (DANGEROUS)   3) All Students   0) Cancel${C.reset}`);
   const choice = await ask('Choice', '0');
+  if (!['1', '2', '3'].includes(choice)) return;
+
+  if (choice === '2') {
+    const remaining = await M.Teacher.countDocuments({ 'specials.option': 'isAdmin' });
+    warn(`There are currently ${remaining} admin(s). Deleting ALL admins will lock you out of the system.`);
+    const sure = await confirmPhrase('DELETE ALL ADMINS', `This will delete ALL ${remaining} admin record(s).`);
+    if (!sure) { info('Cancelled.'); return; }
+
+    const docs = await M.Teacher.find({ 'specials.option': 'isAdmin' }).select('username').lean();
+    await M.Teacher.deleteMany({ 'specials.option': 'isAdmin' });
+    await M.User.deleteMany({ username: { $in: docs.map(d => d.username) } });
+    if (M.Password) await M.Password.deleteMany({ username: { $in: docs.map(d => d.username) } });
+    await logSetup('All Admins Deleted (CLI)', `${docs.length} record(s) removed`, 'warning');
+    ok(`All ${docs.length} admin records deleted.`);
+    return;
+  }
+
   const map = {
     '1': { model: M.Teacher, label: 'Teachers' },
-    '2': { model: M.Admin,   label: 'Admins' },
     '3': { model: M.Student, label: 'Students' },
   };
-  if (!map[choice]) return;
   const { model, label } = map[choice];
   const count = await model.countDocuments();
   if (!count) { info(`No ${label} found.`); return; }
-
-  if (choice === '2') {
-    const remaining = await M.Admin.countDocuments();
-    warn(`There are currently ${remaining} admin(s). Deleting ALL admins may lock you out of the system.`);
-  }
 
   const sure = await confirmPhrase(`DELETE ALL ${label.toUpperCase()}`, `This will permanently delete ${count} ${label} record(s) and their login accounts.`);
   if (!sure) { info('Cancelled.'); return; }
@@ -1437,8 +1559,9 @@ async function deleteAllOfRole() {
   await model.deleteMany({});
   await M.User.deleteMany({ username: { $in: docs.map(d => d.username) } });
   if (label === 'Teachers') await M.Assignment.deleteMany({});
+  if (M.Password) await M.Password.deleteMany({ username: { $in: docs.map(d => d.username) } });
   await logSetup(`All ${label} Deleted (CLI)`, `${count} record(s) removed`, 'warning');
-  ok(`All ${label} (${count}) deleted.`);
+  ok(`All ${count} ${label} deleted.`);
 }
 
 async function deleteEntireDatabase() {
@@ -1584,16 +1707,16 @@ async function manageYearsMenu() {
     if (choice === '1') {
       await createAcademicYearCLI();
     } else if (choice === '2') {
-      var yr = await pickYear('Select year to set as current');
+      const yr = await pickYear('Select year to set as current');
       if (!yr) continue;
       await M.Year.updateMany({}, { $set: { isCurrent: false } });
       await M.Year.findByIdAndUpdate(yr._id, { $set: { isCurrent: true } });
       await logSetup('Year Set Current (CLI)', yr.academicYear);
       ok(`"${yr.academicYear}" is now the current academic year.`);
     } else if (choice === '3') {
-      var yr = await pickYear('Select year to delete');
+      const yr = await pickYear('Select year to delete');
       if (!yr) continue;
-      var sure = await confirmPhrase('DELETE YEAR', `Delete "${yr.academicYear}" with ${yr.batches.length} batch(es)?`);
+      const sure = await confirmPhrase('DELETE YEAR', `Delete "${yr.academicYear}" with ${yr.batches.length} batch(es)?`);
       if (!sure) { info('Cancelled.'); continue; }
       await M.Year.findByIdAndDelete(yr._id);
       await logSetup('Year Deleted (CLI)', yr.academicYear, 'warning');

@@ -34,4 +34,18 @@ async function migrateDateFields() {
   return;
 }
 
-module.exports = { migrateDateFields };
+async function migrateCredentials(options) {
+  const { migratePasswords } = require('../scripts/migratePasswords');
+  return migratePasswords(options);
+}
+
+async function verifyCredentialMigration() {
+  const { verifyCredentialMigration: verify } = require('../scripts/migratePasswords');
+  return verify();
+}
+
+module.exports = {
+  migrateDateFields,
+  migrateCredentials,
+  verifyCredentialMigration,
+};

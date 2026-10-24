@@ -2,10 +2,12 @@ const express = require('express');
 const router = express.Router();
 const mongoose = require('mongoose');
 const M = require('../models');
-const { authMiddleware, adminOnly } = require('../middleware/auth');
+const { authMiddleware, requirePage } = require('../middleware/auth');
 const { sanitizeToString } = require('../utils/sanitizeQuery');
+const { normalizeYearRange } = require('../utils/yearFormat');
+const { todayInInstitutionTz, todayIST } = require('../utils/institutionTime');
 
-router.get('/summary', authMiddleware, adminOnly, async (req, res) => {
+router.get('/summary', authMiddleware, requirePage('admin', 'view', { tab: 'dash' }), async (req, res) => {
   try {
     const [students, depts, teachers, classes, pendingNotifs] = await Promise.all([
       M.Student.countDocuments(),
@@ -30,7 +32,7 @@ router.get('/summary', authMiddleware, adminOnly, async (req, res) => {
   }
 });
 
-router.get('/counts', authMiddleware, adminOnly, async (req, res) => {
+router.get('/counts', authMiddleware, requirePage('admin', 'view', { tab: 'dash' }), async (req, res) => {
   try {
     const adminNotifFilter = {
       toTeacherId: null,
@@ -62,11 +64,13 @@ router.get('/counts', authMiddleware, adminOnly, async (req, res) => {
 
 
 // GET /api/dashboard/attendance-overview — Aggregated attendance chart data
-// Query: ?deptId=&classId=&from=&to=&date=&reportType=overall|specific
-router.get('/attendance-overview', authMiddleware, adminOnly, async (req, res) => {
+// Query: ?deptId=&classId=&batch=&academicYear=&from=&to=&date=&reportType=overall|specific
+router.get('/attendance-overview', authMiddleware, requirePage('admin', 'view', { tab: 'dash' }), async (req, res) => {
   try {
     const deptId = sanitizeToString(req.query.deptId);
     const classId = sanitizeToString(req.query.classId);
+    const batch = sanitizeToString(req.query.batch);
+    const academicYear = sanitizeToString(req.query.academicYear);
     const from = sanitizeToString(req.query.from);
     const to = sanitizeToString(req.query.to);
     const date = sanitizeToString(req.query.date);
@@ -74,12 +78,27 @@ router.get('/attendance-overview', authMiddleware, adminOnly, async (req, res) =
     let classIds = [];
     if (classId) {
       classIds = [classId];
-    } else if (deptId) {
-      const classes = await M.Class.find({ deptId }).lean();
-      classIds = classes.map(function (c) { return c.classTrackId || String(c._id); });
+    } else {
+      const normBatch = batch ? normalizeYearRange(batch) : '';
+      const normAcademicYear = academicYear ? normalizeYearRange(academicYear) : '';
+      const classQuery = {};
+      if (deptId) classQuery.deptId = deptId;
+      if (normBatch) {
+        classQuery.batch = { $in: [normBatch, batch] };
+      } else if (normAcademicYear) {
+        const yearDoc = await M.Year.findOne({ $or: [{ academicYear: normAcademicYear }, { academicYear }] }).lean();
+        if (yearDoc && Array.isArray(yearDoc.batches) && yearDoc.batches.length) {
+          classQuery.batch = { $in: yearDoc.batches.map(b => b.batch) };
+        }
+      }
+      if (deptId || normBatch || normAcademicYear) {
+        const classes = await M.Class.find(classQuery).lean();
+        classIds = classes.map(function (c) { return c.classTrackId || String(c._id); });
+      }
     }
     const filter = {};
     if (classIds.length) filter.classId = { $in: classIds };
+    if (batch) filter.batch = { $in: [normalizeYearRange(batch), batch] };
     if (reportType === 'specific' && date) {
       const d = new Date(date + 'T00:00:00.000Z');
       filter.date = { $gte: d, $lte: new Date(d.getTime() + 86400000) };
@@ -120,7 +139,7 @@ router.get('/attendance-overview', authMiddleware, adminOnly, async (req, res) =
     }
     const byDate = {};
     for (const doc of docs) {
-      const dateStr = doc.date ? new Date(doc.date).toISOString().split('T')[0] : '';
+      const dateStr = doc.date ? (typeof doc.date === 'string' ? doc.date.split('T')[0] : todayIST(doc.date)) : '';
       if (!byDate[dateStr]) byDate[dateStr] = { present: 0, absent: 0 };
       for (const period of doc.periods || []) {
         for (const rec of period.records || []) {
@@ -129,7 +148,7 @@ router.get('/attendance-overview', authMiddleware, adminOnly, async (req, res) =
       }
     }
     const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-    const todayISO = new Date().toISOString().split('T')[0];
+    const todayISO = await todayInInstitutionTz();
     const chartItems = [];
     let cursor = new Date(from || Date.now());
     let endDate = new Date(to || Date.now());
@@ -147,7 +166,7 @@ router.get('/attendance-overview', authMiddleware, adminOnly, async (req, res) =
       });
     } else {
       while (cursor <= endDate) {
-        const iso = cursor.toISOString().split('T')[0];
+        const iso = todayIST(cursor);
         const dow = cursor.getDay();
         const counts = byDate[iso] || { present: 0, absent: 0 };
         const total = counts.present + counts.absent;
@@ -176,7 +195,7 @@ router.get('/attendance-overview', authMiddleware, adminOnly, async (req, res) =
 });
 
 // GET /api/dashboard/defaulters — Students with < 75% attendance
-router.get('/defaulters', authMiddleware, adminOnly, async (req, res) => {
+router.get('/defaulters', authMiddleware, requirePage('admin', 'view', { tab: 'dash' }), async (req, res) => {
   try {
     const studentAttRecords = await M.StudentAttendance.find().lean();
     const trackIds = studentAttRecords.map(function (r) { return r.studentTrackId; });

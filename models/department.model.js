@@ -9,9 +9,10 @@ const DepartmentSchema = new mongoose.Schema({
   threeLetterCode: { type: String, default: '', trim: true, uppercase: true }, // e.g. "CSE"
   hodId:   { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
   hodName: { type: String, default: '' },
-  courseType:   { type: String, enum: ['UG','PG'], default: 'UG' },
-  branch:       { type: String, enum: ['M.E','M.TECH','B.E','B.TECH'], default: 'B.E' },
-  icon:         { type: String, default: '🏛️', trim: true },
+  category: { type: String, enum: ['programme', 'supporting'], default: 'programme', trim: true },
+  courseType:   { type: String, enum: ['UG','PG','None'], default: 'UG' },
+  branch:       { type: String, enum: ['M.E','M.TECH','B.E','B.TECH','None','N/A'], default: 'B.E' },
+  icon:         { type: String, default: 'building2', trim: true },
 }, { timestamps: true });
 
 DepartmentSchema.pre('save', function () {

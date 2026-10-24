@@ -1,6 +1,9 @@
 const mongoose = require('mongoose');
 const M = require('../models');
-const { readOverrideSlot, refMatches, getTeacherIdentity, normName } = require('./teacherSchedule');
+const { isSudoAdmin } = require('./access');
+const { readOverrideSlot, refMatches, getTeacherIdentity, normName, resolveTeacherRange } = require('./teacherSchedule');
+const { getSetting } = require('./settingsCache');
+const { todayIST } = require('./institutionTime');
 
 const isValidObjId = (id) => typeof id === 'string' && mongoose.Types.ObjectId.isValid(id) && id.length === 24;
 
@@ -21,13 +24,8 @@ async function verifyTeacherAssignment(user, classIdInput, subjectIdInput, conte
     return { allowed: false, reason: 'Authentication required' };
   }
 
-  // System admin bypass
-  if (user.role === 'admin') {
-    return { allowed: true };
-  }
-
-  // Teacher with full admin rights bypass
-  if (user.role === 'teacher' && user.isAdmin === true) {
+  // Sudo admin bypass
+  if (isSudoAdmin(user)) {
     return { allowed: true };
   }
 
@@ -144,11 +142,12 @@ async function verifyTeacherAssignment(user, classIdInput, subjectIdInput, conte
         const pNum = Number(context.periodNumber || context.period || 1);
         let startOfUtc = null;
         let endOfUtc = null;
+        let dateStr = '';
 
         if (rawDate) {
-          const dateStr = typeof rawDate === 'string'
+          dateStr = typeof rawDate === 'string'
             ? rawDate.split('T')[0]
-            : (rawDate instanceof Date ? rawDate.toISOString().split('T')[0] : '');
+            : (rawDate instanceof Date ? todayIST(rawDate) : '');
           if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
             startOfUtc = new Date(dateStr + 'T00:00:00.000Z');
             endOfUtc = new Date(dateStr + 'T23:59:59.999Z');
@@ -157,45 +156,144 @@ async function verifyTeacherAssignment(user, classIdInput, subjectIdInput, conte
 
         if (startOfUtc && endOfUtc && !isNaN(pNum)) {
           const objIdCandidates = uniqueClassCandidates.filter(c => isValidObjId(c)).map(c => new mongoose.Types.ObjectId(c));
-          const ovQuery = {
-            type: 'substitute',
-            date: { $gte: startOfUtc, $lte: endOfUtc },
-            period: pNum,
-            $or: [
-              ...(objIdCandidates.length ? [{ classId: { $in: objIdCandidates } }] : []),
-              { classId: { $in: uniqueClassCandidates } }
-            ]
-          };
+          if (objIdCandidates.length > 0) {
+            const ovQuery = {
+              type: 'substitute',
+              date: { $gte: startOfUtc, $lte: endOfUtc },
+              period: pNum,
+              classId: { $in: objIdCandidates }
+            };
 
-          const matchingOverrides = await M.Override.find(ovQuery).lean();
-          if (matchingOverrides.length > 0) {
-            const idn = await getTeacherIdentity(user);
-            for (const ov of matchingOverrides) {
-              const slotInfo = readOverrideSlot(ov.newSlot);
-              const isMatch = (idn && refMatches(slotInfo, idn)) ||
-                uniqueTeacherCandidates.some(tc =>
-                  (slotInfo.teacherTrackId && String(slotInfo.teacherTrackId).trim() === String(tc).trim()) ||
-                  (slotInfo.teacherId && String(slotInfo.teacherId).trim() === String(tc).trim()) ||
-                  (slotInfo.teacher && normName(slotInfo.teacher) === normName(tc))
-                );
+            const matchingOverrides = await M.Override.find(ovQuery).lean();
+            if (matchingOverrides.length > 0) {
+              const idn = await getTeacherIdentity(user);
+              for (const ov of matchingOverrides) {
+                const slotInfo = readOverrideSlot(ov.newSlot);
+                const isMatch = (idn && refMatches(slotInfo, idn)) ||
+                  uniqueTeacherCandidates.some(tc =>
+                    (slotInfo.teacherTrackId && String(slotInfo.teacherTrackId).trim() === String(tc).trim()) ||
+                    (slotInfo.teacherId && String(slotInfo.teacherId).trim() === String(tc).trim()) ||
+                    (slotInfo.teacher && normName(slotInfo.teacher) === normName(tc))
+                  );
 
-              if (isMatch) {
-                return {
-                  allowed: true,
-                  via: 'substitution',
-                  overrideId: ov._id,
-                  assignment: null
-                };
+                if (isMatch) {
+                  return {
+                    allowed: true,
+                    via: 'substitution',
+                    overrideId: ov._id,
+                    assignment: null
+                  };
+                }
               }
             }
           }
+
+          // Check if teacher is the scheduled faculty for this slot in the timetable
+          const idn = await getTeacherIdentity(user);
+          if (idn) {
+            const days = await resolveTeacherRange(idn, dateStr, dateStr);
+            const daySlots = (days && days[0] && Array.isArray(days[0].slots))
+              ? days[0].slots.filter(s => s.status === 'scheduled')
+              : [];
+
+            const slotMatch = daySlots.find(s => {
+              const matchPeriod = s.periodNumber === pNum || (Array.isArray(s.periods) && s.periods.includes(pNum));
+              if (!matchPeriod) return false;
+              const matchClass = uniqueClassCandidates.some(c =>
+                String(s.classId) === String(c) || (s.className && s.className.toLowerCase() === String(c).toLowerCase())
+              );
+              if (!matchClass) return false;
+              if (uniqueSubjectCandidates.length > 0) {
+                const matchSub = uniqueSubjectCandidates.some(subId =>
+                  String(s.subjectId) === String(subId) ||
+                  (s.subject && s.subject.toLowerCase() === String(subId).toLowerCase()) ||
+                  (s.subjectName && s.subjectName.toLowerCase() === String(subId).toLowerCase())
+                );
+                if (!matchSub) return false;
+              }
+              return true;
+            });
+
+            if (slotMatch) {
+              return {
+                allowed: true,
+                via: 'timetable',
+                assignment: null,
+                slot: slotMatch
+              };
+            }
+          }
         }
+      }
+
+      // If strict timetable slots enforcement is OFF (forceTimetableSlots: false),
+      // allow teachers to mark attendance for any class and subject combination.
+      const attSettings = await getSetting('attendance');
+      const isStrict = !!(attSettings && attSettings.forceTimetableSlots);
+      if (!isStrict) {
+        return {
+          allowed: true,
+          via: 'open_mode',
+          assignment: null
+        };
       }
 
       return {
         allowed: false,
         reason: 'You are not assigned to teach this class and subject combination.'
       };
+    }
+
+    // If strict timetable enforcement is ON, ensure this slot actually exists on the teacher's schedule for this date
+    const attSettings = await getSetting('attendance');
+    if (attSettings && attSettings.forceTimetableSlots && !isSudoAdmin(user)) {
+      const rawDate = context.date;
+      const dateStr = typeof rawDate === 'string'
+        ? rawDate.split('T')[0]
+        : (rawDate instanceof Date ? todayIST(rawDate) : '');
+      const pNum = Number(context.periodNumber || context.period || 1);
+
+      if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr) && !isNaN(pNum)) {
+        const idn = await getTeacherIdentity(user);
+        if (!idn) {
+          return { allowed: false, reason: 'Teacher identity not found for timetable verification.' };
+        }
+        const days = await resolveTeacherRange(idn, dateStr, dateStr);
+        const daySlots = (days && days[0] && Array.isArray(days[0].slots))
+          ? days[0].slots.filter(s => s.status === 'scheduled')
+          : [];
+
+        const slotMatch = daySlots.find(s => {
+          const matchPeriod = s.periodNumber === pNum || (Array.isArray(s.periods) && s.periods.includes(pNum));
+          if (!matchPeriod) return false;
+          const matchClass = uniqueClassCandidates.some(c =>
+            String(s.classId) === String(c) || (s.className && s.className.toLowerCase() === String(c).toLowerCase())
+          );
+          if (!matchClass) return false;
+          if (uniqueSubjectCandidates.length > 0) {
+            const matchSub = uniqueSubjectCandidates.some(subId =>
+              String(s.subjectId) === String(subId) ||
+              (s.subject && s.subject.toLowerCase() === String(subId).toLowerCase()) ||
+              (s.subjectName && s.subjectName.toLowerCase() === String(subId).toLowerCase())
+            );
+            if (!matchSub) return false;
+          }
+          return true;
+        });
+
+        if (!slotMatch) {
+          return {
+            allowed: false,
+            reason: 'Strict Mode: Attendance marking is restricted to scheduled timetable slots and approved substitutions only.'
+          };
+        }
+        return {
+          allowed: true,
+          assignment,
+          via: slotMatch.role === 'substitute' ? 'substitution' : 'timetable',
+          slot: slotMatch
+        };
+      }
     }
 
     return { allowed: true, assignment };
@@ -214,8 +312,7 @@ async function verifyTeacherAssignment(user, classIdInput, subjectIdInput, conte
  */
 function verifySessionOwner(session, user) {
   if (!session || !user) return false;
-  if (user.role === 'admin') return true;
-  if (user.role === 'teacher' && user.isAdmin === true) return true;
+  if (isSudoAdmin(user)) return true;
 
   const userCandidates = [
     user.trackId,

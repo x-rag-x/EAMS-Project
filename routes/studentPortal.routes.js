@@ -3,6 +3,7 @@ const router = express.Router();
 const M = require('../models');
 const { authMiddleware } = require('../middleware/auth');
 const { checkMaintenance } = require('../middleware/maintenance');
+const { todayIST } = require('../utils/institutionTime');
 
 router.get('/me', authMiddleware, checkMaintenance, async (req, res) => {
   try {
@@ -34,9 +35,14 @@ router.get('/me', authMiddleware, checkMaintenance, async (req, res) => {
     // Fetch login history for lastLogin / firstLogin
     const loginHistory = effectiveTrackId ? await M.LoginHistory.findOne({ trackId: effectiveTrackId }).lean() : null;
 
-    // Minimum attendance requirement from settings
+    // Minimum attendance requirement from settings (supports regulation-specific thresholds)
     const academicSetting = await M.Settings.findOne({ key: 'academic' }).lean();
-    const minRequired = academicSetting?.value?.minAttendance || 75;
+    let minRequired = academicSetting?.value?.minAttendance || 75;
+    const regMinMap = academicSetting?.value?.regulationMinAttendance || {};
+    const studentReg = student?.regulation || '';
+    if (studentReg && regMinMap[studentReg] !== undefined) {
+      minRequired = Number(regMinMap[studentReg]);
+    }
 
     if (!student) {
       // No Student profile record found — return safe fallback so portal loads
@@ -128,7 +134,7 @@ router.get('/me', authMiddleware, checkMaintenance, async (req, res) => {
     const subjectMap = {}; // subjectTrackId → { subjectId, subjectTrackId, subjectName, teacherName, present, absent, total, dates[] }
 
     for (const doc of classAttDocs) {
-      const dateStr = doc.date ? new Date(doc.date).toISOString().split('T')[0] : '';
+      const dateStr = doc.date ? (typeof doc.date === 'string' ? doc.date.split('T')[0] : todayIST(doc.date)) : '';
       for (const period of doc.periods || []) {
         const sid = period.subjectTrackId;
         const subObj = subjectMapLookup.get(sid);
@@ -167,7 +173,17 @@ router.get('/me', authMiddleware, checkMaintenance, async (req, res) => {
     const totalPresent = subjects.reduce((n, s) => n + s.present, 0);
     const totalAbsent = subjects.reduce((n, s) => n + s.absent, 0);
     const totalClasses = subjects.reduce((n, s) => n + s.total, 0);
-    const overall = totalClasses > 0 ? Math.round((totalPresent / totalClasses) * 100) : 0;
+    const rawOverall = totalClasses > 0 ? Math.round((totalPresent / totalClasses) * 100) : 0;
+
+    // ── Attendance adjustments (§12, §13, T-D6)
+    const adjustments = await M.AttendanceAdjustment.find({
+      $or: [
+        { studentId: student._id },
+        { studentTrackId: effectiveTrackId }
+      ]
+    }).lean();
+    const adjustmentDelta = adjustments.reduce((acc, a) => acc + (Number(a.deltaPct) || 0), 0);
+    const overall = Math.min(100, Math.max(0, rawOverall + adjustmentDelta));
 
     res.json({
       user: {
@@ -186,7 +202,15 @@ router.get('/me', authMiddleware, checkMaintenance, async (req, res) => {
         totalPresent,
         totalAbsent,
         totalClasses,
+        rawOverall,
         overall,
+        adjustmentDelta,
+        adjustments: adjustments.map(a => ({
+          kind: a.kind,
+          deltaPct: a.deltaPct,
+          reason: a.reason,
+          appliedAt: a.appliedAt
+        })),
         minRequired,
       },
     });

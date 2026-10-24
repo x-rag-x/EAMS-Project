@@ -1,3 +1,72 @@
+## 🔹 `v2.5.0` — 24 October 2026 *(Long due features)*
+
+### **UI/UX Modernization & Reicon SVG Design System**
+- **`<re-icon>` Custom Web Component**: Introduced 105 curated SVG icons in `public/js/core/icons.js` with outline/filled states, deprecating all platform-specific emojis. Replaced all emojis occurance with new unique SVG icons
+- **Dropdowns**: A new unique UI/UX for dropdowns with search filter, upporting multi-token keyboard search, green department badges, and elevated overlay positioning.
+
+### **Unified Sign-In Pipeline & Latency Optimization**
+- **Reduced Latency & Enhanced Security**: Optimized code logic to reduce sign-in latency from approximately 2,500ms to 100–170ms, while maintaining strong security measures.
+- **Streamlined authentication workflow**: Slashed authentication latency from ~2,500ms to 100–170ms via parallel `.lean()` pipelines, an in-memory credential cache, and single-entry server-driven routing.
+- **Removed Tabs**: Three tabs (Student, Teacher, and Admin) with additional (SmartBoard) sub mode tabs are removed. Now there is only one sign-in form. Code auto finds the user and redirects to the respective page. Complete new Page redirects based on respective roles
+
+### **Hardware Device Trust & Board Security**
+- **Device Binding**: Enforced 1:1 hardware device binding for student attendance with 15-day session continuity.
+- **Immutable Ledger**: Introduced an immutable append-only `models/trustEvent.model.js` ledger with automated daily scoring.
+- **Ephemeral Tickets**: Replaced hardcoded Smart Board keys with ephemeral 1-minute WebSocket handshake tickets.
+
+### **Scope-Aware 3-Tier Administration Architecture (RBAC)**
+- **Sudo Admin** (`scope: institution`, rights: `*`): Overall controller of the web app. Usually one sudo admin in the institution. Has unrestricted authority, system configurations, and master seeds. Appoints Super Admin, Sub-Admin, Hods, Principal roles
+- **Super Admin** (`scope: department`, rights: scoped): Whole deparatment managing, assgining department level roles. Usually one main Super Admin for each department. Institutional department head managing departmental faculty, student rosters, subject allocations, and sub-admin delegations.
+- **Sub-Admin** (`scope: department`, delegated rights): Granular, temporary page-level delegations with expiration timestamps.
+
+### **Department Classification**
+Split departments into Programme Departments vs. Supportive Departments
+- **Programme Departments**: Departments that manage degree programmes, student batches, and classes leading to a degree.
+- **Supportive Departments**: Departments that provide cross-curricular support, training, or services to all programmes. 
+
+### **Admin Page**
+- **Executive Roles & Access Page**: Complete restructuing, role based display and rights. Added unique Departments tab consisting of all departments rights action - HoD management, Class Advsiors, Timetable coordinators, Sub-Admin actions. Hostel Wardern Management - *(beta)*
+- **Grievances tab**: A new Faculty Grievances is added to admin page, used to manage the grievances of faculty and staff. 
+- **Improved Cards**: Improved department cards and teacher displaying cards in admin page.
+
+### **Bulk Page** 
+- **Verification**: Implemented each upload record verfication. Student and teacher importer must be verified, once after each verification a mail will auto dispatched to the respective student/teacher with login credentials.
+- **Requesting Approval**: Each uploads requires Sudo admin requesting approval. Only 500 global verification per day.
+- **Auto Cloud Backup**: Uploaded spreadsheets are automatically backed up to dedicated batch folders in Google Drive before data validation begins.
+- **Restore from Backup**: Backup that are done in control page, uploading zip fills the app with those datas *(beta)*.
+- **Active Session Resumer**: Easy resuming the task on recent uploaded and ongoing verifications.
+- **Live Database Rescan**: Live DB rescan button validates records against the database in real-time to fix missing dependencies without re-uploading spreadsheets.
+
+*Bulk page restructing is still pending, a newer ui/ux is been planned and implemented in next update.*
+
+### **Timetable Page**
+- **Draft vs. Live Workspace Toggle**: Coordinators can freely draft, auto-generate, and modify schedules in an isolated draft environment with automatic 5-second auto-save and undo safety before publishing live.
+- **Faculty Workload & Syllabus Tracking**: Dedicated summary cards beneath the timetable grid display weekly teaching hour quotas, subject syllabus coverage percentages, and teacher allocations.
+- **Teacher timetable matrix**: Introduced/Fixed the individual teacher timetable matrix. Adapting matrix to both SET_1 and SET_2. (Both in timetable page and Teacher page (My Schedule)) 
+
+### **Attendance**
+- Every student self-marks attendance **only from the phone registered to them**, registered in front of their Class Advisor.
+- On that phone the student stays signed in for **15 days** (then signs in again).
+- Every self-mark carries a **Trust Score**, a **Device Score** and a risk level, frozen at the moment of marking.
+- Low trust or a suspicious mark goes to the **teacher**, who confirms the student is in the room — or reports they aren't.
+- Penalties are **events in a ledger**, never silent edits; every penalty can be disputed and reversed exactly.
+- **Security to Att**: Added more layers of attendance marking, multiple security checks and restrictions.
+
+### **More..**
+- **One-Click Restoration (Recycle Bin)**: Accidental deletions can be restored with a single click while automatically verifying reference integrity.
+- **Interactive On-Duty (OD) Requests**: Dedicated submission form with categorized event types, reason fields, and document proof uploads for official college duties.
+- **15-Day Trusted Sign-In**: Registered personal mobile devices remain signed in for 15 days, eliminating repeated daily login prompts for classroom check-ins.
+- **Google APIs**: Integrated Google Mail and Google Drive APIs. Used for login credentails sharing and backuping data purposes. *(beta)*
+- **Schema Changes**: AdminSchema is completed removed, added to TeacherSchema, All pages actions, role rights are added to TeacherSchema. 
+- **Regulations**: Added College Regulations, managed by manage page, and added subjects page filter based on these regulations.
+
+### *Multiple Bugs and its Fixes, UI/UX improvement, testing of inline linked features, security strengthing, lesser loading/fetching time interval*
+
+### `Total 308 Files changed and updated in v2.5.0` 
+### `Last Version: v2.4.0`
+
+---- 
+
 ## 🔹 `v2.4.0` — 30 September 2026 *(Timetable Workspace 2.0)*
 
 ### *Timetable Workspace 2.0*

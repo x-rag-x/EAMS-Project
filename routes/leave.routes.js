@@ -3,9 +3,11 @@ const router = express.Router();
 const mongoose = require('mongoose');
 const M = require('../models');
 const { authMiddleware } = require('../middleware/auth');
+const { isSudoAdmin } = require('../utils/access');
 const { logAction } = require('../utils/logAction');
 const { sanitizeToString } = require('../utils/sanitizeQuery');
 const { checkModuleGuard } = require('../middleware/portalGuard');
+const { getSettings } = require('../utils/settingsCache');
 const {
   getTeacherIdentity,
   resolveTeacherRange,
@@ -13,6 +15,10 @@ const {
   sessionOfPeriod,
   buildOverrideSlot
 } = require('../utils/teacherSchedule');
+const { getNextRequestId } = require('../utils/requestIds');
+const { calculateFacultyLeaveBalance, calculateLOPSplit } = require('../utils/leaveBalance');
+const { syncActingRoles } = require('../jobs/actingRoles');
+const { todayInInstitutionTz } = require('../utils/institutionTime');
 
 // Helper to generate date array [YYYY-MM-DD, ...]
 function getDatesInRange(startDateStr, endDateStr) {
@@ -385,16 +391,25 @@ router.get('/advisor-requests', authMiddleware, async (req, res) => {
       ].filter(Boolean);
     }
 
-    // Retrieve all requests for calculating KPI stats
+    const statusParam = sanitizeToString(req.query.status);
+    if (statusParam && statusParam !== 'all') {
+      baseFilter.status = statusParam;
+    } else {
+      baseFilter.status = { $nin: ['Cancelled', 'cancelled'] };
+    }
+
+    // Retrieve all non-cancelled requests for calculating KPI stats
     const allRequests = await M.LeaveRequest.find(baseFilter).sort({ createdAt: -1 }).lean();
 
+    const activeRequests = allRequests.filter(r => r.status !== 'Cancelled' && r.status !== 'cancelled');
+
     const stats = {
-      total: allRequests.length,
+      total: activeRequests.length,
       approved: allRequests.filter(r => r.status === 'Approved').length,
       rejected: allRequests.filter(r => r.status === 'Rejected').length,
       pending: allRequests.filter(r => r.status === 'Pending').length,
-      cancelled: allRequests.filter(r => r.status === 'Cancelled').length,
-      onDutyCount: allRequests.filter(r => r.category === 'Permission' || (r.slot && r.slot !== 'Full Day')).length,
+      cancelled: allRequests.filter(r => r.status === 'Cancelled' || r.status === 'cancelled').length,
+      onDutyCount: activeRequests.filter(r => r.category === 'Permission' || (r.slot && r.slot !== 'Full Day')).length,
       totalApprovedDays: allRequests
         .filter(r => r.status === 'Approved')
         .reduce((sum, r) => sum + (r.daysCount || (r.category === 'Permission' ? 0.5 : 1)), 0)
@@ -405,7 +420,6 @@ router.get('/advisor-requests', authMiddleware, async (req, res) => {
     const fromDate = sanitizeToString(req.query.from);
     const toDate = sanitizeToString(req.query.to);
     const category = sanitizeToString(req.query.category);
-    const status = sanitizeToString(req.query.status);
     const search = (sanitizeToString(req.query.search) || '').toLowerCase();
 
     if (fromDate) {
@@ -417,8 +431,10 @@ router.get('/advisor-requests', authMiddleware, async (req, res) => {
     if (category) {
       filtered = filtered.filter(r => r.category === category);
     }
-    if (status) {
-      filtered = filtered.filter(r => r.status === status);
+    if (statusParam && statusParam !== 'all') {
+      filtered = filtered.filter(r => r.status === statusParam);
+    } else {
+      filtered = filtered.filter(r => r.status !== 'Cancelled' && r.status !== 'cancelled');
     }
     if (search) {
       filtered = filtered.filter(r =>
@@ -663,7 +679,7 @@ router.get('/affected-slots', authMiddleware, async (req, res) => {
     }
 
     let teacherTrackId = req.user.trackId;
-    if (req.user.role === 'admin' && req.query.teacherTrackId) {
+    if (isSudoAdmin(req.user) && req.query.teacherTrackId) {
       teacherTrackId = sanitizeToString(req.query.teacherTrackId);
     }
 
@@ -888,8 +904,8 @@ router.post('/teacher/apply', authMiddleware, checkModuleGuard('modelLeave', 'Le
   }
 });
 
-// GET /api/leave/teacher/my-requests — Teacher's own leave requests
-router.get('/teacher/my-requests', authMiddleware, async (req, res) => {
+// GET /api/leave/teacher/my-requests or /faculty/my-requests — Teacher's own leave requests
+router.get(['/teacher/my-requests', '/faculty/my-requests'], authMiddleware, async (req, res) => {
   try {
     if (req.user.role !== 'teacher' && req.user.role !== 'admin') {
       return res.status(403).json({ error: 'Teachers only' });
@@ -957,7 +973,1194 @@ router.put('/teacher/cancel/:id', authMiddleware, async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────
-// PLAN 4 (FEATURE 6) ADDENDUM: HOD APPROVAL WORKFLOW
+// ─────────────────────────────────────────────────────────────
+// STAGE 6: FACULTY LEAVE & SUBSTITUTIONS WORKFLOW (L7 & L8)
+// ─────────────────────────────────────────────────────────────
+
+// GET /api/leave/policy — Get department leave policy
+router.get('/policy', authMiddleware, async (req, res) => {
+  try {
+    const deptCode = sanitizeToString(req.query.deptCode || req.query.dept);
+    const isPrincipal = isSudoAdmin(req.user) || req.user.isPrincipal;
+    if (isPrincipal && !deptCode) {
+      const policies = await M.FacultyLeavePolicy.find({}).lean();
+      return res.json({ ok: true, policies });
+    }
+    const targetDept = deptCode || req.user.deptCode;
+    const settingsMap = await getSettings(['teachers']);
+    const teacherDefaults = settingsMap?.teachers || {};
+
+    let policy = await M.FacultyLeavePolicy.findOne({ deptCode: String(targetDept || '').toUpperCase() }).lean();
+    if (!policy) {
+      policy = {
+        deptCode: String(targetDept || '').toUpperCase(),
+        annualLeaveQuota: teacherDefaults.annualLeaveQuota !== undefined ? Number(teacherDefaults.annualLeaveQuota) : 15,
+        allowances: {
+          casualLeave: teacherDefaults.casualLeaveAllowance !== undefined ? Number(teacherDefaults.casualLeaveAllowance) : 12,
+          medicalLeave: teacherDefaults.medicalLeaveAllowance !== undefined ? Number(teacherDefaults.medicalLeaveAllowance) : 10,
+          earnedLeave: teacherDefaults.earnedLeaveAllowance !== undefined ? Number(teacherDefaults.earnedLeaveAllowance) : 15
+        },
+        carryForwardEarned: teacherDefaults.carryForward !== undefined ? Boolean(teacherDefaults.carryForward) : true,
+        medicalDocThresholdDays: teacherDefaults.medicalDocThresholdDays !== undefined ? Number(teacherDefaults.medicalDocThresholdDays) : 3,
+        maxConsecutiveLeaveDays: teacherDefaults.maxConsecutiveLeaveDays !== undefined ? Number(teacherDefaults.maxConsecutiveLeaveDays) : 3,
+        requireSubstitution: teacherDefaults.requireSubstitution !== undefined ? Boolean(teacherDefaults.requireSubstitution) : true,
+        allowPeriodLeave: teacherDefaults.allowPeriodLeave !== undefined ? Boolean(teacherDefaults.allowPeriodLeave) : true,
+        autoEscalatePrincipal: teacherDefaults.autoEscalatePrincipal !== undefined ? Boolean(teacherDefaults.autoEscalatePrincipal) : false,
+        revision: 1,
+        isDefault: true
+      };
+    } else {
+      // Ensure defaults for any missing fields in existing record
+      if (policy.annualLeaveQuota === undefined) policy.annualLeaveQuota = teacherDefaults.annualLeaveQuota ?? 15;
+      if (policy.maxConsecutiveLeaveDays === undefined) policy.maxConsecutiveLeaveDays = teacherDefaults.maxConsecutiveLeaveDays ?? 3;
+      if (policy.requireSubstitution === undefined) policy.requireSubstitution = teacherDefaults.requireSubstitution ?? true;
+      if (policy.allowPeriodLeave === undefined) policy.allowPeriodLeave = teacherDefaults.allowPeriodLeave ?? true;
+      if (policy.autoEscalatePrincipal === undefined) policy.autoEscalatePrincipal = teacherDefaults.autoEscalatePrincipal ?? false;
+      if (policy.carryForwardEarned === undefined) policy.carryForwardEarned = teacherDefaults.carryForward ?? true;
+      if (policy.medicalDocThresholdDays === undefined) policy.medicalDocThresholdDays = teacherDefaults.medicalDocThresholdDays ?? 3;
+    }
+    res.json({ ok: true, policy, defaults: teacherDefaults });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT /api/leave/policy — HOD modifies department leave policy (creates new revision)
+router.put('/policy', authMiddleware, async (req, res) => {
+  try {
+    const {
+      deptCode,
+      allowances,
+      annualLeaveQuota,
+      carryForwardEarned,
+      carryForward,
+      allowCarryForward,
+      medicalDocThresholdDays,
+      maxConsecutiveLeaveDays,
+      requireSubstitution,
+      allowPeriodLeave,
+      autoEscalatePrincipal,
+      reason
+    } = req.body;
+    const cleanDept = String(deptCode || req.user.deptCode || '').toUpperCase().trim();
+    if (!cleanDept) {
+      return res.status(400).json({ error: 'deptCode is required' });
+    }
+
+    // Acting HOD check: Acting HOD cannot change policy per LD8 / Permission Matrix
+    const today = await todayInInstitutionTz();
+    const actingRole = await M.ActingRole.findOne({
+      holderTrackId: req.user.trackId,
+      role: 'hod',
+      status: { $in: ['active', 'pending'] },
+      from: { $lte: today },
+      to: { $gte: today }
+    }).lean();
+
+    if (actingRole && !isSudoAdmin(req.user) && !req.user.isPrincipal) {
+      return res.status(403).json({ error: 'Acting HOD is not permitted to modify department leave policy' });
+    }
+
+    const isHodForDept = (req.user.isHod && String(req.user.deptCode || '').toUpperCase() === cleanDept) ||
+      isSudoAdmin(req.user) || req.user.isPrincipal;
+    if (!isHodForDept) {
+      return res.status(403).json({ error: `Only the HOD of ${cleanDept} or Admin can modify policy` });
+    }
+
+    const settingsMap = await getSettings(['teachers']);
+    const teacherDefaults = settingsMap?.teachers || {};
+
+    const resolvedCarryForward = carryForwardEarned !== undefined ? Boolean(carryForwardEarned) :
+      (carryForward !== undefined ? Boolean(carryForward) :
+      (allowCarryForward !== undefined ? Boolean(allowCarryForward) : (teacherDefaults.carryForward ?? true)));
+
+    let policy = await M.FacultyLeavePolicy.findOne({ deptCode: cleanDept });
+    if (!policy) {
+      policy = new M.FacultyLeavePolicy({
+        deptCode: cleanDept,
+        annualLeaveQuota: annualLeaveQuota !== undefined ? Number(annualLeaveQuota) : (teacherDefaults.annualLeaveQuota ?? 15),
+        allowances: {
+          casualLeave: allowances?.casualLeave !== undefined ? Number(allowances.casualLeave) : (teacherDefaults.casualLeaveAllowance ?? 12),
+          medicalLeave: allowances?.medicalLeave !== undefined ? Number(allowances.medicalLeave) : (teacherDefaults.medicalLeaveAllowance ?? 10),
+          earnedLeave: allowances?.earnedLeave !== undefined ? Number(allowances.earnedLeave) : (teacherDefaults.earnedLeaveAllowance ?? 15)
+        },
+        carryForwardEarned: resolvedCarryForward,
+        medicalDocThresholdDays: medicalDocThresholdDays !== undefined ? Number(medicalDocThresholdDays) : (teacherDefaults.medicalDocThresholdDays ?? 3),
+        maxConsecutiveLeaveDays: maxConsecutiveLeaveDays !== undefined ? Number(maxConsecutiveLeaveDays) : (teacherDefaults.maxConsecutiveLeaveDays ?? 3),
+        requireSubstitution: requireSubstitution !== undefined ? Boolean(requireSubstitution) : (teacherDefaults.requireSubstitution ?? true),
+        allowPeriodLeave: allowPeriodLeave !== undefined ? Boolean(allowPeriodLeave) : (teacherDefaults.allowPeriodLeave ?? true),
+        autoEscalatePrincipal: autoEscalatePrincipal !== undefined ? Boolean(autoEscalatePrincipal) : (teacherDefaults.autoEscalatePrincipal ?? false),
+        revision: 1,
+        revisedBy: {
+          trackId: req.user.trackId || String(req.user._id),
+          name: req.user.fullName || req.user.name,
+          role: isSudoAdmin(req.user) ? 'admin' : (req.user.isPrincipal ? 'principal' : 'hod')
+        },
+        history: []
+      });
+    } else {
+      policy.history.push({
+        revision: policy.revision,
+        annualLeaveQuota: policy.annualLeaveQuota,
+        allowances: { ...policy.allowances.toObject() },
+        carryForwardEarned: policy.carryForwardEarned,
+        medicalDocThresholdDays: policy.medicalDocThresholdDays,
+        maxConsecutiveLeaveDays: policy.maxConsecutiveLeaveDays,
+        requireSubstitution: policy.requireSubstitution,
+        allowPeriodLeave: policy.allowPeriodLeave,
+        autoEscalatePrincipal: policy.autoEscalatePrincipal,
+        revisedBy: { ...policy.revisedBy },
+        revisedAt: policy.revisedAt,
+        reason: reason || 'Policy revised by Department Controller'
+      });
+
+      policy.revision += 1;
+      if (annualLeaveQuota !== undefined) policy.annualLeaveQuota = Number(annualLeaveQuota);
+      if (allowances?.casualLeave !== undefined) policy.allowances.casualLeave = Number(allowances.casualLeave);
+      if (allowances?.medicalLeave !== undefined) policy.allowances.medicalLeave = Number(allowances.medicalLeave);
+      if (allowances?.earnedLeave !== undefined) policy.allowances.earnedLeave = Number(allowances.earnedLeave);
+      if (carryForwardEarned !== undefined || carryForward !== undefined || allowCarryForward !== undefined) {
+        policy.carryForwardEarned = resolvedCarryForward;
+      }
+      if (medicalDocThresholdDays !== undefined) policy.medicalDocThresholdDays = Number(medicalDocThresholdDays);
+      if (maxConsecutiveLeaveDays !== undefined) policy.maxConsecutiveLeaveDays = Number(maxConsecutiveLeaveDays);
+      if (requireSubstitution !== undefined) policy.requireSubstitution = Boolean(requireSubstitution);
+      if (allowPeriodLeave !== undefined) policy.allowPeriodLeave = Boolean(allowPeriodLeave);
+      if (autoEscalatePrincipal !== undefined) policy.autoEscalatePrincipal = Boolean(autoEscalatePrincipal);
+      policy.revisedBy = {
+        trackId: req.user.trackId || String(req.user._id),
+        name: req.user.fullName || req.user.name,
+        role: isSudoAdmin(req.user) ? 'admin' : (req.user.isPrincipal ? 'principal' : 'hod')
+      };
+      policy.revisedAt = new Date();
+    }
+
+    await policy.save();
+
+    await logAction(
+      req.user.trackId || req.user._id,
+      req.user.fullName || req.user.name,
+      'controller',
+      'Leave Policy Updated',
+      `Updated department leave policy for ${cleanDept} (Revision ${policy.revision})`,
+      'attendance',
+      'info',
+      req.ip,
+      req.user.sessionId,
+      { deptCode: cleanDept, revision: policy.revision }
+    );
+
+    res.json({ ok: true, message: 'Department leave policy updated successfully', policy });
+  } catch (err) {
+    console.error('Update leave policy error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/leave/balance — Get leave balance and LOP status for faculty member
+router.get('/balance', authMiddleware, async (req, res) => {
+  try {
+    let targetTrackId = req.user.trackId;
+    if (req.query.teacherTrackId && (isSudoAdmin(req.user) || req.user.isHod || req.user.isPrincipal)) {
+      targetTrackId = sanitizeToString(req.query.teacherTrackId);
+    }
+    const deptCode = sanitizeToString(req.query.deptCode || req.user.deptCode || '');
+    const year = req.query.year ? Number(req.query.year) : null;
+
+    const balanceData = await calculateFacultyLeaveBalance({
+      teacherTrackId: targetTrackId,
+      deptCode,
+      year
+    });
+
+    res.json({ ok: true, data: balanceData });
+  } catch (err) {
+    console.error('Leave balance error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/leave/faculty — Apply for Faculty Leave (Wizard Step 4 submit or Step 2 draft)
+router.post('/faculty', authMiddleware, async (req, res) => {
+  try {
+    if (req.user.role !== 'teacher' && req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'Faculty members only' });
+    }
+
+    const teacher = await M.Teacher.findOne({
+      $or: [
+        { trackId: req.user.trackId },
+        { _id: mongoose.isValidObjectId(req.user._id) ? req.user._id : undefined }
+      ].filter(Boolean)
+    }).lean();
+
+    if (!teacher) {
+      return res.status(404).json({ error: 'Teacher record not found' });
+    }
+
+    const {
+      leaveType = 'Casual Leave',
+      coverage = 'full_day',
+      periods = [],
+      fromDate,
+      toDate,
+      reason,
+      isEmergency = false,
+      actingAdvisor = null,
+      actingHod = null,
+      document = null,
+      substitutions = [],
+      isDraft = false
+    } = req.body;
+
+    if (!fromDate || !/^\d{4}-\d{2}-\d{2}$/.test(fromDate)) {
+      return res.status(400).json({ error: 'Valid fromDate (YYYY-MM-DD) is required' });
+    }
+    const effectiveToDate = toDate && /^\d{4}-\d{2}-\d{2}$/.test(toDate) ? toDate : fromDate;
+    if (effectiveToDate < fromDate) {
+      return res.status(400).json({ error: 'toDate cannot be before fromDate' });
+    }
+    if (!isDraft && (!reason || !reason.trim())) {
+      return res.status(400).json({ error: 'Leave reason is required' });
+    }
+
+    const dates = getDatesInRange(fromDate, effectiveToDate);
+
+    // Normalize coverage
+    let normCoverage = 'full_day';
+    const rawCov = String(coverage || req.body.slot || 'full_day').toLowerCase();
+    if (rawCov.includes('period') || rawCov.includes('custom') || rawCov.includes('hour')) {
+      normCoverage = 'periods';
+    } else if (rawCov === 'fn' || rawCov.includes('forenoon')) {
+      normCoverage = 'fn';
+    } else if (rawCov === 'an' || rawCov.includes('afternoon')) {
+      normCoverage = 'an';
+    } else {
+      normCoverage = 'full_day';
+    }
+
+    // Calculate daysCount
+    let daysCount = 0;
+    if (normCoverage === 'periods') {
+      daysCount = 0; // LD7: 0 units
+    } else if (normCoverage === 'fn' || normCoverage === 'an') {
+      daysCount = 0.5 * dates.length;
+    } else {
+      daysCount = dates.length;
+    }
+
+    // Balance check & automatic LOP split calculation (LD6)
+    const balanceInfo = await calculateFacultyLeaveBalance({
+      teacherTrackId: teacher.trackId,
+      deptCode: teacher.deptCode || teacher.department
+    });
+
+    let availableBalance = 0;
+    const normType = String(leaveType).toLowerCase();
+    if (normType.includes('casual') || normType === 'cl') {
+      availableBalance = balanceInfo.balances.casualLeave.available;
+    } else if (normType.includes('med') || normType === 'ml') {
+      availableBalance = balanceInfo.balances.medicalLeave.available;
+    } else if (normType.includes('earned') || normType === 'el') {
+      availableBalance = balanceInfo.balances.earnedLeave.available;
+    }
+
+    const lopSplit = calculateLOPSplit({
+      leaveType,
+      requestedDays: daysCount,
+      availableBalance
+    });
+
+    // Check Class Advisor appointment requirement (LD16)
+    const classAdvisorOf = await M.Class.findOne({
+      $or: [
+        { advisorTeacherId: teacher._id },
+        { advisorTeacherTrackId: teacher.trackId }
+      ]
+    }).lean();
+
+    const advisorTrackId = actingAdvisor?.teacherTrackId || actingAdvisor?.trackId || req.body.actingAdvisorTrackId;
+    if (classAdvisorOf && !advisorTrackId && !isEmergency && !isDraft) {
+      return res.status(400).json({
+        error: `As Class Advisor of ${classAdvisorOf.name}, you must appoint an Acting Class Advisor for the leave period.`
+      });
+    }
+
+    // Check HOD appointment requirement (LD16)
+    const isHod = teacher.isHod || (Array.isArray(teacher.specials) && teacher.specials.some(s => s.option === 'isHod'));
+    const hodTrackId = actingHod?.teacherTrackId || actingHod?.trackId || req.body.actingHodTrackId;
+    if (isHod && !hodTrackId && !isEmergency && !isDraft) {
+      return res.status(400).json({
+        error: 'As HOD, you must appoint an Acting HOD for your leave period.'
+      });
+    }
+
+    let finalActingAdvisor = null;
+    if (advisorTrackId) {
+      let advName = actingAdvisor?.teacherName || actingAdvisor?.name || req.body.actingAdvisorName;
+      if (!advName) {
+        const found = await M.Teacher.findOne({ trackId: advisorTrackId }).lean();
+        if (found) advName = found.fullName || found.name;
+      }
+      finalActingAdvisor = {
+        classId: actingAdvisor?.classId || classAdvisorOf?._id || null,
+        className: actingAdvisor?.className || classAdvisorOf?.name || '',
+        teacherTrackId: advisorTrackId,
+        teacherName: advName || advisorTrackId
+      };
+    }
+
+    let finalActingHod = null;
+    if (hodTrackId) {
+      let hName = actingHod?.teacherName || actingHod?.name || req.body.actingHodName;
+      if (!hName) {
+        const found = await M.Teacher.findOne({ trackId: hodTrackId }).lean();
+        if (found) hName = found.fullName || found.name;
+      }
+      finalActingHod = {
+        deptCode: actingHod?.deptCode || teacher.deptCode || '',
+        teacherTrackId: hodTrackId,
+        teacherName: hName || hodTrackId
+      };
+    }
+
+    // Format substitutions
+    const formattedSubs = (substitutions || []).map(s => ({
+      date: s.date,
+      day: s.day || '',
+      periodNumber: Number(s.periodNumber),
+      classId: s.classId || null,
+      className: s.className || '',
+      subjectName: s.subjectName || '',
+      subjectCode: s.subjectCode || '',
+      hallNo: s.hallNo || '',
+      substituteTeacherId: s.substituteTeacherId || null,
+      substituteTeacherTrackId: s.substituteTeacherTrackId,
+      substituteTeacherName: s.substituteTeacherName,
+      status: s.status || 'requested',
+      assignedBy: 'teacher',
+      isUnresolved: Boolean(s.isUnresolved),
+      notes: s.notes || ''
+    }));
+
+    const requestId = await getNextRequestId('FL');
+    let initialStatus = 'pending_hod';
+    let escalationLevel = 'hod';
+
+    if (isDraft) {
+      initialStatus = 'draft';
+    } else if (isHod) {
+      // HOD's own leave skips HOD stage and goes straight to Principal (§6.6 / LD8)
+      initialStatus = 'pending_principal';
+      escalationLevel = 'principal';
+    }
+
+    const leaveReq = await M.TeacherLeaveRequest.create({
+      requestId,
+      teacherId: teacher._id,
+      teacherTrackId: teacher.trackId,
+      teacherName: teacher.fullName || teacher.name,
+      employeeNo: teacher.employeeNo || '',
+      deptId: teacher.deptId,
+      deptCode: teacher.deptCode || '',
+      deptName: teacher.department || '',
+      category: 'Leave',
+      leaveType,
+      slot: normCoverage === 'periods' ? 'Custom Hours' : (normCoverage === 'fn' ? 'FN' : (normCoverage === 'an' ? 'AN' : 'Full Day')),
+      coverage: normCoverage,
+      periods: Array.isArray(periods) ? periods.map(Number) : [],
+      fromDate,
+      toDate: effectiveToDate,
+      dates,
+      daysCount,
+      balanceBreakdown: {
+        leaveType: lopSplit.leaveType,
+        requestedDays: lopSplit.requestedDays,
+        available: lopSplit.available,
+        coveredByLeave: lopSplit.coveredByLeave,
+        lopDays: lopSplit.lopDays
+      },
+      reason: (reason || (isDraft ? 'Draft' : '')).trim(),
+      isEmergency: Boolean(isEmergency),
+      actingAdvisor: finalActingAdvisor,
+      actingHod: finalActingHod,
+      document: document ? {
+        driveFileId: document.driveFileId || null,
+        webViewLink: document.webViewLink || document.url || null,
+        name: document.name || ''
+      } : null,
+      status: initialStatus,
+      escalationLevel,
+      hodStatus: isHod ? 'N/A' : (isDraft ? 'Pending' : 'Pending'),
+      principalStatus: 'Pending',
+      substitutions: formattedSubs,
+      substituteTeacherTrackId: formattedSubs[0]?.substituteTeacherTrackId || '',
+      substituteTeacherName: formattedSubs.map(s => s.substituteTeacherName).filter(Boolean).join(', '),
+      history: [{
+        action: isDraft ? 'draft_created' : 'applied',
+        actorId: teacher.trackId,
+        actorName: teacher.fullName || teacher.name,
+        actorRole: 'teacher',
+        at: new Date(),
+        comment: isDraft ? 'Saved leave application draft' : `Submitted leave application (${lopSplit.splitDescription})`
+      }]
+    });
+
+    // Notify approver and substitutes if submitted
+    if (!isDraft) {
+      if (initialStatus === 'pending_principal') {
+        // Notify Principal (isPrincipal special, fallback to Sudo Admin)
+        let principalTeacher = await M.Teacher.findOne({
+          'specials.option': 'isPrincipal'
+        }).lean();
+        if (!principalTeacher) {
+          principalTeacher = await M.Teacher.findOne({
+            'specials.option': 'isAdmin',
+            pageRights: {
+              $elemMatch: {
+                page: '*',
+                accessRole: 'sudoAdmin',
+                scope: 'institution',
+                enabled: { $ne: false }
+              }
+            }
+          }).lean();
+        }
+        let principalUser = null;
+        if (principalTeacher) {
+          principalUser = await M.User.findOne({
+            $or: [{ trackId: principalTeacher.trackId }, { username: principalTeacher.username }]
+          }).lean();
+        }
+        if (principalUser) {
+          await M.Notification.create({
+            type: 'leave-request',
+            from: teacher.fullName || teacher.name,
+            fromRole: 'hod',
+            toUserId: principalUser._id,
+            message: `HOD ${teacher.fullName} submitted a leave request (${fromDate} to ${effectiveToDate}) awaiting your final approval.`,
+            priority: isEmergency ? 'High' : 'Normal',
+            time: new Date()
+          }).catch(() => {});
+        }
+      } else {
+        // Notify HOD (T11 lookup)
+        const deptFilters = [];
+        if (teacher.deptId) deptFilters.push({ deptId: teacher.deptId });
+        if (teacher.deptCode) deptFilters.push({ deptCode: teacher.deptCode });
+        if (teacher.department) deptFilters.push({ department: new RegExp(`^${teacher.department.trim()}$`, 'i') });
+        const hodTeacher = await M.Teacher.findOne({
+          'specials.option': { $in: ['isHod', 'isHOD'] },
+          $or: deptFilters
+        }).lean();
+
+        if (hodTeacher) {
+          await M.Notification.create({
+            type: 'leave-request',
+            from: teacher.fullName || teacher.name,
+            fromRole: 'teacher',
+            toTeacherId: hodTeacher._id,
+            toTeacherTrackId: hodTeacher.trackId,
+            toTeacherName: hodTeacher.fullName || hodTeacher.name,
+            message: `${teacher.fullName} submitted a leave request (${fromDate} to ${effectiveToDate}) with ${formattedSubs.length} substitutions.`,
+            priority: isEmergency ? 'High' : 'Normal',
+            time: new Date()
+          }).catch(() => {});
+        }
+      }
+
+      // Notify each substitute requested
+      for (const sub of formattedSubs) {
+        if (sub.substituteTeacherTrackId) {
+          await M.Notification.create({
+            type: 'substitution-request',
+            from: teacher.fullName || teacher.name,
+            fromRole: 'teacher',
+            toTeacherTrackId: sub.substituteTeacherTrackId,
+            message: `${teacher.fullName} requested you as substitute on ${sub.date} (Period ${sub.periodNumber}, ${sub.className}).`,
+            priority: isEmergency ? 'High' : 'Normal',
+            time: new Date()
+          }).catch(() => {});
+        }
+      }
+    }
+
+    await logAction(
+      teacher.trackId || teacher._id,
+      teacher.fullName || teacher.name,
+      'teacher',
+      isDraft ? 'Faculty Leave Draft Saved' : 'Faculty Leave Applied',
+      `${isDraft ? 'Saved draft' : 'Applied'} for ${leaveType} from ${fromDate} to ${effectiveToDate}`,
+      'attendance',
+      'info',
+      req.ip,
+      req.user.sessionId,
+      { requestId: leaveReq.requestId, daysCount, lopDays: lopSplit.lopDays }
+    );
+
+    res.status(201).json({ ok: true, leaveRequest: leaveReq, lopSplit });
+  } catch (err) {
+    console.error('Faculty leave application error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/leave/faculty/pending — Get faculty leaves pending review for HOD or Principal
+router.get('/faculty/pending', authMiddleware, async (req, res) => {
+  try {
+    const isPrincipal = isSudoAdmin(req.user) || req.user.isPrincipal;
+    const filter = {};
+
+    if (isPrincipal) {
+      filter.status = { $in: ['pending_principal', 'Pending'] };
+      if (req.query.deptCode) {
+        filter.deptCode = String(req.query.deptCode).toUpperCase();
+      }
+    } else if (req.user.isHod) {
+      filter.status = { $in: ['pending_hod', 'Pending'] };
+      filter.escalationLevel = 'hod';
+      if (req.user.deptCode) {
+        filter.deptCode = String(req.user.deptCode).toUpperCase();
+      }
+    } else {
+      return res.status(403).json({ error: 'HOD or Principal privileges required' });
+    }
+
+    const pendingRequests = await M.TeacherLeaveRequest.find(filter)
+      .sort({ isEmergency: -1, createdAt: -1 })
+      .lean();
+
+    res.json({ ok: true, requests: pendingRequests });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/leave/faculty/:id — Get details of a single faculty leave request
+router.get('/faculty/:id', authMiddleware, async (req, res) => {
+  try {
+    const leaveReq = await M.TeacherLeaveRequest.findOne({
+      $or: [
+        { _id: mongoose.isValidObjectId(req.params.id) ? req.params.id : undefined },
+        { requestId: req.params.id }
+      ].filter(Boolean)
+    }).lean();
+
+    if (!leaveReq) {
+      return res.status(404).json({ error: 'Faculty leave request not found' });
+    }
+
+    res.json({ ok: true, leaveRequest: leaveReq });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT /api/leave/faculty/:id — Update draft or returned faculty leave request
+router.put('/faculty/:id', authMiddleware, async (req, res) => {
+  try {
+    const leaveReq = await M.TeacherLeaveRequest.findOne({
+      $or: [
+        { _id: mongoose.isValidObjectId(req.params.id) ? req.params.id : undefined },
+        { requestId: req.params.id }
+      ].filter(Boolean)
+    });
+
+    if (!leaveReq) return res.status(404).json({ error: 'Leave request not found' });
+    if (leaveReq.teacherTrackId !== req.user.trackId && !req.user.isAdmin) {
+      return res.status(403).json({ error: 'Unauthorized to edit this request' });
+    }
+    if (!['draft', 'returned'].includes(leaveReq.status)) {
+      return res.status(400).json({ error: `Cannot edit request in status: ${leaveReq.status}` });
+    }
+
+    const {
+      leaveType,
+      coverage,
+      periods,
+      fromDate,
+      toDate,
+      reason,
+      isEmergency,
+      actingAdvisor,
+      actingHod,
+      document,
+      substitutions
+    } = req.body;
+
+    if (fromDate) leaveReq.fromDate = fromDate;
+    if (toDate) leaveReq.toDate = toDate;
+    const effectiveToDate = leaveReq.toDate || leaveReq.fromDate;
+    const dates = getDatesInRange(leaveReq.fromDate, effectiveToDate);
+    leaveReq.dates = dates;
+
+    if (coverage) leaveReq.coverage = coverage;
+    if (periods) leaveReq.periods = Array.isArray(periods) ? periods.map(Number) : [];
+    if (reason) leaveReq.reason = reason.trim();
+    if (typeof isEmergency === 'boolean') leaveReq.isEmergency = isEmergency;
+    if (leaveType) leaveReq.leaveType = leaveType;
+
+    // Recalculate daysCount
+    let daysCount = dates.length;
+    if (leaveReq.coverage === 'periods') daysCount = 0;
+    else if (leaveReq.coverage === 'fn' || leaveReq.coverage === 'an') daysCount = 0.5 * dates.length;
+    leaveReq.daysCount = daysCount;
+
+    // Recalculate balanceBreakdown
+    const balanceInfo = await calculateFacultyLeaveBalance({
+      teacherTrackId: leaveReq.teacherTrackId,
+      deptCode: leaveReq.deptCode
+    });
+    let availableBalance = 0;
+    const normType = String(leaveReq.leaveType).toLowerCase();
+    if (normType.includes('casual') || normType === 'cl') availableBalance = balanceInfo.balances.casualLeave.available;
+    else if (normType.includes('med') || normType === 'ml') availableBalance = balanceInfo.balances.medicalLeave.available;
+    else if (normType.includes('earned') || normType === 'el') availableBalance = balanceInfo.balances.earnedLeave.available;
+
+    const lopSplit = calculateLOPSplit({
+      leaveType: leaveReq.leaveType,
+      requestedDays: daysCount,
+      availableBalance
+    });
+    leaveReq.balanceBreakdown = {
+      leaveType: lopSplit.leaveType,
+      requestedDays: lopSplit.requestedDays,
+      available: lopSplit.available,
+      coveredByLeave: lopSplit.coveredByLeave,
+      lopDays: lopSplit.lopDays
+    };
+
+    if (actingAdvisor !== undefined) leaveReq.actingAdvisor = actingAdvisor;
+    if (actingHod !== undefined) leaveReq.actingHod = actingHod;
+    if (document !== undefined) leaveReq.document = document;
+    if (substitutions !== undefined) leaveReq.substitutions = substitutions;
+
+    leaveReq.history.push({
+      action: 'draft_updated',
+      actorId: req.user.trackId || String(req.user._id),
+      actorName: req.user.fullName || req.user.name,
+      actorRole: 'teacher',
+      at: new Date(),
+      comment: 'Updated draft details'
+    });
+
+    await leaveReq.save();
+    res.json({ ok: true, message: 'Draft updated successfully', leaveRequest: leaveReq, lopSplit });
+  } catch (err) {
+    console.error('Update faculty leave draft error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/leave/faculty/:id/submit — Submit draft leave request
+router.post('/faculty/:id/submit', authMiddleware, async (req, res) => {
+  try {
+    const leaveReq = await M.TeacherLeaveRequest.findOne({
+      $or: [
+        { _id: mongoose.isValidObjectId(req.params.id) ? req.params.id : undefined },
+        { requestId: req.params.id }
+      ].filter(Boolean)
+    });
+
+    if (!leaveReq) return res.status(404).json({ error: 'Leave request not found' });
+    if (leaveReq.teacherTrackId !== req.user.trackId && !req.user.isAdmin) {
+      return res.status(403).json({ error: 'Unauthorized to submit this request' });
+    }
+    if (!['draft', 'returned'].includes(leaveReq.status)) {
+      return res.status(400).json({ error: `Cannot submit request in status: ${leaveReq.status}` });
+    }
+
+    const isHod = req.user.isHod || (Array.isArray(req.user.specials) && req.user.specials.some(s => s.option === 'isHod'));
+    leaveReq.status = isHod ? 'pending_principal' : 'pending_hod';
+    leaveReq.escalationLevel = isHod ? 'principal' : 'hod';
+
+    leaveReq.history.push({
+      action: 'submitted',
+      actorId: req.user.trackId || String(req.user._id),
+      actorName: req.user.fullName || req.user.name,
+      actorRole: 'teacher',
+      at: new Date(),
+      comment: 'Submitted leave request'
+    });
+
+    await leaveReq.save();
+    res.json({ ok: true, message: 'Leave request submitted successfully', leaveRequest: leaveReq });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/leave/faculty/:id/withdraw — Withdraw/cancel faculty leave
+router.post('/faculty/:id/withdraw', authMiddleware, async (req, res) => {
+  try {
+    const leaveReq = await M.TeacherLeaveRequest.findOne({
+      $or: [
+        { _id: mongoose.isValidObjectId(req.params.id) ? req.params.id : undefined },
+        { requestId: req.params.id }
+      ].filter(Boolean)
+    });
+
+    if (!leaveReq) return res.status(404).json({ error: 'Leave request not found' });
+    if (leaveReq.teacherTrackId !== req.user.trackId && !req.user.isAdmin) {
+      return res.status(403).json({ error: 'Unauthorized to withdraw this request' });
+    }
+
+    leaveReq.status = 'withdrawn';
+    // Release any substitutions
+    for (const sub of (leaveReq.substitutions || [])) {
+      sub.status = 'released';
+    }
+
+    // Cancel acting roles if created
+    await M.ActingRole.updateMany(
+      { sourceLeaveId: leaveReq.requestId || String(leaveReq._id) },
+      { $set: { status: 'cancelled' } }
+    );
+
+    leaveReq.history.push({
+      action: 'withdrawn',
+      actorId: req.user.trackId || String(req.user._id),
+      actorName: req.user.fullName || req.user.name,
+      actorRole: 'teacher',
+      at: new Date(),
+      comment: 'Withdrawn by applicant'
+    });
+
+    await leaveReq.save();
+    res.json({ ok: true, message: 'Leave request withdrawn', leaveRequest: leaveReq });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/leave/faculty/:id/hod-permit — HOD permits / recommends faculty leave to Principal
+router.post('/faculty/:id/hod-permit', authMiddleware, async (req, res) => {
+  try {
+    if (!req.user.isHod && !req.user.isAdmin) {
+      return res.status(403).json({ error: 'HOD or Admin authorization required' });
+    }
+
+    const leaveReq = await M.TeacherLeaveRequest.findOne({
+      $or: [
+        { _id: mongoose.isValidObjectId(req.params.id) ? req.params.id : undefined },
+        { requestId: req.params.id }
+      ].filter(Boolean)
+    });
+
+    if (!leaveReq) return res.status(404).json({ error: 'Leave request not found' });
+    if (!['pending_hod', 'Pending'].includes(leaveReq.status)) {
+      return res.status(400).json({ error: `Cannot permit request in status: ${leaveReq.status}` });
+    }
+
+    const comment = sanitizeToString(req.body.comment || req.body.remarks || 'Permitted by HOD');
+    leaveReq.status = 'pending_principal';
+    leaveReq.escalationLevel = 'principal';
+    leaveReq.hodStatus = 'Permitted';
+    leaveReq.hodReviewedBy = req.user.fullName || req.user.name;
+    leaveReq.hodReviewedAt = new Date();
+    leaveReq.hodRemarks = comment;
+
+    leaveReq.history.push({
+      action: 'hod_permitted',
+      actorId: req.user.trackId || String(req.user._id),
+      actorName: req.user.fullName || req.user.name,
+      actorRole: 'hod',
+      at: new Date(),
+      comment
+    });
+
+    await leaveReq.save();
+
+    // Notify Principal
+    await M.Notification.create({
+      type: 'leave-request',
+      from: req.user.fullName || req.user.name,
+      fromRole: 'hod',
+      message: `HOD endorsed faculty leave for ${leaveReq.teacherName} (${leaveReq.fromDate} to ${leaveReq.toDate}). Awaiting your final approval.`,
+      priority: leaveReq.isEmergency ? 'High' : 'Normal',
+      time: new Date()
+    }).catch(() => {});
+
+    await logAction(
+      req.user.trackId || req.user._id,
+      req.user.fullName || req.user.name,
+      'hod',
+      'Faculty Leave Permitted',
+      `Permitted leave for ${leaveReq.teacherName} (${leaveReq.fromDate} to ${leaveReq.toDate})`,
+      'attendance',
+      'info',
+      req.ip,
+      req.user.sessionId,
+      { requestId: leaveReq.requestId, teacherTrackId: leaveReq.teacherTrackId }
+    );
+
+    res.json({ ok: true, message: 'Leave permitted and forwarded to Principal', leaveRequest: leaveReq });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/leave/faculty/:id/hod-reject — HOD rejects faculty leave
+router.post('/faculty/:id/hod-reject', authMiddleware, async (req, res) => {
+  try {
+    if (!req.user.isHod && !req.user.isAdmin) {
+      return res.status(403).json({ error: 'HOD or Admin authorization required' });
+    }
+
+    const reason = sanitizeToString(req.body.reason || req.body.remarks);
+    if (!reason || !reason.trim()) {
+      return res.status(400).json({ error: 'Rejection reason is required' });
+    }
+
+    const leaveReq = await M.TeacherLeaveRequest.findOne({
+      $or: [
+        { _id: mongoose.isValidObjectId(req.params.id) ? req.params.id : undefined },
+        { requestId: req.params.id }
+      ].filter(Boolean)
+    });
+
+    if (!leaveReq) return res.status(404).json({ error: 'Leave request not found' });
+
+    leaveReq.status = 'rejected';
+    leaveReq.hodStatus = 'Rejected';
+    leaveReq.hodReviewedBy = req.user.fullName || req.user.name;
+    leaveReq.hodReviewedAt = new Date();
+    leaveReq.hodRemarks = reason.trim();
+
+    // Release substitutions
+    for (const sub of (leaveReq.substitutions || [])) {
+      sub.status = 'released';
+    }
+
+    leaveReq.history.push({
+      action: 'hod_rejected',
+      actorId: req.user.trackId || String(req.user._id),
+      actorName: req.user.fullName || req.user.name,
+      actorRole: 'hod',
+      at: new Date(),
+      comment: reason.trim()
+    });
+
+    await leaveReq.save();
+
+    // Notify teacher
+    await M.Notification.create({
+      type: 'leave-rejection',
+      from: req.user.fullName || req.user.name,
+      fromRole: 'hod',
+      toTeacherTrackId: leaveReq.teacherTrackId,
+      message: `Your leave request (${leaveReq.fromDate} to ${leaveReq.toDate}) was rejected by HOD: "${reason.trim()}".`,
+      priority: 'High',
+      time: new Date()
+    }).catch(() => {});
+
+    res.json({ ok: true, message: 'Leave rejected by HOD', leaveRequest: leaveReq });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/leave/faculty/:id/hod-return — HOD returns faculty leave for correction
+router.post('/faculty/:id/hod-return', authMiddleware, async (req, res) => {
+  try {
+    if (!req.user.isHod && !req.user.isAdmin) {
+      return res.status(403).json({ error: 'HOD or Admin authorization required' });
+    }
+
+    const note = sanitizeToString(req.body.note || req.body.remarks || 'Returned for correction');
+    const leaveReq = await M.TeacherLeaveRequest.findOne({
+      $or: [
+        { _id: mongoose.isValidObjectId(req.params.id) ? req.params.id : undefined },
+        { requestId: req.params.id }
+      ].filter(Boolean)
+    });
+
+    if (!leaveReq) return res.status(404).json({ error: 'Leave request not found' });
+
+    leaveReq.status = 'returned';
+    leaveReq.hodStatus = 'Returned';
+    leaveReq.hodRemarks = note;
+
+    leaveReq.history.push({
+      action: 'hod_returned',
+      actorId: req.user.trackId || String(req.user._id),
+      actorName: req.user.fullName || req.user.name,
+      actorRole: 'hod',
+      at: new Date(),
+      comment: note
+    });
+
+    await leaveReq.save();
+
+    // Notify teacher
+    await M.Notification.create({
+      type: 'leave-returned',
+      from: req.user.fullName || req.user.name,
+      fromRole: 'hod',
+      toTeacherTrackId: leaveReq.teacherTrackId,
+      message: `Your leave request (${leaveReq.fromDate} to ${leaveReq.toDate}) was returned for correction: "${note}".`,
+      priority: 'Normal',
+      time: new Date()
+    }).catch(() => {});
+
+    res.json({ ok: true, message: 'Leave request returned for correction', leaveRequest: leaveReq });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/leave/faculty/:id/principal-approve — Principal final approval (LD9: Overrides written & roles activated only now)
+router.post('/faculty/:id/principal-approve', authMiddleware, async (req, res) => {
+  try {
+    const isPrincipal = isSudoAdmin(req.user) || req.user.isPrincipal;
+    if (!isPrincipal) {
+      return res.status(403).json({ error: 'Principal or Admin authorization required' });
+    }
+
+    const leaveReq = await M.TeacherLeaveRequest.findOne({
+      $or: [
+        { _id: mongoose.isValidObjectId(req.params.id) ? req.params.id : undefined },
+        { requestId: req.params.id }
+      ].filter(Boolean)
+    });
+
+    if (!leaveReq) return res.status(404).json({ error: 'Leave request not found' });
+
+    leaveReq.status = 'approved';
+    leaveReq.principalStatus = 'Approved';
+    leaveReq.principalReviewedBy = req.user.fullName || req.user.name;
+    leaveReq.principalReviewedAt = new Date();
+    leaveReq.principalRemarks = sanitizeToString(req.body.remarks || 'Approved by Principal');
+
+    // 1. Confirm all substitutions and write Override documents
+    let overridesCreated = 0;
+    for (const sub of (leaveReq.substitutions || [])) {
+      if (!sub.substituteTeacherTrackId) continue;
+      sub.status = 'confirmed';
+
+      const subDateStr = sub.date ? String(sub.date).slice(0, 10) : '';
+      if (!subDateStr) continue;
+      const subUtcDate = new Date(subDateStr + 'T00:00:00.000Z');
+      const periodNum = Number(sub.periodNumber);
+
+      const originalSlot = buildOverrideSlot({
+        teacher: leaveReq.teacherName,
+        teacherTrackId: leaveReq.teacherTrackId,
+        teacherId: leaveReq.teacherId,
+        subject: sub.subjectName,
+        room: sub.hallNo
+      });
+      const newSlot = buildOverrideSlot({
+        teacher: sub.substituteTeacherName,
+        teacherTrackId: sub.substituteTeacherTrackId,
+        teacherId: sub.substituteTeacherId,
+        subject: sub.subjectName,
+        room: sub.hallNo
+      });
+
+      await M.Override.findOneAndUpdate(
+        {
+          classId: sub.classId,
+          date: subUtcDate,
+          $or: [{ period: periodNum }, { periodNumber: periodNum }]
+        },
+        {
+          classId: sub.classId,
+          date: subUtcDate,
+          period: periodNum,
+          periodNumber: periodNum,
+          type: 'substitute',
+          originalSlot,
+          newSlot,
+          reason: `Faculty Leave Substitution: ${leaveReq.teacherName} on ${leaveReq.fromDate}–${leaveReq.toDate}`,
+          approvedBy: req.user.fullName || req.user.name,
+          requestId: leaveReq.requestId || String(leaveReq._id),
+          source: {
+            type: leaveReq.isEmergency ? 'EMERGENCY' : 'FACULTY_LEAVE',
+            requestId: leaveReq.requestId || String(leaveReq._id)
+          },
+          status: 'confirmed',
+          assignedBy: {
+            trackId: req.user.trackId || String(req.user._id),
+            role: 'principal'
+          },
+          originalTeacher: {
+            trackId: leaveReq.teacherTrackId,
+            name: leaveReq.teacherName
+          },
+          substituteTeacher: {
+            trackId: sub.substituteTeacherTrackId,
+            name: sub.substituteTeacherName
+          }
+        },
+        { upsert: true, returnDocument: 'after' }
+      );
+      overridesCreated++;
+    }
+
+    // 2. Activate Acting Roles if appointed
+    if (leaveReq.actingAdvisor?.teacherTrackId) {
+      await M.ActingRole.create({
+        role: 'advisor',
+        key: String(leaveReq.actingAdvisor.classId || ''),
+        holderTrackId: leaveReq.actingAdvisor.teacherTrackId,
+        appointedBy: leaveReq.teacherTrackId,
+        from: leaveReq.fromDate,
+        to: leaveReq.toDate,
+        sourceLeaveId: leaveReq.requestId || String(leaveReq._id),
+        status: 'pending'
+      });
+    }
+
+    if (leaveReq.actingHod?.teacherTrackId) {
+      await M.ActingRole.create({
+        role: 'hod',
+        key: String(leaveReq.actingHod.deptCode || leaveReq.deptCode || '').toUpperCase(),
+        holderTrackId: leaveReq.actingHod.teacherTrackId,
+        appointedBy: leaveReq.teacherTrackId,
+        from: leaveReq.fromDate,
+        to: leaveReq.toDate,
+        sourceLeaveId: leaveReq.requestId || String(leaveReq._id),
+        status: 'pending'
+      });
+    }
+
+    // Sync acting roles immediately for today's active date
+    await syncActingRoles();
+
+    leaveReq.history.push({
+      action: 'principal_approved',
+      actorId: req.user.trackId || String(req.user._id),
+      actorName: req.user.fullName || req.user.name,
+      actorRole: 'principal',
+      at: new Date(),
+      comment: `Final approval granted. ${overridesCreated} timetable override(s) activated.`
+    });
+
+    await leaveReq.save();
+
+    // 3. Dispatch notifications
+    // Notify Applicant
+    await M.Notification.create({
+      type: 'leave-approval',
+      from: req.user.fullName || req.user.name,
+      fromRole: 'principal',
+      toTeacherTrackId: leaveReq.teacherTrackId,
+      message: `Your ${leaveReq.leaveType} (${leaveReq.fromDate} to ${leaveReq.toDate}) has been APPROVED by Principal.`,
+      priority: 'Normal',
+      time: new Date()
+    }).catch(() => {});
+
+    // Notify Substitutes
+    for (const sub of (leaveReq.substitutions || [])) {
+      if (sub.substituteTeacherTrackId) {
+        await M.Notification.create({
+          type: 'substitution-confirmed',
+          from: req.user.fullName || req.user.name,
+          fromRole: 'principal',
+          toTeacherTrackId: sub.substituteTeacherTrackId,
+          message: `Substitution CONFIRMED for ${leaveReq.teacherName} on ${sub.date} (Period ${sub.periodNumber}, ${sub.className}). You are authorised to take attendance.`,
+          priority: 'Normal',
+          time: new Date()
+        }).catch(() => {});
+      }
+    }
+
+    await logAction(
+      req.user.trackId || req.user._id,
+      req.user.fullName || req.user.name,
+      'principal',
+      'Faculty Leave Approved',
+      `Principal approved faculty leave for ${leaveReq.teacherName} (${leaveReq.fromDate} to ${leaveReq.toDate}). ${overridesCreated} overrides written.`,
+      'attendance',
+      'info',
+      req.ip,
+      req.user.sessionId,
+      { requestId: leaveReq.requestId, overridesCreated }
+    );
+
+    res.json({ ok: true, message: 'Faculty leave approved by Principal', leaveRequest: leaveReq, overridesCreated });
+  } catch (err) {
+    console.error('Principal approval error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/leave/faculty/:id/principal-reject — Principal rejects faculty leave
+router.post('/faculty/:id/principal-reject', authMiddleware, async (req, res) => {
+  try {
+    const isPrincipal = isSudoAdmin(req.user) || req.user.isPrincipal;
+    if (!isPrincipal) {
+      return res.status(403).json({ error: 'Principal or Admin authorization required' });
+    }
+
+    const reason = sanitizeToString(req.body.reason || req.body.remarks);
+    if (!reason || !reason.trim()) {
+      return res.status(400).json({ error: 'Rejection reason is required' });
+    }
+
+    const leaveReq = await M.TeacherLeaveRequest.findOne({
+      $or: [
+        { _id: mongoose.isValidObjectId(req.params.id) ? req.params.id : undefined },
+        { requestId: req.params.id }
+      ].filter(Boolean)
+    });
+
+    if (!leaveReq) return res.status(404).json({ error: 'Leave request not found' });
+
+    leaveReq.status = 'rejected';
+    leaveReq.principalStatus = 'Rejected';
+    leaveReq.principalReviewedBy = req.user.fullName || req.user.name;
+    leaveReq.principalReviewedAt = new Date();
+    leaveReq.principalRemarks = reason.trim();
+
+    // Release substitutions
+    for (const sub of (leaveReq.substitutions || [])) {
+      sub.status = 'released';
+    }
+
+    // Cancel acting roles
+    await M.ActingRole.updateMany(
+      { sourceLeaveId: leaveReq.requestId || String(leaveReq._id) },
+      { $set: { status: 'cancelled' } }
+    );
+
+    leaveReq.history.push({
+      action: 'principal_rejected',
+      actorId: req.user.trackId || String(req.user._id),
+      actorName: req.user.fullName || req.user.name,
+      actorRole: 'principal',
+      at: new Date(),
+      comment: reason.trim()
+    });
+
+    await leaveReq.save();
+
+    // Notify teacher & HOD
+    await M.Notification.create({
+      type: 'leave-rejection',
+      from: req.user.fullName || req.user.name,
+      fromRole: 'principal',
+      toTeacherTrackId: leaveReq.teacherTrackId,
+      message: `Your leave request (${leaveReq.fromDate} to ${leaveReq.toDate}) was rejected by Principal: "${reason.trim()}".`,
+      priority: 'High',
+      time: new Date()
+    }).catch(() => {});
+
+    res.json({ ok: true, message: 'Leave rejected by Principal', leaveRequest: leaveReq });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/leave/faculty/emergency — Fast-track Emergency Faculty Leave
+router.post('/faculty/emergency', authMiddleware, async (req, res) => {
+  req.body.isEmergency = true;
+  return router.handle(req, res);
+});
+
+// ─────────────────────────────────────────────────────────────
+// LEGACY COMPATIBILITY HANDLERS
 // ─────────────────────────────────────────────────────────────
 
 // GET /api/leave/teacher/pending-hod — List teacher leave requests awaiting HOD
@@ -966,7 +2169,7 @@ router.get('/teacher/pending-hod', authMiddleware, async (req, res) => {
     if (!req.user.isHod && !req.user.isAdmin) {
       return res.status(403).json({ error: 'HOD or Admin authorization required' });
     }
-    const filter = { status: 'Pending', escalationLevel: 'hod' };
+    const filter = { status: { $in: ['Pending', 'pending_hod'] }, escalationLevel: 'hod' };
     if (req.user.deptId && !req.user.isAdmin) {
       filter.deptId = req.user.deptId;
     }
@@ -979,7 +2182,7 @@ router.get('/teacher/pending-hod', authMiddleware, async (req, res) => {
   }
 });
 
-// PUT /api/leave/teacher/:id/hod-approve — HOD approves leave & creates day overrides for substitutions
+// PUT /api/leave/teacher/:id/hod-approve — Alias to HOD permit / approve
 router.put('/teacher/:id/hod-approve', authMiddleware, async (req, res) => {
   try {
     if (!req.user.isHod && !req.user.isAdmin) {
@@ -987,124 +2190,21 @@ router.put('/teacher/:id/hod-approve', authMiddleware, async (req, res) => {
     }
     const leaveReq = await M.TeacherLeaveRequest.findById(req.params.id);
     if (!leaveReq) return res.status(404).json({ error: 'Leave request not found' });
-    if (leaveReq.status !== 'Pending') {
-      return res.status(400).json({ error: 'Request is not in Pending state' });
-    }
-    if (leaveReq.escalationLevel !== 'hod') {
-      return res.status(400).json({ error: 'This request does not require HOD approval' });
-    }
 
-    leaveReq.status = 'Approved';
+    leaveReq.status = 'pending_principal';
+    leaveReq.escalationLevel = 'principal';
     leaveReq.hodStatus = 'Approved';
     leaveReq.hodReviewedBy = req.user.fullName || req.user.name;
     leaveReq.hodReviewedAt = new Date();
     await leaveReq.save();
 
-    // For each substitution, create an Override record (type: 'substitute')
-    let overridesCreated = 0;
-    for (const sub of leaveReq.substitutions || []) {
-      try {
-        const subDateStr = sub.date ? String(sub.date).slice(0, 10) : '';
-        if (!subDateStr) continue;
-        const subUtcDate = new Date(subDateStr + 'T00:00:00.000Z');
-        const periodNum = Number(sub.periodNumber);
-
-        const originalSlot = buildOverrideSlot({
-          teacher: leaveReq.teacherName,
-          teacherTrackId: leaveReq.teacherTrackId,
-          teacherId: leaveReq.teacherId,
-          subject: sub.subjectName,
-          room: sub.hallNo
-        });
-        const newSlot = buildOverrideSlot({
-          teacher: sub.substituteTeacherName,
-          teacherTrackId: sub.substituteTeacherTrackId,
-          teacherId: sub.substituteTeacherId,
-          subject: sub.subjectName,
-          room: sub.hallNo
-        });
-
-        await M.Override.findOneAndUpdate(
-          {
-            classId: sub.classId,
-            date: subUtcDate,
-            $or: [{ period: periodNum }, { periodNumber: periodNum }]
-          },
-          {
-            classId: sub.classId,
-            date: subUtcDate,
-            period: periodNum,
-            periodNumber: periodNum,
-            type: 'substitute',
-            originalSlot,
-            newSlot,
-            reason: `Leave substitution: ${leaveReq.teacherName} on ${leaveReq.fromDate}–${leaveReq.toDate}`,
-            approvedBy: req.user.fullName || req.user.name,
-            requestId: String(leaveReq._id)
-          },
-          { upsert: true, returnDocument: 'after' }
-        );
-        sub.status = 'approved';
-        overridesCreated++;
-      } catch (e) {
-        console.error(`Failed to create override for sub ${sub.substituteTeacherName}:`, e.message);
-      }
-    }
-    await leaveReq.save();
-
-    // Notify the substitute(s)
-    const substituteTrackIds = [...new Set(leaveReq.substitutions?.map(s => s.substituteTeacherTrackId) || [])];
-    for (const subTrackId of substituteTrackIds) {
-      const subTeacher = await M.Teacher.findOne({ trackId: subTrackId }).lean();
-      if (subTeacher) {
-        await M.Notification.create({
-          type: 'leave-substitution',
-          from: req.user.fullName || req.user.name,
-          fromRole: 'HOD',
-          toTeacherId: subTeacher._id,
-          toTeacherTrackId: subTeacher.trackId,
-          toTeacherName: subTeacher.fullName || subTeacher.name,
-          message: `You've been assigned as substitute for ${leaveReq.teacherName} (${leaveReq.fromDate}–${leaveReq.toDate}). Class: ${leaveReq.substitutions[0]?.className || 'N/A'}`,
-          priority: 'Normal',
-          time: new Date()
-        }).catch(() => {});
-      }
-    }
-
-    // Notify the applicant
-    await M.Notification.create({
-      type: 'leave-approval',
-      from: req.user.fullName || req.user.name,
-      fromRole: 'HOD',
-      toTeacherId: leaveReq.teacherId,
-      toTeacherTrackId: leaveReq.teacherTrackId,
-      toTeacherName: leaveReq.teacherName,
-      message: `Your ${leaveReq.category} request (${leaveReq.fromDate}–${leaveReq.toDate}) has been approved by HOD. ${overridesCreated} substitution override(s) created.`,
-      priority: 'Normal',
-      time: new Date()
-    }).catch(() => {});
-
-    await logAction(
-      req.user.trackId || req.user._id,
-      req.user.name,
-      req.user.role,
-      'Teacher Leave HOD Approved',
-      `Approved leave for ${leaveReq.teacherName} (${leaveReq.fromDate}–${leaveReq.toDate}). ${overridesCreated} overrides created.`,
-      'attendance',
-      'info',
-      req.ip,
-      req.user.sessionId,
-      { module: 'teacher', subType: 'leave-hod-approve', leaveRequestId: leaveReq._id, overridesCreated }
-    );
-
-    res.json({ success: true, message: 'Leave approved. Substitution overrides created.', leaveRequest: leaveReq, overridesCreated });
+    res.json({ success: true, message: 'Leave endorsed and forwarded to Principal.', leaveRequest: leaveReq });
   } catch (err) {
-    console.error('HOD approve error:', err);
     res.status(500).json({ error: err.message });
   }
 });
 
-// PUT /api/leave/teacher/:id/hod-reject — HOD rejects leave, no timetable changes
+// PUT /api/leave/teacher/:id/hod-reject — HOD rejects leave
 router.put('/teacher/:id/hod-reject', authMiddleware, async (req, res) => {
   try {
     if (!req.user.isHod && !req.user.isAdmin) {
@@ -1112,12 +2212,6 @@ router.put('/teacher/:id/hod-reject', authMiddleware, async (req, res) => {
     }
     const leaveReq = await M.TeacherLeaveRequest.findById(req.params.id);
     if (!leaveReq) return res.status(404).json({ error: 'Leave request not found' });
-    if (leaveReq.status !== 'Pending') {
-      return res.status(400).json({ error: 'Request is not in Pending state' });
-    }
-    if (leaveReq.escalationLevel !== 'hod') {
-      return res.status(400).json({ error: 'This request does not require HOD approval' });
-    }
 
     const remarks = (req.body.remarks || '').trim();
     leaveReq.status = 'Rejected';
@@ -1127,35 +2221,8 @@ router.put('/teacher/:id/hod-reject', authMiddleware, async (req, res) => {
     leaveReq.hodRemarks = remarks;
     await leaveReq.save();
 
-    // Notify the applicant
-    await M.Notification.create({
-      type: 'leave-rejection',
-      from: req.user.fullName || req.user.name,
-      fromRole: 'HOD',
-      toTeacherId: leaveReq.teacherId,
-      toTeacherTrackId: leaveReq.teacherTrackId,
-      toTeacherName: leaveReq.teacherName,
-      message: `Your ${leaveReq.category} request (${leaveReq.fromDate}–${leaveReq.toDate}) has been rejected by HOD. Reason: ${remarks || 'No reason provided'}`,
-      priority: 'High',
-      time: new Date()
-    }).catch(() => {});
-
-    await logAction(
-      req.user.trackId || req.user._id,
-      req.user.name,
-      req.user.role,
-      'Teacher Leave HOD Rejected',
-      `Rejected leave for ${leaveReq.teacherName} (${leaveReq.fromDate}–${leaveReq.toDate}): ${remarks}`,
-      'attendance',
-      'warning',
-      req.ip,
-      req.user.sessionId,
-      { module: 'teacher', subType: 'leave-hod-reject', leaveRequestId: leaveReq._id }
-    );
-
-    res.json({ success: true, message: 'Leave rejected. No timetable changes.', leaveRequest: leaveReq });
+    res.json({ success: true, message: 'Leave rejected.', leaveRequest: leaveReq });
   } catch (err) {
-    console.error('HOD reject error:', err);
     res.status(500).json({ error: err.message });
   }
 });

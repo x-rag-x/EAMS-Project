@@ -10,8 +10,11 @@
   <link
     href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700;800&family=Poppins:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap"
     rel="stylesheet">
+  <script src="js/core/escape.js"></script>
+  <script src="js/core/icons.js"></script>
   <link rel="stylesheet" href="css/base.css">
   <link rel="stylesheet" href="css/controller.css">
+  <link rel="stylesheet" href="css/workload.shared.css">
 </head>
 
 <body>
@@ -42,7 +45,7 @@
     <!-- SIDEBAR NAVIGATION -->
     <nav class="sb" id="sidebar">
       <div class="sb-logo">
-        <div class="ctrl-logo-badge">🏛️</div>
+        <div class="ctrl-logo-badge"><re-icon icon="building2"></re-icon></div>
         <div class="ctrl-logo-text">
           <div class="sb-brand" id="sidebar-role-title">Controller Hub</div>
           <div class="sb-sub" id="sidebar-role-subtitle">Executive Oversight</div>
@@ -50,52 +53,85 @@
       </div>
 
       <div class="sb-navs">
+        <div class="sb-section-label">Real-Time Operations</div>
+        <button class="sb-item act" data-page="board" onclick="nav('board')">
+          <span class="sbi-ic"><re-icon icon="grid"></re-icon></span>Live Board
+          <span class="sb-badge alert-badge" id="sb-live-alert-badge" style="display:none;background:#ef4444;color:#fff;">0</span>
+        </button>
+        <button class="sb-item" data-page="inbox" onclick="nav('inbox')">
+          <span class="sbi-ic"><re-icon icon="grid"></re-icon></span>Approvals Inbox
+          <span class="sb-badge alert-badge" id="sb-inbox-badge" style="display:none;background:#6366f1;color:#fff;">0</span>
+        </button>
+
         <div class="sb-section-label">General Oversight</div>
-        <button class="sb-item act" data-page="dash" onclick="nav('dash')">
-          <span class="sbi-ic">📊</span>Dashboard
+        <button class="sb-item" data-page="dash" onclick="nav('dash')">
+          <span class="sbi-ic"><re-icon icon="grid"></re-icon></span>Dashboard
         </button>
         <button class="sb-item" data-page="attendance" onclick="nav('attendance')">
-          <span class="sbi-ic">📋</span>Daily Attendance
+          <span class="sbi-ic"><re-icon icon="clipboard-list"></re-icon></span>Daily Attendance
         </button>
         <button class="sb-item" data-page="leaves" onclick="nav('leaves')">
-          <span class="sbi-ic">📝</span>Leave Approvals
+          <span class="sbi-ic"><re-icon icon="file-text"></re-icon></span>Student Leaves
           <span class="sb-badge" id="sb-leave-badge" style="display:none;">0</span>
+        </button>
+        <button class="sb-item" data-page="faculty-leave" onclick="nav('faculty-leave')">
+          <span class="sbi-ic"><re-icon icon="grid"></re-icon></span>Faculty Leave &amp; Substitutions
+          <span class="sb-badge" id="sb-fl-badge" style="display:none;background:#ef4444;color:#fff;">0</span>
+        </button>
+        <button class="sb-item" data-page="participation" onclick="nav('participation')">
+          <span class="sbi-ic"><re-icon icon="grid"></re-icon></span>Academic Participation
+          <span class="sb-badge" id="sb-part-badge" style="display:none;background:#6366f1;color:#fff;">0</span>
         </button>
 
         <div class="sb-section-label">Directories</div>
         <button class="sb-item" data-page="teachers" onclick="nav('teachers')">
-          <span class="sbi-ic">👨‍🏫</span>Faculty Overview
+          <span class="sbi-ic"><re-icon icon="teacher"></re-icon></span>Faculty Overview
         </button>
         <button class="sb-item" data-page="students" onclick="nav('students')">
-          <span class="sbi-ic">👨‍🎓</span>Student Directory
+          <span class="sbi-ic"><re-icon icon="graduation-cap"></re-icon></span>Student Directory
         </button>
         <button class="sb-item" data-page="records" onclick="nav('records')">
-          <span class="sbi-ic">📖</span>Period Notes
+          <span class="sbi-ic"><re-icon icon="grid"></re-icon></span>Period Notes
         </button>
 
         <div class="sb-section-label">Analytics & Notices</div>
         <button class="sb-item" data-page="defaulters" onclick="nav('defaulters')">
-          <span class="sbi-ic">🔴</span>Defaulters Report
+          <span class="sbi-ic"><re-icon icon="user-x"></re-icon></span>Defaulters Report
         </button>
         <button class="sb-item" data-page="reports" onclick="nav('reports')">
-          <span class="sbi-ic">📈</span>Attendance Reports
+          <span class="sbi-ic"><re-icon icon="trend-up"></re-icon></span>Attendance Reports
         </button>
         <button class="sb-item" data-page="broadcast" onclick="nav('broadcast')">
-          <span class="sbi-ic">📢</span>Broadcast Hub
+          <span class="sbi-ic"><re-icon icon="bullhorn"></re-icon></span>Broadcast Hub
+        </button>
+        <button class="sb-item" data-page="audit" onclick="nav('audit')">
+          <span class="sbi-ic"><re-icon icon="grid"></re-icon></span>Executive Audit Log
         </button>
 
-        <div class="sb-section-label">Academics (View-Only)</div>
-        <button class="sb-item" data-page="calendar" onclick="nav('calendar')">
-          <span class="sbi-ic">📅</span>Academic Calendar
+        <div class="sb-section-label">Academics</div>
+        <button class="sb-item" data-page="tt-verify" id="ctrl-sn-tt-verify" onclick="nav('tt-verify')">
+          <span class="sbi-ic"><re-icon icon="clipboard-list"></re-icon></span>Timetable Verification
+          <span class="sb-badge alert-badge" id="sb-tt-verify-badge" style="display:none;background:#f59e0b;color:#fff;">0</span>
         </button>
         <button class="sb-item" data-page="timetable" onclick="nav('timetable')">
-          <span class="sbi-ic">🗓️</span>Timetable View
+          <span class="sbi-ic"><re-icon icon="calendar-days"></re-icon></span>Timetable View
+        </button>
+        <button class="sb-item" data-page="workload" onclick="nav('workload')">
+          <span class="sbi-ic"><re-icon icon="users"></re-icon></span>Faculty Workload &amp; Schedule
+        </button>
+        <button class="sb-item" data-page="calendar" onclick="nav('calendar')">
+          <span class="sbi-ic"><re-icon icon="calendar"></re-icon></span>Academic Calendar
+        </button>
+
+        <div class="sb-section-label">Configuration</div>
+        <button class="sb-item" data-page="settings" onclick="nav('settings')">
+          <span class="sbi-ic"><re-icon icon="settings"></re-icon></span>Department Policy
         </button>
       </div>
 
       <div class="sb-bottom">
         <button class="sb-back-btn" onclick="window.location.href='selector.html'" title="Switch Workspace">
-          ← Switch Workspace
+          <re-icon icon="arrow-left"></re-icon> Switch Workspace
         </button>
         <button class="sb-logout-btn" onclick="doLogout('manual', 'success', '7000')" title="Sign Out">
           <div class="logout-sign">
@@ -109,16 +145,23 @@
       </div>
     </nav>
 
+    <!-- MOBILE SIDEBAR BACKDROP -->
+    <div id="sb-backdrop" class="sb-backdrop" onclick="toggleSidebar()"></div>
+
     <!-- MAIN CONTENT CONTAINER -->
     <div class="mc" id="main-content">
 
       <!-- TOPBAR -->
       <header class="ctrl-topbar">
         <div class="ctrl-topbar-left">
-          <button class="sb-toggle-btn" id="sbtoggle" onclick="toggleSidebar()" title="Toggle Menu">☰</button>
+          <button class="sb-toggle-btn" id="sbtoggle" onclick="toggleSidebar()" title="Toggle Menu"><re-icon icon="x" size="16"></re-icon></button>
           <div class="ctrl-scope-pill" id="ctrl-scope-pill">
-            <span class="scope-icon" id="scope-icon">🏛️</span>
+            <span class="scope-icon" id="scope-icon"><re-icon icon="building2"></re-icon></span>
             <span class="scope-text" id="scope-text">Evaluating Access…</span>
+          </div>
+          <div class="ctrl-live-indicator live" id="topbar-live-status" title="Real-time SSE Stream">
+            <span class="live-dot"></span>
+            <span id="topbar-live-text">Live</span>
           </div>
           <div class="ctrl-date-badge" id="topbar-date-label"></div>
         </div>
@@ -142,54 +185,245 @@
         </div>
       </header>
 
+      <!-- PAGE 0: <re-icon icon="radio"></re-icon> LIVE BOARD (pg-board) [DEFAULT ACTIVE] -->
+      <section class="ctrl-page act" id="pg-board">
+        <div class="page-hd">
+          <div>
+            <h1 class="page-title"><re-icon icon="radio"></re-icon> Real-Time Live Board</h1>
+            <p class="page-sub">Classroom tracking, 10-minute attendance compliance, substitution status, and active operational alerts.</p>
+          </div>
+          <div class="page-actions">
+            <div class="view-toggle-grp">
+              <button class="view-toggle-btn act" id="btn-view-grid" onclick="switchLiveBoardView('grid')">▦ Grid</button>
+              <button class="view-toggle-btn" id="btn-view-matrix" onclick="switchLiveBoardView('matrix')">▤ Day Matrix</button>
+              <button class="view-toggle-btn" id="btn-view-timemachine" onclick="toggleTimeMachine()"><re-icon icon="timer" size="14"></re-icon> Time Machine</button>
+            </div>
+            <button class="btn btn-sec" onclick="reloadLiveBoardData()" title="Reload board data"><re-icon icon="refresh" size="14"></re-icon> Refresh</button>
+            <button class="btn btn-pri" onclick="generateTodaySessions()" title="Sync / Regenerate Class Sessions from Timetables"><re-icon icon="bolt" size="14"></re-icon> Sync Timetable</button>
+            <button class="btn btn-sec" onclick="openModal('m-declare-holiday')" title="Declare Holiday / Half-Day (C7 §14)"><re-icon icon="calendar" size="14"></re-icon> Declare Holiday</button>
+            <button class="btn btn-warning" onclick="openModal('m-extend-lock')" title="Extend Lock Window (C7 §14)"><re-icon icon="timer" size="14"></re-icon> ️ Extend Lock</button>
+          </div>
+        </div>
+
+        <!-- Metric Stat Cards -->
+        <div class="live-kpi-grid stats-row">
+          <div class="live-kpi-card t-stat-mini">
+            <div class="live-kpi-icon t-stat-icon blue"><re-icon icon="rocket" size="20"></re-icon></div>
+            <div>
+              <div class="live-kpi-val t-stat-val" id="kpi-running">0</div>
+              <div class="live-kpi-lbl t-stat-label">Running Now</div>
+            </div>
+          </div>
+          <div class="live-kpi-card t-stat-mini">
+            <div class="live-kpi-icon t-stat-icon green"><re-icon icon="check-circle" size="20"></re-icon></div>
+            <div>
+              <div class="live-kpi-val t-stat-val" id="kpi-on-time">0</div>
+              <div class="live-kpi-lbl t-stat-label">Marked On Time</div>
+            </div>
+          </div>
+          <div class="live-kpi-card t-stat-mini">
+            <div class="live-kpi-icon t-stat-icon amber"><re-icon icon="hourglass" size="20"></re-icon></div>
+            <div>
+              <div class="live-kpi-val t-stat-val" id="kpi-in-window">0</div>
+              <div class="live-kpi-lbl t-stat-label">In Window (&lt;10m)</div>
+            </div>
+          </div>
+          <div class="live-kpi-card t-stat-mini">
+            <div class="live-kpi-icon t-stat-icon red"><re-icon icon="alert-triangle" size="20"></re-icon></div>
+            <div>
+              <div class="live-kpi-val t-stat-val" id="kpi-overdue">0</div>
+              <div class="live-kpi-lbl t-stat-label">Overdue (&gt;10m)</div>
+            </div>
+          </div>
+          <div class="live-kpi-card t-stat-mini">
+            <div class="live-kpi-icon t-stat-icon purple"><re-icon icon="users" size="20"></re-icon></div>
+            <div>
+              <div class="live-kpi-val t-stat-val" id="kpi-needs-sub">0</div>
+              <div class="live-kpi-lbl t-stat-label">Needs Substitute</div>
+            </div>
+          </div>
+          <div class="live-kpi-card t-stat-mini">
+            <div class="live-kpi-icon t-stat-icon green"><re-icon icon="grid" size="20"></re-icon></div>
+            <div>
+              <div class="live-kpi-val t-stat-val" id="kpi-present-pct">—%</div>
+              <div class="live-kpi-lbl t-stat-label">Turnout Rate</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Time Machine bar (hidden unless activated) -->
+        <div class="time-machine-bar" id="time-machine-bar" style="display:none;">
+          <label style="font-size:12px;font-weight:600;color:#475569;">Date:
+            <input type="date" id="tm-date-picker" class="form-input form-input-sm" style="width:140px;margin-left:4px;">
+          </label>
+          <label style="font-size:12px;font-weight:600;color:#475569;">Time:
+            <input type="time" id="tm-time-picker" class="form-input form-input-sm" style="width:110px;margin-left:4px;" value="09:15">
+          </label>
+          <button class="btn btn-sec btn-sm" onclick="applyTimeMachine()">Apply Snapshot</button>
+          <button class="btn btn-sm" style="background:#f1f5f9;color:#334155;border:1px solid #cbd5e1;" onclick="resetLiveTimeMachine()">↺ Exit to Live</button>
+          <span id="tm-active-label" style="font-size:12px;color:#dc2626;font-weight:600;display:none;"><re-icon icon="alert-triangle"></re-icon> Viewing historical replay</span>
+        </div>
+
+        <!-- Filter Toolbar -->
+        <div class="live-toolbar">
+          <div class="live-toolbar-left">
+            <button class="btn-problems-toggle" id="btn-problems-toggle" onclick="toggleProblemsOnly()">
+              <span><re-icon icon="alert-triangle"></re-icon></span> Problems Only
+            </button>
+            <select id="board-year-select" class="form-input form-select-sm" onchange="filterBoardTiles()" style="width:110px;">
+              <option value="">All Years</option>
+              <option value="1">Year I</option>
+              <option value="2">Year II</option>
+              <option value="3">Year III</option>
+              <option value="4">Year IV</option>
+            </select>
+            <select id="board-sec-select" class="form-input form-select-sm" onchange="filterBoardTiles()" style="width:110px;">
+              <option value="">All Sections</option>
+              <option value="A">Section A</option>
+              <option value="B">Section B</option>
+              <option value="C">Section C</option>
+            </select>
+          </div>
+          <div class="live-toolbar-right">
+            <input type="text" id="board-search-input" class="form-input form-input-sm" placeholder="Search class, teacher, subject..." oninput="filterBoardTiles()" style="width:230px;">
+          </div>
+        </div>
+
+        <!-- Split View: Grid / Matrix on left, Live Alerts on right -->
+        <div class="live-board-layout">
+          <!-- Main Display Area -->
+          <div class="live-main-content">
+            <!-- Grid View -->
+            <div id="board-view-grid">
+              <div class="tiles-grid-wrap" id="board-tiles-container">
+                <div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--tmu);">Loading classroom sessions…</div>
+              </div>
+            </div>
+
+            <!-- Day Matrix View -->
+            <div id="board-view-matrix" style="display:none;">
+              <div class="day-matrix-card">
+                <table class="matrix-tbl">
+                  <thead>
+                    <tr>
+                      <th style="min-width:140px;">Section / Dept</th>
+                      <th>P1<br><small style="font-weight:normal;color:#94a3b8;">09:00</small></th>
+                      <th>P2<br><small style="font-weight:normal;color:#94a3b8;">10:00</small></th>
+                      <th>P3<br><small style="font-weight:normal;color:#94a3b8;">11:00</small></th>
+                      <th>P4<br><small style="font-weight:normal;color:#94a3b8;">12:00</small></th>
+                      <th>P5<br><small style="font-weight:normal;color:#94a3b8;">13:30</small></th>
+                      <th>P6<br><small style="font-weight:normal;color:#94a3b8;">14:30</small></th>
+                      <th>P7<br><small style="font-weight:normal;color:#94a3b8;">15:30</small></th>
+                      <th>P8<br><small style="font-weight:normal;color:#94a3b8;">16:30</small></th>
+                    </tr>
+                  </thead>
+                  <tbody id="matrix-tbody">
+                    <tr><td colspan="9" style="text-align:center;padding:30px;color:var(--tmu);">Loading day matrix…</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <!-- Live Alerts Panel -->
+          <div class="live-alerts-card">
+            <div class="live-alerts-hd">
+              <div class="live-alerts-title">
+                <span><re-icon icon="siren"></re-icon></span> Live Alerts
+                <span class="tile-room-pill" id="alerts-count-badge" style="background:#fef2f2;color:#dc2626;font-weight:700;">0</span>
+              </div>
+              <button class="btn btn-sec btn-sm" onclick="loadLiveAlerts()" title="Refresh alerts" style="padding:2px 8px;font-size:11px;"><re-icon icon="refresh" size="14"></re-icon> </button>
+            </div>
+            <div class="alerts-list-container" id="board-alerts-list">
+              <div style="text-align:center;padding:24px 10px;color:#94a3b8;font-size:12px;">No active alerts</div>
+            </div>
+          </div>
+        </div>
+      </section>
+ 
+      <!-- PAGE: APPROVALS INBOX (pg-inbox) (C7 §11) -->
+      <section class="ctrl-page" id="pg-inbox">
+        <div class="page-hd">
+          <div>
+            <h1 class="page-title"><re-icon icon="download"></re-icon> Approvals &amp; Action Inbox</h1>
+            <p class="page-sub">Unified chronological queue of pending faculty leaves, student ODs, overdue evidence, and attendance unlocks.</p>
+          </div>
+          <div class="page-actions">
+            <button class="btn btn-sec" onclick="loadInboxData()"><re-icon icon="refresh" size="14"></re-icon> Refresh Queue</button>
+          </div>
+        </div>
+
+        <!-- Filter bar -->
+        <div class="card" style="margin-bottom:14px;padding:12px 16px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
+            <div style="display:flex;gap:6px;flex-wrap:wrap;" id="inbox-filter-chips">
+              <button class="filter-chip act" onclick="filterInbox('all', this)">All Items (<span id="inbox-count-all">0</span>)</button>
+              <button class="filter-chip" onclick="filterInbox('faculty_leave', this)">Faculty Leaves (<span id="inbox-count-faculty_leave">0</span>)</button>
+              <button class="filter-chip" onclick="filterInbox('student_od', this)">Student OD (<span id="inbox-count-student_od">0</span>)</button>
+              <button class="filter-chip" onclick="filterInbox('attendance_unlock', this)">Attendance Unlocks (<span id="inbox-count-attendance_unlock">0</span>)</button>
+              <button class="filter-chip" onclick="filterInbox('unresolved_substitution', this)">Unresolved Subs (<span id="inbox-count-unresolved_substitution">0</span>)</button>
+              <button class="filter-chip" onclick="filterInbox('evidence_overdue', this)">Evidence Overdue (<span id="inbox-count-evidence_overdue">0</span>)</button>
+              <button class="filter-chip" onclick="filterInbox('role_access', this)">Sub-Admin Roles (<span id="inbox-count-role_access">0</span>)</button>
+              <button class="filter-chip" onclick="filterInbox('timetable_verification', this)">Timetable (<span id="inbox-count-timetable_verification">0</span>)</button>
+            </div>
+            <div style="font-size:12px;color:var(--tmu);font-weight:600;">Oldest First (FIFO)</div>
+          </div>
+        </div>
+
+        <!-- Inbox list -->
+        <div id="inbox-items-container" style="display:flex;flex-direction:column;gap:10px;">
+          <div style="text-align:center;padding:40px;color:var(--tmu);">Loading approvals queue…</div>
+        </div>
+      </section>
+
       <!-- PAGE 1: DASHBOARD (pg-dash) -->
-      <section class="ctrl-page act" id="pg-dash">
+      <section class="ctrl-page" id="pg-dash">
         <div class="page-hd">
           <div>
             <h1 class="page-title" id="dash-title">Executive Dashboard</h1>
             <p class="page-sub" id="dash-subtitle">Real-time attendance metrics, departmental indicators, and operational trends.</p>
           </div>
           <div class="page-actions">
-            <button class="btn btn-sec" onclick="loadDashboardData()">🔄 Refresh</button>
-            <button class="btn btn-pri" onclick="nav('attendance')">📋 View Today's Attendance</button>
+            <button class="btn btn-sec" onclick="loadDashboardData()"><re-icon icon="refresh" size="14"></re-icon> Refresh</button>
+            <button class="btn btn-pri" onclick="nav('attendance')"><re-icon icon="clipboard-list" size="14"></re-icon> View Today's Attendance</button>
           </div>
         </div>
 
         <!-- Metric Stat Cards -->
-        <div class="stats-grid">
-          <div class="stat-card">
-            <div class="stat-icon" style="background:#eef2ff;color:#4338ca;">👨‍🎓</div>
+        <div class="stats-grid stats-row">
+          <div class="stat-card t-stat-mini">
+            <div class="stat-icon t-stat-icon blue"><re-icon icon="graduation-cap" size="20"></re-icon></div>
             <div>
-              <div class="stat-val" id="stat-students">—</div>
-              <div class="stat-lbl">Enrolled Students</div>
+              <div class="stat-val t-stat-val" id="stat-students">—</div>
+              <div class="stat-lbl t-stat-label">Enrolled Students</div>
             </div>
           </div>
-          <div class="stat-card">
-            <div class="stat-icon" style="background:#ecfdf5;color:#047857;">👨‍🏫</div>
+          <div class="stat-card t-stat-mini">
+            <div class="stat-icon t-stat-icon green"><re-icon icon="teacher" size="20"></re-icon></div>
             <div>
-              <div class="stat-val" id="stat-faculty">—</div>
-              <div class="stat-lbl">Active Faculty</div>
+              <div class="stat-val t-stat-val" id="stat-faculty">—</div>
+              <div class="stat-lbl t-stat-label">Active Faculty</div>
             </div>
           </div>
-          <div class="stat-card">
-            <div class="stat-icon" style="background:#fffbeb;color:#b45309;">📚</div>
+          <div class="stat-card t-stat-mini">
+            <div class="stat-icon t-stat-icon purple"><re-icon icon="book-open" size="20"></re-icon></div>
             <div>
-              <div class="stat-val" id="stat-classes">—</div>
-              <div class="stat-lbl">Class Sections</div>
+              <div class="stat-val t-stat-val" id="stat-classes">—</div>
+              <div class="stat-lbl t-stat-label">Class Sections</div>
             </div>
           </div>
-          <div class="stat-card">
-            <div class="stat-icon" style="background:#f0fdf4;color:#15803d;">📋</div>
+          <div class="stat-card t-stat-mini">
+            <div class="stat-icon t-stat-icon green"><re-icon icon="clipboard-list" size="20"></re-icon></div>
             <div>
-              <div class="stat-val" id="stat-today-att">—%</div>
-              <div class="stat-lbl">Today's Attendance</div>
+              <div class="stat-val t-stat-val" id="stat-today-att">—%</div>
+              <div class="stat-lbl t-stat-label">Today's Attendance</div>
             </div>
           </div>
-          <div class="stat-card">
-            <div class="stat-icon" style="background:#fdf2f8;color:#be185d;">📝</div>
+          <div class="stat-card t-stat-mini">
+            <div class="stat-icon t-stat-icon amber"><re-icon icon="file-text" size="20"></re-icon></div>
             <div>
-              <div class="stat-val" id="stat-pending-leaves">0</div>
-              <div class="stat-lbl">Pending Approvals</div>
+              <div class="stat-val t-stat-val" id="stat-pending-leaves">0</div>
+              <div class="stat-lbl t-stat-label">Pending Approvals</div>
             </div>
           </div>
         </div>
@@ -198,7 +432,7 @@
         <div class="dash-grid-2">
           <div class="card">
             <div class="card-hd">
-              <div class="card-title">📈 7-Day Attendance Trend</div>
+              <div class="card-title"><re-icon icon="trend-up"></re-icon> 7-Day Attendance Trend</div>
               <span class="card-badge" id="trend-badge">Weekly Performance</span>
             </div>
             <div class="chart-container" id="chart-bars-wrap">
@@ -209,7 +443,7 @@
 
           <div class="card">
             <div class="card-hd">
-              <div class="card-title">🎯 Today's Attendance Roster</div>
+              <div class="card-title"><re-icon icon="flag"></re-icon> Today's Attendance Roster</div>
               <span class="card-badge" id="today-roster-status">Live Breakdown</span>
             </div>
             <div class="today-breakdown-box">
@@ -243,7 +477,7 @@
         <!-- Principal Section: Department Comparison Cards -->
         <div class="card" id="principal-comparison-card" style="display:none;margin-top:20px;">
           <div class="card-hd">
-            <div class="card-title">🏫 Department Comparison (Institutional View)</div>
+            <div class="card-title"><re-icon icon="chalkboard"></re-icon> Department Comparison (Institutional View)</div>
             <span class="card-badge">All Departments</span>
           </div>
           <div class="dept-compare-grid" id="dept-compare-grid">
@@ -254,7 +488,7 @@
         <!-- Principal Section: HOD Matrix -->
         <div class="card" id="principal-hod-card" style="display:none;margin-top:20px;">
           <div class="card-hd">
-            <div class="card-title">🏛️ Department Leadership Matrix</div>
+            <div class="card-title"><re-icon icon="building2"></re-icon> Department Leadership Matrix</div>
             <span class="card-badge">HOD Directory</span>
           </div>
           <div class="table-responsive">
@@ -282,11 +516,19 @@
             <p class="page-sub">Class-by-class attendance breakdown, period marking rosters, and real-time headcounts.</p>
           </div>
           <div class="page-actions">
-            <div class="date-navigator">
-              <button class="btn btn-sm btn-sec" onclick="changeAttendanceDate(-1)">◀ Prev Day</button>
-              <input type="date" id="att-date-picker" class="form-input form-input-sm" onchange="loadDailyAttendance()">
-              <button class="btn btn-sm btn-sec" onclick="setAttendanceToday()">Today</button>
-              <button class="btn btn-sm btn-sec" onclick="changeAttendanceDate(1)">Next Day ▶</button>
+            <div class="date-navigator" role="toolbar" aria-label="Date navigation">
+              <button type="button" class="btn btn-sm btn-sec date-nav-btn" onclick="changeAttendanceDate(-1)" title="Previous Day">
+                <re-icon icon="arrow-left" size="14"></re-icon> Prev Day
+              </button>
+              <div class="date-picker-wrap">
+                <input type="date" id="att-date-picker" class="form-input form-input-sm date-picker-input" onchange="loadDailyAttendance()" title="Select date">
+              </div>
+              <button type="button" class="btn btn-sm btn-sec date-nav-btn" onclick="changeAttendanceDate(1)" title="Next Day">
+                Next Day <re-icon icon="arrow-right" size="14"></re-icon>
+              </button>
+              <button type="button" class="btn btn-sm btn-sec date-today-btn" onclick="setAttendanceToday()" title="Jump to Today">
+                <re-icon icon="calendar" size="13"></re-icon> Today
+              </button>
             </div>
           </div>
         </div>
@@ -331,18 +573,14 @@
             <p class="page-sub">Review, endorse, and bulk-approve student and faculty leave requests.</p>
           </div>
           <div class="page-actions">
-            <button class="btn btn-sec" onclick="loadLeavesData()">🔄 Refresh</button>
+            <button class="btn btn-sec" onclick="loadLeavesData()"><re-icon icon="refresh" size="14"></re-icon> Refresh</button>
           </div>
         </div>
 
         <!-- Sub Tabs -->
         <div class="ctrl-tabs">
-          <button class="ctrl-tab act" id="tab-btn-student-leaves" onclick="switchLeaveTab('student')">
-            👨‍🎓 Student Leave Requests
-          </button>
-          <button class="ctrl-tab" id="tab-btn-teacher-leaves" onclick="switchLeaveTab('teacher')">
-            👨‍🏫 Faculty Leave Requests
-          </button>
+          <button class="ctrl-tab act" id="tab-btn-student-leaves" onclick="switchLeaveTab('student')"><re-icon icon="graduation-cap" size="14"></re-icon> Student Leave Requests</button>
+          <button class="ctrl-tab" id="tab-btn-teacher-leaves" onclick="switchLeaveTab('teacher')"><re-icon icon="teacher" size="14"></re-icon> Faculty Leave Requests</button>
         </div>
 
         <!-- Filter & Bulk Action Toolbar -->
@@ -355,8 +593,8 @@
               <button class="pill-btn" onclick="filterLeaves('rejected', this)">Rejected</button>
             </div>
             <div class="bulk-actions" id="leave-bulk-actions">
-              <button class="btn btn-sm btn-pri" onclick="handleBulkLeaveAction('approve')">✅ Bulk Approve Selected</button>
-              <button class="btn btn-sm btn-danger" onclick="handleBulkLeaveAction('reject')">❌ Bulk Reject Selected</button>
+              <button class="btn btn-sm btn-pri" onclick="handleBulkLeaveAction('approve')"><re-icon icon="check-circle" size="14"></re-icon> Bulk Approve Selected</button>
+              <button class="btn btn-sm btn-danger" onclick="handleBulkLeaveAction('reject')"><re-icon icon="x-circle" size="14"></re-icon> Bulk Reject Selected</button>
             </div>
           </div>
 
@@ -383,6 +621,401 @@
           </div>
         </div>
       </section>
+ 
+      <!-- PAGE: ACADEMIC PARTICIPATION (pg-participation, Phase L6 = C8) -->
+      <section class="ctrl-page" id="pg-participation">
+        <div class="page-hd">
+          <div>
+            <h1 class="page-title"><re-icon icon="trophy"></re-icon> Academic Participation Command Centre</h1>
+            <p class="page-sub">Institutional dashboard for tracking student co-curricular activities, OD verification scores, accreditation registries, and approvals.</p>
+          </div>
+          <div class="page-actions">
+            <button class="btn btn-sec" onclick="exportParticipationCsv()"><re-icon icon="download" size="14"></re-icon> Export CSV (Accreditation)</button>
+            <button class="btn btn-sec" onclick="loadParticipationTracker()"><re-icon icon="refresh" size="14"></re-icon> Refresh</button>
+          </div>
+        </div>
+
+        <!-- Institutional Metric KPI Cards -->
+        <div class="part-kpi-grid stats-row">
+          <div class="part-kpi-card t-stat-mini">
+            <div class="t-stat-icon blue"><re-icon icon="trophy" size="20"></re-icon></div>
+            <div>
+              <div class="part-kpi-val t-stat-val" id="part-kpi-total">0</div>
+              <div class="part-kpi-lbl t-stat-label">Total Activities</div>
+            </div>
+          </div>
+          <div class="part-kpi-card t-stat-mini">
+            <div class="t-stat-icon amber"><re-icon icon="hourglass" size="20"></re-icon></div>
+            <div>
+              <div class="part-kpi-val t-stat-val" id="part-kpi-pending" style="color:#d97706;">0</div>
+              <div class="part-kpi-lbl t-stat-label">Pending Review</div>
+            </div>
+          </div>
+          <div class="part-kpi-card t-stat-mini">
+            <div class="t-stat-icon blue"><re-icon icon="check-circle" size="20"></re-icon></div>
+            <div>
+              <div class="part-kpi-val t-stat-val" id="part-kpi-approved" style="color:#2563eb;">0</div>
+              <div class="part-kpi-lbl t-stat-label">Approved (Upcoming)</div>
+            </div>
+          </div>
+          <div class="part-kpi-card t-stat-mini">
+            <div class="t-stat-icon purple"><re-icon icon="crown" size="20"></re-icon></div>
+            <div>
+              <div class="part-kpi-val t-stat-val" id="part-kpi-principal" style="color:#7c3aed;">0</div>
+              <div class="part-kpi-lbl t-stat-label">Awaiting Principal</div>
+            </div>
+          </div>
+          <div class="part-kpi-card t-stat-mini">
+            <div class="t-stat-icon green"><re-icon icon="check" size="20"></re-icon></div>
+            <div>
+              <div class="part-kpi-val t-stat-val" id="part-kpi-completed" style="color:#059669;">0</div>
+              <div class="part-kpi-lbl t-stat-label">Completed</div>
+            </div>
+          </div>
+          <div class="part-kpi-card t-stat-mini">
+            <div class="t-stat-icon green"><re-icon icon="shield" size="20"></re-icon></div>
+            <div>
+              <div class="part-kpi-val t-stat-val" id="part-kpi-verified" style="color:#0891b2;">0</div>
+              <div class="part-kpi-lbl t-stat-label">Verified Proofs</div>
+            </div>
+          </div>
+          <div class="part-kpi-card t-stat-mini">
+            <div class="t-stat-icon purple"><re-icon icon="award" size="20"></re-icon></div>
+            <div>
+              <div class="part-kpi-val t-stat-val" id="part-kpi-certificates" style="color:#4f46e5;">0</div>
+              <div class="part-kpi-lbl t-stat-label">Certificates</div>
+            </div>
+          </div>
+          <div class="part-kpi-card t-stat-mini">
+            <div class="t-stat-icon amber"><re-icon icon="sparkles" size="20"></re-icon></div>
+            <div>
+              <div class="part-kpi-val t-stat-val" id="part-kpi-winners" style="color:#ca8a04;">0</div>
+              <div class="part-kpi-lbl t-stat-label">Winners &amp; Finalists</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- View Sub-Tabs -->
+        <div class="ctrl-tabs" style="margin-top:16px;">
+          <button class="ctrl-tab act" id="tab-btn-part-roster" onclick="switchParticipationTab('roster')"><re-icon icon="clipboard-list" size="14"></re-icon> Master Roster</button>
+          <button class="ctrl-tab" id="tab-btn-part-events" onclick="switchParticipationTab('events')"><re-icon icon="building2" size="14"></re-icon> ️ Events View</button>
+          <button class="ctrl-tab" id="tab-btn-part-students" onclick="switchParticipationTab('students')"><re-icon icon="graduation-cap" size="14"></re-icon> Student Profiles</button>
+          <button class="ctrl-tab" id="tab-btn-part-charts" onclick="switchParticipationTab('charts')"><re-icon icon="grid" size="14"></re-icon> Distribution &amp; Charts</button>
+          <button class="ctrl-tab" id="tab-btn-part-queue" onclick="switchParticipationTab('queue')"><re-icon icon="scale" size="14"></re-icon> ️ Approvals &amp; Revocation Queue</button>
+        </div>
+
+        <!-- Filter & Search Toolbar -->
+        <div class="card" style="margin-top:16px;">
+          <div class="toolbar-flex" style="flex-wrap:wrap;gap:10px;">
+            <div style="flex:1;min-width:220px;">
+              <input type="text" id="part-filter-search" class="form-ctrl" placeholder="Search student, reg no, event, or organizer…" oninput="onParticipationFilterChange()" style="width:100%;height:38px;padding:6px 12px;border-radius:8px;border:1px solid #cbd5e1;">
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+              <select id="part-filter-type" class="form-ctrl" onchange="onParticipationFilterChange()" style="height:38px;padding:4px 10px;border-radius:8px;border:1px solid #cbd5e1;font-size:12.5px;">
+                <option value="">All Types</option>
+                <option value="Technical">Technical</option>
+                <option value="Academic">Academic</option>
+                <option value="Placement">Placement</option>
+                <option value="Research">Research</option>
+                <option value="Professional Development">Professional Dev</option>
+                <option value="Co-Curricular">Co-Curricular</option>
+                <option value="Extra-Curricular">Extra-Curricular</option>
+              </select>
+              <select id="part-filter-level" class="form-ctrl" onchange="onParticipationFilterChange()" style="height:38px;padding:4px 10px;border-radius:8px;border:1px solid #cbd5e1;font-size:12.5px;">
+                <option value="">All Levels</option>
+                <option value="Department">Department</option>
+                <option value="College">College</option>
+                <option value="Inter-Collegiate">Inter-Collegiate</option>
+                <option value="University">University</option>
+                <option value="State">State</option>
+                <option value="National">National</option>
+                <option value="International">International</option>
+              </select>
+              <select id="part-filter-status" class="form-ctrl" onchange="onParticipationFilterChange()" style="height:38px;padding:4px 10px;border-radius:8px;border:1px solid #cbd5e1;font-size:12.5px;">
+                <option value="">All Statuses</option>
+                <option value="pending">Pending</option>
+                <option value="approved">Approved</option>
+                <option value="completed">Completed</option>
+                <option value="awaiting_outcome">Awaiting Outcome</option>
+                <option value="evidence_overdue">Evidence Overdue</option>
+                <option value="rejected">Rejected</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- SUB-VIEW 1: MASTER ROSTER -->
+          <div id="part-view-roster" style="margin-top:14px;">
+            <div class="table-responsive">
+              <table class="data-table" id="part-roster-table">
+                <thead>
+                  <tr>
+                    <th>Req ID</th>
+                    <th>Student</th>
+                    <th>Class / Dept</th>
+                    <th>Event &amp; Organiser</th>
+                    <th>Type &amp; Level</th>
+                    <th>Dates / Coverage</th>
+                    <th>Status</th>
+                    <th>Outcome &amp; Verification</th>
+                    <th>Record Score</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="part-roster-tbody">
+                  <tr><td colspan="10" class="text-center">Loading participation records…</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- SUB-VIEW 2: EVENTS VIEW -->
+          <div id="part-view-events" style="margin-top:14px;display:none;">
+            <div class="table-responsive">
+              <table class="data-table" id="part-events-table">
+                <thead>
+                  <tr>
+                    <th>Event Name</th>
+                    <th>Organiser &amp; Host</th>
+                    <th>Type / Level</th>
+                    <th>Dates</th>
+                    <th>Participants</th>
+                    <th>Approved</th>
+                    <th>Verified</th>
+                    <th>Certificates</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="part-events-tbody">
+                  <tr><td colspan="9" class="text-center">Loading events view…</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- SUB-VIEW 3: STUDENTS DIRECTORY -->
+          <div id="part-view-students" style="margin-top:14px;display:none;">
+            <div class="table-responsive">
+              <table class="data-table" id="part-students-table">
+                <thead>
+                  <tr>
+                    <th>Student Name</th>
+                    <th>Register No</th>
+                    <th>Class &amp; Dept</th>
+                    <th>Total Activities</th>
+                    <th>Verified</th>
+                    <th>Certificates</th>
+                    <th>Awards / Wins</th>
+                    <th>Participation Record</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="part-students-tbody">
+                  <tr><td colspan="9" class="text-center">Loading student participation records…</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- SUB-VIEW 4: CHARTS & DISTRIBUTION -->
+          <div id="part-view-charts" style="margin-top:14px;display:none;">
+            <div class="part-charts-grid">
+              <div class="part-chart-card">
+                <div class="part-chart-title">
+                  <span><re-icon icon="grid"></re-icon> Activities by Domain Type</span>
+                </div>
+                <div id="chart-part-by-type" style="min-height:220px;"></div>
+              </div>
+              <div class="part-chart-card">
+                <div class="part-chart-title">
+                  <span><re-icon icon="globe"></re-icon> Activities by Competition Level</span>
+                </div>
+                <div id="chart-part-by-level" style="min-height:220px;"></div>
+              </div>
+              <div class="part-chart-card">
+                <div class="part-chart-title">
+                  <span><re-icon icon="trophy"></re-icon> Outcome Distribution Mix</span>
+                </div>
+                <div id="chart-part-by-outcome" style="min-height:220px;"></div>
+              </div>
+              <div class="part-chart-card">
+                <div class="part-chart-title">
+                  <span><re-icon icon="trend-up"></re-icon> Monthly Participation Volume</span>
+                </div>
+                <div id="chart-part-by-month" style="min-height:220px;"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- SUB-VIEW 5: APPROVALS & REVOCATION QUEUE -->
+          <div id="part-view-queue" style="margin-top:14px;display:none;">
+            <div style="margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;">
+              <div>
+                <strong style="font-size:13.5px;color:#0f172a;"><re-icon icon="scale"></re-icon> Approvals &amp; Policy Revocations</strong>
+                <p style="font-size:12px;color:#64748b;margin:2px 0 0 0;">Review pending OD authorizations or revoke approved OD dates with full attendance rollback.</p>
+              </div>
+            </div>
+            <div class="table-responsive">
+              <table class="data-table" id="part-queue-table">
+                <thead>
+                  <tr>
+                    <th>Req ID</th>
+                    <th>Student</th>
+                    <th>Event</th>
+                    <th>Dates</th>
+                    <th>Stage</th>
+                    <th>Verification Score</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="part-queue-tbody">
+                  <tr><td colspan="7" class="text-center">Loading approval queue…</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- PAGE: FACULTY LEAVE & SUBSTITUTIONS (pg-faculty-leave, Stage 6 = C9) -->
+      <section class="ctrl-page" id="pg-faculty-leave">
+        <div class="page-hd">
+          <div>
+            <h1 class="page-title"><re-icon icon="teacher"></re-icon> Faculty Leave &amp; Substitutions Command Centre</h1>
+            <p class="page-sub">Institutional management for faculty leave requests, timetable substitution coverage, unresolved slot mitigation, and department leave policies.</p>
+          </div>
+          <div class="page-actions">
+            <button class="btn btn-sec" onclick="openFacultyLeavePolicyModal()"><re-icon icon="settings" size="14"></re-icon> ️ Department Policy</button>
+            <button class="btn btn-sec" onclick="loadFacultyLeaveData()"><re-icon icon="refresh" size="14"></re-icon> Refresh</button>
+          </div>
+        </div>
+
+        <!-- Metric KPI Cards -->
+        <div class="part-kpi-grid stats-row" style="grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));">
+          <div class="part-kpi-card t-stat-mini">
+            <div class="t-stat-icon amber"><re-icon icon="hourglass" size="20"></re-icon></div>
+            <div>
+              <div class="part-kpi-val t-stat-val" id="fl-kpi-pending" style="color:#d97706;">0</div>
+              <div class="part-kpi-lbl t-stat-label">Pending Review</div>
+            </div>
+          </div>
+          <div class="part-kpi-card t-stat-mini">
+            <div class="t-stat-icon blue"><re-icon icon="refresh" size="20"></re-icon></div>
+            <div>
+              <div class="part-kpi-val t-stat-val" id="fl-kpi-today-subs" style="color:#4f46e5;">0</div>
+              <div class="part-kpi-lbl t-stat-label">Today's Substitutions</div>
+            </div>
+          </div>
+          <div class="part-kpi-card t-stat-mini">
+            <div class="t-stat-icon red"><re-icon icon="alert-triangle" size="20"></re-icon></div>
+            <div>
+              <div class="part-kpi-val t-stat-val" id="fl-kpi-unresolved" style="color:#dc2626;">0</div>
+              <div class="part-kpi-lbl t-stat-label">Unresolved Slots</div>
+            </div>
+          </div>
+          <div class="part-kpi-card t-stat-mini">
+            <div class="t-stat-icon green"><re-icon icon="user-x" size="20"></re-icon></div>
+            <div>
+              <div class="part-kpi-val t-stat-val" id="fl-kpi-on-leave" style="color:#059669;">0</div>
+              <div class="part-kpi-lbl t-stat-label">Faculty on Leave Today</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Sub Tabs -->
+        <div class="ctrl-tabs" style="margin-top:16px;">
+          <button class="ctrl-tab act" id="tab-fl-pending" onclick="switchFacultyLeaveTab('pending')"><re-icon icon="download" size="14"></re-icon> Pending Approvals (<span id="fl-tab-pending-count">0</span>)</button>
+          <button class="ctrl-tab" id="tab-fl-today" onclick="switchFacultyLeaveTab('today')"><re-icon icon="refresh" size="14"></re-icon> Today's Substitutions (<span id="fl-tab-today-count">0</span>)</button>
+          <button class="ctrl-tab" id="tab-fl-unresolved" onclick="switchFacultyLeaveTab('unresolved')"><re-icon icon="alert-triangle" size="14"></re-icon> ️ Unresolved Slots (<span id="fl-tab-unresolved-count">0</span>)</button>
+          <button class="ctrl-tab" id="tab-fl-calendar" onclick="switchFacultyLeaveTab('calendar')"><re-icon icon="calendar" size="14"></re-icon> Leave Calendar</button>
+          <button class="ctrl-tab" id="tab-fl-policy" onclick="switchFacultyLeaveTab('policy')"><re-icon icon="settings" size="14"></re-icon> ️ Leave Policy</button>
+        </div>
+
+        <!-- Content Area -->
+        <div class="card" style="margin-top:16px;">
+          <!-- SUB-VIEW 1: PENDING APPROVALS -->
+          <div id="fl-view-pending">
+            <div class="table-responsive">
+              <table class="data-table" id="fl-pending-table">
+                <thead>
+                  <tr>
+                    <th>Request ID</th>
+                    <th>Faculty Name</th>
+                    <th>Dept</th>
+                    <th>Type &amp; Coverage</th>
+                    <th>Dates</th>
+                    <th>Days &amp; LOP Split</th>
+                    <th>Substitutions</th>
+                    <th>Urgency</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="fl-pending-tbody">
+                  <tr><td colspan="9" class="text-center">Loading pending leave requests…</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- SUB-VIEW 2: TODAY'S SUBSTITUTIONS -->
+          <div id="fl-view-today" style="display:none;">
+            <div class="table-responsive">
+              <table class="data-table" id="fl-today-table">
+                <thead>
+                  <tr>
+                    <th>Period</th>
+                    <th>Class</th>
+                    <th>Subject</th>
+                    <th>Hall</th>
+                    <th>Original Faculty (On Leave)</th>
+                    <th>Substitute Faculty</th>
+                    <th>Status</th>
+                    <th>Assigned By</th>
+                  </tr>
+                </thead>
+                <tbody id="fl-today-tbody">
+                  <tr><td colspan="8" class="text-center">Loading today's substitutions…</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- SUB-VIEW 3: UNRESOLVED SLOTS -->
+          <div id="fl-view-unresolved" style="display:none;">
+            <div class="table-responsive">
+              <table class="data-table" id="fl-unresolved-table">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Period</th>
+                    <th>Class &amp; Hall</th>
+                    <th>Subject</th>
+                    <th>Faculty on Leave</th>
+                    <th>Status / Decline Note</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="fl-unresolved-tbody">
+                  <tr><td colspan="7" class="text-center">No unresolved slots. All teaching coverage secured!</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- SUB-VIEW 4: LEAVE CALENDAR -->
+          <div id="fl-view-calendar" style="display:none;">
+            <div id="fl-calendar-container" style="padding:16px;">
+              <!-- Loaded dynamically -->
+            </div>
+          </div>
+
+          <!-- SUB-VIEW 5: POLICY VIEW -->
+          <div id="fl-view-policy" style="display:none;">
+            <div id="fl-policy-container" style="padding:16px;">
+              <!-- Loaded dynamically -->
+            </div>
+          </div>
+        </div>
+      </section>
 
       <!-- PAGE 4: FACULTY OVERVIEW (pg-teachers) -->
       <section class="ctrl-page" id="pg-teachers">
@@ -392,7 +1025,7 @@
             <p class="page-sub">Department faculty directory, special roles, and today's attendance marking completion.</p>
           </div>
           <div class="page-actions">
-            <input type="text" id="faculty-search-input" class="form-input form-input-sm" placeholder="🔍 Search faculty…" oninput="filterFacultyTable(this.value)">
+            <input type="text" id="faculty-search-input" class="form-input form-input-sm" placeholder="Search faculty…" oninput="filterFacultyTable(this.value)">
           </div>
         </div>
 
@@ -426,7 +1059,7 @@
             <p class="page-sub">Enrolled students, academic records, and cumulative attendance percentages.</p>
           </div>
           <div class="page-actions">
-            <input type="text" id="student-search-input" class="form-input form-input-sm" placeholder="🔍 Search by name or reg no…" oninput="filterStudentsTable(this.value)">
+            <input type="text" id="student-search-input" class="form-input form-input-sm" placeholder="Search by name or reg no…" oninput="filterStudentsTable(this.value)">
           </div>
         </div>
 
@@ -461,7 +1094,7 @@
             <p class="page-sub">Audit trail of syllabus topics covered, faculty notes, and period attendance.</p>
           </div>
           <div class="page-actions">
-            <input type="text" id="records-search-input" class="form-input form-input-sm" placeholder="🔍 Search topics, notes, faculty…" oninput="filterPeriodRecords(this.value)" style="min-width:200px;">
+            <input type="text" id="records-search-input" class="form-input form-input-sm" placeholder="Search topics, notes, faculty…" oninput="filterPeriodRecords(this.value)" style="min-width:200px;">
             <input type="date" id="records-date-picker" class="form-input form-input-sm" onchange="loadPeriodRecords()">
             <button class="btn btn-sm btn-pri" onclick="loadPeriodRecords()">Inspect Date</button>
           </div>
@@ -495,11 +1128,18 @@
         <div class="page-hd">
           <div>
             <h1 class="page-title">Attendance Defaulters Report</h1>
-            <p class="page-sub">Students below institutional attendance policy threshold with one-click notice dispatch.</p>
+            <p class="page-sub">Students below institutional attendance policy threshold with condonation bands and official letterhead warnings.</p>
           </div>
-          <div class="page-actions">
-            <button class="btn btn-danger" onclick="openMeetDefaultersModal()">🔔 Bulk "Meet Me" Notice</button>
+          <div class="page-actions" style="display:flex;gap:8px;align-items:center;">
+            <button class="btn btn-sec btn-sm" onclick="exportDefaultersCsv()"><re-icon icon="download" size="14"></re-icon> Export CSV</button>
+            <button class="btn btn-danger btn-sm" onclick="openMeetDefaultersModal()"><re-icon icon="bell" size="14"></re-icon> Bulk "Meet Me" Notice</button>
           </div>
+        </div>
+
+        <div class="ctrl-tabs" style="margin-bottom:14px;">
+          <button class="ctrl-tab act" id="tab-def-all" onclick="filterDefaulterBand('all')">All Defaulters (<span id="count-def-all">0</span>)</button>
+          <button class="ctrl-tab" id="tab-def-condonation" onclick="filterDefaulterBand('condonation')">Condonation: 65%–75% (<span id="count-def-cond">0</span>)</button>
+          <button class="ctrl-tab" id="tab-def-critical" onclick="filterDefaulterBand('critical')">Critical: &lt;65% (<span id="count-def-crit">0</span>)</button>
         </div>
 
         <div class="card">
@@ -519,11 +1159,13 @@
                   <th>Classes Held</th>
                   <th>Attended</th>
                   <th>Attendance %</th>
-                  <th>Shortfall</th>
+                  <th>Standing Band</th>
+                  <th>Classes Needed</th>
+                  <th>Action</th>
                 </tr>
               </thead>
               <tbody id="defaulters-tbody">
-                <tr><td colspan="9" class="text-center">Loading defaulters list…</td></tr>
+                <tr><td colspan="11" class="text-center">Loading defaulters list…</td></tr>
               </tbody>
             </table>
           </div>
@@ -538,21 +1180,144 @@
             <p class="page-sub">Exportable monthly attendance registries and semester-wise subject metrics.</p>
           </div>
           <div class="page-actions">
-            <button class="btn btn-sec" onclick="exportReportToCsv()">📥 Export to CSV / Excel</button>
+            <button class="btn btn-sec" onclick="exportReportToCsv()"><re-icon icon="download" size="14"></re-icon> Export to CSV / Excel</button>
           </div>
         </div>
 
         <div class="ctrl-tabs">
-          <button class="ctrl-tab act" id="tab-btn-monthly-rpt" onclick="switchReportTab('monthly')">
-            📅 Monthly Summary Report
-          </button>
-          <button class="ctrl-tab" id="tab-btn-sem-rpt" onclick="switchReportTab('semester')">
-            📚 Semester Subject Report
-          </button>
+          <button class="ctrl-tab act" id="tab-btn-daily-rpt" onclick="switchReportTab('daily')"><re-icon icon="grid" size="14"></re-icon> Daily 17:30 Roll-up</button>
+          <button class="ctrl-tab" id="tab-btn-punct-rpt" onclick="switchReportTab('punctuality')"><re-icon icon="timer" size="14"></re-icon> ️ Faculty Punctuality &amp; Coverage</button>
+          <button class="ctrl-tab" id="tab-btn-heat-rpt" onclick="switchReportTab('heatmap')"><re-icon icon="sparkles" size="14"></re-icon> Presence Heatmap</button>
+          <button class="ctrl-tab" id="tab-btn-monthly-rpt" onclick="switchReportTab('monthly')"><re-icon icon="calendar" size="14"></re-icon> Monthly Summary Report</button>
+          <button class="ctrl-tab" id="tab-btn-sem-rpt" onclick="switchReportTab('semester')"><re-icon icon="book-open" size="14"></re-icon> Semester Subject Report</button>
+        </div>
+
+        <!-- Daily Roll-up Section (C7 §12) -->
+        <div class="card" id="rpt-daily-sec" style="margin-top:16px;">
+          <div class="toolbar-flex" style="margin-bottom:14px;">
+            <div style="display:flex;align-items:center;gap:10px;">
+              <label for="rpt-daily-picker">Date:</label>
+              <input type="date" id="rpt-daily-picker" class="form-input form-input-sm" onchange="loadDailyReport()">
+            </div>
+            <div style="display:flex;gap:8px;">
+              <button class="btn btn-sm btn-pri" onclick="loadDailyReport()">Generate Report</button>
+              <button class="btn btn-sm btn-sec" onclick="exportDailyReportCsv()"><re-icon icon="download" size="14"></re-icon> Export CSV</button>
+            </div>
+          </div>
+
+          <!-- KPI Cards -->
+          <div class="dash-kpi-grid stats-row" style="grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));gap:14px;margin-bottom:18px;">
+            <div class="kpi-card t-stat-mini">
+              <div class="t-stat-icon blue"><re-icon icon="calendar" size="20"></re-icon></div>
+              <div>
+                <div class="kpi-val t-stat-val" id="dr-scheduled">0</div>
+                <div class="kpi-label t-stat-label">Scheduled</div>
+              </div>
+            </div>
+            <div class="kpi-card t-stat-mini">
+              <div class="t-stat-icon green"><re-icon icon="check" size="20"></re-icon></div>
+              <div>
+                <div class="kpi-val t-stat-val" id="dr-held" style="color:#059669;">0</div>
+                <div class="kpi-label t-stat-label">Held</div>
+              </div>
+            </div>
+            <div class="kpi-card t-stat-mini">
+              <div class="t-stat-icon green"><re-icon icon="check-circle" size="20"></re-icon></div>
+              <div>
+                <div class="kpi-val t-stat-val" id="dr-ontime" style="color:#2563eb;">0%</div>
+                <div class="kpi-label t-stat-label">Marked &le; 10m</div>
+              </div>
+            </div>
+            <div class="kpi-card t-stat-mini">
+              <div class="t-stat-icon amber"><re-icon icon="hourglass" size="20"></re-icon></div>
+              <div>
+                <div class="kpi-val t-stat-val" id="dr-late" style="color:#d97706;">0</div>
+                <div class="kpi-label t-stat-label">Marked Late</div>
+              </div>
+            </div>
+            <div class="kpi-card t-stat-mini">
+              <div class="t-stat-icon red"><re-icon icon="alert-triangle" size="20"></re-icon></div>
+              <div>
+                <div class="kpi-val t-stat-val" id="dr-overdue" style="color:#dc2626;">0</div>
+                <div class="kpi-label t-stat-label">Overdue</div>
+              </div>
+            </div>
+            <div class="kpi-card t-stat-mini">
+              <div class="t-stat-icon purple"><re-icon icon="trend-up" size="20"></re-icon></div>
+              <div>
+                <div class="kpi-val t-stat-val" id="dr-presence" style="color:#1e3a8a;">0%</div>
+                <div class="kpi-label t-stat-label">Avg Presence</div>
+              </div>
+            </div>
+          </div>
+
+          <div id="dr-insights-box" style="display:none;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:12px 14px;margin-bottom:14px;font-size:12.5px;color:#1e40af;"></div>
+
+          <div class="table-responsive">
+            <table class="data-table" id="daily-rpt-table">
+              <thead id="daily-rpt-thead">
+                <tr><th>Section / Class</th><th>Scheduled</th><th>Held</th><th>On Time (&le;10m)</th><th>Late</th><th>Present %</th></tr>
+              </thead>
+              <tbody id="daily-rpt-tbody">
+                <tr><td colspan="6" class="text-center">Select date to load daily operations roll-up.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Faculty Punctuality Section (C7 §12) -->
+        <div class="card" id="rpt-punct-sec" style="display:none;margin-top:16px;">
+          <div class="toolbar-flex" style="margin-bottom:14px;">
+            <div style="font-weight:700;font-size:14px;">Faculty Start-Class &amp; Attendance Punctuality Compliance</div>
+            <button class="btn btn-sm btn-sec" onclick="exportPunctualityCsv()"><re-icon icon="download" size="14"></re-icon> Export CSV</button>
+          </div>
+          <div class="table-responsive">
+            <table class="data-table" id="punct-rpt-table">
+              <thead>
+                <tr>
+                  <th>Faculty Member</th>
+                  <th>Dept</th>
+                  <th>Assigned Periods</th>
+                  <th>Conducted</th>
+                  <th>Start Tap Rate %</th>
+                  <th>On-Time Rate (&le;10m)</th>
+                  <th>Median Minutes to Mark</th>
+                  <th>Subs Conducted</th>
+                </tr>
+              </thead>
+              <tbody id="punct-rpt-tbody">
+                <tr><td colspan="8" class="text-center">Loading faculty punctuality metrics…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Presence Heatmap Section (C7 §12) -->
+        <div class="card" id="rpt-heat-sec" style="display:none;margin-top:16px;">
+          <div class="toolbar-flex" style="margin-bottom:14px;">
+            <div>
+              <div style="font-weight:700;font-size:14px;">Institutional Presence Heatmap (Weekday &times; Period)</div>
+              <div style="font-size:12px;color:var(--tmu);">Color gradient indicates average attendance percentage across all scheduled class periods.</div>
+            </div>
+          </div>
+          <div class="table-responsive">
+            <table class="heatmap-table" id="heatmap-grid-table">
+              <thead>
+                <tr>
+                  <th>Weekday</th>
+                  <th>Period 1</th><th>Period 2</th><th>Period 3</th><th>Period 4</th>
+                  <th>Period 5</th><th>Period 6</th><th>Period 7</th><th>Period 8</th>
+                </tr>
+              </thead>
+              <tbody id="heatmap-grid-tbody">
+                <tr><td colspan="9" class="text-center">Loading attendance heatmap…</td></tr>
+              </tbody>
+            </table>
+          </div>
         </div>
 
         <!-- Monthly Report Section -->
-        <div class="card" id="rpt-monthly-sec" style="margin-top:16px;">
+        <div class="card" id="rpt-monthly-sec" style="display:none;margin-top:16px;">
           <div class="toolbar-flex" style="margin-bottom:14px;">
             <div style="display:flex;align-items:center;gap:10px;">
               <label for="rpt-month-picker">Select Month:</label>
@@ -634,7 +1399,7 @@
           <!-- Composer Panel -->
           <div class="card">
             <div class="card-hd">
-              <div class="card-title">📢 Compose Announcement</div>
+              <div class="card-title"><re-icon icon="bullhorn"></re-icon> Compose Announcement</div>
               <span class="card-badge" id="broadcast-author-tag">Executive Author</span>
             </div>
             <form id="broadcast-form" onsubmit="handleSendBroadcast(event)">
@@ -647,10 +1412,10 @@
                 <div class="form-group">
                   <label for="bc-level">Urgency Level:</label>
                   <select id="bc-level" class="form-input form-select-sm">
-                    <option value="info">ℹ️ Normal Info</option>
-                    <option value="warning">⚠️ Important Notice</option>
-                    <option value="urgent">🚨 Urgent Priority</option>
-                    <option value="success">✅ Success / Congratulatory</option>
+                    <option value="info">Normal Info</option>
+                    <option value="warning">Important Notice</option>
+                    <option value="urgent">Urgent Priority</option>
+                    <option value="success">Success / Congratulatory</option>
                   </select>
                 </div>
                 <div class="form-group">
@@ -663,16 +1428,14 @@
                 </div>
               </div>
 
-              <button type="submit" class="btn btn-pri" style="margin-top:14px;width:100%;">
-                📢 Dispatch Announcement
-              </button>
+              <button type="submit" class="btn btn-pri" style="margin-top:14px;width:100%;"><re-icon icon="bullhorn" size="14"></re-icon> Dispatch Announcement</button>
             </form>
           </div>
 
           <!-- History Panel -->
           <div class="card">
             <div class="card-hd">
-              <div class="card-title">📜 Dispatch History</div>
+              <div class="card-title"><re-icon icon="scroll"></re-icon> Dispatch History</div>
               <span class="card-badge">Recent Dispatches</span>
             </div>
             <div class="broadcast-history-list" id="broadcast-history-list">
@@ -690,7 +1453,7 @@
             <p class="page-sub">View-only institutional calendar, college working days, exam windows, and declared holidays.</p>
           </div>
           <div class="page-actions">
-            <button class="btn btn-sec" onclick="loadAcademicCalendar()">🔄 Refresh Calendar</button>
+            <button class="btn btn-sec" onclick="loadAcademicCalendar()"><re-icon icon="refresh" size="14"></re-icon> Refresh Calendar</button>
           </div>
         </div>
 
@@ -715,6 +1478,71 @@
         </div>
       </section>
 
+      <!-- PAGE: TIMETABLE VERIFICATION & APPROVALS (pg-tt-verify) -->
+      <section class="ctrl-page" id="pg-tt-verify">
+        <div class="page-hd">
+          <div>
+            <h1 class="page-title"><re-icon icon="clipboard-list"></re-icon> Timetable Verification &amp; Approvals</h1>
+            <p class="page-sub">Review submitted class schedules for your department, inspect full schedule matrices, verify atomic diffs, and approve or reject.</p>
+          </div>
+          <div class="page-actions" style="display:flex;align-items:center;gap:8px;">
+            <button type="button" class="btn btn-out" onclick="loadCtrlTimetableVerificationPage()">
+              <re-icon icon="refresh" size="14"></re-icon> Refresh Queue
+            </button>
+            <button type="button" class="btn btn-pri" onclick="nav('timetable')">
+              <re-icon icon="calendar-days" size="14"></re-icon> Master Timetable View
+            </button>
+          </div>
+        </div>
+
+        <!-- KPI SUMMARY CARDS -->
+        <div class="stats-row" style="display:grid;grid-template-columns:repeat(auto-fit, minmax(220px, 1fr));gap:14px;margin-bottom:20px;">
+          <div class="card t-stat-mini">
+            <div class="t-stat-icon amber">
+              <re-icon icon="hourglass" size="20"></re-icon>
+            </div>
+            <div>
+              <div class="t-stat-val" id="ctrl-tt-kpi-pending">0</div>
+              <div class="t-stat-label">Pending HoD Review</div>
+            </div>
+          </div>
+          <div class="card t-stat-mini">
+            <div class="t-stat-icon green">
+              <re-icon icon="check" size="20"></re-icon>
+            </div>
+            <div>
+              <div class="t-stat-val" id="ctrl-tt-kpi-approved">0</div>
+              <div class="t-stat-label">Approved Schedules</div>
+            </div>
+          </div>
+          <div class="card t-stat-mini">
+            <div class="t-stat-icon blue">
+              <re-icon icon="rocket" size="20"></re-icon>
+            </div>
+            <div>
+              <div class="t-stat-val" id="ctrl-tt-kpi-published">0</div>
+              <div class="t-stat-label">Live in Production</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- TABLE CONTAINER -->
+        <div class="card" style="padding:0;overflow:hidden;">
+          <div style="padding:14px 18px;border-bottom:1px solid var(--br);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;background:var(--bg2,#f8faf8);">
+            <div style="display:flex;align-items:center;gap:10px;">
+              <span style="font-weight:700;font-size:13px;color:var(--td);">Department Timetable Verification Requests</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <button type="button" class="sched-tab act" id="ctrl-tt-filter-pending" onclick="filterCtrlTtRequests('pending')">Pending Review</button>
+              <button type="button" class="sched-tab" id="ctrl-tt-filter-all" onclick="filterCtrlTtRequests('all')">All Requests</button>
+            </div>
+          </div>
+          <div id="ctrl-tt-table-container" style="overflow-x:auto;">
+            <div style="text-align:center;padding:36px;color:var(--tmu);font-size:13px;">Loading verification requests…</div>
+          </div>
+        </div>
+      </section>
+
       <!-- PAGE 11: TIMETABLE VIEW (pg-timetable) -->
       <section class="ctrl-page" id="pg-timetable">
         <div class="page-hd">
@@ -722,11 +1550,31 @@
             <h1 class="page-title">Class Timetable View</h1>
             <p class="page-sub">Weekly master schedules, allocated periods, and faculty course assignments (View-Only).</p>
           </div>
-          <div class="page-actions">
+          <div class="page-actions" style="display:flex;align-items:center;gap:10px;">
+            <button type="button" class="btn btn-out" onclick="nav('tt-verify')" style="font-size:12px;color:#d97706;border-color:#fde68a;">
+              <re-icon icon="clipboard-list" size="14"></re-icon> Verification Queue <span id="ctrl-tt-view-badge" class="badge" style="display:none;background:#f59e0b;color:#fff;margin-left:4px;">0</span>
+            </button>
             <select id="tt-class-select" class="form-input form-select-sm" onchange="renderClassTimetable(this.value)">
               <option value="">Select Class / Section…</option>
             </select>
+            <button type="button" class="btn btn-out" onclick="nav('workload')" style="font-size:12px;">
+              <re-icon icon="users" size="14"></re-icon> Faculty Workload &amp; Schedule
+            </button>
           </div>
+        </div>
+
+        <!-- Pending draft notification banner -->
+        <div id="ctrl-tt-pending-alert" style="display:none;margin-bottom:14px;padding:12px 16px;background:#fffbeb;border:1px solid #fde68a;border-radius:10px;display:flex;align-items:center;justify-content:space-between;gap:12px;">
+          <div style="display:flex;align-items:center;gap:10px;">
+            <span style="font-size:20px;color:#d97706;"><re-icon icon="alert-triangle"></re-icon></span>
+            <div>
+              <strong style="font-size:13px;color:#92400e;">Timetable Draft Awaiting HoD Verification</strong>
+              <div style="font-size:12px;color:#b45309;" id="ctrl-tt-pending-alert-msg">A timetable coordinator submitted a new schedule draft for review.</div>
+            </div>
+          </div>
+          <button type="button" class="btn btn-pri" onclick="nav('tt-verify')" style="background:#d97706;border-color:#b45309;font-size:12px;padding:6px 14px;white-space:nowrap;">
+            <re-icon icon="clipboard-list" size="14"></re-icon> Review &amp; Verify Now
+          </button>
         </div>
 
         <div class="card">
@@ -754,6 +1602,25 @@
             </table>
           </div>
         </div>
+      </section>
+
+      <!-- PAGE 11b: FACULTY WORKLOAD & SCHEDULE (pg-workload) -->
+      <section class="ctrl-page" id="pg-workload">
+        <div class="page-hd">
+          <div>
+            <h1 class="page-title">Faculty Workload &amp; Schedule</h1>
+            <p class="page-sub">Faculty weekly teaching loads, timetable schedule grids, and curriculum balance across courses.</p>
+          </div>
+          <div class="page-actions" style="display:flex;align-items:center;gap:10px;">
+            <select id="ctrl-workload-dept-select" class="form-input form-select-sm" style="display:none;" onchange="WorkloadShared.setDepartment(this.value)">
+              <option value="">All Departments (College-wide)</option>
+            </select>
+            <button type="button" class="btn btn-out" onclick="WorkloadShared.exportWorkloadCSV()">
+              <re-icon icon="download" size="14"></re-icon> Export Workload (CSV)
+            </button>
+          </div>
+        </div>
+        <div id="ctrl-workload-container"></div>
       </section>
 
       <!-- PAGE 12: MY PROFILE (pg-profile) -->
@@ -796,6 +1663,225 @@
         </div>
       </section>
 
+      <!-- PAGE: EXECUTIVE AUDIT LOG (pg-audit) (C7 §16) -->
+      <section class="ctrl-page" id="pg-audit">
+        <div class="page-hd">
+          <div>
+            <h1 class="page-title"><re-icon icon="file-text"></re-icon> Executive Audit Log</h1>
+            <p class="page-sub">Tamper-evident, decrypted audit stream of all controller actions, overrides, and security events.</p>
+          </div>
+          <div class="page-actions">
+            <button class="btn btn-sec" onclick="loadAuditLogData()"><re-icon icon="refresh" size="14"></re-icon> Refresh Audit Stream</button>
+          </div>
+        </div>
+
+        <div class="card" style="margin-bottom:14px;padding:12px 16px;">
+          <div class="toolbar-flex" style="flex-wrap:wrap;gap:10px;">
+            <div style="display:flex;align-items:center;gap:8px;flex:1;min-width:240px;">
+              <input type="text" id="audit-search-input" class="form-input form-input-sm" placeholder="Search by action, actor, track ID…" oninput="handleAuditSearch(this.value)">
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <select id="audit-severity-select" class="form-input form-select-sm" onchange="loadAuditLogData()">
+                <option value="">All Severities</option>
+                <option value="info">Info</option>
+                <option value="warning">Warning</option>
+                <option value="critical">Critical</option>
+              </select>
+              <select id="audit-module-select" class="form-input form-select-sm" onchange="loadAuditLogData()">
+                <option value="">All Modules</option>
+                <option value="controller">Controller</option>
+                <option value="attendance">Attendance</option>
+                <option value="academic">Academic</option>
+                <option value="security">Security</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="table-responsive">
+            <table class="data-table audit-table" id="audit-log-table">
+              <thead>
+                <tr>
+                  <th>Timestamp</th>
+                  <th>Actor / Track ID</th>
+                  <th>Role</th>
+                  <th>Action</th>
+                  <th>Severity</th>
+                  <th>Decrypted Operational Details</th>
+                  <th>IP Address</th>
+                </tr>
+              </thead>
+              <tbody id="audit-log-tbody">
+                <tr><td colspan="7" class="text-center">Loading executive audit logs…</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div id="audit-pagination-bar" style="display:flex;align-items:center;justify-content:space-between;padding:14px 4px 4px;border-top:1px solid #f1f5f9;margin-top:12px;">
+            <div id="audit-pagination-info" style="font-size:12px;color:var(--tmu);">Showing 0 logs</div>
+            <div style="display:flex;gap:6px;">
+              <button class="btn btn-sm btn-sec" id="audit-prev-btn" onclick="changeAuditPage(-1)" disabled>&larr; Prev</button>
+              <button class="btn btn-sm btn-sec" id="audit-next-btn" onclick="changeAuditPage(1)" disabled>Next &rarr;</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- PAGE: DEPARTMENT SETTINGS & LEAVE POLICY (pg-settings) -->
+      <section class="ctrl-page" id="pg-settings">
+        <div class="page-hd">
+          <div>
+            <h1 class="page-title"><re-icon icon="settings"></re-icon> Department Leave Policy &amp; Faculty Rules</h1>
+            <p class="page-sub">Department-specific governance for faculty leave allowances, substitution mandates, and operational thresholds.</p>
+          </div>
+          <div class="page-actions">
+            <span class="status-tag" id="dept-policy-rev-badge" style="background:#e0e7ff;color:#4338ca;font-weight:600;padding:6px 12px;border-radius:20px;">Revision 1</span>
+            <button class="btn btn-sec" onclick="loadDeptSettings()"><re-icon icon="refresh" size="14"></re-icon> Reload</button>
+            <button class="btn btn-pri" onclick="saveDeptPolicySettings()"><re-icon icon="check" size="14"></re-icon> Save Policy</button>
+          </div>
+        </div>
+
+        <!-- Scope & Hierarchy Notice -->
+        <div class="card" style="margin-bottom:16px;padding:14px 18px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.2);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
+          <div style="display:flex;align-items:center;gap:12px;">
+            <div style="width:36px;height:36px;border-radius:8px;background:#3b82f6;color:#fff;display:flex;align-items:center;justify-content:center;">
+              <re-icon icon="building2" size="20"></re-icon>
+            </div>
+            <div>
+              <div style="font-size:13.5px;font-weight:700;color:var(--td);" id="dept-policy-scope-title">Department Jurisdiction</div>
+              <div style="font-size:12px;color:var(--tmu);">Department rules override global institutional defaults for all faculty members within this department.</div>
+            </div>
+          </div>
+          <button class="btn btn-sm btn-sec" onclick="resetDeptPolicyToDefaults()"><re-icon icon="undo" size="12"></re-icon> Reset to Institutional Defaults</button>
+        </div>
+
+        <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(340px, 1fr));gap:16px;margin-bottom:16px;">
+          <!-- CARD 1: ANNUAL LEAVE ALLOTMENTS -->
+          <div class="card" style="padding:18px;">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid #f1f5f9;">
+              <div style="width:28px;height:28px;border-radius:6px;background:var(--gLt);color:var(--gD);display:flex;align-items:center;justify-content:center;">
+                <re-icon icon="calendar" size="16"></re-icon>
+              </div>
+              <div>
+                <div style="font-size:14px;font-weight:700;color:var(--td);">Faculty Leave Quotas</div>
+                <div style="font-size:11.5px;color:var(--tmu);">Annual entitlements allocated per calendar year</div>
+              </div>
+            </div>
+
+            <div class="form-group" style="margin-bottom:12px;">
+              <label for="dept-pol-annual-quota" style="font-size:12px;font-weight:600;display:block;margin-bottom:4px;">Total Annual Leave Quota (Days):</label>
+              <input type="number" id="dept-pol-annual-quota" class="form-input form-input-sm" min="0" max="60" value="15">
+              <span style="font-size:11px;color:var(--tmu);">Cap for combined Casual, Medical, and Earned leaves before LOP triggers.</span>
+            </div>
+
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
+              <div class="form-group">
+                <label for="dept-pol-cl" style="font-size:12px;font-weight:600;display:block;margin-bottom:4px;">Casual Leave (CL):</label>
+                <input type="number" id="dept-pol-cl" class="form-input form-input-sm" min="0" max="30" value="12">
+              </div>
+              <div class="form-group">
+                <label for="dept-pol-ml" style="font-size:12px;font-weight:600;display:block;margin-bottom:4px;">Medical Leave (ML):</label>
+                <input type="number" id="dept-pol-ml" class="form-input form-input-sm" min="0" max="30" value="10">
+              </div>
+            </div>
+
+            <div class="form-group" style="margin-bottom:12px;">
+              <label for="dept-pol-el" style="font-size:12px;font-weight:600;display:block;margin-bottom:4px;">Earned Leave (EL):</label>
+              <input type="number" id="dept-pol-el" class="form-input form-input-sm" min="0" max="30" value="15">
+            </div>
+
+            <div class="form-group" style="margin-top:14px;">
+              <label style="display:flex;align-items:center;gap:8px;font-size:12.5px;cursor:pointer;">
+                <input type="checkbox" id="dept-pol-carry-forward" style="width:16px;height:16px;accent-color:var(--gD);">
+                <span><strong>Carry Forward Earned Leave</strong> into subsequent calendar year</span>
+              </label>
+            </div>
+          </div>
+
+          <!-- CARD 2: OPERATIONAL ABSENCE & SUBSTITUTION CONTROLS -->
+          <div class="card" style="padding:18px;">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid #f1f5f9;">
+              <div style="width:28px;height:28px;border-radius:6px;background:rgba(245,158,11,0.1);color:#d97706;display:flex;align-items:center;justify-content:center;">
+                <re-icon icon="shield" size="16"></re-icon>
+              </div>
+              <div>
+                <div style="font-size:14px;font-weight:700;color:var(--td);">Operational Governance &amp; Absences</div>
+                <div style="font-size:11.5px;color:var(--tmu);">Department compliance policies and thresholds</div>
+              </div>
+            </div>
+
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
+              <div class="form-group">
+                <label for="dept-pol-max-consec" style="font-size:12px;font-weight:600;display:block;margin-bottom:4px;">Max Consecutive Days:</label>
+                <input type="number" id="dept-pol-max-consec" class="form-input form-input-sm" min="1" max="30" value="3">
+                <span style="font-size:11px;color:var(--tmu);">Consecutive days allowed without Special Sanction.</span>
+              </div>
+              <div class="form-group">
+                <label for="dept-pol-doc-thresh" style="font-size:12px;font-weight:600;display:block;margin-bottom:4px;">Medical Proof Threshold:</label>
+                <input type="number" id="dept-pol-doc-thresh" class="form-input form-input-sm" min="1" max="14" value="3">
+                <span style="font-size:11px;color:var(--tmu);">Doctor certificate mandatory if ML &gt; days.</span>
+              </div>
+            </div>
+
+            <div style="display:flex;flex-direction:column;gap:10px;margin-top:14px;">
+              <label style="display:flex;align-items:center;gap:8px;font-size:12.5px;cursor:pointer;">
+                <input type="checkbox" id="dept-pol-require-sub" style="width:16px;height:16px;accent-color:var(--gD);">
+                <span><strong>Require Teaching Substitution:</strong> Faculty must arrange substitute before submitting</span>
+              </label>
+              <label style="display:flex;align-items:center;gap:8px;font-size:12.5px;cursor:pointer;">
+                <input type="checkbox" id="dept-pol-allow-period" style="width:16px;height:16px;accent-color:var(--gD);">
+                <span><strong>Allow Single-Period Short Leaves:</strong> Faculty can request period adjustments without day penalty</span>
+              </label>
+              <label style="display:flex;align-items:center;gap:8px;font-size:12.5px;cursor:pointer;">
+                <input type="checkbox" id="dept-pol-auto-escalate" style="width:16px;height:16px;accent-color:var(--gD);">
+                <span><strong>Auto-Escalate to Principal:</strong> Unreviewed leaves automatically forward after 48h</span>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <!-- REVISION NOTE & SUBMIT -->
+        <div class="card" style="margin-bottom:16px;padding:18px;">
+          <div class="form-group">
+            <label for="dept-pol-reason" style="font-size:12px;font-weight:700;color:var(--td);display:block;margin-bottom:6px;">
+              Revision Note / Operational Justification (Required for Audit Trail):
+            </label>
+            <textarea id="dept-pol-reason" class="form-input" rows="2" placeholder="e.g., Updated department policy to mandate teaching substitutions and adjusted casual leave quota as agreed in department meeting."></textarea>
+          </div>
+          <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:12px;">
+            <button class="btn btn-sec" onclick="loadDeptSettings()">Cancel / Discard</button>
+            <button class="btn btn-pri" onclick="saveDeptPolicySettings()"><re-icon icon="check" size="14"></re-icon> Save &amp; Apply Policy</button>
+          </div>
+        </div>
+
+        <!-- REVISION HISTORY TABLE -->
+        <div class="card">
+          <div style="padding:14px 18px;border-bottom:1px solid #f1f5f9;display:flex;align-items:center;justify-content:space-between;">
+            <div>
+              <div style="font-size:14px;font-weight:700;color:var(--td);"><re-icon icon="history" size="15"></re-icon> Policy Revision History</div>
+              <div style="font-size:11.5px;color:var(--tmu);">Audited track of all department policy updates and modifications</div>
+            </div>
+          </div>
+          <div class="table-responsive">
+            <table class="data-table" id="dept-policy-history-table">
+              <thead>
+                <tr>
+                  <th>Revision</th>
+                  <th>Effective Date</th>
+                  <th>Revised By</th>
+                  <th>Quotas (Annual / CL / ML / EL)</th>
+                  <th>Operational Rules</th>
+                  <th>Revision Reason</th>
+                </tr>
+              </thead>
+              <tbody id="dept-policy-history-tbody">
+                <tr><td colspan="6" class="text-center">No previous revisions recorded.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
     </div>
   </div>
 
@@ -803,8 +1889,8 @@
   <div id="meet-modal" class="modal-backdrop">
     <div class="modal-box">
       <div class="modal-hd">
-        <h3 class="modal-title">🔔 Issue Attendance Meet Notice</h3>
-        <button class="modal-close-btn" onclick="closeMeetDefaultersModal()">✖</button>
+        <h3 class="modal-title"><re-icon icon="bell"></re-icon> Issue Attendance Meet Notice</h3>
+        <button class="modal-close-btn" onclick="closeMeetDefaultersModal()" aria-label="Close modal"><re-icon icon="x" size="14"></re-icon></button>
       </div>
       <div class="modal-body">
         <p style="font-size:13px;color:var(--tmu);margin-bottom:12px;">
@@ -817,7 +1903,7 @@
       </div>
       <div class="modal-ft">
         <button class="btn btn-sec" onclick="closeMeetDefaultersModal()">Cancel</button>
-        <button class="btn btn-danger" onclick="confirmSendMeetNotice()">🔔 Dispatch Notice Now</button>
+        <button class="btn btn-danger" onclick="confirmSendMeetNotice()"><re-icon icon="bell" size="14"></re-icon> Dispatch Notice Now</button>
       </div>
     </div>
   </div>
@@ -827,7 +1913,7 @@
     <div class="modal-box">
       <div class="modal-hd">
         <h3 class="modal-title" id="leave-modal-action-title">Leave Review</h3>
-        <button class="modal-close-btn" onclick="closeLeaveActionModal()">✖</button>
+        <button class="modal-close-btn" onclick="closeLeaveActionModal()" aria-label="Close modal"><re-icon icon="x" size="14"></re-icon></button>
       </div>
       <div class="modal-body">
         <div class="form-group">
@@ -842,9 +1928,569 @@
     </div>
   </div>
 
+  <!-- MODAL: FREE-TEACHER FINDER & ASSIGN SUBSTITUTE (§C5) -->
+  <div id="substitute-picker-modal" class="modal-backdrop">
+    <div class="modal-box modal-box-lg">
+      <div class="modal-hd">
+        <div>
+          <h3 class="modal-title"><re-icon icon="refresh"></re-icon> Free-Teacher Finder &amp; Assign Substitute</h3>
+          <p class="modal-sub" id="sub-modal-session-desc" style="font-size:12px;color:var(--tmu);margin-top:2px;">Period — · Class —</p>
+        </div>
+        <button class="modal-close-btn" onclick="closeSubstituteModal()" aria-label="Close modal"><re-icon icon="x" size="14"></re-icon></button>
+      </div>
+      <div class="modal-body">
+        <div style="margin-bottom:12px;">
+          <input type="text" id="sub-search-input" class="form-input form-input-sm" placeholder="Search teacher by name or dept…" oninput="filterSubstituteCandidates(this.value)">
+        </div>
+        <div id="sub-candidates-list" style="max-height:300px;overflow-y:auto;display:flex;flex-direction:column;gap:8px;">
+          <div style="padding:20px;text-align:center;color:#94a3b8;font-size:12px;">Finding free faculty candidates…</div>
+        </div>
+        <div class="form-group" style="margin-top:14px;margin-bottom:0;">
+          <label for="sub-assign-reason" style="font-size:12px;font-weight:600;">Substitution Reason / Note (Optional):</label>
+          <input type="text" id="sub-assign-reason" class="form-input form-input-sm" placeholder="e.g. Regular teacher attending university workshop">
+        </div>
+      </div>
+      <div class="modal-ft">
+        <button class="btn btn-sec" onclick="closeSubstituteModal()">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: CANCEL CLASS PERIOD (§C4) -->
+  <div id="cancel-session-modal" class="modal-backdrop">
+    <div class="modal-box">
+      <div class="modal-hd">
+        <h3 class="modal-title"><re-icon icon="forbidden-circle"></re-icon> Cancel Class Period</h3>
+        <button class="modal-close-btn" onclick="closeCancelSessionModal()" aria-label="Close modal"><re-icon icon="x" size="14"></re-icon></button>
+      </div>
+      <div class="modal-body">
+        <div style="background:#fee2e2;color:#b91c1c;padding:10px 14px;border-radius:8px;font-size:12px;font-weight:600;margin-bottom:12px;">
+          <re-icon icon="alert-triangle"></re-icon> This will mark period <span id="cancel-modal-period">—</span> of <span id="cancel-modal-class">—</span> as Cancelled.
+        </div>
+        <div class="form-group">
+          <label for="cancel-session-reason">Cancellation Reason (Required):</label>
+          <textarea id="cancel-session-reason" class="form-input" rows="3" placeholder="e.g. Faculty emergency, campus technical disruption…"></textarea>
+        </div>
+      </div>
+      <div class="modal-ft">
+        <button class="btn btn-sec" onclick="closeCancelSessionModal()">Close</button>
+        <button class="btn btn-danger" onclick="confirmCancelSession()">Confirm Cancellation</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: MOVE SESSION ROOM (§C4) -->
+  <div id="move-room-modal" class="modal-backdrop">
+    <div class="modal-box">
+      <div class="modal-hd">
+        <h3 class="modal-title"><re-icon icon="pin"></re-icon> Move Session Room</h3>
+        <button class="modal-close-btn" onclick="closeMoveRoomModal()" aria-label="Close modal"><re-icon icon="x" size="14"></re-icon></button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label for="move-room-name">New Room / Venue (Required):</label>
+          <input type="text" id="move-room-name" class="form-input" placeholder="e.g. LH-204, Seminar Hall A, Comp Lab 2">
+        </div>
+        <div class="form-group" style="margin-bottom:0;">
+          <label for="move-room-reason">Reason for Relocation (Optional):</label>
+          <input type="text" id="move-room-reason" class="form-input" placeholder="e.g. Projector malfunction in LH-101">
+        </div>
+      </div>
+      <div class="modal-ft">
+        <button class="btn btn-sec" onclick="closeMoveRoomModal()">Cancel</button>
+        <button class="btn btn-pri" onclick="confirmMoveRoom()">Relocate Room</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: EXECUTIVE SESSION NOTE (§C4) -->
+  <div id="session-note-modal" class="modal-backdrop">
+    <div class="modal-box">
+      <div class="modal-hd">
+        <h3 class="modal-title"><re-icon icon="file-text"></re-icon> Executive Session Note</h3>
+        <button class="modal-close-btn" onclick="closeSessionNoteModal()" aria-label="Close modal"><re-icon icon="x" size="14"></re-icon></button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size:12.5px;color:var(--tmu);margin-bottom:10px;">
+          Attach an administrative note or remark to this class session.
+        </p>
+        <div class="form-group" style="margin-bottom:0;">
+          <label for="session-note-text">Note Text:</label>
+          <textarea id="session-note-text" class="form-input" rows="4" placeholder="e.g. Controller inspected class at 10:15 AM. 4 students arrived 10 mins late."></textarea>
+        </div>
+      </div>
+      <div class="modal-ft">
+        <button class="btn btn-sec" onclick="closeSessionNoteModal()">Cancel</button>
+        <button class="btn btn-pri" onclick="confirmSaveSessionNote()">Save Note</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: STUDENT PROFILE & ATTENDANCE RECORD (§C6) -->
+  <div id="student-record-modal" class="modal-backdrop">
+    <div class="modal-box modal-box-xl" style="max-height:90vh;display:flex;flex-direction:column;">
+      <div class="modal-hd">
+        <div class="student-rec-hero">
+          <div class="student-rec-av" id="sr-avatar">S</div>
+          <div>
+            <h3 class="modal-title" id="sr-name">Student Full Name</h3>
+            <div style="font-size:12px;color:var(--tmu);margin-top:2px;" id="sr-sub-info">Roll No: — · Reg No: — · Class: — · Dept: —</div>
+          </div>
+        </div>
+        <button class="modal-close-btn" onclick="closeStudentRecordModal()" aria-label="Close modal"><re-icon icon="x" size="14"></re-icon></button>
+      </div>
+      <div class="modal-body" style="overflow-y:auto;flex:1;display:flex;flex-direction:column;gap:16px;">
+        <!-- Banner Stats & Classes Needed Math -->
+        <div class="student-rec-kpis">
+          <div class="sr-kpi-card t-stat-mini">
+            <div class="t-stat-icon green"><re-icon icon="grid" size="20"></re-icon></div>
+            <div>
+              <div class="sr-kpi-val t-stat-val" id="sr-overall-pct">0%</div>
+              <div class="sr-kpi-lbl t-stat-label">Overall Attendance</div>
+              <div id="sr-band-badge" class="sr-band-badge good">Good Standing</div>
+            </div>
+          </div>
+          <div class="sr-kpi-card t-stat-mini" style="flex:2;">
+            <div class="t-stat-icon blue"><re-icon icon="trend-up" size="20"></re-icon></div>
+            <div>
+              <div style="font-size:11.5px;font-weight:700;color:var(--tmu);">Projection / Safe Margin (75% Target)</div>
+              <div id="sr-projection-text" style="font-size:14px;font-weight:700;margin-top:4px;color:var(--td);">Evaluating academic projection…</div>
+              <div style="font-size:11.5px;color:var(--tmu);margin-top:4px;" id="sr-counts-text">0 attended of 0 held classes</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Month Heatmap (31 Days) -->
+        <div class="card" style="margin:0;padding:14px;box-shadow:none;border:1px solid #e2e8f0;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+            <div style="font-size:12.5px;font-weight:700;color:var(--td);">Daily Attendance Calendar (Current Month)</div>
+            <div class="heatmap-legend" style="display:flex;gap:8px;font-size:11px;color:var(--tmu);">
+              <span style="display:flex;align-items:center;gap:3px;"><span class="hm-dot dot-pres"></span> Full Day</span>
+              <span style="display:flex;align-items:center;gap:3px;"><span class="hm-dot dot-part"></span> Partial / OD</span>
+              <span style="display:flex;align-items:center;gap:3px;"><span class="hm-dot dot-abs"></span> Absent</span>
+              <span style="display:flex;align-items:center;gap:3px;"><span class="hm-dot dot-off"></span> Off</span>
+            </div>
+          </div>
+          <div id="sr-month-heatmap" class="month-heatmap-grid">
+            <!-- Days rendered by JS -->
+          </div>
+        </div>
+
+        <!-- Subject Breakdown Table -->
+        <div class="card" style="margin:0;padding:0;box-shadow:none;border:1px solid #e2e8f0;overflow:hidden;">
+          <div style="padding:10px 14px;background:#f8fafc;border-bottom:1px solid #e2e8f0;font-size:12.5px;font-weight:700;color:var(--td);">
+            Subject-wise Attendance Performance
+          </div>
+          <div class="table-responsive" style="max-height:200px;">
+            <table class="table-data" id="sr-subject-table">
+              <thead>
+                <tr>
+                  <th>Subject</th>
+                  <th>Faculty</th>
+                  <th>Conducted</th>
+                  <th>Attended</th>
+                  <th>Attendance %</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="sr-subject-tbody">
+                <tr><td colspan="6" class="text-center">Loading subjects…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      <div class="modal-ft" style="display:flex;justify-content:space-between;align-items:center;">
+        <button class="btn btn-sec" onclick="closeStudentRecordModal()">Close Profile</button>
+        <button class="btn btn-warning" id="sr-btn-warning-letter" onclick="generateWarningLetterFromCurrent()"><re-icon icon="file-text" size="14"></re-icon> Official Warning Letter</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: OFFICIAL WARNING LETTERHEAD (§C6) -->
+  <div id="warning-letter-modal" class="modal-backdrop">
+    <div class="modal-box modal-box-xl" style="max-height:92vh;display:flex;flex-direction:column;">
+      <div class="modal-hd">
+        <h3 class="modal-title"><re-icon icon="file-text"></re-icon> Official Attendance Warning Letterhead</h3>
+        <button class="modal-close-btn" onclick="closeWarningLetterModal()" aria-label="Close modal"><re-icon icon="x" size="14"></re-icon></button>
+      </div>
+      <div class="modal-body" style="overflow-y:auto;flex:1;background:#f1f5f9;padding:16px;">
+        <!-- Printable Sheet -->
+        <div class="letterhead-sheet" id="letterhead-print-area">
+          <div class="lh-header">
+            <div class="lh-inst-name">EXCELLENCE INSTITUTE OF ENGINEERING &amp; TECHNOLOGY</div>
+            <div class="lh-inst-sub">Office of the Controller of Examinations &amp; Academic Attendance</div>
+            <div class="lh-inst-contact">Campus Road, Knowledge Park · Tel: +91 44 2839 0000 · Email: controller@eams.edu</div>
+          </div>
+          <div class="lh-meta-row">
+            <div><strong>Ref No:</strong> <span id="wl-ref-no">EAMS/ATT/2026/000</span></div>
+            <div><strong>Date:</strong> <span id="wl-date">September 30, 2026</span></div>
+          </div>
+          <div class="lh-to-block">
+            <div>To,</div>
+            <div id="wl-parent-name">The Parent / Guardian of <strong>Student Name</strong></div>
+            <div id="wl-student-details">Roll No: — · Register No: — · Class: —</div>
+          </div>
+          <div class="lh-subject">
+            <strong>SUBJECT: URGENT ATTENDANCE SHORTAGE NOTICE &amp; CONDONATION WARNING</strong>
+          </div>
+          <div class="lh-body" id="wl-letter-body">
+            <!-- Dynamic Letter Body -->
+          </div>
+          <div class="lh-signature-row">
+            <div class="lh-sig-box">
+              <div class="lh-sig-line"></div>
+              <div class="lh-sig-title">Class Advisor</div>
+            </div>
+            <div class="lh-sig-box">
+              <div class="lh-sig-line"></div>
+              <div class="lh-sig-title" id="wl-sig-hod">Head of Department</div>
+            </div>
+            <div class="lh-sig-box">
+              <div class="lh-sig-line"></div>
+              <div class="lh-sig-title">Controller / Principal</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-ft" style="display:flex;justify-content:space-between;align-items:center;">
+        <button class="btn btn-sec" onclick="closeWarningLetterModal()">Close</button>
+        <button class="btn btn-pri" onclick="printWarningLetter()"><re-icon icon="printer" size="14"></re-icon> Print / Save PDF</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- DRAWER: CLASS LIVE VIEW (§5) -->
+  <div id="class-live-drawer" class="drawer-backdrop" onclick="onDrawerBackdropClick(event)">
+    <div class="drawer-panel" id="drawer-panel">
+      <div class="drawer-hd">
+        <div class="drawer-title-wrap">
+          <h2 id="drawer-class-title">Class Live View</h2>
+          <div class="drawer-title-sub" id="drawer-class-sub">Room — · Advisor: — · — Enrolled</div>
+        </div>
+        <button class="modal-close-btn" onclick="closeClassDrawer()" style="font-size:20px;cursor:pointer;" aria-label="Close drawer"><re-icon icon="x" size="16"></re-icon></button>
+      </div>
+
+      <div class="drawer-body">
+        <!-- Now Card -->
+        <div class="drawer-now-card">
+          <div class="drawer-now-hd">
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span class="drawer-period-chip" id="drawer-now-period">P1</span>
+              <strong id="drawer-now-subject" style="font-size:14px;color:#0f172a;">—</strong>
+            </div>
+            <span class="tile-state-pill" id="drawer-now-status-pill"><span class="status-dot gray"></span> Pending</span>
+          </div>
+          <div style="font-size:12.5px;color:#475569;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;">
+            <div>
+              <span>Faculty: </span><strong id="drawer-now-faculty">—</strong>
+              <span id="drawer-now-sub-flag" style="display:none;color:#9333ea;font-weight:600;margin-left:4px;">(Substitute)</span>
+            </div>
+            <div id="drawer-now-geofence" class="tile-start-badge not-started">Pending Start</div>
+          </div>
+          <div class="drawer-stat-strip">
+            <div class="drawer-stat-pill">
+              <div class="val" id="drawer-stat-present">0</div>
+              <div class="lbl">Present</div>
+            </div>
+            <div class="drawer-stat-pill">
+              <div class="val" id="drawer-stat-od">0</div>
+              <div class="lbl">On OD</div>
+            </div>
+            <div class="drawer-stat-pill">
+              <div class="val" id="drawer-stat-leave">0</div>
+              <div class="lbl">On Leave</div>
+            </div>
+            <div class="drawer-stat-pill">
+              <div class="val" id="drawer-stat-absent">0</div>
+              <div class="lbl">Unexcused</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Today's Period Strip -->
+        <div>
+          <label style="font-size:11.5px;font-weight:700;text-transform:uppercase;color:#64748b;letter-spacing:0.5px;display:block;margin-bottom:6px;">Today's Schedule</label>
+          <div class="drawer-strip-wrap" id="drawer-periods-strip">
+            <!-- Rendered by JS -->
+          </div>
+        </div>
+
+        <!-- 7-Day Attendance Trend -->
+        <div class="drawer-trend-box" id="drawer-trend-box">
+          <div class="drawer-trend-hd">
+            <span style="font-size:11.5px;font-weight:700;text-transform:uppercase;color:#64748b;letter-spacing:0.5px;">7-Day Attendance Trend</span>
+            <span id="drawer-trend-avg" style="font-size:12px;font-weight:700;color:#0f172a;">—% avg</span>
+          </div>
+          <div class="drawer-trend-bars" id="drawer-trend-bars">
+            <!-- Rendered by JS -->
+          </div>
+        </div>
+
+        <!-- Attendance Roster -->
+        <div class="drawer-roster-box">
+          <div class="drawer-roster-hd">
+            <span>Student Attendance Status</span>
+            <span id="drawer-roster-summary" style="font-size:11px;color:#64748b;font-weight:normal;">Absentees first</span>
+          </div>
+          <div class="drawer-roster-list" id="drawer-roster-list">
+            <div style="padding:20px;text-align:center;color:#94a3b8;font-size:12px;">Select a class session to view roster…</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="drawer-actions-ft">
+        <button class="btn btn-sec btn-sm" id="drawer-btn-nudge" onclick="drawerNudgeFaculty()"><re-icon icon="bullhorn" size="14"></re-icon> Nudge Faculty</button>
+        <a class="btn btn-sec btn-sm" id="drawer-btn-call" href="tel:" style="text-decoration:none;"><re-icon icon="monitor"></re-icon> Call Faculty</a>
+        <button class="btn btn-sec btn-sm" id="drawer-btn-sub" onclick="drawerOpenSubstituteModal()"><re-icon icon="refresh" size="14"></re-icon> Assign Substitute</button>
+        <button class="btn btn-sec btn-sm" id="drawer-btn-room" onclick="drawerOpenMoveRoomModal()"><re-icon icon="grid" size="14"></re-icon> Move Room</button>
+        <button class="btn btn-sec btn-sm" id="drawer-btn-note" onclick="drawerOpenNoteModal()"><re-icon icon="file-text" size="14"></re-icon> Note</button>
+        <button class="btn btn-danger btn-sm" id="drawer-btn-cancel" onclick="drawerOpenCancelModal()"><re-icon icon="forbidden-circle" size="14"></re-icon> Cancel Period</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: ACADEMIC PARTICIPATION DETAIL (m-part-detail) -->
+  <div class="modal-backdrop" id="m-part-detail" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,0.6);z-index:9999;align-items:center;justify-content:center;padding:16px;">
+    <div class="modal-box" style="background:#fff;border-radius:16px;max-width:720px;width:100%;max-height:90vh;overflow-y:auto;box-shadow:0 20px 25px -5px rgba(0,0,0,0.1);padding:24px;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:1px solid #e2e8f0;padding-bottom:12px;margin-bottom:16px;">
+        <div>
+          <h2 style="font-size:18px;font-weight:700;color:#0f172a;margin:0;" id="part-detail-title">Activity Details</h2>
+          <div style="font-size:12px;color:#64748b;margin-top:2px;" id="part-detail-sub">—</div>
+        </div>
+        <button onclick="closeModal('m-part-detail')" style="background:none;border:none;font-size:20px;cursor:pointer;color:#64748b;" aria-label="Close modal"><re-icon icon="x" size="16"></re-icon></button>
+      </div>
+
+      <div id="part-detail-body" style="display:flex;flex-direction:column;gap:16px;">
+        <!-- Loaded dynamically by controller.page.js -->
+      </div>
+
+      <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:20px;border-top:1px solid #e2e8f0;padding-top:14px;" id="part-detail-actions">
+        <button class="btn btn-sec" onclick="closeModal('m-part-detail')">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: REJECT APPROVED OD (m-part-reject-od) -->
+  <div class="modal-backdrop" id="m-part-reject-od" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,0.6);z-index:9999;align-items:center;justify-content:center;padding:16px;">
+    <div class="modal-box" style="background:#fff;border-radius:16px;max-width:540px;width:100%;box-shadow:0 20px 25px -5px rgba(0,0,0,0.1);padding:24px;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:1px solid #e2e8f0;padding-bottom:12px;margin-bottom:16px;">
+        <div>
+          <h2 style="font-size:18px;font-weight:700;color:#dc2626;margin:0;"><re-icon icon="alert-triangle"></re-icon> Revoke Approved OD</h2>
+          <div style="font-size:12px;color:#64748b;margin-top:2px;" id="part-reject-sub">Converts OD-Present records to Absent</div>
+        </div>
+        <button onclick="closeModal('m-part-reject-od')" style="background:none;border:none;font-size:20px;cursor:pointer;color:#64748b;" aria-label="Close modal"><re-icon icon="x" size="16"></re-icon></button>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:12px;">
+        <div>
+          <label style="font-size:12px;font-weight:700;color:#334155;display:block;margin-bottom:4px;">Select Dates to Revoke:</label>
+          <div id="part-reject-dates-wrap" style="display:flex;flex-wrap:wrap;gap:8px;padding:8px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;">
+            <!-- Rendered by JS -->
+          </div>
+        </div>
+
+        <div>
+          <label style="font-size:12px;font-weight:700;color:#334155;display:block;margin-bottom:4px;">Reason for Revocation *:</label>
+          <textarea id="part-reject-reason" class="form-ctrl" rows="3" placeholder="Enter reason for revoking approved OD (audited)…" style="width:100%;border-radius:8px;border:1px solid #cbd5e1;padding:8px;font-size:13px;"></textarea>
+        </div>
+
+        <div id="part-reject-preview-box" style="display:none;background:#fef2f2;border:1px solid #fecaca;padding:10px 14px;border-radius:8px;font-size:12px;color:#991b1b;">
+          <!-- Preview result -->
+        </div>
+      </div>
+
+      <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:20px;border-top:1px solid #e2e8f0;padding-top:14px;">
+        <button class="btn btn-sec" onclick="closeModal('m-part-reject-od')">Cancel</button>
+        <button class="btn btn-sec" onclick="previewODRevocation()"><re-icon icon="search" size="14"></re-icon> Preview Impact</button>
+        <button class="btn btn-danger" id="btn-confirm-od-rejection" onclick="confirmODRevocation()">Confirm Revocation</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: FACULTY LEAVE REVIEW (m-fl-review) -->
+  <div class="modal-backdrop" id="m-fl-review" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,0.6);z-index:9999;align-items:center;justify-content:center;padding:16px;">
+    <div class="modal-box" style="background:#fff;border-radius:16px;max-width:760px;width:100%;max-height:90vh;overflow-y:auto;box-shadow:0 20px 25px -5px rgba(0,0,0,0.1);padding:24px;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:1px solid #e2e8f0;padding-bottom:12px;margin-bottom:16px;">
+        <div>
+          <h2 style="font-size:18px;font-weight:700;color:#0f172a;margin:0;" id="fl-rev-title">Faculty Leave Review</h2>
+          <div style="font-size:12px;color:#64748b;margin-top:2px;" id="fl-rev-sub">—</div>
+        </div>
+        <button onclick="closeModal('m-fl-review')" style="background:none;border:none;font-size:20px;cursor:pointer;color:#64748b;" aria-label="Close modal"><re-icon icon="x" size="16"></re-icon></button>
+      </div>
+
+      <div id="fl-rev-body" style="display:flex;flex-direction:column;gap:16px;">
+        <!-- Rendered dynamically -->
+      </div>
+
+      <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:20px;border-top:1px solid #e2e8f0;padding-top:14px;" id="fl-rev-actions">
+        <button class="btn btn-sec" onclick="closeModal('m-fl-review')">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: DIRECT ASSIGN SUBSTITUTE (m-fl-assign-sub) -->
+  <div class="modal-backdrop" id="m-fl-assign-sub" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,0.6);z-index:10000;align-items:center;justify-content:center;padding:16px;">
+    <div class="modal-box" style="background:#fff;border-radius:16px;max-width:580px;width:100%;max-height:85vh;overflow-y:auto;box-shadow:0 20px 25px -5px rgba(0,0,0,0.1);padding:24px;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:1px solid #e2e8f0;padding-bottom:12px;margin-bottom:16px;">
+        <div>
+          <h2 style="font-size:18px;font-weight:700;color:#0f172a;margin:0;"><re-icon icon="refresh"></re-icon> Assign Substitute Faculty</h2>
+          <div style="font-size:12px;color:#64748b;margin-top:2px;" id="fl-assign-sub-info">—</div>
+        </div>
+        <button onclick="closeModal('m-fl-assign-sub')" style="background:none;border:none;font-size:20px;cursor:pointer;color:#64748b;" aria-label="Close modal"><re-icon icon="x" size="16"></re-icon></button>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:14px;">
+        <div>
+          <label style="font-size:12px;font-weight:700;color:#334155;display:block;margin-bottom:4px;">Available Faculty (Ranked by Availability &amp; Subject Match):</label>
+          <div id="fl-sub-candidates-list" style="display:flex;flex-direction:column;gap:8px;max-height:240px;overflow-y:auto;padding:8px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;">
+            <div style="text-align:center;color:#64748b;font-size:12px;padding:12px;">Searching free teachers…</div>
+          </div>
+        </div>
+
+        <div>
+          <label style="font-size:12px;font-weight:700;color:#334155;display:block;margin-bottom:4px;">Assignment Note / Instructions (Optional):</label>
+          <input type="text" id="fl-assign-reason" class="form-ctrl" placeholder="e.g. Assigned by HOD due to lab duty conflict" style="width:100%;border-radius:8px;border:1px solid #cbd5e1;padding:8px;font-size:13px;">
+        </div>
+      </div>
+
+      <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:20px;border-top:1px solid #e2e8f0;padding-top:14px;">
+        <button class="btn btn-sec" onclick="closeModal('m-fl-assign-sub')">Cancel</button>
+        <button class="btn btn-pri" id="btn-confirm-assign-sub" onclick="confirmDirectAssignSub()">Confirm Assignment</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: DEPARTMENT LEAVE POLICY (m-fl-policy-edit) -->
+  <div class="modal-backdrop" id="m-fl-policy-edit" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,0.6);z-index:9999;align-items:center;justify-content:center;padding:16px;">
+    <div class="modal-box" style="background:#fff;border-radius:16px;max-width:540px;width:100%;box-shadow:0 20px 25px -5px rgba(0,0,0,0.1);padding:24px;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:1px solid #e2e8f0;padding-bottom:12px;margin-bottom:16px;">
+        <div>
+          <h2 style="font-size:18px;font-weight:700;color:#0f172a;margin:0;"><re-icon icon="settings"></re-icon> Department Leave Policy</h2>
+          <div style="font-size:12px;color:#64748b;margin-top:2px;" id="fl-policy-sub">—</div>
+        </div>
+        <button onclick="closeModal('m-fl-policy-edit')" style="background:none;border:none;font-size:20px;cursor:pointer;color:#64748b;" aria-label="Close modal"><re-icon icon="x" size="16"></re-icon></button>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:12px;">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+          <div>
+            <label style="font-size:12px;font-weight:700;color:#334155;display:block;margin-bottom:4px;">Casual Leave (CL) / Year:</label>
+            <input type="number" id="pol-cl" class="form-ctrl" min="0" max="60" style="width:100%;border-radius:8px;border:1px solid #cbd5e1;padding:8px;font-size:13px;">
+          </div>
+          <div>
+            <label style="font-size:12px;font-weight:700;color:#334155;display:block;margin-bottom:4px;">Medical Leave (ML) / Year:</label>
+            <input type="number" id="pol-ml" class="form-ctrl" min="0" max="60" style="width:100%;border-radius:8px;border:1px solid #cbd5e1;padding:8px;font-size:13px;">
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+          <div>
+            <label style="font-size:12px;font-weight:700;color:#334155;display:block;margin-bottom:4px;">Earned Leave (EL) / Year:</label>
+            <input type="number" id="pol-el" class="form-ctrl" min="0" max="60" style="width:100%;border-radius:8px;border:1px solid #cbd5e1;padding:8px;font-size:13px;">
+          </div>
+          <div>
+            <label style="font-size:12px;font-weight:700;color:#334155;display:block;margin-bottom:4px;">Medical Doc Required From (Days):</label>
+            <input type="number" id="pol-threshold" class="form-ctrl" min="1" max="15" style="width:100%;border-radius:8px;border:1px solid #cbd5e1;padding:8px;font-size:13px;">
+          </div>
+        </div>
+
+        <div>
+          <label style="font-size:13px;color:#334155;display:flex;align-items:center;gap:8px;cursor:pointer;">
+            <input type="checkbox" id="pol-carry-forward" style="width:16px;height:16px;">
+            <span>Allow Carry Forward for Earned Leave</span>
+          </label>
+        </div>
+
+        <div id="pol-reason-wrap">
+          <label style="font-size:12px;font-weight:700;color:#334155;display:block;margin-bottom:4px;">Reason for Revision *:</label>
+          <input type="text" id="pol-reason" class="form-ctrl" placeholder="e.g. Academic Council revised leave quota" style="width:100%;border-radius:8px;border:1px solid #cbd5e1;padding:8px;font-size:13px;">
+        </div>
+      </div>
+
+      <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:20px;border-top:1px solid #e2e8f0;padding-top:14px;">
+        <button class="btn btn-sec" onclick="closeModal('m-fl-policy-edit')">Close</button>
+        <button class="btn btn-pri" id="btn-save-fl-policy" onclick="saveDepartmentLeavePolicy()">Save Policy</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: DECLARE HOLIDAY / HALF-DAY (m-declare-holiday) (C7 §14) -->
+  <div class="modal-backdrop" id="m-declare-holiday" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,0.6);z-index:9999;align-items:center;justify-content:center;padding:16px;">
+    <div class="modal-box" style="background:#fff;border-radius:16px;max-width:500px;width:100%;box-shadow:0 20px 25px -5px rgba(0,0,0,0.1);padding:24px;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:1px solid #e2e8f0;padding-bottom:12px;margin-bottom:16px;">
+        <div>
+          <h2 style="font-size:18px;font-weight:700;color:#0f172a;margin:0;"><re-icon icon="calendar"></re-icon> Declare Academic Event / Holiday</h2>
+          <div style="font-size:12px;color:#64748b;margin-top:2px;">Immediate calendar reflection and session synchronization</div>
+        </div>
+        <button onclick="closeModal('m-declare-holiday')" style="background:none;border:none;font-size:20px;cursor:pointer;color:#64748b;" aria-label="Close modal"><re-icon icon="x" size="16"></re-icon></button>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:12px;">
+        <div>
+          <label style="font-size:12px;font-weight:700;color:#334155;display:block;margin-bottom:4px;">Date *:</label>
+          <input type="date" id="hol-date" class="form-ctrl" style="width:100%;border-radius:8px;border:1px solid #cbd5e1;padding:8px;font-size:13px;">
+        </div>
+        <div>
+          <label style="font-size:12px;font-weight:700;color:#334155;display:block;margin-bottom:4px;">Classification *:</label>
+          <select id="hol-type" class="form-ctrl" style="width:100%;border-radius:8px;border:1px solid #cbd5e1;padding:8px;font-size:13px;">
+            <option value="holiday">Institutional Holiday / Day Off</option>
+            <option value="half-day">Half Day (Classes suspended after 1:00 PM)</option>
+            <option value="leave">Department Holiday</option>
+          </select>
+        </div>
+        <div>
+          <label style="font-size:12px;font-weight:700;color:#334155;display:block;margin-bottom:4px;">Description / Reason *:</label>
+          <input type="text" id="hol-desc" class="form-ctrl" placeholder="e.g. Founder's Day / Heavy Rain Alert" style="width:100%;border-radius:8px;border:1px solid #cbd5e1;padding:8px;font-size:13px;">
+        </div>
+      </div>
+      <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:20px;border-top:1px solid #e2e8f0;padding-top:14px;">
+        <button class="btn btn-sec" onclick="closeModal('m-declare-holiday')">Cancel</button>
+        <button class="btn btn-pri" id="btn-confirm-holiday" onclick="confirmDeclareHoliday()">Declare Event</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: EXTEND ATTENDANCE LOCK (m-extend-lock) (C7 §14) -->
+  <div class="modal-backdrop" id="m-extend-lock" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,0.6);z-index:9999;align-items:center;justify-content:center;padding:16px;">
+    <div class="modal-box" style="background:#fff;border-radius:16px;max-width:480px;width:100%;box-shadow:0 20px 25px -5px rgba(0,0,0,0.1);padding:24px;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:1px solid #e2e8f0;padding-bottom:12px;margin-bottom:16px;">
+        <div>
+          <h2 style="font-size:18px;font-weight:700;color:#0f172a;margin:0;"><re-icon icon="timer"></re-icon> Extend Attendance Lock Window</h2>
+          <div style="font-size:12px;color:#64748b;margin-top:2px;">Permit delayed attendance submission due to technical/power outage</div>
+        </div>
+        <button onclick="closeModal('m-extend-lock')" style="background:none;border:none;font-size:20px;cursor:pointer;color:#64748b;" aria-label="Close modal"><re-icon icon="x" size="16"></re-icon></button>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:12px;">
+        <div>
+          <label style="font-size:12px;font-weight:700;color:#334155;display:block;margin-bottom:4px;">Extension Duration (Minutes) *:</label>
+          <select id="lock-ext-mins" class="form-ctrl" style="width:100%;border-radius:8px;border:1px solid #cbd5e1;padding:8px;font-size:13px;">
+            <option value="30">+30 Minutes Window</option>
+            <option value="60" selected>+60 Minutes Window (1 Hour)</option>
+            <option value="120">+120 Minutes Window (2 Hours)</option>
+            <option value="240">Until End of Day</option>
+          </select>
+        </div>
+        <div>
+          <label style="font-size:12px;font-weight:700;color:#334155;display:block;margin-bottom:4px;">Justification / Outage Cause *:</label>
+          <input type="text" id="lock-ext-reason" class="form-ctrl" placeholder="e.g. Campus campus network maintenance, severe power disruption" style="width:100%;border-radius:8px;border:1px solid #cbd5e1;padding:8px;font-size:13px;">
+        </div>
+      </div>
+      <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:20px;border-top:1px solid #e2e8f0;padding-top:14px;">
+        <button class="btn btn-sec" onclick="closeModal('m-extend-lock')">Cancel</button>
+        <button class="btn btn-warning" id="btn-confirm-extend-lock" onclick="confirmExtendAttendanceLock()">Extend Lock Window</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Scripts -->
   <script src="js/core/session.js"></script>
+  <script src="js/core/api.js"></script>
   <script src="js/core/toast.js"></script>
+  <script src="js/core/modal.js"></script>
+  <script src="js/core/popup.js"></script>
+  <script src="js/core/guard.js"></script>
+  <script src="js/shared/hod.js"></script>
+  <script src="js/shared/workload.shared.js"></script>
   <script src="js/pages/controller.page.js"></script>
 </body>
 

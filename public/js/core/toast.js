@@ -61,10 +61,10 @@ function dbToast(msg, state, changes) {
   _dbToastTimer = null;
   el.className = 'show ' + (state || 'saving');
 
-  var icon = state === 'success' ? '✓' : state === 'error' ? '❌' : state === 'warn' ? '⚠️' : state === 'info' ? 'ℹ️' : '';
+  var icon = state === 'success' ? '<re-icon icon="check"></re-icon>' : state === 'error' ? '<re-icon icon="x-circle"></re-icon>' : state === 'warn' ? '<re-icon icon="alert-triangle"></re-icon>' : state === 'info' ? '<re-icon icon="info-circle"></re-icon>' : '';
   var spinHtml = state === 'saving' ? '<div class="db-spin"></div>' : '';
 
-  var closeBtn = '<span id="db-toast-close" style="position:absolute;top:6px;right:8px;cursor:pointer;font-size:10px;">✖</span>';
+  var closeBtn = '<span id="db-toast-close" style="position:absolute;top:6px;right:8px;cursor:pointer;font-size:10px;"><re-icon icon="x"></re-icon></span>';
 
   // Progress bar — only rendered when there is a countdown (not in saving state)
   var progressBar = state !== 'saving'

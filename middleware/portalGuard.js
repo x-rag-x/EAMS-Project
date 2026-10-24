@@ -1,5 +1,6 @@
 const M = require('../models');
 const { getSettings } = require('../utils/settingsCache');
+const { isAdminUser } = require('../utils/access');
 
 async function getCachedSettings() {
   try {
@@ -11,12 +12,13 @@ async function getCachedSettings() {
 
 // Verify student portal access permissions
 async function checkStudentPortalGuard(req, res, next) {
-  if (req.user && req.user.role === 'admin') return next();
+  if (req.user && isAdminUser(req.user)) return next();
   const settings = await getCachedSettings();
   const pageStudents = settings.pages?.pageStudents ?? 'enabled';
   if (pageStudents === 'disabled' || pageStudents === 'hidden' || pageStudents === false) {
     return res.status(403).json({
-      error: 'Student Portal is currently disabled by administrator.',
+      error: 'Students Login are paused temporary.',
+      code: 'STUDENTS_LOGIN_PAUSED',
       portalDisabled: true,
       portal: 'student'
     });
@@ -26,7 +28,7 @@ async function checkStudentPortalGuard(req, res, next) {
 
 // Verify attendance marking permissions
 async function checkAttendanceMarkGuard(req, res, next) {
-  if (req.user && req.user.role === 'admin') return next();
+  if (req.user && isAdminUser(req.user)) return next();
   const settings = await getCachedSettings();
   const markAttendance = settings.attendance?.markAttendance ?? true;
   if (markAttendance === false) {
@@ -40,7 +42,7 @@ async function checkAttendanceMarkGuard(req, res, next) {
 
 // Verify live session feature availability
 async function checkLiveSessionGuard(req, res, next) {
-  if (req.user && req.user.role === 'admin') return next();
+  if (req.user && isAdminUser(req.user)) return next();
   const settings = await getCachedSettings();
   const markAttendance = settings.attendance?.markAttendance ?? true;
   const liveSessions = settings.attendance?.liveSessions ?? true;
@@ -56,7 +58,7 @@ async function checkLiveSessionGuard(req, res, next) {
 // Verify generic module enablement status
 function checkModuleGuard(moduleKey, moduleName) {
   return async function (req, res, next) {
-    if (req.user && req.user.role === 'admin') return next();
+    if (req.user && isAdminUser(req.user)) return next();
     const settings = await getCachedSettings();
     const isEnabled = settings.models?.[moduleKey] ?? true;
     if (isEnabled === false) {
@@ -69,8 +71,40 @@ function checkModuleGuard(moduleKey, moduleName) {
   };
 }
 
+// Verify controller portal access permissions
+async function checkControllerPortalGuard(req, res, next) {
+  if (req.user && isAdminUser(req.user)) return next();
+  const settings = await getCachedSettings();
+  const pageController = settings.pages?.pageController ?? 'enabled';
+  if (pageController === 'disabled' || pageController === 'hidden' || pageController === false) {
+    return res.status(403).json({
+      error: 'Controller Portal is currently disabled by administrator.',
+      portalDisabled: true,
+      portal: 'controller'
+    });
+  }
+  next();
+}
+
+// Verify rooms portal access permissions
+async function checkRoomsPortalGuard(req, res, next) {
+  if (req.user && isAdminUser(req.user)) return next();
+  const settings = await getCachedSettings();
+  const pageRooms = settings.pages?.pageRooms ?? 'enabled';
+  if (pageRooms === 'disabled' || pageRooms === 'hidden' || pageRooms === false) {
+    return res.status(403).json({
+      error: 'Room & Facilities Portal is currently disabled by administrator.',
+      portalDisabled: true,
+      portal: 'rooms'
+    });
+  }
+  next();
+}
+
 module.exports = {
   checkStudentPortalGuard,
+  checkControllerPortalGuard,
+  checkRoomsPortalGuard,
   checkAttendanceMarkGuard,
   checkLiveSessionGuard,
   checkModuleGuard,

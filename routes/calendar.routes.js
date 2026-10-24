@@ -1,9 +1,10 @@
 const express = require('express');
 const router = express.Router();
 const M = require('../models');
-const { authMiddleware, adminOnly } = require('../middleware/auth');
+const { authMiddleware, requirePage } = require('../middleware/auth');
 const { logAction } = require('../utils/logAction');
 const { dateToDow, satOrdinal } = require('../utils/dateUtils');
+const { todayInInstitutionTzSync, todayIST } = require('../utils/institutionTime');
 
 // Helper to normalize input date string to YYYY-MM-DD
 function parseDateStr(dateInput) {
@@ -12,7 +13,7 @@ function parseDateStr(dateInput) {
     return dateInput.split('T')[0];
   }
   if (dateInput instanceof Date && !isNaN(dateInput.getTime())) {
-    return dateInput.toISOString().split('T')[0];
+    return todayIST(dateInput);
   }
   return String(dateInput).split('T')[0];
 }
@@ -20,8 +21,9 @@ function parseDateStr(dateInput) {
 // GET /api/calendar  — all days in a month
 router.get('/', authMiddleware, async (req, res) => {
   try {
-    const month = parseInt(req.query.month) || new Date().getMonth() + 1;
-    const year = parseInt(req.query.year) || new Date().getFullYear();
+    const [defYear, defMonth] = todayInInstitutionTzSync().split('-').map(Number);
+    const month = parseInt(req.query.month) || defMonth;
+    const year = parseInt(req.query.year) || defYear;
     const mm = String(month).padStart(2, '0');
     const yyyy = String(year);
     const docs = await M.CalendarDay.find({ month: mm, year: yyyy }).sort({ date: 1 }).lean();
@@ -30,7 +32,7 @@ router.get('/', authMiddleware, async (req, res) => {
     const days = docs.map(d => {
       let dateKey = '';
       if (d.date instanceof Date) {
-        dateKey = d.date.toISOString().split('T')[0];
+        dateKey = todayIST(d.date);
       } else if (typeof d.date === 'string') {
         dateKey = d.date.split('T')[0];
       }
@@ -64,7 +66,7 @@ router.get('/check/:date', authMiddleware, async (req, res) => {
 });
 
 // POST /api/calendar  — upsert a single day (admin only)
-router.post('/', authMiddleware, adminOnly, async (req, res) => {
+router.post('/', authMiddleware, requirePage('manage', 'edit', { tab: 'calendar' }), async (req, res) => {
   try {
     const { date, details, isFinalized } = req.body;
     if (!date) return res.status(400).json({ error: 'date required' });
@@ -107,7 +109,7 @@ router.post('/', authMiddleware, adminOnly, async (req, res) => {
 });
 
 // PUT /api/calendar/:date  — same as POST
-router.put('/:date', authMiddleware, adminOnly, async (req, res) => {
+router.put('/:date', authMiddleware, requirePage('manage', 'edit', { tab: 'calendar' }), async (req, res) => {
   try {
     const dateStr = parseDateStr(req.params.date);
     const { details, isFinalized } = req.body;
@@ -136,7 +138,7 @@ router.put('/:date', authMiddleware, adminOnly, async (req, res) => {
 });
 
 // POST /api/calendar/month/save  — save all days for a month in bulk (admin only)
-router.post('/month/save', authMiddleware, adminOnly, async (req, res) => {
+router.post('/month/save', authMiddleware, requirePage('manage', 'edit', { tab: 'calendar' }), async (req, res) => {
   try {
     const month = parseInt(req.body.month);
     const year = parseInt(req.body.year);
@@ -220,7 +222,7 @@ router.post('/month/save', authMiddleware, adminOnly, async (req, res) => {
 });
 
 // DELETE /api/calendar/month/clear  — delete all saved days for a specific month and year (admin only)
-router.delete('/month/clear', authMiddleware, adminOnly, async (req, res) => {
+router.delete('/month/clear', authMiddleware, requirePage('manage', 'delete', { tab: 'calendar' }), async (req, res) => {
   try {
     const month = parseInt(req.query.month) || (req.body && parseInt(req.body.month));
     const year = parseInt(req.query.year) || (req.body && parseInt(req.body.year));
@@ -245,11 +247,27 @@ router.delete('/month/clear', authMiddleware, adminOnly, async (req, res) => {
 });
 
 // DELETE /api/calendar/:date  — remove override, revert to auto-default
-router.delete('/:date', authMiddleware, adminOnly, async (req, res) => {
+router.delete('/:date', authMiddleware, requirePage('manage', 'delete', { tab: 'calendar' }), async (req, res) => {
   try {
     const dateStr = parseDateStr(req.params.date);
     const dateObj = new Date(dateStr + 'T00:00:00.000Z');
     const localDateObj = new Date(dateStr + 'T00:00:00');
+    const existingDays = await M.CalendarDay.find({
+      $or: [{ date: dateObj }, { date: localDateObj }]
+    }).lean();
+
+    if (existingDays && existingDays.length) {
+      for (const d of existingDays) {
+        await M.UndoLog.create({
+          collectionName: 'calendar',
+          label: `Calendar Override: ${dateStr} (${d.type || d.status || 'Override'})`,
+          snapshot: d,
+          deletedBy: req.user?.name || req.user?.username || 'admin',
+          expiresAt: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000)
+        }).catch(err => console.warn('[UndoLog Error]:', err.message));
+      }
+    }
+
     await M.CalendarDay.deleteMany({
       $or: [{ date: dateObj }, { date: localDateObj }]
     });
@@ -282,7 +300,7 @@ router.get('/day-details/:date', authMiddleware, async (req, res) => {
 });
 
 // POST /api/calendar/bulk-generate  — auto-fill month with default rules
-router.post('/bulk-generate', authMiddleware, adminOnly, async (req, res) => {
+router.post('/bulk-generate', authMiddleware, requirePage('manage', 'create', { tab: 'calendar' }), async (req, res) => {
   try {
     const month = parseInt(req.body.month) || new Date().getMonth() + 1;
     const year = parseInt(req.body.year) || new Date().getFullYear();

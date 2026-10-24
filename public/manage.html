@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>EAMS – Manage Page</title>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
+  <script src="js/core/escape.js"></script>
+  <script src="js/core/icons.js"></script>
   <link rel="stylesheet" href="css/base.css">
   <link rel="stylesheet" href="css/manage.css">
 </head>
@@ -37,12 +39,12 @@
 <div class="sb-overlay" id="sb-overlay" onclick="toggleSidebar()"></div>
 
 <!-- SIDEBAR TOGGLE -->
-<button class="sb-toggle-btn" id="sbtoggle" onclick="toggleSidebar()" title="Toggle">✖</button>
+<button class="sb-toggle-btn" id="sbtoggle" onclick="toggleSidebar()" title="Toggle"><re-icon icon="x" size="16"></re-icon></button>
 
 <!-- SIDEBAR -->
 <nav class="sb">
   <div class="sb-logo">
-    <div class="sb-logo-mark">📅</div>
+    <div class="sb-logo-mark"><re-icon icon="calendar"></re-icon></div>
     <div>
       <div class="sb-logo-text">Manage</div>
       <div class="sb-logo-sub">EAMS Portal</div>
@@ -50,14 +52,14 @@
   </div>
 
   <div class="sb-nav">
-    <button class="sb-item act" data-page="overview"  onclick="nav('overview')"><span class="sbi-ic">📊</span>Overview</button>
+    <button class="sb-item act" data-page="overview"  onclick="nav('overview')"><span class="sbi-ic"><re-icon icon="grid"></re-icon></span>Overview</button>
     <div class="sb-section">Academic</div>
-    <button class="sb-item" data-page="years"     onclick="nav('years')"><span class="sbi-ic">📚</span>Years</button>
-    <button class="sb-item" data-page="calendar"  onclick="nav('calendar')"><span class="sbi-ic">📅</span>College Days</button>
-    <button class="sb-item" data-page="exam"      onclick="nav('exam')"><span class="sbi-ic">📝</span>Exam</button>
+    <button class="sb-item" data-page="years"     onclick="nav('years')"><span class="sbi-ic"><re-icon icon="book-open"></re-icon></span>Years</button>
+    <button class="sb-item" data-page="calendar"  onclick="nav('calendar')"><span class="sbi-ic"><re-icon icon="calendar"></re-icon></span>College Days</button>
+    <button class="sb-item" data-page="exam"      onclick="nav('exam')"><span class="sbi-ic"><re-icon icon="file-text"></re-icon></span>Exam</button>
     <div class="sb-section">Admin</div>
-    <button class="sb-item" data-page="settings"  onclick="nav('settings')"><span class="sbi-ic">⚙️</span>Settings</button>
-    <button class="sb-item" onclick="window.location.href='export.html'"><span class="sbi-ic">📊</span>Export Center</button>
+    <button class="sb-item" data-page="settings"  onclick="nav('settings')"><span class="sbi-ic"><re-icon icon="settings"></re-icon></span>Settings</button>
+    <button class="sb-item" onclick="window.location.href='export.html'"><span class="sbi-ic"><re-icon icon="grid"></re-icon></span>Export Center</button>
   </div>
 
   <div class="sb-bottom">
@@ -68,7 +70,7 @@
         <div class="sb-urole">Admin</div>
       </div>
     </div>
-    <button class="sb-back-btn" onclick="goBack()">← Back to Dashboard</button>
+    <button class="sb-back-btn" onclick="goBack()"><re-icon icon="arrow-left"></re-icon> Back to Dashboard</button>
     <button class="sb-logout-btn" onclick="doLogout('manual', 'success', '7000')" title="Logout">
       <div class="logout-sign">
         <svg viewBox="0 0 512 512"><path d="M377.9 105.9L500.7 228.7c7.2 7.2 11.3 17.1 11.3 27.3s-4.1 20.1-11.3 27.3L377.9 406.1c-6.4 6.4-15 9.9-24 9.9c-18.7 0-33.9-15.2-33.9-33.9l0-62.1-128 0c-17.7 0-32-14.3-32-32l0-64c0-17.7 14.3-32 32-32l128 0 0-62.1c0-18.7 15.2-33.9 33.9-33.9c9 0 17.6 3.6 24 9.9zM160 96L96 96c-17.7 0-32 14.3-32 32l0 256c0 17.7 14.3 32 32 32l64 0c17.7 0 32 14.3 32 32s-14.3 32-32 32l-64 0c-53 0-96-43-96-96L0 128C0 75 43 32 96 32l64 0c17.7 0 32 14.3 32 32s-14.3 32-32 32z"></path></svg>
@@ -86,7 +88,7 @@
       <div class="tb-date" id="tdt-label"></div>
     </div>
     <div class="topbar-right">
-      <div class="tb-profile">
+      <div class="tb-profile" onclick="openUserProfile()" style="cursor:pointer;" title="My Profile">
         <div class="tb-av" id="topbar-av">A</div>
         <div class="tb-name" id="topbar-name">Administrator</div>
       </div>
@@ -97,14 +99,14 @@
   <div class="pg act" id="pg-overview">
     <div class="page-hd">
       <div>
-        <div class="page-title">📊 Overview</div>
+        <div class="page-title"><re-icon icon="grid"></re-icon> Overview</div>
         <div class="page-sub">Quick snapshot of the current month's schedule.</div>
       </div>
-      <button class="btn-pri" onclick="nav('calendar')">Edit Calendar →</button>
+      <button class="btn-pri" onclick="nav('calendar')">Edit Calendar <re-icon icon="arrow-right"></re-icon></button>
     </div>
 
     <!-- Stats row -->
-    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px;">
+    <div id="ov-stats-bar" style="display:none;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px;">
       <div class="ov-stat"><div class="ov-stat-dot" style="background:var(--gK);"></div><div><div class="ov-stat-num" id="ov-working">—</div><div class="ov-stat-label">Working Days</div></div></div>
       <div class="ov-stat"><div class="ov-stat-dot" style="background:#dc2626;"></div><div><div class="ov-stat-num" id="ov-leave">—</div><div class="ov-stat-label">Leave</div></div></div>
       <div class="ov-stat"><div class="ov-stat-dot" style="background:#b45309;"></div><div><div class="ov-stat-num" id="ov-exam">—</div><div class="ov-stat-label">Exam Days</div></div></div>
@@ -139,7 +141,7 @@
       <div>
         <div class="card">
           <div class="card-hd">
-            <div class="card-title">📋 Upcoming Exams</div>
+            <div class="card-title"><re-icon icon="clipboard-list"></re-icon> Upcoming Exams</div>
             <button class="btn-out btn-xs" onclick="nav('exam')">View All</button>
           </div>
           <div id="ov-exams-list" style="max-height:360px;overflow-y:auto;">
@@ -154,14 +156,14 @@
   <div class="pg" id="pg-calendar">
     <div class="page-hd">
       <div>
-        <div class="page-title">📅 College Days</div>
+        <div class="page-title"><re-icon icon="calendar"></re-icon> College Days</div>
         <div class="page-sub">Mark working days, leaves and daily timings.</div>
       </div>
       <div class="page-actions">
-        <button class="btn-pri btn-sm" onclick="deleteCalendarMonth()" id="delete-month-btn" title="Delete all saved days for this month from database">🗑️ Delete Month (DB)</button>
-        <button class="btn-out btn-sm" onclick="clearCalendarDraft()" id="clear-draft-btn" style="display:none;">🗑️ Clear Draft</button>
-        <button class="btn-pri" onclick="generateMonthDefaults()">⚙️ Auto-Fill</button>
-        <button class="btn-out" onclick="loadCalendar()">🔄 Sync DB</button>
+        <button class="btn-pri btn-sm" onclick="deleteCalendarMonth()" id="delete-month-btn" title="Delete all saved days for this month from database"><re-icon icon="trash2" size="14"></re-icon> Delete Month (DB)</button>
+        <button class="btn-out btn-sm" onclick="clearCalendarDraft()" id="clear-draft-btn" style="display:none;"><re-icon icon="trash2" size="14"></re-icon> ️ Clear Draft</button>
+        <button class="btn-pri" onclick="generateMonthDefaults()"><re-icon icon="settings" size="14"></re-icon> ️ Auto-Fill</button>
+        <button class="btn-out" onclick="loadCalendar()"><re-icon icon="refresh" size="14"></re-icon> Sync DB</button>
       </div>
     </div>
 
@@ -205,7 +207,7 @@
     </div>
 
     <!-- Stats -->
-    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:12px;">
+    <div id="cal-stats-bar" style="display:none;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:12px;">
       <div class="ov-stat"><div class="ov-stat-dot" style="background:var(--gK);"></div><div><div class="ov-stat-num" id="cs-working">—</div><div class="ov-stat-label">Working</div></div></div>
       <div class="ov-stat"><div class="ov-stat-dot" style="background:#dc2626;"></div><div><div class="ov-stat-num" id="cs-leave">—</div><div class="ov-stat-label">Leave</div></div></div>
       <div class="ov-stat"><div class="ov-stat-dot" style="background:#b45309;"></div><div><div class="ov-stat-num" id="cs-exam">—</div><div class="ov-stat-label">Exam Days</div></div></div>
@@ -239,25 +241,25 @@
         </div>
       </div>
       <div class="page-actions" style="padding:0 16px 14px;">
-          <button class="btn-pri" onclick="saveCalendarMonth(false)">📝 Save Draft</button>
-          <button class="btn-out" onclick="saveCalendarMonth(true)">✅ Save & Finalize</button>
+          <button class="btn-pri" onclick="saveCalendarMonth(false)"><re-icon icon="file-text" size="14"></re-icon> Save Draft</button>
+          <button class="btn-out" onclick="saveCalendarMonth(true)"><re-icon icon="check-circle" size="14"></re-icon> Save & Finalize</button>
       </div>
     </div>
-    <div style="margin-top:8px;font-size:10.5px;color:var(--tdi);text-align:center;">💡 Default: Sundays = Leave &nbsp;|&nbsp; 1st &amp; 3rd Saturdays = Leave &nbsp;|&nbsp; 2nd &amp; 4th Saturdays = Working &nbsp;|&nbsp; Click any day to edit.</div>
+    <div style="margin-top:8px;font-size:10.5px;color:var(--tdi);text-align:center;"><re-icon icon="lightbulb"></re-icon> Default: Sundays = Leave &nbsp;|&nbsp; 1st &amp; 3rd Saturdays = Leave &nbsp;|&nbsp; 2nd &amp; 4th Saturdays = Working &nbsp;|&nbsp; Click any day to edit.</div>
   </div>
 
   <!-- PAGE: EXAM -->
   <div class="pg" id="pg-exam">
     <div class="page-hd">
       <div>
-        <div class="page-title">📝 Exam</div>
+        <div class="page-title"><re-icon icon="file-text"></re-icon> Exam</div>
         <div class="page-sub">Schedule exams and track hall-wise attendance.</div>
       </div>
     </div>
 
     <div class="tab-bar">
-      <button class="tab-btn act" id="est-dates-btn"  onclick="examSubTab('dates')">📋 Exam Dates</button>
-      <button class="tab-btn"     id="est-att-btn"    onclick="examSubTab('attendance')">✅ Exam Attendance</button>
+      <button class="tab-btn act" id="est-dates-btn"  onclick="examSubTab('dates')"><re-icon icon="clipboard-list" size="14"></re-icon> Exam Dates</button>
+      <button class="tab-btn"     id="est-att-btn"    onclick="examSubTab('attendance')"><re-icon icon="check-circle" size="14"></re-icon> Exam Attendance</button>
     </div>
 
     <!-- EXAM DATES -->
@@ -303,8 +305,8 @@
       </div>
       <div class="card">
         <div class="card-hd">
-          <div class="card-title">📋 Scheduled Exams</div>
-          <button class="btn-out" onclick="loadExams()">🔄 Refresh</button>
+          <div class="card-title"><re-icon icon="clipboard-list"></re-icon> Scheduled Exams</div>
+          <button class="btn-out" onclick="loadExams()"><re-icon icon="refresh" size="14"></re-icon> Refresh</button>
         </div>
         <div class="tw">
           <table class="tbl">
@@ -321,7 +323,7 @@
         <!-- Left: form -->
         <div style="display:flex;flex-direction:column;gap:12px;">
           <div class="card">
-            <div class="card-hd" style="padding-bottom:8px;"><div class="card-title">🔖 Step 1 — Select Exam &amp; Hall</div></div>
+            <div class="card-hd" style="padding-bottom:8px;"><div class="card-title"><re-icon icon="tag"></re-icon> Step 1 — Select Exam &amp; Hall</div></div>
             <div class="card-body-p" style="padding-top:8px;">
               <div class="fg" style="margin-bottom:9px;">
                 <label class="fl">Active Exam</label>
@@ -339,7 +341,7 @@
             </div>
           </div>
           <div class="card">
-            <div class="card-hd" style="padding-bottom:8px;"><div class="card-title">🏛️ Step 2 — Depts in Your Hall</div></div>
+            <div class="card-hd" style="padding-bottom:8px;"><div class="card-title"><re-icon icon="building2"></re-icon> Step 2 — Depts in Your Hall</div></div>
             <div class="card-body-p" style="padding-top:6px;">
               <div style="font-size:11px;color:var(--tmu);margin-bottom:8px;">Select all departments whose students are in your hall.</div>
               <div id="ea-dept-wrap" style="display:flex;flex-wrap:wrap;gap:7px;">
@@ -348,7 +350,7 @@
             </div>
           </div>
           <div class="card">
-            <div class="card-hd" style="padding-bottom:8px;"><div class="card-title">🔍 Step 3 — Enter Register No</div></div>
+            <div class="card-hd" style="padding-bottom:8px;"><div class="card-title"><re-icon icon="search"></re-icon> Step 3 — Enter Register No</div></div>
             <div class="card-body-p" style="padding-top:8px;">
               <div class="fg" style="margin-bottom:8px;">
                 <label class="fl">Student Year</label>
@@ -364,14 +366,14 @@
                   <input type="text" class="fc2" id="ea-regno-inp" placeholder="Type register no (min 3 chars)…" oninput="searchStudentByRegno(this.value)" autocomplete="off">
                   <div class="srch-dd" id="ea-search-dd"></div>
                 </div>
-                <div style="font-size:10px;color:var(--tdi);margin-top:3px;">Type → click student to add to list.</div>
+                <div style="font-size:10px;color:var(--tdi);margin-top:3px;">Type <re-icon icon="arrow-right"></re-icon> click student to add to list.</div>
               </div>
             </div>
           </div>
           <div class="banner-yellow">
-            <strong>📌 Instructions</strong><br>
+            <strong><re-icon icon="pin"></re-icon> Instructions</strong><br>
             1. Select exam and date.<br>2. Enter your hall number.<br>
-            3. Tick which depts are in your hall.<br>4. Type reg no → click to add student.<br>
+            3. Tick which depts are in your hall.<br>4. Type reg no <re-icon icon="arrow-right"></re-icon> click to add student.<br>
             5. Toggle Absent for no-shows.<br>6. Submit when done.
           </div>
         </div>
@@ -379,7 +381,7 @@
         <div>
           <div class="card" style="height:100%;display:flex;flex-direction:column;">
             <div class="card-hd">
-              <div class="card-title">📋 Students in Hall</div>
+              <div class="card-title"><re-icon icon="clipboard-list"></re-icon> Students in Hall</div>
               <div style="display:flex;gap:7px;align-items:center;">
                 <span id="ea-count-pill" style="background:var(--gLt);color:var(--gD);font-size:11px;font-weight:700;padding:2px 9px;border-radius:10px;">0 students</span>
                 <button class="btn-out btn-xs" onclick="clearExamList()">Clear</button>
@@ -393,7 +395,7 @@
                 Present: <strong id="ea-present-count" style="color:var(--gK);">0</strong>
                 &nbsp;|&nbsp; Absent: <strong id="ea-absent-count" style="color:#dc2626;">0</strong>
               </div>
-              <button class="btn-pri" onclick="submitExamAttendance()" id="ea-submit-btn" disabled style="opacity:.5;cursor:not-allowed;">✅ Submit</button>
+              <button class="btn-pri" onclick="submitExamAttendance()" id="ea-submit-btn" disabled style="opacity:.5;cursor:not-allowed;"><re-icon icon="check-circle" size="14"></re-icon> Submit</button>
             </div>
           </div>
         </div>
@@ -401,8 +403,8 @@
       <!-- Hall summary -->
       <div class="card" style="margin-top:14px;">
         <div class="card-hd">
-          <div class="card-title">🏛️ Today's Hall Submissions</div>
-          <button class="btn-out" onclick="loadHallSummary()">🔄 Refresh</button>
+          <div class="card-title"><re-icon icon="building2"></re-icon> Today's Hall Submissions</div>
+          <button class="btn-out" onclick="loadHallSummary()"><re-icon icon="refresh" size="14"></re-icon> Refresh</button>
         </div>
         <div class="tw">
           <table class="tbl">
@@ -418,7 +420,7 @@
   <div class="pg" id="pg-years">
     <div class="page-hd">
       <div>
-        <div class="page-title">📚 Years</div>
+        <div class="page-title"><re-icon icon="book-open"></re-icon> Years</div>
         <div class="page-sub">Manage academic years and batch progress.</div>
       </div>
       <button class="btn-pri" onclick="openYearModal(null)">+ Add Academic Year</button>
@@ -427,8 +429,13 @@
     <!-- Current Year -->
     <div class="card" style="margin-bottom:16px;">
       <div class="card-hd">
-        <div class="card-title">🎯 Current Academic Year</div>
-        <button class="btn-out" onclick="loadYears()">🔄 Refresh</button>
+        <div class="card-title"><re-icon icon="flag"></re-icon> Current Academic Year</div>
+        <div style="display:flex;gap:8px;">
+          <a href="settings.html?tab=academic" class="btn-out btn-sm" style="display:inline-flex;align-items:center;gap:4px;text-decoration:none;" title="Academic Configuration Settings">
+            <re-icon icon="settings" size="13"></re-icon> Academic Config
+          </a>
+          <button class="btn-out btn-sm" onclick="loadYears()"><re-icon icon="refresh" size="14"></re-icon> Refresh</button>
+        </div>
       </div>
       <div id="current-year-display" style="padding:14px 16px;">
         <div style="text-align:center;color:var(--tdi);padding:20px;font-size:16px;">Loading… This may take few seconds.</div>
@@ -439,18 +446,21 @@
     <div class="card" style="margin-bottom:16px;">
       <div class="card-hd">
         <div>
-          <div class="card-title">📜 Curriculum Regulations</div>
+          <div class="card-title"><re-icon icon="scroll"></re-icon> Curriculum Regulations</div>
           <div style="font-size:11.5px;color:var(--tmu);margin-top:2px;">Institutional syllabus &amp; protocol years (e.g. 2021, 2025) applied across batches &amp; subjects.</div>
         </div>
         <div style="display:flex;gap:8px;">
+          <a href="settings.html?tab=academic" class="btn-out btn-sm" style="display:inline-flex;align-items:center;gap:4px;text-decoration:none;" title="Configure Regulation Minimum Attendance">
+            <re-icon icon="settings" size="13"></re-icon> Min Att Settings
+          </a>
           <button class="btn-pri btn-sm" onclick="openRegulationModal()">+ Add Regulation</button>
-          <button class="btn-out btn-sm" onclick="loadRegulations()">🔄 Refresh</button>
+          <button class="btn-out btn-sm" onclick="loadRegulations()"><re-icon icon="refresh" size="14"></re-icon> Refresh</button>
         </div>
       </div>
       <div class="tw">
         <table class="tbl">
-          <thead><tr><th>Code</th><th>Regulation Name</th><th>Effective Year</th><th>Default Status</th><th>Actions</th></tr></thead>
-          <tbody id="regulations-tbody"><tr><td colspan="5" style="text-align:center;color:var(--tdi);padding:18px;">Loading regulations…</td></tr></tbody>
+          <thead><tr><th>Code</th><th>Regulation Name</th><th>Effective Year</th><th>Min Att %</th><th>Default Status</th><th>Actions</th></tr></thead>
+          <tbody id="regulations-tbody"><tr><td colspan="6" style="text-align:center;color:var(--tdi);padding:18px;">Loading regulations…</td></tr></tbody>
         </table>
       </div>
     </div>
@@ -458,7 +468,7 @@
     <!-- All Years -->
     <div class="card">
       <div class="card-hd">
-        <div class="card-title">📋 All Academic Years</div>
+        <div class="card-title"><re-icon icon="clipboard-list"></re-icon> All Academic Years</div>
       </div>
       <div class="tw">
         <table class="tbl">
@@ -473,14 +483,14 @@
   <div class="pg" id="pg-settings">
     <div class="page-hd">
       <div>
-        <div class="page-title">⚙️ Settings</div>
+        <div class="page-title"><re-icon icon="settings"></re-icon> Settings</div>
         <div class="page-sub">Manage users who can access this portal.</div>
       </div>
     </div>
 
     <div class="card" style="max-width:760px;">
       <div class="card-hd">
-        <div class="card-title">👤 Manage Portal Admins</div>
+        <div class="card-title"><re-icon icon="user"></re-icon> Manage Portal Admins</div>
         <button class="btn-pri" onclick="openAdminModal(null)">+ Add Admin</button>
       </div>
       <div style="font-size:11.5px;color:var(--tmu);padding:0 16px 12px;border-bottom:1px solid var(--brl);">Users below can log in to the Manage portal. Full admins always have access.</div>
@@ -501,7 +511,7 @@
         <div class="modal-title" id="dm-title">Edit Day</div>
         <div class="modal-sub" id="dm-sub">Set status, timing, and year-specific rules</div>
       </div>
-      <div class="modal-close" onclick="closeModal('day-modal-bg')">✕</div>
+      <div class="modal-close" onclick="closeModal('day-modal-bg')"><re-icon icon="x" size="18"></re-icon></div>
     </div>
     <input type="hidden" id="dm-date">
     <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--brl);margin-bottom:12px;">
@@ -517,10 +527,10 @@
     <div style="margin-bottom:12px;">
       <div class="fl" style="margin-bottom:7px;">Day Type</div>
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:20px;">
-        <div class="dt-pill sel"    id="dt-working"  onclick="selDayType('working')">📗 Working</div>
-        <div class="dt-pill lv"     id="dt-leave"    onclick="selDayType('leave')">📕 Leave</div>
-        <div class="dt-pill ex"     id="dt-exam"     onclick="selDayType('exam')">📝 Exam</div>
-        <div class="dt-pill hf"     id="dt-half-day" onclick="selDayType('half-day')">🟣 Half Day</div>
+        <div class="dt-pill sel"    id="dt-working"  onclick="selDayType('working')"><re-icon icon="book-open"></re-icon> Working</div>
+        <div class="dt-pill lv"     id="dt-leave"    onclick="selDayType('leave')"><re-icon icon="book-open"></re-icon> Leave</div>
+        <div class="dt-pill ex"     id="dt-exam"     onclick="selDayType('exam')"><re-icon icon="file-text"></re-icon> Exam</div>
+        <div class="dt-pill hf"     id="dt-half-day" onclick="selDayType('half-day')"><span class="status-dot purple"></span> Half Day</div>
       </div>
     </div>
     <div class="fgrid fg2" style="margin-bottom:12px;">
@@ -541,10 +551,10 @@
       <label class="fl">Notes</label>
       <input type="text" class="fc2" id="dm-notes" placeholder="e.g. Pongal Holiday, Internal 1…">
     </div>
-    <div class="banner-yellow" id="dm-exam-warn" style="margin-bottom:12px;display:none;">📝 Marked as <strong>Exam Day</strong>. Consider adding an Exam record under the Exam tab for hall attendance.</div>
+    <div class="banner-yellow" id="dm-exam-warn" style="margin-bottom:12px;display:none;"><re-icon icon="file-text"></re-icon> Marked as <strong>Exam Day</strong>. Consider adding an Exam record under the Exam tab for hall attendance.</div>
     <div class="form-actions">
       <button class="btn-form-ghost" onclick="closeModal('day-modal-bg')">Cancel</button>
-      <button class="btn-form-pri" onclick="saveDayModal()">💾 Save Day</button>
+      <button class="btn-form-pri" onclick="saveDayModal()"><re-icon icon="save" size="14"></re-icon> Save Day</button>
     </div>
   </div>
 </div>
@@ -557,7 +567,7 @@
         <div class="modal-title" id="exam-modal-title">Add Exam</div>
         <div class="modal-sub">Schedule a new exam and auto-mark calendar dates.</div>
       </div>
-      <div class="modal-close" onclick="closeModal('exam-modal-bg')">✕</div>
+      <div class="modal-close" onclick="closeModal('exam-modal-bg')"><re-icon icon="x" size="18"></re-icon></div>
     </div>
     <input type="hidden" id="em-id">
     <div class="fgrid fg2" style="margin-bottom:12px;">
@@ -603,11 +613,11 @@
           <option value="completed">Completed</option><option value="cancelled">Cancelled</option></select></div>
       <div class="fg" style="grid-column:span 2;"><label class="fl">Notes</label><textarea class="fc2" id="em-notes" rows="2" placeholder="Optional notes…"></textarea></div>
     </div>
-    <div class="banner-green" style="margin-bottom:14px;">📅 Dates in the range will be auto-marked as <strong>Exam Days</strong> on the calendar for the selected student year.</div>
+    <div class="banner-green" style="margin-bottom:14px;"><re-icon icon="calendar"></re-icon> Dates in the range will be auto-marked as <strong>Exam Days</strong> on the calendar for the selected student year.</div>
     <div class="form-actions">
-      <button class="btn-form-del" id="em-delete-btn" style="display:none;" onclick="deleteExam()">🗑 Delete</button>
+      <button class="btn-form-del" id="em-delete-btn" style="display:none;" onclick="deleteExam()"><re-icon icon="trash2" size="14"></re-icon> Delete</button>
       <button class="btn-form-ghost" onclick="closeModal('exam-modal-bg')">Cancel</button>
-      <button class="btn-form-pri" onclick="saveExam()">💾 Save Exam</button>
+      <button class="btn-form-pri" onclick="saveExam()"><re-icon icon="save" size="14"></re-icon> Save Exam</button>
     </div>
   </div>
 </div>
@@ -618,8 +628,8 @@
     <div class="modal-hd">
       <div><div class="modal-title" id="vam-title">Hall Attendance</div><div class="modal-sub" id="vam-sub"></div></div>
       <div style="display:flex;gap:7px;align-items:center;">
-        <button class="btn-out btn-sm" onclick="window.print()">🖨️ Print</button>
-        <div class="modal-close" onclick="closeModal('view-att-bg')">✕</div>
+        <button class="btn-out btn-sm" onclick="window.print()"><re-icon icon="printer" size="14"></re-icon> Print</button>
+        <div class="modal-close" onclick="closeModal('view-att-bg')"><re-icon icon="x" size="18"></re-icon></div>
       </div>
     </div>
     <div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:12px;font-size:11.5px;color:var(--tmu);" id="vam-meta"></div>
@@ -644,7 +654,7 @@
         <div class="modal-title" id="am-title">Grant Manage Access</div>
         <div class="modal-sub">Grant Manage portal access to an existing faculty member.</div>
       </div>
-      <div class="modal-close" onclick="closeModal('admin-modal-bg')">✕</div>
+      <div class="modal-close" onclick="closeModal('admin-modal-bg')"><re-icon icon="x" size="18"></re-icon></div>
     </div>
     <input type="hidden" id="am-id">
     <input type="hidden" id="am-teacher-id">
@@ -666,24 +676,24 @@
         <div><span style="color:var(--tmu);">Email:</span> <span id="am-prev-email" style="color:var(--td);"></span></div>
       </div>
       <div style="margin-top:8px;font-size:11px;color:#2563eb;background:#eff6ff;padding:6px 10px;border-radius:6px;border:1px solid #bfdbfe;">
-        🔑 Uses their existing faculty account credentials to log in.
+        <re-icon icon="key"></re-icon> Uses their existing faculty account credentials to log in.
       </div>
     </div>
 
     <div class="fg" style="margin-bottom:14px;">
       <label class="fl">Permissions</label>
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;" id="am-perms-wrap">
-        <label class="dept-cb-wrap checked" id="perm-calendar"><input type="checkbox" value="calendar" checked> 📅 Calendar</label>
-        <label class="dept-cb-wrap checked" id="perm-exam"><input type="checkbox" value="exam" checked> 📝 Exam</label>
-        <label class="dept-cb-wrap checked" id="perm-attendance"><input type="checkbox" value="attendance" checked> ✅ Attendance</label>
-        <label class="dept-cb-wrap checked" id="perm-settings"><input type="checkbox" value="settings" checked> ⚙️ Settings</label>
+        <label class="dept-cb-wrap checked" id="perm-calendar"><input type="checkbox" value="calendar" checked> <re-icon icon="calendar"></re-icon> Calendar</label>
+        <label class="dept-cb-wrap checked" id="perm-exam"><input type="checkbox" value="exam" checked> <re-icon icon="file-text"></re-icon> Exam</label>
+        <label class="dept-cb-wrap checked" id="perm-attendance"><input type="checkbox" value="attendance" checked> <re-icon icon="check-circle"></re-icon> Attendance</label>
+        <label class="dept-cb-wrap checked" id="perm-settings"><input type="checkbox" value="settings" checked> <re-icon icon="settings"></re-icon> Settings</label>
       </div>
     </div>
 
     <div class="form-actions">
-      <button class="btn-form-del" id="am-delete-btn" style="display:none;" onclick="deleteManageAdmin()">🗑 Revoke Access</button>
+      <button class="btn-form-del" id="am-delete-btn" style="display:none;" onclick="deleteManageAdmin()"><re-icon icon="trash2" size="14"></re-icon> Revoke Access</button>
       <button class="btn-form-ghost" onclick="closeModal('admin-modal-bg')">Cancel</button>
-      <button class="btn-form-pri" id="am-save-btn" onclick="saveManageAdmin()">💾 Grant Access</button>
+      <button class="btn-form-pri" id="am-save-btn" onclick="saveManageAdmin()"><re-icon icon="save" size="14"></re-icon> Grant Access</button>
     </div>
   </div>
 </div>
@@ -693,17 +703,17 @@
   <div class="modal modal-lg">
     <div class="modal-hd">
       <div>
-        <div class="modal-title" id="ym-title">📚 Add Academic Year</div>
+        <div class="modal-title" id="ym-title"><re-icon icon="book-open" size="18"></re-icon> Add Academic Year</div>
         <div class="modal-sub" id="ym-sub">Create a new academic year with batch configurations</div>
       </div>
-      <div class="modal-close" onclick="closeModal('year-modal-bg')">✕</div>
+      <div class="modal-close" onclick="closeModal('year-modal-bg')"><re-icon icon="x" size="18"></re-icon></div>
     </div>
     <input type="hidden" id="ym-id">
 
     <!-- Auto-fill bar (new years only) -->
     <div class="ym-autofill-bar" id="ym-autofill-bar" style="display:none;">
-      <div style="font-size:11.5px;color:#5b21b6;line-height:1.5;">✨ <strong>Auto-fill available</strong> — pull last year's batches forward, advanced by one semester, plus a fresh Year I intake.</div>
-      <button type="button" class="magic-btn" onclick="autoFillFromCurrentYear()" style="white-space:nowrap;">🪄 Auto-fill</button>
+      <div style="font-size:11.5px;color:#5b21b6;line-height:1.5;"><re-icon icon="sparkles"></re-icon> <strong>Auto-fill available</strong> — pull last year's batches forward, advanced by one semester, plus a fresh Year I intake.</div>
+      <button type="button" class="magic-btn" onclick="autoFillFromCurrentYear()" style="white-space:nowrap;"><re-icon icon="sparkles"></re-icon> Auto-fill</button>
     </div>
 
     <!-- Academic Year & Current Status -->
@@ -762,13 +772,13 @@
     </div>
 
     <div class="banner-blue" style="margin-bottom:12px;font-size:11px;">
-      💡 <strong>Quick Guide:</strong> Batch name and Track ID auto-fill as you type — type the entry-year range (e.g. <strong>2026-2030</strong>) and the Track ID fills in automatically. Picking a Current Year also narrows the Semester options to the two that belong to it.
+      <re-icon icon="lightbulb"></re-icon> <strong>Quick Guide:</strong> Batch name and Track ID auto-fill as you type — type the entry-year range (e.g. <strong>2026-2030</strong>) and the Track ID fills in automatically. Picking a Current Year also narrows the Semester options to the two that belong to it.
     </div>
 
     <div class="form-actions">
-      <button class="btn-form-del" id="ym-delete-btn" style="display:none;" onclick="deleteYear()">🗑 Delete Year</button>
+      <button class="btn-form-del" id="ym-delete-btn" style="display:none;" onclick="deleteYear()"><re-icon icon="trash2" size="14"></re-icon> Delete Year</button>
       <button class="btn-form-ghost" onclick="closeModal('year-modal-bg')">Cancel</button>
-      <button class="btn-form-pri" id="ym-save-btn" onclick="saveYear()" disabled style="opacity:.5;cursor:not-allowed;">💾 Save Year</button>
+      <button class="btn-form-pri" id="ym-save-btn" onclick="saveYear()" disabled style="opacity:.5;cursor:not-allowed;"><re-icon icon="save" size="14"></re-icon> Save Year</button>
     </div>
   </div>
 </div>
@@ -781,13 +791,13 @@
         <div class="modal-title" id="bm-title">Edit Batch</div>
         <div class="modal-sub" id="bm-sub">Update current year and semester</div>
       </div>
-      <div class="modal-close" onclick="closeModal('batch-modal-bg')">✕</div>
+      <div class="modal-close" onclick="closeModal('batch-modal-bg')"><re-icon icon="x" size="18"></re-icon></div>
     </div>
     <input type="hidden" id="bm-year-id">
     <input type="hidden" id="bm-batch-track-id">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
       <span class="batch-preview" id="bm-preview">Year I • Sem I</span>
-      <button type="button" class="qa-chip" id="bm-advance-btn" onclick="advanceBatchModalSem()">⏭ Advance to Next Sem</button>
+      <button type="button" class="qa-chip" id="bm-advance-btn" onclick="advanceBatchModalSem()"><re-icon icon="arrow-right" size="14"></re-icon> Advance to Next Sem</button>
     </div>
     <div class="fgrid fg2" style="margin-bottom:12px;">
       <div class="fg">
@@ -807,10 +817,10 @@
         </select>
       </div>
     </div>
-    <div class="banner-blue" style="margin-bottom:12px;">📊 This will update the batch progress for all students in this batch.</div>
+    <div class="banner-blue" style="margin-bottom:12px;"><re-icon icon="grid"></re-icon> This will update the batch progress for all students in this batch.</div>
     <div class="form-actions">
       <button class="btn-form-ghost" onclick="closeModal('batch-modal-bg')">Cancel</button>
-      <button class="btn-form-pri" onclick="saveBatch()">💾 Save Batch</button>
+      <button class="btn-form-pri" onclick="saveBatch()"><re-icon icon="save" size="14"></re-icon> Save Batch</button>
     </div>
   </div>
 </div>
@@ -820,22 +830,22 @@
   <div class="modal" style="max-width:480px;">
     <div class="modal-hd">
       <div>
-        <div class="modal-title">🗑️ Delete Month from Database</div>
+        <div class="modal-title"><re-icon icon="trash2" size="14"></re-icon> Delete Month from Database</div>
         <div class="modal-sub">This action cannot be undone</div>
       </div>
-      <div class="modal-close" onclick="closeModal('delete-month-modal-bg')">✕</div>
+      <div class="modal-close" onclick="closeModal('delete-month-modal-bg')"><re-icon icon="x" size="18"></re-icon></div>
     </div>
     <div style="margin-bottom:16px;">
       <div style="font-size:13px;color:var(--tmu);line-height:1.7;margin-bottom:14px;">
         Are you sure you want to delete all saved days for <strong id="dmm-month-label" style="color:var(--td);">October 2026</strong> from the database?
       </div>
       <div class="banner-yellow" style="font-size:12px;">
-        ⚠️ <strong>Warning:</strong> This will reset the month to unsaved default state. All saved day configurations will be permanently removed.
+        <re-icon icon="alert-triangle"></re-icon> <strong>Warning:</strong> This will reset the month to unsaved default state. All saved day configurations will be permanently removed.
       </div>
     </div>
     <div class="form-actions">
       <button class="btn-form-ghost" onclick="closeModal('delete-month-modal-bg')">Cancel</button>
-      <button class="btn-form-del" onclick="confirmDeleteCalendarMonth()">🗑 Delete Month</button>
+      <button class="btn-form-del" onclick="confirmDeleteCalendarMonth()"><re-icon icon="trash2" size="14"></re-icon> Delete Month</button>
     </div>
   </div>
 </div>
@@ -845,10 +855,10 @@
   <div class="modal" style="max-width:480px;">
     <div class="modal-hd">
       <div>
-        <div class="modal-title" id="reg-m-title">📜 Add Curriculum Regulation</div>
+        <div class="modal-title" id="reg-m-title"><re-icon icon="scroll" size="18"></re-icon> Add Curriculum Regulation</div>
         <div class="modal-sub">Define regulation year protocol for subjects and batches</div>
       </div>
-      <div class="modal-close" onclick="closeModal('reg-modal-bg')">✕</div>
+      <div class="modal-close" onclick="closeModal('reg-modal-bg')"><re-icon icon="x" size="18"></re-icon></div>
     </div>
     <div class="fg" style="margin-bottom:12px;">
       <label class="fl">Regulation Code / Year *</label>
@@ -859,6 +869,11 @@
       <label class="fl">Regulation Title *</label>
       <input type="text" class="fc2" id="reg-name-inp" placeholder="e.g. Regulation 2021" maxlength="50">
     </div>
+    <div class="fg" style="margin-bottom:12px;">
+      <label class="fl">Min. Attendance Requirement (%)</label>
+      <input type="number" class="fc2" id="reg-minatt-inp" placeholder="75" min="0" max="100" value="75">
+      <div style="font-size:10.5px;color:var(--tmu);margin-top:3px;">Minimum attendance threshold (%) for students under this regulation (default 75)</div>
+    </div>
     <div class="fg" style="margin-bottom:16px;">
       <label style="display:flex;align-items:center;gap:8px;font-size:12.5px;cursor:pointer;">
         <input type="checkbox" id="reg-default-chk">
@@ -867,14 +882,16 @@
     </div>
     <div class="form-actions">
       <button class="btn-form-ghost" onclick="closeModal('reg-modal-bg')">Cancel</button>
-      <button class="btn-form-pri" onclick="saveRegulation()">💾 Save Regulation</button>
+      <button class="btn-form-pri" onclick="saveRegulation()"><re-icon icon="save" size="14"></re-icon> Save Regulation</button>
     </div>
   </div>
 </div>
 
 <script src="js/core/session.js"></script>
 <script src="js/core/modal.js"></script>
+<script src="js/core/popup.js"></script>
 <script src="js/core/toast.js"></script>
+<script src="js/core/guard.js"></script>
 <script src="js/core/api.js"></script>
 <script src="js/pages/manage.page.js"></script>
 </body>

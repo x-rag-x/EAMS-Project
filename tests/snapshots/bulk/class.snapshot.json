@@ -1,0 +1,53 @@
+{
+  "type": "class",
+  "totalRows": 3,
+  "eligibleCount": 0,
+  "skippedCount": 3,
+  "eligibleRows": [],
+  "skippedRows": [
+    {
+      "rowNumber": 2,
+      "name": "Computer Science & Engineering",
+      "issues": [
+        "Class \"25-29 CSE\" already exists"
+      ],
+      "data": {
+        "department": "Computer Science & Engineering",
+        "hallNo": "LH-101",
+        "sem": "III",
+        "batch": "2025-2029",
+        "year": "II Year"
+      }
+    },
+    {
+      "rowNumber": 3,
+      "name": "Computer Science & Engineering",
+      "issues": [
+        "HallNo missing",
+        "Duplicate Class \"25-29 CSE\" in file (previously seen on row 2)",
+        "Class \"25-29 CSE\" already exists"
+      ],
+      "data": {
+        "department": "Computer Science & Engineering",
+        "hallNo": "",
+        "sem": "IV",
+        "batch": "2025-2029",
+        "year": "II Year"
+      }
+    },
+    {
+      "rowNumber": 4,
+      "name": "(blank)",
+      "issues": [
+        "Department missing"
+      ],
+      "data": {
+        "department": "",
+        "hallNo": "LH-102",
+        "sem": "V",
+        "batch": "2025-2029",
+        "year": "III Year"
+      }
+    }
+  ]
+}

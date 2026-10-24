@@ -8,6 +8,8 @@
   <link
     href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&family=Playfair+Display:wght@700&family=JetBrains+Mono:wght@400;600;700&display=swap"
     rel="stylesheet">
+  <script src="js/core/escape.js"></script>
+  <script src="js/core/icons.js"></script>
   <link rel="stylesheet" href="css/base.css">
   <link rel="stylesheet" href="css/logs.css">
 </head>
@@ -31,38 +33,38 @@
       <div class="sb-nav-section">
         <div class="sb-section-label">Audit Sections</div>
         <button class="sb-item act" data-section="overview" onclick="switchSection('overview')">
-          <span class="sbi-ic">📊</span>Overview
+          <span class="sbi-ic"><re-icon icon="grid"></re-icon></span>Overview
           <span class="sb-badge" id="badge-overview-count">0</span>
         </button>
         <button class="sb-item" data-section="admin" onclick="switchSection('admin')">
-          <span class="sbi-ic">👑</span>Admin Logs
+          <span class="sbi-ic"><re-icon icon="crown"></re-icon></span>Admin Logs
           <span class="sb-badge" id="badge-admin-count">0</span>
         </button>
         <button class="sb-item" data-section="teacher" onclick="switchSection('teacher')">
-          <span class="sbi-ic">👩‍🏫</span>Teacher Logs
+          <span class="sbi-ic"><re-icon icon="teacher"></re-icon></span>Teacher Logs
           <span class="sb-badge" id="badge-teacher-count">0</span>
         </button>
         <button class="sb-item" data-section="student" onclick="switchSection('student')">
-          <span class="sbi-ic">🎓</span>Student Logs
+          <span class="sbi-ic"><re-icon icon="graduation-cap"></re-icon></span>Student Logs
           <span class="sb-badge" id="badge-student-count">0</span>
         </button>
         <button class="sb-item" data-section="system" onclick="switchSection('system')">
-          <span class="sbi-ic">🤖</span>System Logs
+          <span class="sbi-ic"><re-icon icon="microchip"></re-icon></span>System Logs
           <span class="sb-badge" id="badge-system-count">0</span>
         </button>
 
         <div class="sb-section-label" style="margin-top:10px;">Quick Links</div>
         <button class="sb-item" onclick="window.location.href='admin.html'">
-          <span class="sbi-ic">🏛️</span>Admin Portal
+          <span class="sbi-ic"><re-icon icon="building2"></re-icon></span>Admin Portal
         </button>
         <button class="sb-item" onclick="window.location.href='control.html'">
-          <span class="sbi-ic">⚙️</span>Control Panel
+          <span class="sbi-ic"><re-icon icon="settings"></re-icon></span>Control Panel
         </button>
         <button class="sb-item" onclick="window.location.href='settings.html'">
-          <span class="sbi-ic">🔐</span>Settings Hub
+          <span class="sbi-ic"><re-icon icon="shield-lock"></re-icon></span>Settings Hub
         </button>
         <button class="sb-item" onclick="window.location.href='export.html'">
-          <span class="sbi-ic">📊</span>Export Center
+          <span class="sbi-ic"><re-icon icon="grid"></re-icon></span>Export Center
         </button>
       </div>
 
@@ -74,7 +76,7 @@
             <div class="sb-urole" id="sb-user-role">Admin</div>
           </div>
         </div>
-        <button class="sb-back-btn" id="btn-back-hub" onclick="goBackHub()" style="margin-bottom:8px;">← Back to Dashboard</button>
+        <button class="sb-back-btn" id="btn-back-hub" onclick="goBackHub()" style="margin-bottom:8px;"><re-icon icon="arrow-left"></re-icon> Back to Dashboard</button>
         <button class="sb-logout-btn" onclick="doLogout()" title="Logout">
           <div class="logout-sign">
             <svg viewBox="0 0 512 512">
@@ -94,8 +96,8 @@
       <!-- Topbar Header -->
       <header class="topbar">
         <div class="topbar-left">
-          <button class="mobile-menu-btn" onclick="toggleSidebar()">☰</button>
-          <div class="topbar-title"><span>📋</span> Activity Logs &amp; Audit Trail</div>
+          <button class="mobile-menu-btn" onclick="toggleSidebar()" aria-label="Toggle navigation"><re-icon icon="menu" size="18"></re-icon></button>
+          <div class="topbar-title"><span><re-icon icon="clipboard-list"></re-icon></span> Activity Logs &amp; Audit Trail</div>
         </div>
 
         <div class="topbar-right">
@@ -116,9 +118,9 @@
             <div class="page-sub" id="page-section-desc">Real-time audit trail of every session, edit, deletion, and security event.</div>
           </div>
           <div class="page-actions">
-            <button class="btn-out" onclick="refreshCurrentLogs()" title="Refresh Logs">🔄 Refresh</button>
-            <button class="btn-pri" onclick="exportFilteredCSV()">⬇️ Export CSV</button>
-            <button class="btn-out" id="btn-clear-all" onclick="openClearLogsModal()" style="display:none;color:var(--danger);border-color:var(--danger-br);">🗑️ Clear Logs</button>
+            <button class="btn-out" onclick="refreshCurrentLogs()" title="Refresh Logs"><re-icon icon="refresh" size="14"></re-icon> Refresh</button>
+            <button class="btn-pri" onclick="exportFilteredCSV()"><re-icon icon="download"></re-icon> Export CSV</button>
+            <button class="btn-out" id="btn-clear-all" onclick="openClearLogsModal()" style="display:none;color:var(--danger);border-color:var(--danger-br);"><re-icon icon="trash2" size="14"></re-icon> ️ Clear Logs</button>
           </div>
         </div>
 
@@ -137,7 +139,7 @@
           <!-- Search & Filter inputs -->
           <div class="filter-inputs-grid">
             <div class="input-box-wrap">
-              <span class="search-ic">🔍</span>
+              <span class="search-ic"><re-icon icon="search"></re-icon></span>
               <input type="text" class="input-ctrl" id="filter-search" placeholder="Search by TR-LOG-ID, User, Action, IP…" oninput="onSearchInput()">
             </div>
 
@@ -151,10 +153,10 @@
 
             <div>
               <select class="input-ctrl" id="filter-severity" onchange="onFilterChange()">
-                <option value="all">⚡ All Severities</option>
-                <option value="info">ℹ️ Info</option>
-                <option value="warning">⚠️ Warning</option>
-                <option value="critical">🚨 Critical</option>
+                <option value="all">All Severities</option>
+                <option value="info">Info</option>
+                <option value="warning">Warning</option>
+                <option value="critical">Critical</option>
               </select>
             </div>
           </div>
@@ -182,24 +184,24 @@
     <div class="modal-card" style="max-width:440px;">
       <div class="modal-header" style="background:#fef2f2;border-bottom-color:#fecaca;">
         <div class="modal-title-group">
-          <span style="font-size:22px;">🗑️</span>
+          <span style="font-size:22px;"><re-icon icon="trash2"></re-icon></span>
           <div>
             <div class="modal-title" style="color:var(--danger);">Clear All Audit Logs</div>
             <div style="font-size:11.5px;color:var(--tmu);margin-top:2px;">Irreversible Database Action</div>
           </div>
         </div>
-        <button class="modal-close-btn" onclick="closeClearLogsModal()">✕</button>
+        <button class="modal-close-btn" onclick="closeClearLogsModal()" aria-label="Close modal"><re-icon icon="x" size="14"></re-icon></button>
       </div>
 
       <div class="modal-body" style="padding:22px 24px;">
         <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:12px;padding:14px;color:#991b1b;font-size:13px;line-height:1.5;">
-          <b>⚠️ WARNING:</b> Are you sure you want to permanently purge all activity logs from the database? This action cannot be undone.
+          <b><re-icon icon="alert-triangle"></re-icon> WARNING:</b> Are you sure you want to permanently purge all activity logs from the database? This action cannot be undone.
         </div>
       </div>
 
       <div class="modal-actions" style="padding:14px 24px 20px 24px;display:flex;justify-content:flex-end;gap:10px;border-top:1px solid var(--brl);">
         <button type="button" class="btn-out" onclick="closeClearLogsModal()">Cancel</button>
-        <button type="button" class="btn-pri" id="btn-confirm-clear-logs" onclick="confirmClearLogs()" style="background:var(--danger);border-color:var(--danger);box-shadow:0 4px 14px rgba(220,38,38,.25);">🗑️ Yes, Clear All Logs</button>
+        <button type="button" class="btn-pri" id="btn-confirm-clear-logs" onclick="confirmClearLogs()" style="background:var(--danger);border-color:var(--danger);box-shadow:0 4px 14px rgba(220,38,38,.25);"><re-icon icon="trash2" size="14"></re-icon> ️ Yes, Clear All Logs</button>
       </div>
     </div>
   </div>
@@ -211,7 +213,7 @@
     <div class="modal-card">
       <div class="modal-header">
         <div class="modal-title-group">
-          <span style="font-size:20px;" id="modal-type-icon">📋</span>
+          <span style="font-size:20px;" id="modal-type-icon"><re-icon icon="clipboard-list"></re-icon></span>
           <div>
             <div class="modal-title" id="modal-action-title">Log Activity Detail</div>
             <div style="font-size:11.5px;color:var(--tmu);display:flex;align-items:center;gap:8px;margin-top:2px;">
@@ -220,7 +222,7 @@
             </div>
           </div>
         </div>
-        <button class="modal-close-btn" onclick="closeDetailModal()">✕</button>
+        <button class="modal-close-btn" onclick="closeDetailModal()" aria-label="Close modal"><re-icon icon="x" size="14"></re-icon></button>
       </div>
 
       <div class="modal-body" id="modal-body-content">
@@ -231,10 +233,15 @@
 
   <!-- Toast Box -->
   <div class="toast-box" id="app-toast">
-    <span id="toast-icon">ℹ️</span>
+    <span id="toast-icon"><re-icon icon="info-circle"></re-icon></span>
     <span id="toast-text">Notification message</span>
   </div>
 
+  <script src="js/core/session.js"></script>
+  <script src="js/core/toast.js"></script>
+  <script src="js/core/modal.js"></script>
+  <script src="js/core/popup.js"></script>
+  <script src="js/core/guard.js"></script>
   <script src="js/pages/logs.page.js"></script>
 </body>
 

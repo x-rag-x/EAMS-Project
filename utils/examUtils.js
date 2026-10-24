@@ -1,7 +1,8 @@
 const M = require('../models');
+const { todayInInstitutionTz } = require('./institutionTime');
 
 async function refreshExamStatuses() {
-  const today = new Date().toISOString().split('T')[0];
+  const today = await todayInInstitutionTz();
   await M.Exam.updateMany({ status: { $nin: ['cancelled'] }, endDate: { $lt: today } },   { $set: { status: 'completed' } });
   await M.Exam.updateMany({ status: { $nin: ['cancelled'] }, startDate: { $lte: today }, endDate: { $gte: today } }, { $set: { status: 'ongoing' } });
   await M.Exam.updateMany({ status: { $nin: ['cancelled'] }, startDate: { $gt: today } }, { $set: { status: 'upcoming' } });

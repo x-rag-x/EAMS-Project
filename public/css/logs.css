@@ -925,27 +925,72 @@ body {
 /* ── TOAST NOTIFICATIONS ── */
 .toast-box {
   position: fixed;
-  bottom: 24px;
-  right: 24px;
-  background: var(--td);
+  bottom: 28px;
+  right: 28px;
+  background: rgba(15, 23, 42, 0.94);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
   color: #ffffff;
-  padding: 12px 18px;
-  border-radius: 12px;
+  padding: 12px 20px;
+  border-radius: 14px;
   font-size: 13px;
   font-weight: 600;
-  box-shadow: var(--shd);
-  z-index: 2000;
+  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(255, 255, 255, 0.12);
+  z-index: 10000;
   display: flex;
   align-items: center;
-  gap: 8px;
-  transform: translateY(80px);
+  gap: 10px;
+  transform: translateY(30px) scale(0.96);
   opacity: 0;
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  pointer-events: none;
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  font-family: var(--font);
+  letter-spacing: 0.15px;
 }
 
 .toast-box.show {
-  transform: translateY(0);
+  transform: translateY(0) scale(1);
   opacity: 1;
+  pointer-events: auto;
+}
+
+.toast-box #toast-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+.toast-box #toast-text {
+  display: inline-flex;
+  align-items: center;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.toast-box.toast-success {
+  background: rgba(22, 101, 52, 0.95);
+  box-shadow: 0 10px 32px rgba(22, 101, 52, 0.4), 0 0 0 1px rgba(74, 222, 128, 0.3);
+  color: #ffffff;
+}
+
+.toast-box.toast-info {
+  background: rgba(15, 23, 42, 0.95);
+  box-shadow: 0 10px 32px rgba(15, 23, 42, 0.45), 0 0 0 1px rgba(148, 163, 184, 0.25);
+  color: #ffffff;
+}
+
+.toast-box.toast-warn {
+  background: rgba(146, 64, 14, 0.95);
+  box-shadow: 0 10px 32px rgba(146, 64, 14, 0.4), 0 0 0 1px rgba(251, 191, 36, 0.3);
+  color: #ffffff;
+}
+
+.toast-box.toast-error {
+  background: rgba(153, 27, 27, 0.95);
+  box-shadow: 0 10px 32px rgba(153, 27, 27, 0.4), 0 0 0 1px rgba(248, 113, 113, 0.3);
+  color: #ffffff;
 }
 
 /* ── EMPTY STATE ── */

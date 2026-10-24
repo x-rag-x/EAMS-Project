@@ -1,9 +1,10 @@
 const mongoose = require('mongoose');
+const { normalizeYearRange } = require('../utils/yearFormat');
 
 const ExamSchema = new mongoose.Schema({
   ExamTrackId      : { type: String, required: true, unique: true},
-  batch        : { type: String, required: true },
-  academicYear : { type: String, default: '' },
+  batch        : { type: String, required: true, trim: true, set: v => normalizeYearRange(v) },
+  academicYear : { type: String, default: '', trim: true, set: v => normalizeYearRange(v) },
   year         : { type: String, default: 'I' },
   semester     : { type: String, enum: ['I','II','III','IV', 'V', 'VI', 'VII', 'VIII'], required: true },
   deptName     : { type: String, default: '' },

@@ -1,12 +1,12 @@
 const express = require('express');
 const router = express.Router();
 const M = require('../models');
-const { authMiddleware, adminOnly, requireRight } = require('../middleware/auth');
+const { authMiddleware, requirePage } = require('../middleware/auth');
 const { logAction } = require('../utils/logAction');
 
 router.get('/', authMiddleware, async (req, res) => res.json(await M.Department.find().sort({ name: 1 }).lean()));
 
-router.post('/', authMiddleware, adminOnly, requireRight('adderModules'), async (req, res) => {
+router.post('/', authMiddleware, requirePage('admin', 'create', { tab: 'depts' }), async (req, res) => {
   try {
     const dept = await M.Department.create(req.body);
     await logAction(
@@ -31,7 +31,7 @@ router.post('/', authMiddleware, adminOnly, requireRight('adderModules'), async 
   } catch (err) { res.status(400).json({ error: err.message }); }
 });
 
-router.put('/:id', authMiddleware, adminOnly, async (req, res) => {
+router.put('/:id', authMiddleware, requirePage('admin', 'edit', { tab: 'depts' }), async (req, res) => {
   try {
     const before = await M.Department.findById(req.params.id).lean();
     const dept = await M.Department.findByIdAndUpdate(req.params.id, req.body, { returnDocument: 'after' }).lean();
@@ -57,7 +57,7 @@ router.put('/:id', authMiddleware, adminOnly, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-router.delete('/:id', authMiddleware, adminOnly, requireRight('deletings'), async (req, res) => {
+router.delete('/:id', authMiddleware, requirePage('admin', 'delete', { tab: 'depts' }), async (req, res) => {
   try {
     const dept = await M.Department.findById(req.params.id).lean();
     if (dept) {

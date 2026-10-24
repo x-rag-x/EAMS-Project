@@ -52,12 +52,13 @@ var _memStore = {};
   // Local-calendar YYYY-MM-DD. toISOString() is UTC, which in IST returns
   // *yesterday* between 00:00 and 05:30 and shifts every derived date range.
   function localISO(d) {
+    if (typeof todayIST === 'function') return todayIST(d);
     d = d || new Date();
     return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
   }
 
   function todayISO() {
-    return localISO(new Date());
+    return (typeof todayIST === 'function') ? todayIST() : localISO(new Date());
   }
 
   // Bearer header for plain fetch() calls — the API authenticates by
@@ -88,11 +89,19 @@ var _memStore = {};
   }
 
   function timeAgo(isoDate) {
-    const diffSeconds = (Date.now() - new Date(isoDate)) / 1000;
-    if (diffSeconds < 60)    return 'just now';
-    if (diffSeconds < 3600)  return Math.floor(diffSeconds / 60)  + 'm ago';
+    if (!isoDate) return 'just now';
+    const d = new Date(isoDate);
+    const ts = d.getTime();
+    if (isNaN(ts)) return 'just now';
+    const diffSeconds = Math.floor((Date.now() - ts) / 1000);
+    if (diffSeconds < 0 || diffSeconds < 60) return 'just now';
+    if (diffSeconds < 3600) return Math.floor(diffSeconds / 60) + 'm ago';
     if (diffSeconds < 86400) return Math.floor(diffSeconds / 3600) + 'h ago';
-    return Math.floor(diffSeconds / 86400) + 'd ago';
+    const days = Math.floor(diffSeconds / 86400);
+    if (days === 1) return '1d ago';
+    if (days < 30) return days + 'd ago';
+    if (days < 365) return Math.floor(days / 30) + 'mo ago';
+    return Math.floor(days / 365) + 'y ago';
   }
 
   function showToast(msg, state, details) {
@@ -124,26 +133,7 @@ var _memStore = {};
     }).catch(function(){});
   }
 
-  // Session Auto-Logout after 45 minutes
-  (function() {
-    function checkSessionExpiry() {
-      var loginTime = sessionStorage.getItem('eams_login_time');
-      if (loginTime) {
-        var elapsed = Date.now() - parseInt(loginTime, 10);
-        if (elapsed > 45 * 60 * 1000) {
-          if (typeof dbToast === 'function') {
-            dbToast('⚠️ Session expired. Logging out...', 'error');
-          } else if (typeof toast === 'function') {
-            toast('⚠️ Session expired. Logging out...', 'error');
-          }
-          sessionStorage.clear();
-          window.location.replace('index.html?logout=timeout');
-        }
-      }
-    }
-    checkSessionExpiry();
-    setInterval(checkSessionExpiry, 15000);
-  })();
+  // Session inactivity and auto-logout are managed centrally by js/core/session.js
 
   function toggleSidebar() {
     const sidebar      = document.getElementById('sidebar');
@@ -155,18 +145,18 @@ var _memStore = {};
     if (isMobile) {
       const isOpen = sidebar.classList.toggle('sb-mobile-open');
       if (overlay) overlay.classList.toggle('visible', isOpen);
-      toggleButton.innerHTML = isOpen ? '✖' : '☰';
+      toggleButton.innerHTML = isOpen ? '<re-icon icon="x"></re-icon>' : '<re-icon icon="menu"></re-icon>';
     } else {
       const isHidden = sidebar.classList.toggle('sb-hidden');
       mainContent.classList.toggle('sb-expanded', isHidden);
       toggleButton.classList.toggle('closed', isHidden);
-      toggleButton.innerHTML = isHidden ? '☰' : '✖';
+      toggleButton.innerHTML = isHidden ? '<re-icon icon="menu"></re-icon>' : '<re-icon icon="x"></re-icon>';
     }
   }
 
   function goToTimetable() {
     // eams_user + eams_token already in sessionStorage — timetable.html reads them
-    window.location.href = 'timetable.html';
+    window.location.href = 'timetable.html?tab=dashboard';
   }
 
   // LIVE PROFILE & ASSIGNMENT SYNC
@@ -188,6 +178,8 @@ var _memStore = {};
           username: p.username || currentUser.username,
           empId: p.employeeNo || '',
           dept: p.department || '',
+          deptId: p.deptId || currentUser.deptId || null,
+          deptCode: p.deptCode || currentUser.deptCode || '',
           desig: p.designation || '',
           email: p.email || '',
           isHOD: !!p.isHod,
@@ -199,8 +191,10 @@ var _memStore = {};
           isWarden: !!p.isWarden,
           isExamCoordinator: !!p.isExamCoordinator,
           isPlacementCoordinator: !!p.isPlacementCoordinator,
-          isAdmin: !!p.isAdmin,
-          adminRights: p.adminRights || '',
+          isSudoAdmin: !!p.isSudoAdmin,
+          isSuperAdmin: !!p.isSuperAdmin,
+          isSubAdmin: !!p.isSubAdmin,
+          pageRights: Array.isArray(p.pageRights) ? p.pageRights : [],
           // Previously dropped — the saved "default attendance status"
           // preference was ignored after every reload.
           specials: Array.isArray(p.specials) ? p.specials : (currentUser.specials || []),
@@ -217,7 +211,28 @@ var _memStore = {};
         if (ttBtn) ttBtn.style.display = isTTC ? 'flex' : 'none';
         var badge = document.getElementById('sn-tt-badge');
         if (badge) badge.style.display = isTTC ? 'inline-block' : 'none';
-        if (currentUser.isAdmin) {
+        var isHodOrPrincipal = !!(currentUser.isHOD || currentUser.isHod || currentUser.isPrincipal || (Array.isArray(currentUser.specials) && currentUser.specials.some(function(s) { return s && (s.option === 'isHod' || s.option === 'isPrincipal') && s.value !== false; })));
+        var wlBtn = document.getElementById('sn-fac-workload');
+        if (wlBtn) {
+          wlBtn.style.display = isHodOrPrincipal ? 'flex' : 'none';
+          var wlBadge = document.getElementById('sn-workload-badge');
+          if (wlBadge) wlBadge.textContent = currentUser.isPrincipal ? 'PRINCIPAL' : 'HOD';
+        }
+        var ctrlBtn = document.getElementById('sn-controller');
+        if (ctrlBtn) {
+          ctrlBtn.style.display = isHodOrPrincipal ? 'flex' : 'none';
+          var ctrlBadge = document.getElementById('sn-controller-badge');
+          if (ctrlBadge) ctrlBadge.textContent = currentUser.isPrincipal ? 'PRINCIPAL' : 'HOD';
+        }
+        var hasAdminPrivileges = currentUser.isSudoAdmin || currentUser.isSuperAdmin || currentUser.isSubAdmin || (Array.isArray(currentUser.specials) && currentUser.specials.some(function(s) { return s && s.option === 'isAdmin' && s.value !== false; }));
+        var ttVerifyBtn = document.getElementById('sn-tt-verify');
+        if (ttVerifyBtn) {
+          ttVerifyBtn.style.display = (isHodOrPrincipal || hasAdminPrivileges) ? 'flex' : 'none';
+        }
+        if (isHodOrPrincipal || hasAdminPrivileges) {
+          updateHodTtVerificationBadge();
+        }
+        if (hasAdminPrivileges) {
           var adminHubBtn = document.getElementById('sn-admin-hub');
           if (adminHubBtn) adminHubBtn.style.display = 'flex';
         }
@@ -292,7 +307,7 @@ var _memStore = {};
     var from90 = new Date();
     from90.setDate(from90.getDate() - 90);
     var from = localISO(from90);
-    // limit=0 → unpaginated. The endpoint defaults to 50 rows, which silently
+    // limit=0 <re-icon icon="arrow-right"></re-icon> unpaginated. The endpoint defaults to 50 rows, which silently
     // truncated the dashboard chart, defaulters and "already marked" checks.
     return fetch(
       '/api/attendance?teacherId=' + encodeURIComponent(currentUser._id)
@@ -347,7 +362,8 @@ var _memStore = {};
     .catch(function() { return DB.get('timetable') || []; });
 
     // 2) Fetch resolved schedule range around the given week offset: GET /api/timetable/my-schedule?from=...&to=...
-    var today = new Date();
+    var _tParts = todayISO().split('-').map(Number);
+    var today = new Date(_tParts[0], _tParts[1] - 1, _tParts[2]);
     var monday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
     var diffToMon = (monday.getDay() + 6) % 7;
     monday.setDate(monday.getDate() - diffToMon + (weekOffsetDays || 0));
@@ -483,6 +499,14 @@ var _memStore = {};
     slot.role = slot.role || 'owner';
     slot.status = slot.status || 'scheduled';
     slot.isLab = Boolean(slot.isLab || slot.type === 'Lab');
+    if (!slot.timingSetCode) {
+      var cName = String(slot.className || '').toUpperCase();
+      if (/\b(II|III|2ND|3RD|Y2|Y3|YEAR\s*[23]|SEM\s*[3456]|25-29|24-28)\b/i.test(cName)) {
+        slot.timingSetCode = 'SET_2';
+      } else if (/\b(I|IV|1ST|4TH|Y1|Y4|YEAR\s*[14]|SEM\s*[1278]|26-30|23-27)\b/i.test(cName)) {
+        slot.timingSetCode = 'SET_1';
+      }
+    }
     return slot;
   }
 
@@ -512,9 +536,9 @@ var _memStore = {};
     document.getElementById('app').classList.add('vis');
     if (typeof flushToastQueue === 'function') flushToastQueue();
     else if (typeof _loaderActive !== 'undefined') _loaderActive = false;
-    // Sidebar starts hidden on phones — the toggle must show ☰, not ✖.
+    // Sidebar starts hidden on phones — the toggle must show <re-icon icon="menu"></re-icon>, not <re-icon icon="x"></re-icon>.
     var sbToggle = document.getElementById('sbtoggle');
-    if (sbToggle && window.innerWidth <= 768) sbToggle.innerHTML = '☰';
+    if (sbToggle && window.innerWidth <= 768) sbToggle.innerHTML = '<re-icon icon="menu"></re-icon>';
     document.getElementById('tpav').textContent    = (currentUser.name || 'T')[0];
     document.getElementById('tpname').textContent  = currentUser.name || 'Teacher';
     document.getElementById('tpdept').textContent  = currentUser.dept || 'Faculty';
@@ -525,6 +549,27 @@ var _memStore = {};
     if (ttBtn) ttBtn.style.display = isTTC ? 'flex' : 'none';
     var badge = document.getElementById('sn-tt-badge');
     if (badge) badge.style.display = isTTC ? 'inline-block' : 'none';
+    var isHodOrPrincipal = !!(currentUser.isHOD || currentUser.isHod || currentUser.isPrincipal || (Array.isArray(currentUser.specials) && currentUser.specials.some(function(s) { return s && (s.option === 'isHod' || s.option === 'isPrincipal') && s.value !== false; })));
+    var wlBtn = document.getElementById('sn-fac-workload');
+    if (wlBtn) {
+      wlBtn.style.display = isHodOrPrincipal ? 'flex' : 'none';
+      var wlBadge = document.getElementById('sn-workload-badge');
+      if (wlBadge) wlBadge.textContent = currentUser.isPrincipal ? 'PRINCIPAL' : 'HOD';
+    }
+    var ctrlBtn = document.getElementById('sn-controller');
+    if (ctrlBtn) {
+      ctrlBtn.style.display = isHodOrPrincipal ? 'flex' : 'none';
+      var ctrlBadge = document.getElementById('sn-controller-badge');
+      if (ctrlBadge) ctrlBadge.textContent = currentUser.isPrincipal ? 'PRINCIPAL' : 'HOD';
+    }
+    var hasAdminPrivileges = currentUser.isSudoAdmin || currentUser.isSuperAdmin || currentUser.isSubAdmin || (Array.isArray(currentUser.specials) && currentUser.specials.some(function(s) { return s && s.option === 'isAdmin' && s.value !== false; }));
+    var ttVerifyBtn = document.getElementById('sn-tt-verify');
+    if (ttVerifyBtn) {
+      ttVerifyBtn.style.display = (isHodOrPrincipal || hasAdminPrivileges) ? 'flex' : 'none';
+    }
+    if (isHodOrPrincipal || hasAdminPrivileges) {
+      updateHodTtVerificationBadge();
+    }
     var coordEditBtn = document.getElementById('btn-coord-edit-tt');
     if (coordEditBtn) coordEditBtn.style.display = isTTC ? 'inline-flex' : 'none';
     populateAllFilters();
@@ -539,7 +584,7 @@ var _memStore = {};
 
     Promise.all([syncMyProfile(), syncMyAssignments()]).then(function() {
       populateAllFilters();
-      return Promise.all([syncMyStudents(), syncMyAttendance(), syncMySchedule(0)]);
+      return Promise.all([syncMyStudents(), syncMyAttendance(), syncMySchedule(0), fetchAllClassesAndSubjects()]);
     }).then(function() {
       populateAllFilters();
       populatePeriodOptions('attperiod');
@@ -554,14 +599,25 @@ var _memStore = {};
       if (isAct('pg-att'))     initAttendancePage();
       if (isAct('pg-rep-stu')) { populateStudentListFilters(); renderStudentList(); }
       if (isAct('pg-rep-def')) { populateDefaulterFilters(); renderDefaultersList(); }
+      if (isAct('pg-od'))      loadTeacherODData();
       if (isAct('pg-profile')) initProfilePage();
     });
   }
 
   // NAVIGATION
   function nav(pageName) {
-    const validTabs = ['dash', 'sched', 'att', 'rep-att', 'rep-def', 'rep-stu', 'rep-insights', 'leaves', 'my-leaves', 'griev', 'profile'];
+    const validTabs = ['dash', 'sched', 'att', 'rep-att', 'rep-def', 'rep-stu', 'rep-insights', 'leaves', 'my-leaves', 'od', 'griev', 'profile', 'device-verify', 'workload', 'tt-verify'];
     if (validTabs.indexOf(pageName) === -1) pageName = 'dash';
+
+    if (pageName === 'device-verify') {
+      const dvBtn = document.getElementById('sn-device-verify');
+      const hasAccess = window.DeviceVerificationAdvisor && typeof window.DeviceVerificationAdvisor.hasAccess === 'function'
+        ? window.DeviceVerificationAdvisor.hasAccess()
+        : (dvBtn && dvBtn.style.display !== 'none');
+      if (!hasAccess) {
+        pageName = 'dash';
+      }
+    }
 
     if (window.history && window.history.replaceState) {
       var url = new URL(window.location);
@@ -576,31 +632,504 @@ var _memStore = {};
     document.querySelectorAll('.sb-item,.ss').forEach(function(item) { item.classList.remove('act'); });
 
     const navMap = {
-      'dash':         'sn-dash',     'sched':     'sn-sched', 'att':     'sn-att',
-      'rep-att':      'sn-ratt',     'rep-def':   'sn-rdef',  'rep-stu': 'sn-stu',
-      'rep-insights': 'sn-insights', 'leaves':    'sn-leaves','my-leaves': 'sn-my-leaves',
-      'griev':        'sn-griev',    'profile':   'sn-profile'
+      'dash':          'sn-dash',          'sched':         'sn-sched', 'att':     'sn-att',
+      'rep-att':       'sn-ratt',          'rep-def':       'sn-rdef',  'rep-stu': 'sn-stu',
+      'rep-insights':  'sn-insights',      'leaves':        'sn-leaves','my-leaves': 'sn-my-leaves',
+      'od':            'sn-od',
+      'griev':         'sn-griev',         'profile':       'sn-profile',
+      'device-verify': 'sn-device-verify', 'workload':      'sn-fac-workload',
+      'tt-verify':     'sn-tt-verify'
     };
     if (navMap[pageName]) {
       const navEl = document.getElementById(navMap[pageName]);
       if (navEl) navEl.classList.add('act');
     }
 
+    const profileChip = document.querySelector('.profile-chip');
+    if (profileChip) {
+      if (pageName === 'profile') profileChip.classList.add('act');
+      else profileChip.classList.remove('act');
+    }
+
     const pageActions = {
-      'dash':         initDashboard,
-      'sched':        function() { switchSchedTab(currentSchedTab || 'week'); },
-      'att':          initAttendancePage,
-      'rep-att':      function() { populateReportFilters(); renderAttendanceRecord(); },
-      'rep-def':      function() { populateDefaulterFilters(); renderDefaultersList(); },
-      'rep-stu':      function() { populateStudentListFilters(); renderStudentList(); },
-      'rep-insights': initAttendanceInsights,
-      'leaves':       loadTeacherLeaveHistory,
-      'my-leaves':    initMyLeavesPage,
-      'griev':        renderGrievances,
-      'profile':      function() { initProfilePage(); syncMyProfile().then(initProfilePage); }
+      'dash':          initDashboard,
+      'sched':         function() { switchSchedTab(currentSchedTab || 'week'); },
+      'att':           initAttendancePage,
+      'rep-att':       function() { populateReportFilters(); renderAttendanceRecord(); },
+      'rep-def':       function() { populateDefaulterFilters(); renderDefaultersList(); },
+      'rep-stu':       function() { populateStudentListFilters(); renderStudentList(); },
+      'rep-insights':  initAttendanceInsights,
+      'leaves':        loadTeacherLeaveHistory,
+      'my-leaves':     initMyLeavesPage,
+      'od':            loadTeacherODData,
+      'griev':         renderGrievances,
+      'profile':       function() { initProfilePage(); syncMyProfile().then(initProfilePage); },
+      'device-verify': function() { if (window.DeviceVerificationAdvisor) window.DeviceVerificationAdvisor.init(); },
+      'workload':      loadTeacherWorkloadView,
+      'tt-verify':     loadHodTimetableVerificationPage
     };
     if (pageActions[pageName]) pageActions[pageName]();
   }
+
+  function loadTeacherWorkloadView() {
+    if (typeof WorkloadShared === 'undefined') {
+      console.warn('[WorkloadShared] Module not loaded');
+      return;
+    }
+    var isPrincipal = !!(currentUser && (currentUser.isPrincipal || (Array.isArray(currentUser.specials) && currentUser.specials.some(function(s) { return s.option === 'isPrincipal'; }))));
+    WorkloadShared.init({
+      containerId: 'teacher-workload-container',
+      deptSelectId: 'teacher-workload-dept-select',
+      isPrincipal: isPrincipal,
+      deptId: isPrincipal ? null : (currentUser.departmentId || currentUser.deptId || null),
+      deptName: currentUser.HoddeptName || currentUser.dept || ''
+    });
+  }
+
+  // ── DEPARTMENT HOD TIMETABLE VERIFICATION & APPROVAL ──
+  var _hodTtRequests = [];
+  var _hodTtFilter = 'pending';
+
+  async function updateHodTtVerificationBadge() {
+    try {
+      var res = await apiCall('GET', '/timetable/verification-requests?status=pending');
+      var items = res && res.data ? res.data : (Array.isArray(res) ? res : []);
+      var count = Array.isArray(items) ? items.length : 0;
+      var badge = document.getElementById('sn-tt-verify-badge');
+      if (badge) {
+        badge.textContent = count;
+        badge.style.display = count > 0 ? 'inline-block' : 'none';
+      }
+      var kpiPending = document.getElementById('hod-tt-kpi-pending');
+      if (kpiPending) kpiPending.textContent = count;
+    } catch (e) {
+      console.warn('Failed to update HoD timetable verification badge:', e.message);
+    }
+  }
+
+  async function loadHodTimetableVerificationPage() {
+    var container = document.getElementById('hod-tt-table-container');
+    if (!container) return;
+    container.innerHTML = '<div style="text-align:center;padding:36px;color:var(--tmu);font-size:13px;">Loading verification requests…</div>';
+
+    try {
+      var deptId = (currentUser && (currentUser.departmentId || currentUser.deptId)) || '';
+      var url = '/timetable/verification-requests' + (deptId && !currentUser.isPrincipal && !currentUser.isAdmin ? '?deptId=' + encodeURIComponent(deptId) : '');
+      var res = await apiCall('GET', url);
+      _hodTtRequests = res && res.data ? res.data : (Array.isArray(res) ? res : []);
+
+      var pendingCount = _hodTtRequests.filter(function(r) { return (r.verificationStatus || r.status) === 'pending'; }).length;
+      var approvedCount = _hodTtRequests.filter(function(r) { return (r.verificationStatus || r.status) === 'approved'; }).length;
+      var publishedCount = _hodTtRequests.filter(function(r) { return (r.verificationStatus || r.status) === 'published'; }).length;
+
+      var elPending = document.getElementById('hod-tt-kpi-pending');
+      var elApproved = document.getElementById('hod-tt-kpi-approved');
+      var elPublished = document.getElementById('hod-tt-kpi-published');
+      if (elPending) elPending.textContent = pendingCount;
+      if (elApproved) elApproved.textContent = approvedCount;
+      if (elPublished) elPublished.textContent = publishedCount;
+
+      var badge = document.getElementById('sn-tt-verify-badge');
+      if (badge) {
+        badge.textContent = pendingCount;
+        badge.style.display = pendingCount > 0 ? 'inline-block' : 'none';
+      }
+
+      renderHodTtTable();
+    } catch (err) {
+      container.innerHTML = '<div style="text-align:center;padding:36px;color:#dc2626;font-size:13px;">Failed to load verification requests: ' + esc(err.message) + '</div>';
+    }
+  }
+
+  function filterHodTtRequests(filter) {
+    _hodTtFilter = filter;
+    var btnPending = document.getElementById('hod-tt-filter-pending');
+    var btnAll = document.getElementById('hod-tt-filter-all');
+    if (btnPending) btnPending.classList.toggle('act', filter === 'pending');
+    if (btnAll) btnAll.classList.toggle('act', filter === 'all');
+    renderHodTtTable();
+  }
+
+  function renderHodTtTable() {
+    var container = document.getElementById('hod-tt-table-container');
+    if (!container) return;
+
+    var filtered = _hodTtRequests;
+    if (_hodTtFilter === 'pending') {
+      filtered = _hodTtRequests.filter(function(r) { return (r.verificationStatus || r.status) === 'pending'; });
+    }
+
+    if (!filtered.length) {
+      container.innerHTML = '<div style="text-align:center;padding:48px 24px;color:var(--tmu);">'
+        + '<div style="font-size:32px;margin-bottom:8px;"><re-icon icon="clipboard-list"></re-icon></div>'
+        + '<div style="font-weight:700;font-size:14px;color:var(--td);margin-bottom:4px;">No Verification Requests Found</div>'
+        + '<div style="font-size:12px;">' + (_hodTtFilter === 'pending' ? 'There are currently no timetable drafts awaiting your verification.' : 'No timetable verification requests have been submitted.') + '</div>'
+        + '</div>';
+      return;
+    }
+
+    var html = '<table class="table" style="width:100%;border-collapse:collapse;font-size:12.5px;">'
+      + '<thead>'
+      + '<tr style="border-bottom:1.5px solid var(--br);background:var(--bg2,#f8faf8);text-align:left;">'
+      + '<th style="padding:10px 14px;">Class / Section</th>'
+      + '<th style="padding:10px 14px;">Version</th>'
+      + '<th style="padding:10px 14px;">Submitted By</th>'
+      + '<th style="padding:10px 14px;">Date</th>'
+      + '<th style="padding:10px 14px;">Status</th>'
+      + '<th style="padding:10px 14px;">Notes</th>'
+      + '<th style="padding:10px 14px;min-width:240px;text-align:right;">Actions</th>'
+      + '</tr>'
+      + '</thead>'
+      + '<tbody>'
+      + filtered.map(function(r) {
+          var status = r.verificationStatus || r.status || 'pending';
+          var isPending = status === 'pending';
+          var isApproved = status === 'approved';
+          var isPublished = status === 'published';
+          var isRejected = status === 'rejected';
+
+          var reqDate = (r.verificationRequest && r.verificationRequest.requestedAt) || r.createdAt;
+          var dateStr = reqDate ? new Date(reqDate).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
+          var submitter = (r.verificationRequest && r.verificationRequest.requestedBy) || r.savedBy || 'Coordinator';
+
+          return '<tr style="border-bottom:1px solid var(--br);">'
+            + '<td style="padding:10px 14px;font-weight:700;color:var(--td);"><re-icon icon="chalkboard"></re-icon> ' + esc(r.className || 'General') + '</td>'
+            + '<td style="padding:10px 14px;"><span class="pill pri" style="font-size:11px;font-weight:600;">' + esc(r.versionName || ('v' + r.version)) + '</span></td>'
+            + '<td style="padding:10px 14px;font-size:12px;"><re-icon icon="user"></re-icon> ' + esc(submitter) + '</td>'
+            + '<td style="padding:10px 14px;font-size:11.5px;color:var(--tmu);font-family:monospace;">' + dateStr + '</td>'
+            + '<td style="padding:10px 14px;">'
+            + (isPending ? '<span class="pill warn"><re-icon icon="hourglass"></re-icon> Pending Review</span>' : '')
+            + (isApproved ? '<span class="pill" style="background:#e8f5e9;color:#1b5e20;border-color:#a5d6a7;"><re-icon icon="check"></re-icon> Approved</span>' : '')
+            + (isPublished ? '<span class="pill" style="background:#eff6ff;color:#1d4ed8;border-color:#bfdbfe;"><re-icon icon="rocket"></re-icon> Published</span>' : '')
+            + (isRejected ? '<span class="pill red"><re-icon icon="x"></re-icon> Rejected</span>' : '')
+            + (status === 'withdrawn' ? '<span class="pill" style="background:#f1f5f9;color:#64748b;border-color:#cbd5e1;"><re-icon icon="x"></re-icon> Withdrawn</span>' : '')
+            + '</td>'
+            + '<td style="padding:10px 14px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11.5px;color:var(--tmu);" title="' + esc((r.verificationRequest && r.verificationRequest.notes) || r.changeSummary || '') + '">'
+            + esc((r.verificationRequest && r.verificationRequest.notes) || r.changeSummary || '—')
+            + ((r.verificationRequest && r.verificationRequest.comment) ? '<br><small style="color:#1b5e20;"><b>HoD:</b> ' + esc(r.verificationRequest.comment) + '</small>' : '')
+            + '</td>'
+            + '<td style="padding:10px 14px;text-align:right;">'
+            + '<div style="display:flex;align-items:center;justify-content:flex-end;gap:6px;flex-wrap:wrap;">'
+            + '<button type="button" class="btno bsm" onclick="openHodTimetableMatrixModal(\'' + esc(r._id) + '\')" style="font-size:11.5px;padding:4px 10px;"><re-icon icon="grid"></re-icon> View Matrix &amp; Changes</button>'
+            + (isPending ? '<button type="button" class="btn-pri bsm" onclick="hodReviewTimetable(\'' + esc(r._id) + '\', \'approve\')" style="font-size:11.5px;padding:4px 12px;background:#16a34a;font-weight:700;"><re-icon icon="check"></re-icon> Approve</button>'
+            + '<button type="button" class="btno bsm" onclick="hodReviewTimetable(\'' + esc(r._id) + '\', \'reject\')" style="font-size:11.5px;padding:4px 9px;color:#dc2626;border-color:#fca5a5;"><re-icon icon="x"></re-icon> Reject</button>' : '')
+            + '</div>'
+            + '</td>'
+            + '</tr>';
+        }).join('')
+      + '</tbody></table>';
+
+    container.innerHTML = html;
+  }
+
+  async function hodReviewTimetable(id, action) {
+    var comment = '';
+    var reqItem = (typeof _hodTtRequests !== 'undefined' && Array.isArray(_hodTtRequests))
+      ? _hodTtRequests.find(function(r) { return String(r._id) === String(id); })
+      : null;
+
+    var className = (reqItem && reqItem.className) || 'Selected Class';
+    var versionName = (reqItem && (reqItem.versionName || ('v' + reqItem.version))) || 'Current Draft';
+    var submitter = (reqItem && ((reqItem.verificationRequest && reqItem.verificationRequest.requestedBy) || reqItem.savedBy)) || 'Coordinator';
+    var notes = (reqItem && ((reqItem.verificationRequest && reqItem.verificationRequest.notes) || reqItem.changeSummary)) || '';
+
+    if (action === 'reject') {
+      var promptFn = window.showPrompt || (typeof showPrompt === 'function' ? showPrompt : null);
+      var promptHtml = '<div style="margin-bottom:12px;font-size:13.5px;color:var(--td);line-height:1.5;">' +
+        'Please enter your review feedback or reason for rejecting this timetable schedule:' +
+        '</div>' +
+        '<div style="background:var(--bg2,#f8fafc);border:1px solid var(--br);border-radius:12px;padding:12px 14px;margin-bottom:12px;">' +
+          '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px;flex-wrap:wrap;">' +
+            '<span style="font-weight:700;font-size:14px;color:var(--td);display:inline-flex;align-items:center;gap:6px;">' +
+              '<re-icon icon="chalkboard" size="14" style="color:#dc2626;"></re-icon> ' + esc(className) +
+            '</span>' +
+            '<span class="badge" style="background:#fee2e2;color:#b91c1c;border:1px solid #fecaca;font-size:11px;padding:2px 8px;border-radius:6px;font-weight:700;">' +
+              'Version: ' + esc(versionName) +
+            '</span>' +
+          '</div>' +
+          '<div style="font-size:12px;color:var(--tmu);"><re-icon icon="user" size="12"></re-icon> Submitted by: <b style="color:var(--td);">' + esc(submitter) + '</b></div>' +
+        '</div>';
+
+      comment = promptFn
+        ? await promptFn({
+            title: 'Reject Timetable Schedule',
+            type: 'danger',
+            icon: 'x-circle',
+            html: promptHtml,
+            inputLabel: 'Rejection Reason / Revision Notes:',
+            placeholder: 'Specify what conflicts or adjustments are needed (e.g. Period clashing, lab reallocation)...',
+            multiline: true,
+            confirmText: 'Reject Schedule',
+            cancelText: 'Cancel'
+          })
+        : await prompt('Please enter the reason for rejecting this timetable schedule (optional):');
+      if (comment === null) return;
+    } else {
+      var confFn = window.showConfirm || (typeof showConfirm === 'function' ? showConfirm : null);
+      var confirmHtml = '<div style="margin-bottom:14px;font-size:13.5px;color:var(--td);line-height:1.5;">' +
+        'Are you sure you want to approve this timetable schedule for department publication?' +
+        '</div>' +
+        '<div style="background:var(--bg2,#f8fafc);border:1px solid var(--br);border-radius:12px;padding:12px 14px;margin-bottom:14px;">' +
+          '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;gap:8px;flex-wrap:wrap;">' +
+            '<span style="font-weight:700;font-size:14px;color:var(--td);display:inline-flex;align-items:center;gap:6px;">' +
+              '<re-icon icon="chalkboard" size="15" style="color:#16a34a;"></re-icon> ' + esc(className) +
+            '</span>' +
+            '<span class="badge" style="background:#eff6ff;color:#1e40af;border:1px solid #bfdbfe;font-size:11px;padding:2px 8px;border-radius:6px;font-weight:700;display:inline-flex;align-items:center;gap:4px;">' +
+              '<re-icon icon="git-branch" size="11"></re-icon> ' + esc(versionName) +
+            '</span>' +
+          '</div>' +
+          '<div style="font-size:12px;color:var(--tmu);display:flex;align-items:center;gap:6px;">' +
+            '<re-icon icon="user" size="12"></re-icon> Submitted by: <b style="color:var(--td);">' + esc(submitter) + '</b>' +
+          '</div>' +
+          (notes ? (
+            '<div style="font-size:12px;color:var(--td);background:#fff;border:1px solid var(--br);border-radius:8px;padding:8px 10px;margin-top:8px;display:flex;align-items:flex-start;gap:6px;">' +
+              '<re-icon icon="message-square" size="12" style="color:#2563eb;margin-top:2px;flex-shrink:0;"></re-icon>' +
+              '<span style="font-style:italic;color:var(--td);">"' + esc(notes) + '"</span>' +
+            '</div>'
+          ) : '') +
+        '</div>' +
+        '<div style="font-size:11.5px;color:var(--tmu);line-height:1.45;display:flex;align-items:center;gap:6px;">' +
+          '<re-icon icon="info" size="13" style="color:#16a34a;flex-shrink:0;"></re-icon>' +
+          '<span>Approving verifies this schedule. Coordinators can then publish it live to production for student and faculty portals.</span>' +
+        '</div>';
+
+      var confirmed = confFn
+        ? await confFn({
+            title: 'Approve Timetable Schedule',
+            type: 'success',
+            icon: 'check',
+            confirmText: 'Approve Schedule',
+            cancelText: 'Cancel',
+            html: confirmHtml
+          })
+        : await confirm('Approve this timetable schedule for department publication?');
+      if (!confirmed) return;
+    }
+
+    try {
+      if (typeof showToast === 'function') showToast('Processing timetable ' + action + '…', 'info');
+      var res = await apiCall('POST', '/timetable/verification-requests/' + id + '/review', {
+        action: action,
+        comment: comment || ''
+      });
+      if (typeof showToast === 'function') {
+        showToast(res && res.message ? res.message : ('Timetable ' + (action === 'approve' ? 'approved' : 'rejected') + ' successfully!'), 'success');
+      }
+      closeHodMatrixModal();
+      await loadHodTimetableVerificationPage();
+    } catch (err) {
+      if (typeof showToast === 'function') showToast('Error: ' + err.message, 'error');
+      else alert('Error: ' + err.message);
+    }
+  }
+
+  function closeHodMatrixModal() {
+    var modal = document.getElementById('hod-ver-matrix-modal');
+    if (modal) {
+      modal.classList.remove('open');
+      setTimeout(function() { modal.remove(); }, 150);
+    }
+  }
+
+  async function openHodTimetableMatrixModal(id) {
+    if (typeof showToast === 'function') showToast('Loading timetable matrix & diff…', 'info');
+    try {
+      var res = await apiCall('GET', '/timetable/verification-requests/' + id + '/details');
+      var data = (res && res.data) ? res.data : res;
+      if (!data || !data.request) throw new Error('Schedule details not found');
+
+      var req = data.request;
+      var submittedSlots = data.submittedSlots || [];
+      var diff = data.diff || { added: [], removed: [], modified: [], unchangedCount: 0 };
+      var stats = data.stats || { totalSlots: submittedSlots.length, addedCount: 0, modifiedCount: 0, removedCount: 0, unchangedCount: 0 };
+      var status = req.verificationStatus || req.status || 'pending';
+      var isPending = status === 'pending';
+      var isApproved = status === 'approved';
+
+      var reqDate = (req.verificationRequest && req.verificationRequest.requestedAt) || req.createdAt;
+      var dateStr = reqDate ? new Date(reqDate).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
+      var submitter = (req.verificationRequest && req.verificationRequest.requestedBy) || req.savedBy || 'Coordinator';
+
+      var slotMap = new Map();
+      submittedSlots.forEach(function(s) {
+        var pNum = typeof s.period === 'number' ? s.period : (parseInt(String(s.period || '1').replace(/\D/g, ''), 10) || 1);
+        slotMap.set(s.day + '_' + pNum, s);
+      });
+
+      var addedKeys = new Set((diff.added || []).map(function(s) {
+        var pNum = typeof s.period === 'number' ? s.period : (parseInt(String(s.period || '1').replace(/\D/g, ''), 10) || 1);
+        return s.day + '_' + pNum;
+      }));
+      var modifiedKeys = new Set((diff.modified || []).map(function(m) { return m.day + '_' + m.period; }));
+
+      var days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+      var maxPeriod = Math.max.apply(null, [8].concat(submittedSlots.map(function(s) {
+        return typeof s.period === 'number' ? s.period : (parseInt(String(s.period || '1').replace(/\D/g, ''), 10) || 1);
+      })));
+      var periods = [];
+      for (var i = 1; i <= maxPeriod; i++) periods.push(i);
+
+      closeHodMatrixModal();
+
+      var backdrop = document.createElement('div');
+      backdrop.className = 'modal-bg open';
+      backdrop.id = 'hod-ver-matrix-modal';
+      backdrop.style.zIndex = '1100';
+
+      backdrop.innerHTML = '<div class="modal modal-lg" style="max-width:960px;width:95vw;max-height:92vh;display:flex;flex-direction:column;">'
+        + '<div class="modal-hd" style="border-bottom:1px solid var(--br);padding-bottom:12px;">'
+        + '<div>'
+        + '<div class="modal-eyebrow" style="color:var(--gM,#2e7d32);font-weight:700;">HOD VERIFICATION &amp; AUDIT MATRIX</div>'
+        + '<h2 class="modal-title" style="font-size:18px;display:flex;align-items:center;gap:8px;">'
+        + '<re-icon icon="grid"></re-icon> ' + esc(req.className || 'Class Schedule') + ' · ' + esc(req.versionName || ('v' + req.version))
+        + '</h2>'
+        + '<div class="modal-sub" style="font-size:12px;margin-top:4px;">'
+        + 'Submitted by <b>' + esc(submitter) + '</b> on ' + dateStr + ' · '
+        + (isPending ? '<span class="pill warn" style="font-size:10.5px;padding:2px 8px;">Pending Review</span>' : '')
+        + (isApproved ? '<span class="pill" style="font-size:10.5px;padding:2px 8px;background:#e8f5e9;color:#1b5e20;border-color:#a5d6a7;">Approved by HoD</span>' : '')
+        + (status === 'published' ? '<span class="pill" style="font-size:10.5px;padding:2px 8px;background:#eff6ff;color:#1d4ed8;border-color:#bfdbfe;">Live in Production</span>' : '')
+        + (status === 'rejected' ? '<span class="pill red" style="font-size:10.5px;padding:2px 8px;">Rejected by HoD</span>' : '')
+        + '</div>'
+        + '</div>'
+        + '<button type="button" class="modal-close" onclick="closeHodMatrixModal()">×</button>'
+        + '</div>'
+
+        + '<div class="ver-matrix-tabs">'
+        + '<button type="button" class="ver-matrix-tab act" id="hod-tab-btn-matrix">'
+        + '<re-icon icon="grid"></re-icon> Timetable Matrix (' + submittedSlots.length + ' Slots)'
+        + '</button>'
+        + '<button type="button" class="ver-matrix-tab" id="hod-tab-btn-diff">'
+        + '<re-icon icon="refresh"></re-icon> What Changed (' + (stats.addedCount + stats.modifiedCount + stats.removedCount) + ' Changes)'
+        + '</button>'
+        + '</div>'
+
+        + '<div class="modal-body" style="padding:16px 20px;overflow-y:auto;flex:1;">'
+        + '<!-- TAB 1: MATRIX VIEW -->'
+        + '<div id="hod-matrix-tab-view" style="display:block;">'
+        + '<div style="overflow-x:auto;">'
+        + '<table style="width:100%;border-collapse:collapse;min-width:700px;font-size:11.5px;text-align:center;">'
+        + '<thead>'
+        + '<tr style="background:var(--gP,#f4f7f4);border-bottom:2px solid var(--br);">'
+        + '<th style="padding:8px;border:1px solid var(--br);width:100px;text-align:left;font-weight:700;color:var(--td);">Day / Period</th>'
+        + periods.map(function(p) { return '<th style="padding:8px 4px;border:1px solid var(--br);font-weight:700;color:var(--td);min-width:90px;">Period ' + p + '</th>'; }).join('')
+        + '</tr>'
+        + '</thead>'
+        + '<tbody>'
+        + days.map(function(d) {
+            return '<tr>'
+              + '<td style="padding:8px 10px;border:1px solid var(--br);font-weight:700;text-align:left;background:var(--bg2,#f8faf8);color:var(--td);">' + d + '</td>'
+              + periods.map(function(p) {
+                  var key = d + '_' + p;
+                  var slot = slotMap.get(key);
+                  if (!slot) return '<td style="padding:6px;border:1px solid var(--br);color:var(--tmu);background:#ffffff;">—</td>';
+                  var isAdded = addedKeys.has(key);
+                  var isMod = modifiedKeys.has(key);
+                  var bg = isAdded ? '#f0fdf4' : (isMod ? '#fffbeb' : '#ffffff');
+                  var border = isAdded ? '#86efac' : (isMod ? '#fde68a' : 'var(--br)');
+
+                  return '<td style="padding:6px;border:1px solid ' + border + ';background:' + bg + ';text-align:left;vertical-align:top;">'
+                    + '<div style="font-weight:700;color:var(--td);font-size:11.5px;line-height:1.2;">' + esc(slot.subject || '—') + '</div>'
+                    + '<div style="font-size:10.5px;color:var(--tmu);margin-top:2px;">' + esc(slot.teacher || '—') + '</div>'
+                    + '<div style="display:flex;align-items:center;justify-content:space-between;margin-top:4px;font-size:10px;">'
+                    + '<span style="color:var(--tmu);font-weight:600;">' + esc(slot.room || '') + '</span>'
+                    + (slot.isLab ? '<span class="pill" style="font-size:9px;padding:1px 4px;background:#fef3c7;color:#b45309;">Lab</span>' : '')
+                    + '</div>'
+                    + (isAdded ? '<div style="font-size:9px;color:#16a34a;font-weight:700;margin-top:2px;">+ Added</div>' : '')
+                    + (isMod ? '<div style="font-size:9px;color:#d97706;font-weight:700;margin-top:2px;">~ Modified</div>' : '')
+                    + '</td>';
+                }).join('')
+              + '</tr>';
+          }).join('')
+        + '</tbody></table>'
+        + '</div>'
+        + '</div>'
+
+        + '<!-- TAB 2: WHAT CHANGED VIEW -->'
+        + '<div id="hod-diff-tab-view" style="display:none;">'
+        + '<div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(130px, 1fr));gap:10px;margin-bottom:16px;">'
+        + '<div style="padding:10px;border-radius:8px;background:var(--bg2,#f8faf8);border:1px solid var(--br);text-align:center;"><div style="font-size:20px;font-weight:700;color:var(--td);">' + stats.totalSlots + '</div><div style="font-size:11px;color:var(--tmu);font-weight:600;">Total Slots</div></div>'
+        + '<div style="padding:10px;border-radius:8px;background:#f0fdf4;border:1px solid #bbf7d0;text-align:center;"><div style="font-size:20px;font-weight:700;color:#16a34a;">+' + stats.addedCount + '</div><div style="font-size:11px;color:#166534;font-weight:600;">Added</div></div>'
+        + '<div style="padding:10px;border-radius:8px;background:#fffbeb;border:1px solid #fde68a;text-align:center;"><div style="font-size:20px;font-weight:700;color:#d97706;">~' + stats.modifiedCount + '</div><div style="font-size:11px;color:#92400e;font-weight:600;">Modified</div></div>'
+        + '<div style="padding:10px;border-radius:8px;background:#fef2f2;border:1px solid #fecaca;text-align:center;"><div style="font-size:20px;font-weight:700;color:#dc2626;">−' + stats.removedCount + '</div><div style="font-size:11px;color:#991b1b;font-weight:600;">Removed</div></div>'
+        + '<div style="padding:10px;border-radius:8px;background:var(--bg2,#f8faf8);border:1px solid var(--br);text-align:center;"><div style="font-size:20px;font-weight:700;color:var(--td);">' + stats.unchangedCount + '</div><div style="font-size:11px;color:var(--tmu);font-weight:600;">Unchanged</div></div>'
+        + '</div>'
+
+        + '<div style="margin-bottom:16px;padding:12px 14px;border-radius:8px;background:var(--gP,#f4f7f4);border:1px solid var(--br);">'
+        + '<div style="font-size:12px;font-weight:700;color:var(--td);margin-bottom:4px;">Submission Notes from Submitter:</div>'
+        + '<div style="font-size:12.5px;color:var(--td);">' + esc((req.verificationRequest && req.verificationRequest.notes) || req.changeSummary || 'No notes provided.') + '</div>'
+        + ((req.verificationRequest && req.verificationRequest.comment) ? '<div style="margin-top:8px;padding-top:8px;border-top:1px dashed var(--br);font-size:12px;color:#166534;"><b>HoD Remark:</b> ' + esc(req.verificationRequest.comment) + ' (' + esc(req.verificationRequest.approvedBy || 'HoD') + ')</div>' : '')
+        + '</div>'
+
+        + '<div>'
+        + '<div style="font-size:12.5px;font-weight:700;color:var(--td);margin-bottom:8px;">Detailed Difference Breakdown</div>'
+        + ((diff.added.length || diff.modified.length || diff.removed.length) ? '<div style="display:flex;flex-direction:column;gap:8px;">'
+          + diff.modified.map(function(m) {
+              return '<div style="padding:10px 12px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;font-size:12px;display:flex;align-items:flex-start;gap:8px;">'
+                + '<span style="color:#d97706;font-size:14px;margin-top:1px;"><re-icon icon="refresh"></re-icon></span>'
+                + '<div><b>' + m.day + ' Period ' + m.period + ':</b> Changed from <span style="text-decoration:line-through;color:var(--tmu);">' + esc((m.previous && m.previous.subject) || 'Empty') + ' (' + esc((m.previous && m.previous.teacher) || '—') + ', ' + esc((m.previous && m.previous.room) || '—') + ')</span> <re-icon icon="arrow-right"></re-icon> <b style="color:var(--td);">' + esc((m.current && m.current.subject) || 'Empty') + ' (' + esc((m.current && m.current.teacher) || '—') + ', ' + esc((m.current && m.current.room) || '—') + ')</b></div>'
+                + '</div>';
+            }).join('')
+          + diff.added.map(function(a) {
+              return '<div style="padding:10px 12px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;font-size:12px;display:flex;align-items:flex-start;gap:8px;">'
+                + '<span style="color:#16a34a;font-size:14px;margin-top:1px;"><re-icon icon="check"></re-icon></span>'
+                + '<div><b>' + a.day + ' Period ' + a.period + ':</b> <b style="color:#166534;">+ Added</b> ' + esc(a.subject || '—') + ' (' + esc(a.teacher || '—') + ', Room: ' + esc(a.room || '—') + ')</div>'
+                + '</div>';
+            }).join('')
+          + diff.removed.map(function(r) {
+              return '<div style="padding:10px 12px;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;font-size:12px;display:flex;align-items:flex-start;gap:8px;">'
+                + '<span style="color:#dc2626;font-size:14px;margin-top:1px;"><re-icon icon="trash2"></re-icon></span>'
+                + '<div><b>' + r.day + ' Period ' + r.period + ':</b> <b style="color:#991b1b;">− Removed</b> ' + esc(r.subject || '—') + ' (' + esc(r.teacher || '—') + ')</div>'
+                + '</div>';
+            }).join('')
+          + '</div>' : '<div style="padding:20px;text-align:center;color:var(--tmu);font-size:12.5px;background:var(--bg2,#f8faf8);border-radius:8px;">No differences detected compared to active production schedule.</div>')
+        + '</div>'
+        + '</div>'
+        + '</div>'
+
+        + '<div class="modal-ft" style="display:flex;justify-content:flex-end;align-items:center;gap:10px;padding:12px 20px;border-top:1px solid var(--br);">'
+        + (isPending ? '<button type="button" class="btno" style="color:#dc2626;border-color:#fca5a5;padding:8px 16px;font-weight:600;" onclick="hodReviewTimetable(\'' + id + '\', \'reject\')"><re-icon icon="x"></re-icon> Reject</button>'
+        + '<button type="button" class="btn-pri" style="background:#16a34a;padding:8px 20px;font-weight:700;" onclick="hodReviewTimetable(\'' + id + '\', \'approve\')"><re-icon icon="check"></re-icon> Approve Timetable</button>' : '')
+        + '<button type="button" class="btn-out" onclick="closeHodMatrixModal()">Close</button>'
+        + '</div>'
+        + '</div>';
+
+      document.body.appendChild(backdrop);
+
+      var tabMatrix = document.getElementById('hod-tab-btn-matrix');
+      var tabDiff = document.getElementById('hod-tab-btn-diff');
+      var viewMatrix = document.getElementById('hod-matrix-tab-view');
+      var viewDiff = document.getElementById('hod-diff-tab-view');
+
+      if (tabMatrix) {
+        tabMatrix.addEventListener('click', function() {
+          tabMatrix.classList.add('act');
+          if (tabDiff) tabDiff.classList.remove('act');
+          if (viewMatrix) viewMatrix.style.display = 'block';
+          if (viewDiff) viewDiff.style.display = 'none';
+        });
+      }
+
+      if (tabDiff) {
+        tabDiff.addEventListener('click', function() {
+          tabDiff.classList.add('act');
+          if (tabMatrix) tabMatrix.classList.remove('act');
+          if (viewMatrix) viewMatrix.style.display = 'none';
+          if (viewDiff) viewDiff.style.display = 'block';
+        });
+      }
+
+    } catch (err) {
+      if (typeof showToast === 'function') showToast('Failed to load schedule details: ' + err.message, 'error');
+      else alert('Failed to load schedule details: ' + err.message);
+    }
+  }
+
+  window.loadHodTimetableVerificationPage = loadHodTimetableVerificationPage;
+  window.filterHodTtRequests = filterHodTtRequests;
+  window.hodReviewTimetable = hodReviewTimetable;
+  window.openHodTimetableMatrixModal = openHodTimetableMatrixModal;
+  window.closeHodMatrixModal = closeHodMatrixModal;
+  window.updateHodTtVerificationBadge = updateHodTtVerificationBadge;
 
   // TEACHER HELPER FUNCTIONS
   function getMyAssignments() {
@@ -665,13 +1194,23 @@ var _memStore = {};
       if (el) el.innerHTML = buildSubjectOptions(true);
     });
 
-    // Attendance take page class selector (keep the teacher's current pick —
-    // this runs again after the background sync finishes)
+    // Attendance take page class & subject selectors (keep current pick)
     const attClassEl = document.getElementById('attcls');
     if (attClassEl) {
-      const keepCls = attClassEl.value;
-      attClassEl.innerHTML = buildClassOptions(false);
-      if (keepCls && attClassEl.querySelector('option[value="' + keepCls + '"]')) attClassEl.value = keepCls;
+      if (typeof isForceTimetableSlots === 'function' && !isForceTimetableSlots()) {
+        const keepCls = attClassEl.value;
+        attClassEl.innerHTML = (typeof buildAttendanceClassOptions === 'function') ? buildAttendanceClassOptions(keepCls) : buildClassOptions(false);
+        if (keepCls && attClassEl.querySelector('option[value="' + keepCls + '"]')) attClassEl.value = keepCls;
+        if (typeof SearchableDropdown !== 'undefined') SearchableDropdown.sync('attcls');
+
+        const attSubEl = document.getElementById('attsub');
+        if (attSubEl) {
+          const keepSub = attSubEl.value;
+          attSubEl.innerHTML = (typeof buildAttendanceSubjectOptions === 'function') ? buildAttendanceSubjectOptions(keepSub, attClassEl.value) : '<option value="">— Select Subject —</option>';
+          if (keepSub && attSubEl.querySelector('option[value="' + keepSub + '"]')) attSubEl.value = keepSub;
+          if (typeof SearchableDropdown !== 'undefined') SearchableDropdown.sync('attsub');
+        }
+      }
     }
 
     // Set default date range (last 7 days)
@@ -747,23 +1286,23 @@ var _memStore = {};
 
     var dayData = getMyDay(dateISO);
     if (!dayData) {
-      containerEl.innerHTML = '<div class="est"><span class="ei">&#128205;</span><p style="font-size:12px;">Loading today\'s schedule...</p></div>';
+      containerEl.innerHTML = '<div class="est"><span class="ei"><re-icon icon="pin"></re-icon></span><p style="font-size:12px;">Loading today\'s schedule...</p></div>';
       return;
     }
 
     if (dayData.isHoliday) {
       if (dateLabelEl) {
-        dateLabelEl.textContent = '🏖️ ' + (dayData.holidayReason || 'Holiday');
+        dateLabelEl.innerHTML = '<re-icon icon="tree"></re-icon> ' + (dayData.holidayReason || 'Holiday');
       }
-      containerEl.innerHTML = '<div class="est"><span class="ei">🏖️</span><p style="font-size:13px;font-weight:700;color:var(--td);">' + escapeHtml(dayData.holidayReason || 'Holiday') + '</p><p style="font-size:12px;color:var(--tmu);">No classes scheduled for today.</p></div>';
+      containerEl.innerHTML = '<div class="est"><span class="ei"><re-icon icon="tree"></re-icon></span><p style="font-size:13px;font-weight:700;color:var(--td);">' + escapeHtml(dayData.holidayReason || 'Holiday') + '</p><p style="font-size:12px;color:var(--tmu);">No classes scheduled for today.</p></div>';
       return;
     }
 
     if (dayData.onLeave) {
       if (dateLabelEl) {
-        dateLabelEl.textContent = '🏖️ On Approved Leave';
+        dateLabelEl.innerHTML = '<re-icon icon="tree"></re-icon> On Approved Leave';
       }
-      containerEl.innerHTML = '<div class="est"><span class="ei">🏖️</span><p style="font-size:13px;font-weight:700;color:var(--td);">On Approved Leave (' + escapeHtml(dayData.leaveSlot || 'Full Day') + ')</p><p style="font-size:12px;color:var(--tmu);">Classes handled by assigned substitutes.</p></div>';
+      containerEl.innerHTML = '<div class="est"><span class="ei"><re-icon icon="tree"></re-icon></span><p style="font-size:13px;font-weight:700;color:var(--td);">On Approved Leave (' + escapeHtml(dayData.leaveSlot || 'Full Day') + ')</p><p style="font-size:12px;color:var(--tmu);">Classes handled by assigned substitutes.</p></div>';
       return;
     }
 
@@ -772,7 +1311,7 @@ var _memStore = {};
       if (dateLabelEl) {
         dateLabelEl.textContent = new Date(dateISO + 'T00:00:00').toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' });
       }
-      containerEl.innerHTML = '<div class="est"><span class="ei">&#128205;</span><p style="font-size:12px;">No classes on this day.</p></div>';
+      containerEl.innerHTML = '<div class="est"><span class="ei"><re-icon icon="pin"></re-icon></span><p style="font-size:12px;">No classes on this day.</p></div>';
       return;
     }
 
@@ -842,7 +1381,7 @@ var _memStore = {};
         actionHtml = '<button class="btn-pri bsm" style="white-space:nowrap;padding:6px 14px;" onclick="navigateToAttendance(\'' + slot.classId + '\',\'' + (slot.subjectId || '') + '\',' + slot.periodNumber + ',\'' + dateISO + '\')">Take Attendance</button>';
       } else if (state === 'pending') {
         cardClass += ' uc';
-        statusBadgeHtml = '<span class="badge-pending">⏳ Attendance pending</span>';
+        statusBadgeHtml = '<span class="badge-pending"><re-icon icon="hourglass"></re-icon> Attendance pending</span>';
         actionHtml = '<button class="btn-out bsm" style="white-space:nowrap;padding:5px 12px;" onclick="navigateToAttendance(\'' + slot.classId + '\',\'' + (slot.subjectId || '') + '\',' + slot.periodNumber + ',\'' + dateISO + '\')">Take Att.</button>';
       } else if (state === 'upcoming') {
         cardClass += ' uc';
@@ -856,23 +1395,23 @@ var _memStore = {};
           : '<div style="font-size:10px;color:var(--tdi);">–</div>';
       } else if (state === 'done') {
         cardClass += ' dn';
-        actionHtml = '<div class="donetag">&#9989; Done</div>';
+        actionHtml = '<div class="donetag"><re-icon icon="check-circle"></re-icon> Done</div>';
       } else if (state === 'cancelled') {
         cardClass += ' dn';
-        actionHtml = '<span class="badge-cancelled">🚫 Cancelled</span>';
+        actionHtml = '<span class="badge-cancelled"><re-icon icon="forbidden-circle"></re-icon> Cancelled</span>';
       } else if (state === 'substituted') {
         cardClass += ' dn';
-        actionHtml = '<span class="badge-substituted">🔄 Substituted (' + escapeHtml(slot.substituteTeacher || 'Faculty') + ')</span>';
+        actionHtml = '<span class="badge-substituted"><re-icon icon="refresh"></re-icon> Substituted (' + escapeHtml(slot.substituteTeacher || 'Faculty') + ')</span>';
       } else if (state === 'holiday') {
         cardClass += ' dn';
-        actionHtml = '<span class="badge-holiday">🏖️ Holiday</span>';
+        actionHtml = '<span class="badge-holiday"><re-icon icon="tree"></re-icon> Holiday</span>';
       } else if (state === 'leave') {
         cardClass += ' dn';
-        actionHtml = '<span class="badge-leave">🏖️ Leave</span>';
+        actionHtml = '<span class="badge-leave"><re-icon icon="tree"></re-icon> Leave</span>';
       }
 
       var roleBadgeHtml = isSubRole
-        ? ' <span class="badge-sub-role">🔄 Substitute for ' + escapeHtml(slot.originalTeacher || 'Colleague') + '</span>'
+        ? ' <span class="badge-sub-role"><re-icon icon="refresh"></re-icon> Substitute for ' + escapeHtml(slot.originalTeacher || 'Colleague') + '</span>'
         : '';
 
       var periodLabel = slot.periodNumber
@@ -901,12 +1440,12 @@ var _memStore = {};
     // Update Header #todaylbl
     if (dateLabelEl && isToday) {
       if (liveSlot) {
-        dateLabelEl.innerHTML = '<span style="color:#15803d;font-weight:700;">🟢 P' + liveSlot.periodNumber + ' · ' + escapeHtml(liveSlot.className) + ' in session</span>';
+        dateLabelEl.innerHTML = '<span style="color:#15803d;font-weight:700;"><span class="status-dot green"></span> P' + liveSlot.periodNumber + ' · ' + escapeHtml(liveSlot.className) + ' in session</span>';
       } else if (nextSlot && minUntilNext !== Infinity) {
         var min = Math.ceil(minUntilNext / 60000);
         dateLabelEl.innerHTML = '<span style="color:var(--td);font-weight:600;">Next: P' + nextSlot.periodNumber + ' · ' + escapeHtml(nextSlot.className) + ' in ' + min + ' min</span>';
       } else if (allCompleted) {
-        dateLabelEl.innerHTML = '<span style="color:#16a34a;font-weight:600;">✅ All classes completed today</span>';
+        dateLabelEl.innerHTML = '<span style="color:#16a34a;font-weight:600;"><re-icon icon="check-circle"></re-icon> All classes completed today</span>';
       } else {
         dateLabelEl.textContent = new Date(dateISO + 'T00:00:00').toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' });
       }
@@ -927,7 +1466,17 @@ var _memStore = {};
 
   // Navigate to attendance page with prefill (supports temporary substitution dropdown options)
   function navigateToAttendance(classId, subjectId, periodNumber, dateISO) {
+    if (dateISO) {
+      const dEl = document.getElementById('attdate');
+      if (dEl) dEl.value = dateISO;
+    }
     nav('att');
+    if (typeof isForceTimetableSlots === 'function' && isForceTimetableSlots()) {
+      if (typeof initAttendancePageStrict === 'function') {
+        initAttendancePageStrict(classId, periodNumber, subjectId);
+      }
+      return;
+    }
     setTimeout(function() {
       const classEl = document.getElementById('attcls');
       if (classEl && classId) {
@@ -943,6 +1492,9 @@ var _memStore = {};
           classEl.appendChild(subOpt);
         }
         classEl.value = classId;
+        if (typeof SearchableDropdown !== 'undefined') {
+          SearchableDropdown.sync('attcls');
+        }
         loadSubjectsForClass();
       }
       if (periodNumber) {
@@ -970,6 +1522,9 @@ var _memStore = {};
             subjectEl.appendChild(tempSubOpt);
           }
           subjectEl.value = subjectId;
+          if (typeof SearchableDropdown !== 'undefined') {
+            SearchableDropdown.sync('attsub');
+          }
         }
         checkTimetableMatch();
       }, 150);
@@ -1000,7 +1555,7 @@ var _memStore = {};
     const containerEl = document.getElementById('defmini');
 
     if (!defaulterList.length) {
-      containerEl.innerHTML = '<div class="est"><span class="ei">&#127881;</span><p style="font-size:12px;">No defaulters!</p></div>';
+      containerEl.innerHTML = '<div class="est"><span class="ei"><re-icon icon="party"></re-icon></span><p style="font-size:12px;">No defaulters!</p></div>';
       return;
     }
 
@@ -1025,7 +1580,8 @@ var _memStore = {};
       if (el) el.classList.remove('act');
     });
 
-    const today = new Date();
+    const _tParts = todayISO().split('-').map(Number);
+    const today = new Date(_tParts[0], _tParts[1] - 1, _tParts[2]);
     let fromDate, toDate = localISO(today);
 
     if (rangeType === 'week') {
@@ -1230,40 +1786,183 @@ var _memStore = {};
     }
 
     listEl.innerHTML = allNotifs.slice().reverse().map(function(n) {
-      const isLeaveReq = n.type === 'leave-request' || !!n.leaveRequestId;
-      const isLeaveStatus = n.type === 'leave-approval' || n.type === 'leave-substitution' || n.type === 'leave-rejection';
-      const isAlert    = n.type === 'attendance-alert' || n.type === 'alert';
-      const isAdminMsg = n.from === 'Administrator';
-      const iconCode   = isLeaveReq ? '&#128221;' : (isLeaveStatus ? '&#128197;' : (isAlert ? '&#9888;' : (isAdminMsg ? '&#128276;' : '&#8505;')));
-      const iconBg     = isLeaveReq ? 'background:rgba(16,185,129,.14);color:#059669;'
+      const isTtVerification = n.type === 'timetable-verification' || !!n.timetableVersionId || (n.message && n.message.toLowerCase().includes('timetable verification'));
+      const isLeaveReq = (n.type === 'leave-request' || !!n.leaveRequestId) && !isTtVerification;
+      const isLeaveStatus = (n.type === 'leave-approval' || n.type === 'leave-substitution' || n.type === 'leave-rejection') && !isTtVerification;
+      const isAlert    = (n.type === 'attendance-alert' || n.type === 'alert') && !isTtVerification;
+      const isAdminMsg = n.from === 'Administrator' && !isTtVerification;
+      const iconCode   = isTtVerification ? '<re-icon icon="grid"></re-icon>'
+                       : (isLeaveReq ? '<re-icon icon="clipboard"></re-icon>'
+                       : (isLeaveStatus ? '<re-icon icon="calendar"></re-icon>'
+                       : (isAlert ? '<re-icon icon="alert-triangle"></re-icon>'
+                       : (isAdminMsg ? '<re-icon icon="bell"></re-icon>' : '<re-icon icon="info"></re-icon>'))));
+      const iconBg     = isTtVerification ? 'background:rgba(217,119,6,.14);color:#b45309;'
+                       : (isLeaveReq ? 'background:rgba(16,185,129,.14);color:#059669;'
                        : (isLeaveStatus ? 'background:rgba(99,102,241,.14);color:#4f46e5;'
                        : (isAlert ? 'background:rgba(245,158,11,.12);color:#92400e;'
                        : (isAdminMsg ? 'background:rgba(59,130,246,.1);color:#1d4ed8;'
-                       : 'background:var(--gLt);color:var(--gD);')));
+                       : 'background:var(--gLt);color:var(--gD);'))));
       const priorityBadge = n.priority && n.priority !== 'Normal'
         ? '<span style="background:#fef3c7;color:#92400e;font-size:9px;font-weight:700;padding:1px 6px;border-radius:6px;margin-left:5px;">' + escapeHtml(n.priority) + '</span>'
         : '';
-      const clickAction = isLeaveReq
-        ? 'onclick="openLeaveReviewModal(\'' + (n.leaveRequestId || '') + '\',\'' + n._id + '\')"'
-        : (isLeaveStatus
-          ? 'onclick="handleLeaveNotifClick(\'' + n._id + '\')"'
-          : 'onclick="markNotificationRead(\'' + n._id + '\')"');
+      const clickAction = isTtVerification
+        ? 'onclick="handleTtNotifClick(\'' + (n.timetableVersionId || '') + '\',\'' + n._id + '\')"'
+        : (isLeaveReq
+          ? 'onclick="openLeaveReviewModal(\'' + (n.leaveRequestId || '') + '\',\'' + n._id + '\')"'
+          : (isLeaveStatus
+            ? 'onclick="handleLeaveNotifClick(\'' + n._id + '\')"'
+            : 'onclick="markNotificationRead(\'' + n._id + '\')"'));
 
-      const footerAction = isLeaveReq
-        ? ' &bull; <span style="color:var(--gD);font-weight:700;">Click to Review</span>'
-        : (isLeaveStatus
-          ? ' &bull; <span style="color:var(--pD,#6366f1);font-weight:700;">View in Leaves</span>'
-          : '');
+      const footerAction = isTtVerification
+        ? ' &bull; <span style="color:#b45309;font-weight:700;">Click to Review Matrix</span>'
+        : (isLeaveReq
+          ? ' &bull; <span style="color:var(--gD);font-weight:700;">Click to Review</span>'
+          : (isLeaveStatus
+            ? ' &bull; <span style="color:var(--pD,#6366f1);font-weight:700;">View in Leaves</span>'
+            : ''));
 
-      return '<div class="ndi ' + (n.read ? '' : 'unread') + '" ' + clickAction + ' style="cursor:pointer;">'
+      const isRead = Boolean(n.read || n.status === 'Read');
+      const isSolved = n.status === 'Solved';
+      const statusBadge = isSolved
+        ? '<span style="background:#f0fdf4;color:#15803d;font-size:9px;font-weight:700;padding:1px 6px;border-radius:6px;margin-left:auto;display:inline-flex;align-items:center;gap:3px;"><re-icon icon="check-check"></re-icon> Solved</span>'
+        : (isRead
+          ? '<span style="background:#f0fdf4;color:#15803d;font-size:9px;font-weight:700;padding:1px 6px;border-radius:6px;margin-left:auto;display:inline-flex;align-items:center;gap:3px;"><re-icon icon="check-check"></re-icon> Read</span>'
+          : '<span style="background:rgba(59,130,246,.1);color:#1d4ed8;font-size:9px;font-weight:700;padding:1px 6px;border-radius:6px;margin-left:auto;display:inline-flex;align-items:center;gap:3px;"><re-icon icon="check"></re-icon> Delivered</span>');
+
+      const ttButtons = (isTtVerification && !isSolved && n.status !== 'Cancelled')
+        ? '<div style="display:flex;gap:6px;margin-top:6px;align-items:center;flex-wrap:wrap;">'
+        + '<button type="button" class="btno bsm" onclick="event.stopPropagation();handleTtNotifClick(\'' + (n.timetableVersionId || '') + '\',\'' + n._id + '\')" style="font-size:11px;padding:3px 8px;"><re-icon icon="grid" size="12"></re-icon> View Matrix</button>'
+        + '<button type="button" class="btn-pri bsm" onclick="event.stopPropagation();notifReviewTt(\'' + (n.timetableVersionId || '') + '\', \'approve\', \'' + n._id + '\')" style="background:#16a34a;font-weight:700;font-size:11px;padding:3px 10px;"><re-icon icon="check" size="12"></re-icon> Approve</button>'
+        + '<button type="button" class="btno bsm" onclick="event.stopPropagation();notifReviewTt(\'' + (n.timetableVersionId || '') + '\', \'reject\', \'' + n._id + '\')" style="color:#dc2626;border-color:#fca5a5;font-size:11px;padding:3px 8px;"><re-icon icon="x" size="12"></re-icon> Reject</button>'
+        + '</div>'
+        : '';
+
+      return '<div class="ndi ' + (n.read ? '' : 'unread') + '" ' + clickAction + ' style="cursor:pointer;" title="' + (!isRead ? 'Click to mark as read' : '') + '">'
         + '<div class="ndic" style="' + iconBg + '">' + iconCode + '</div>'
         + '<div style="flex:1;">'
-        + '<div style="font-size:12px;font-weight:700;color:var(--td);display:flex;align-items:center;">' + escapeHtml(n.from) + priorityBadge + '</div>'
+        + '<div style="font-size:12px;font-weight:700;color:var(--td);display:flex;align-items:center;">' + escapeHtml(n.from) + priorityBadge + statusBadge + '</div>'
         + '<div style="font-size:11px;color:var(--tmu);margin-top:2px;line-height:1.4;">' + escapeHtml(n.message) + '</div>'
-        + '<div style="font-size:10px;color:var(--tdi);margin-top:3px;">' + timeAgo(n.time || n.createdAt) + footerAction + '</div>'
+        + ttButtons
+        + '<div style="font-size:10px;color:var(--tdi);margin-top:4px;">' + timeAgo(n.time || n.createdAt) + footerAction + '</div>'
         + '</div></div>';
     }).join('');
   }
+
+  async function notifReviewTt(versionId, action, notifId) {
+    if (!versionId) return;
+    var comment = '';
+    var reqItem = (typeof _hodTtRequests !== 'undefined' && Array.isArray(_hodTtRequests))
+      ? _hodTtRequests.find(function(r) { return String(r._id) === String(versionId); })
+      : null;
+
+    var className = (reqItem && reqItem.className) || 'Selected Class';
+    var versionName = (reqItem && (reqItem.versionName || ('v' + reqItem.version))) || 'Current Draft';
+    var submitter = (reqItem && ((reqItem.verificationRequest && reqItem.verificationRequest.requestedBy) || reqItem.savedBy)) || 'Coordinator';
+    var notes = (reqItem && ((reqItem.verificationRequest && reqItem.verificationRequest.notes) || reqItem.changeSummary)) || '';
+
+    if (action === 'reject') {
+      var promptFn = window.showPrompt || (typeof showPrompt === 'function' ? showPrompt : null);
+      var promptHtml = '<div style="margin-bottom:12px;font-size:13.5px;color:var(--td);line-height:1.5;">' +
+        'Please enter your review feedback or reason for rejecting this timetable schedule:' +
+        '</div>' +
+        '<div style="background:var(--bg2,#f8fafc);border:1px solid var(--br);border-radius:12px;padding:12px 14px;margin-bottom:12px;">' +
+          '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px;flex-wrap:wrap;">' +
+            '<span style="font-weight:700;font-size:14px;color:var(--td);display:inline-flex;align-items:center;gap:6px;">' +
+              '<re-icon icon="chalkboard" size="14" style="color:#dc2626;"></re-icon> ' + esc(className) +
+            '</span>' +
+            '<span class="badge" style="background:#fee2e2;color:#b91c1c;border:1px solid #fecaca;font-size:11px;padding:2px 8px;border-radius:6px;font-weight:700;">' +
+              'Version: ' + esc(versionName) +
+            '</span>' +
+          '</div>' +
+          '<div style="font-size:12px;color:var(--tmu);"><re-icon icon="user" size="12"></re-icon> Submitted by: <b style="color:var(--td);">' + esc(submitter) + '</b></div>' +
+        '</div>';
+
+      comment = promptFn
+        ? await promptFn({
+            title: 'Reject Timetable Schedule',
+            type: 'danger',
+            icon: 'x-circle',
+            html: promptHtml,
+            inputLabel: 'Rejection Reason / Revision Notes:',
+            placeholder: 'Specify what conflicts or adjustments are needed (e.g. Period clashing, lab reallocation)...',
+            multiline: true,
+            confirmText: 'Reject Schedule',
+            cancelText: 'Cancel'
+          })
+        : await prompt('Please enter the reason for rejecting this timetable schedule (optional):');
+      if (comment === null) return;
+    } else {
+      var confFn = window.showConfirm || (typeof showConfirm === 'function' ? showConfirm : null);
+      var confirmHtml = '<div style="margin-bottom:14px;font-size:13.5px;color:var(--td);line-height:1.5;">' +
+        'Are you sure you want to approve this timetable schedule for department publication?' +
+        '</div>' +
+        '<div style="background:var(--bg2,#f8fafc);border:1px solid var(--br);border-radius:12px;padding:12px 14px;margin-bottom:14px;">' +
+          '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;gap:8px;flex-wrap:wrap;">' +
+            '<span style="font-weight:700;font-size:14px;color:var(--td);display:inline-flex;align-items:center;gap:6px;">' +
+              '<re-icon icon="chalkboard" size="15" style="color:#16a34a;"></re-icon> ' + esc(className) +
+            '</span>' +
+            '<span class="badge" style="background:#eff6ff;color:#1e40af;border:1px solid #bfdbfe;font-size:11px;padding:2px 8px;border-radius:6px;font-weight:700;display:inline-flex;align-items:center;gap:4px;">' +
+              '<re-icon icon="git-branch" size="11"></re-icon> ' + esc(versionName) +
+            '</span>' +
+          '</div>' +
+          '<div style="font-size:12px;color:var(--tmu);display:flex;align-items:center;gap:6px;">' +
+            '<re-icon icon="user" size="12"></re-icon> Submitted by: <b style="color:var(--td);">' + esc(submitter) + '</b>' +
+          '</div>' +
+          (notes ? (
+            '<div style="font-size:12px;color:var(--td);background:#fff;border:1px solid var(--br);border-radius:8px;padding:8px 10px;margin-top:8px;display:flex;align-items:flex-start;gap:6px;">' +
+              '<re-icon icon="message-square" size="12" style="color:#2563eb;margin-top:2px;flex-shrink:0;"></re-icon>' +
+              '<span style="font-style:italic;color:var(--td);">"' + esc(notes) + '"</span>' +
+            '</div>'
+          ) : '') +
+        '</div>' +
+        '<div style="font-size:11.5px;color:var(--tmu);line-height:1.45;display:flex;align-items:center;gap:6px;">' +
+          '<re-icon icon="info" size="13" style="color:#16a34a;flex-shrink:0;"></re-icon>' +
+          '<span>Approving verifies this schedule. Coordinators can then publish it live to production for student and faculty portals.</span>' +
+        '</div>';
+
+      var confirmed = confFn
+        ? await confFn({
+            title: 'Approve Timetable Schedule',
+            type: 'success',
+            icon: 'check',
+            confirmText: 'Approve Schedule',
+            cancelText: 'Cancel',
+            html: confirmHtml
+          })
+        : await confirm('Approve this timetable schedule for department publication?');
+      if (!confirmed) return;
+    }
+
+    try {
+      if (typeof showToast === 'function') showToast('Processing timetable ' + action + '…', 'info');
+      var res = await apiCall('POST', '/timetable/verification-requests/' + versionId + '/review', {
+        action: action,
+        comment: comment || ''
+      });
+      if (typeof showToast === 'function') {
+        showToast(res && res.message ? res.message : ('Timetable ' + (action === 'approve' ? 'approved' : 'rejected') + ' successfully!'), 'success');
+      }
+      if (notifId) markNotificationRead(notifId);
+      if (typeof loadNotifications === 'function') loadNotifications();
+      if (typeof loadHodTimetableVerificationPage === 'function') loadHodTimetableVerificationPage();
+    } catch (err) {
+      if (typeof showToast === 'function') showToast('Error: ' + err.message, 'error');
+      else alert('Error: ' + err.message);
+    }
+  }
+  window.notifReviewTt = notifReviewTt;
+
+  function handleTtNotifClick(versionId, notifId) {
+    if (notifId) markNotificationRead(notifId);
+    var dd = document.getElementById('ndrop') || document.getElementById('ndd');
+    if (dd) dd.classList.remove('open');
+    if (versionId && typeof openHodTimetableMatrixModal === 'function') {
+      openHodTimetableMatrixModal(versionId);
+    } else if (typeof navigateToTab === 'function') {
+      navigateToTab('tt-verify');
+    }
+  }
+  window.handleTtNotifClick = handleTtNotifClick;
 
   function handleLeaveNotifClick(notifId) {
     if (notifId) markNotificationRead(notifId);
@@ -1284,7 +1983,7 @@ var _memStore = {};
     document.getElementById('lr-stat-pct').textContent = '—%';
     document.getElementById('lr-stat-classes').textContent = '— / —';
     document.getElementById('lr-stat-past-leaves').textContent = '—';
-    document.getElementById('lr-dates-display').textContent = '📅 Date: —';
+    document.getElementById('lr-dates-display').innerHTML = '<re-icon icon="calendar"></re-icon> Date: —';
     document.getElementById('lr-reason-display').textContent = 'Loading…';
     document.getElementById('lr-remarks').value = '';
 
@@ -1315,11 +2014,11 @@ var _memStore = {};
       var pastTotal = (stats.pastLeaveDays || 0) + (stats.pastPermissionDays || 0);
       document.getElementById('lr-stat-past-leaves').textContent = pastTotal + (pastTotal === 1 ? ' Day' : ' Days');
 
-      document.getElementById('lr-category-badge').textContent = req.category === 'Permission' ? ('⏱️ Permission (' + (req.slot || 'Half Day') + ')') : ('🌴 ' + req.leaveType);
+      document.getElementById('lr-category-badge').innerHTML = req.category === 'Permission' ? ('<re-icon icon="timer"></re-icon> Permission (' + (req.slot || 'Half Day') + ')') : ('<re-icon icon="tree"></re-icon> ' + req.leaveType);
       document.getElementById('lr-days-badge').textContent = (req.daysCount || (req.category === 'Permission' ? 0.5 : 1)) + ' Day' + (req.daysCount > 1 ? 's' : '');
 
       var dateDisplay = req.fromDate === req.toDate ? formatDateLong(req.fromDate) : (formatDateShort(req.fromDate) + ' – ' + formatDateLong(req.toDate));
-      document.getElementById('lr-dates-display').textContent = '📅 Date: ' + dateDisplay;
+      document.getElementById('lr-dates-display').innerHTML = '<re-icon icon="calendar"></re-icon> Date: ' + dateDisplay;
       document.getElementById('lr-reason-display').textContent = '"' + req.reason + '"';
 
       if (notifId) {
@@ -1351,7 +2050,7 @@ var _memStore = {};
       }
       closeModal('m-leave-review');
       if (typeof dbToast === 'function') {
-        dbToast('🎉 Leave request ' + action + ' successfully!', 'success');
+        dbToast('<re-icon icon="confetti"></re-icon> Leave request ' + action + ' successfully!', 'success');
       }
       syncTeacherNotifications();
       if (document.getElementById('pg-leaves') && document.getElementById('pg-leaves').classList.contains('act')) {
@@ -1388,13 +2087,14 @@ var _memStore = {};
         stats: d.stats || {}
       };
 
-      // Update KPI stats
+      // Update KPI stats (exclude cancelled requests from Total)
       var stats = _teacherLeaveData.stats;
-      var total = stats.total !== undefined ? stats.total : _teacherLeaveData.requests.length;
-      var approved = stats.approved !== undefined ? stats.approved : _teacherLeaveData.requests.filter(function(r){ return r.status === 'Approved'; }).length;
-      var rejected = stats.rejected !== undefined ? stats.rejected : _teacherLeaveData.requests.filter(function(r){ return r.status === 'Rejected'; }).length;
-      var pending = stats.pending !== undefined ? stats.pending : _teacherLeaveData.requests.filter(function(r){ return r.status === 'Pending'; }).length;
-      var onduty = stats.onDutyCount !== undefined ? stats.onDutyCount : _teacherLeaveData.requests.filter(function(r){ return r.category === 'Permission' || (r.slot && r.slot !== 'Full Day'); }).length;
+      var nonCancelled = _teacherLeaveData.requests.filter(function(r){ return r.status !== 'Cancelled' && r.status !== 'cancelled'; });
+      var total = stats.total !== undefined ? stats.total : nonCancelled.length;
+      var approved = stats.approved !== undefined ? stats.approved : nonCancelled.filter(function(r){ return r.status === 'Approved'; }).length;
+      var rejected = stats.rejected !== undefined ? stats.rejected : nonCancelled.filter(function(r){ return r.status === 'Rejected'; }).length;
+      var pending = stats.pending !== undefined ? stats.pending : nonCancelled.filter(function(r){ return r.status === 'Pending'; }).length;
+      var onduty = stats.onDutyCount !== undefined ? stats.onDutyCount : nonCancelled.filter(function(r){ return r.category === 'Permission' || (r.slot && r.slot !== 'Full Day'); }).length;
 
       var stTotal = document.getElementById('lh-stat-total'); if (stTotal) stTotal.textContent = total;
       var stAppr  = document.getElementById('lh-stat-approved'); if (stAppr) stAppr.textContent = approved;
@@ -1407,6 +2107,16 @@ var _memStore = {};
       if (sbBadge) {
         sbBadge.textContent = pending;
         sbBadge.style.display = pending > 0 ? 'inline-block' : 'none';
+      }
+
+      // Clear any rogue browser password autofill before filtering
+      var sInput = document.getElementById('lh-filter-search');
+      if (sInput && sInput.value) {
+        var sVal = String(sInput.value).trim().toLowerCase();
+        var uName = (currentUser && (currentUser.username || currentUser.name || '')).trim().toLowerCase();
+        if (sVal === 'admin' || (uName && sVal === uName)) {
+          sInput.value = '';
+        }
       }
 
       filterTeacherLeaveTable();
@@ -1425,13 +2135,25 @@ var _memStore = {};
     var cat = document.getElementById('lh-filter-cat') ? document.getElementById('lh-filter-cat').value : '';
     var status = document.getElementById('lh-filter-status') ? document.getElementById('lh-filter-status').value : '';
     var searchEl = document.getElementById('lh-filter-search');
+    if (searchEl && searchEl.value) {
+      var valLower = String(searchEl.value).trim().toLowerCase();
+      var uName = (currentUser && (currentUser.username || currentUser.name || '')).trim().toLowerCase();
+      if (!searchEl.matches(':focus') && (valLower === 'admin' || (uName && valLower === uName))) {
+        searchEl.value = '';
+      }
+    }
     var search = searchEl && searchEl.value ? String(searchEl.value).toLowerCase().trim() : '';
 
     var filtered = list.filter(function(r) {
+      if (status) {
+        if (r.status !== status) return false;
+      } else {
+        // Exclude cancelled requests when viewing all statuses
+        if (r.status === 'Cancelled' || r.status === 'cancelled') return false;
+      }
       if (from && r.toDate < from) return false;
       if (to && r.fromDate > to) return false;
       if (cat && r.category !== cat) return false;
-      if (status && r.status !== status) return false;
       if (search) {
         var matchName = (r.studentName || '').toLowerCase().includes(search);
         var matchReg  = (r.studentRegNo || '').toLowerCase().includes(search);
@@ -1473,11 +2195,11 @@ var _memStore = {};
       var isPending = r.status === 'Pending';
       var actionHtml = isPending
         ? '<button class="btn-form-pri bsm" onclick="openLeaveReviewModal(\'' + r._id + '\')" style="padding:4px 10px;font-size:11px;background:#16a34a;">Review</button>'
-        : (r.reviewRemarks ? ('<span style="font-size:11px;color:var(--tmu);">💬 ' + escapeHtml(r.reviewRemarks) + '</span>') : (r.reviewedBy ? ('<span style="font-size:10.5px;color:var(--tdi);">By ' + escapeHtml(r.reviewedBy) + '</span>') : '—'));
+        : (r.reviewRemarks ? ('<span style="font-size:11px;color:var(--tmu);"><re-icon icon="message-square"></re-icon> ' + escapeHtml(r.reviewRemarks) + '</span>') : (r.reviewedBy ? ('<span style="font-size:10.5px;color:var(--tdi);">By ' + escapeHtml(r.reviewedBy) + '</span>') : '—'));
 
       var catBadge = r.category === 'Permission'
-        ? '<span style="background:#ede9fe;color:#6d28d9;font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:6px;">⏱️ Permission</span>'
-        : '<span style="background:#f0fdf4;color:#15803d;font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:6px;">🌴 ' + escapeHtml(r.leaveType) + '</span>';
+        ? '<span style="background:#ede9fe;color:#6d28d9;font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:6px;"><re-icon icon="timer"></re-icon> Permission</span>'
+        : '<span style="background:#f0fdf4;color:#15803d;font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:6px;"><re-icon icon="tree"></re-icon> ' + escapeHtml(r.leaveType) + '</span>';
 
       return '<tr>'
         + '<td style="font-size:11px;color:var(--tdi);white-space:nowrap;">' + formatDateShort(r.createdAt) + '</td>'
@@ -1492,6 +2214,112 @@ var _memStore = {};
         + '</tr>';
     }).join('');
   }
+
+  // ── ADVISOR FILE LEAVE ON BEHALF OF STUDENT (LD4) ──
+  function openAdvisorFileLeaveModal() {
+    var form = document.getElementById('form-advisor-file-leave');
+    if (form) form.reset();
+
+    var today = todayISO();
+    var fromEl = document.getElementById('afl-from-date');
+    var toEl = document.getElementById('afl-to-date');
+    if (fromEl) fromEl.value = today;
+    if (toEl) toEl.value = today;
+
+    // Populate datalist with student recommendations if available
+    var dl = document.getElementById('afl-students-list');
+    if (dl) {
+      var stuList = (typeof DB !== 'undefined' && DB.get ? DB.get('students') : []) || [];
+      dl.innerHTML = stuList.map(function(s) {
+        var rNo = s.regNo || s.registerNo || s.trackId || '';
+        var sName = s.name || s.fullName || '';
+        var cName = s.className ? ' (' + s.className + ')' : '';
+        return '<option value="' + escapeHtml(rNo) + '">' + escapeHtml(sName + cName) + '</option>';
+      }).join('');
+    }
+
+    openModal('m-advisor-file-leave');
+
+    var regInput = document.getElementById('afl-reg-no');
+    if (regInput) setTimeout(function() { regInput.focus(); }, 120);
+  }
+  window.openAdvisorFileLeaveModal = openAdvisorFileLeaveModal;
+
+  function submitAdvisorFileLeave(event) {
+    if (event) event.preventDefault();
+
+    var regInput = document.getElementById('afl-reg-no');
+    var catInput = document.getElementById('afl-category');
+    var covInput = document.getElementById('afl-coverage');
+    var fromInput = document.getElementById('afl-from-date');
+    var toInput = document.getElementById('afl-to-date');
+    var reasonInput = document.getElementById('afl-reason');
+
+    var regNo = (regInput ? regInput.value : '').trim();
+    var category = catInput ? catInput.value : 'Personal';
+    var coverage = covInput ? covInput.value : 'full_day';
+    var fromDate = (fromInput ? fromInput.value : '').trim();
+    var toDate = (toInput ? toInput.value : '').trim();
+    var reason = (reasonInput ? reasonInput.value : '').trim();
+
+    if (!regNo || !fromDate || !toDate || !reason) {
+      if (typeof dbToast === 'function') dbToast('Please fill all required fields', 'warn');
+      return;
+    }
+
+    if (fromDate > toDate) {
+      if (typeof dbToast === 'function') dbToast('From date cannot be after to date', 'warn');
+      return;
+    }
+
+    var btn = document.getElementById('btn-submit-afl');
+    var origHtml = btn ? btn.innerHTML : '';
+    if (btn) {
+      btn.disabled = true;
+      btn.innerHTML = '<re-icon icon="hourglass" size="14"></re-icon> Filing Leave…';
+    }
+
+    var tok = getToken();
+    fetch('/api/student-leave/advisor/file-for-student', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + tok
+      },
+      body: JSON.stringify({
+        studentTrackId: regNo,
+        category: category,
+        coverage: coverage,
+        fromDate: fromDate,
+        toDate: toDate,
+        reason: reason
+      })
+    })
+    .then(function(res) { return res.json(); })
+    .then(function(d) {
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = origHtml;
+      }
+      if (d.error) {
+        if (typeof dbToast === 'function') dbToast(d.error, 'error');
+        return;
+      }
+      if (typeof dbToast === 'function') dbToast(d.message || 'Leave filed and approved successfully', 'success');
+      closeModal('m-advisor-file-leave');
+      if (typeof loadTeacherLeaveHistory === 'function') {
+        loadTeacherLeaveHistory();
+      }
+    })
+    .catch(function(err) {
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = origHtml;
+      }
+      if (typeof dbToast === 'function') dbToast(err.message || 'Failed to file leave', 'error');
+    });
+  }
+  window.submitAdvisorFileLeave = submitAdvisorFileLeave;
 
   function markNotificationRead(id) {
     var tok = getToken();
@@ -1508,9 +2336,17 @@ var _memStore = {};
   function clearAllNotifications(event) {
     if (event) event.stopPropagation();
     DB.get('teacher-notifications').forEach(function(n) {
-      markNotificationRead(n._id);
+      n.read = true;
+      n.status = 'Read';
     });
     renderNotifications();
+    var tok = getToken();
+    if (tok) {
+      fetch('/api/notifications/read-all', {
+        method: 'PUT',
+        headers: { 'Authorization': 'Bearer ' + tok }
+      }).catch(function() {});
+    }
   }
   var clearNotifs = clearAllNotifications;
 
@@ -1539,9 +2375,11 @@ var _memStore = {};
       document.getElementById('stab-' + t).classList.toggle('act', t === tab);
       document.getElementById('sched-' + t + '-view').style.display = t === tab ? '' : 'none';
     });
-    // Week nav (prev/next week) only shown on week tab
-    var navCtrl = document.getElementById('sched-nav-controls');
-    if (navCtrl) navCtrl.style.display = tab === 'week' ? 'flex' : 'none';
+    // Navigation controls: week nav on week view, day nav on day view, hidden on my timetable
+    var weekNavCtrl = document.getElementById('sched-nav-controls');
+    var dayNavCtrl  = document.getElementById('sched-day-nav-controls');
+    if (weekNavCtrl) weekNavCtrl.style.display = tab === 'week' ? 'flex' : 'none';
+    if (dayNavCtrl)  dayNavCtrl.style.display  = tab === 'day'  ? 'flex' : 'none';
     if (tab === 'week')     renderSchedulePage();
     else if (tab === 'day') renderDayView();
     else                    renderTimetableGrid();
@@ -1561,7 +2399,8 @@ var _memStore = {};
     var labelEl   = document.getElementById('weeklbl');
     if (!container) return;
 
-    var today  = new Date();
+    var _tParts = todayISO().split('-').map(Number);
+    var today  = new Date(_tParts[0], _tParts[1] - 1, _tParts[2]);
     var monday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
     monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7) + scheduleWeekOffset);
 
@@ -1596,9 +2435,9 @@ var _memStore = {};
 
       var bannerHtml = '';
       if (isHoliday) {
-        bannerHtml = '<div class="wk-holiday" style="margin-bottom:8px;">🏖️ ' + escapeHtml(holidayReason || 'Holiday') + '</div>';
+        bannerHtml = '<div class="wk-holiday" style="margin-bottom:8px;"><re-icon icon="tree"></re-icon> ' + escapeHtml(holidayReason || 'Holiday') + '</div>';
       } else if (onLeave) {
-        bannerHtml = '<div class="wk-holiday" style="margin-bottom:8px;background:#fef3c7;color:#b45309;border-color:#fde68a;">🌴 On Leave (' + escapeHtml(leaveSlot || 'Full Day') + ')</div>';
+        bannerHtml = '<div class="wk-holiday" style="margin-bottom:8px;background:#fef3c7;color:#b45309;border-color:#fde68a;"><re-icon icon="tree"></re-icon> On Leave (' + escapeHtml(leaveSlot || 'Full Day') + ')</div>';
       }
 
       var slotHtml = slots.length ? slots.map(function(slot) {
@@ -1614,7 +2453,7 @@ var _memStore = {};
           statusChip = '<span class="badge badge-cancelled">Cancelled</span>';
           cardExtraClass = ' slot-cancelled';
         } else if (isSubstituted) {
-          statusChip = '<span class="badge badge-sub-out">Substituted → ' + escapeHtml(slot.substituteTeacher || 'Substitute') + '</span>';
+          statusChip = '<span class="badge badge-sub-out">Substituted <re-icon icon="arrow-right"></re-icon> ' + escapeHtml(slot.substituteTeacher || 'Substitute') + '</span>';
           cardExtraClass = ' slot-substituted';
         } else if (isSubIn) {
           statusChip = '<span class="badge badge-sub-in">Substitute for ' + escapeHtml(slot.originalTeacher || 'Faculty') + '</span>';
@@ -1626,9 +2465,9 @@ var _memStore = {};
 
         var action = '';
         if (marked) {
-          action = '<span class="donetag">&#9989; Marked</span>';
+          action = '<span class="donetag"><re-icon icon="check-circle"></re-icon> Marked</span>';
         } else if (isToday && (slot.status === 'scheduled' || isSubIn)) {
-          action = '<button class="attbtn" title="Take attendance" onclick="navigateToAttendance(\'' + (slot.classId || '') + '\',\'' + (slot.subjectId || '') + '\',' + (slot.periodNumber || 'null') + ',\'' + dateISO + '\')">&#9989; Take Att.</button>';
+          action = '<button class="attbtn" title="Take attendance" onclick="navigateToAttendance(\'' + (slot.classId || '') + '\',\'' + (slot.subjectId || '') + '\',' + (slot.periodNumber || 'null') + ',\'' + dateISO + '\')"><re-icon icon="check-circle"></re-icon> Take Att.</button>';
         }
 
         var periodLabel = slot.periodNumber ? 'P' + slot.periodNumber : '';
@@ -1637,15 +2476,19 @@ var _memStore = {};
         }
 
         var slotKey = slot.key || slot._id || ((slot.dayFull || dayName) + '_' + slot.periodNumber);
-        return '<div class="wk-slot' + (marked ? ' done' : '') + cardExtraClass + '" onclick="showTeacherSlotPopover(\'' + escapeHtml(slotKey) + '\', event)" style="cursor:pointer;">'
+        var col = (typeof TeacherTimetable !== 'undefined' && TeacherTimetable.getClassColor) ? TeacherTimetable.getClassColor(slot.className) : null;
+        var classStyle = col ? ('--cls-bg:' + col.bg + ';--cls-border:' + col.border + ';--cls-border-light:' + col.borderLight + ';--cls-text:' + col.text + ';') : '';
+        var classCls = col ? ' has-class-color' : '';
+
+        return '<div class="wk-slot' + (marked ? ' done' : '') + cardExtraClass + classCls + '" onclick="showTeacherSlotPopover(\'' + escapeHtml(slotKey) + '\', event)" style="cursor:pointer;' + classStyle + '">'
           + '<div class="wk-slot-top">'
           +   '<span class="wk-time">' + escapeHtml(slot.start || '') + (slot.end ? '–' + escapeHtml(slot.end) : '') + '</span>'
           +   (periodLabel ? '<span class="wk-per">' + periodLabel + '</span>' : '')
           + '</div>'
           + '<div class="wk-sub">' + escapeHtml(slot.subjectName || slot.subject || 'Subject') + '</div>'
-          + '<div class="wk-cls">' + escapeHtml(slot.className || '') + ((slot.hallNo || slot.room) ? ' · ' + escapeHtml(slot.hallNo || slot.room) : '') + '</div>'
+          + '<div class="wk-cls" style="' + (col ? 'color:' + col.text + ';font-weight:700;' : '') + '">' + escapeHtml(slot.className || '') + ((slot.hallNo || slot.room) ? ' · ' + escapeHtml(slot.hallNo || slot.room) : '') + '</div>'
           + (statusChip ? '<div style="margin-top:4px;">' + statusChip + '</div>' : '')
-          + (slot.note && !isCancelled && !isSubstituted ? '<div style="font-size:10px;color:#d97706;margin-top:2px;">ℹ️ ' + escapeHtml(slot.note) + '</div>' : '')
+          + (slot.note && !isCancelled && !isSubstituted ? '<div style="font-size:10px;color:#d97706;margin-top:2px;"><re-icon icon="info-circle"></re-icon> ' + escapeHtml(slot.note) + '</div>' : '')
           + (action ? '<div class="wk-act" onclick="event.stopPropagation();">' + action + '</div>' : '')
           + '</div>';
       }).join('') : (isHoliday || onLeave ? '' : '<div class="wk-empty">No classes</div>');
@@ -1665,7 +2508,8 @@ var _memStore = {};
   function dayNavStep(dir) {
     dayOffset += dir;
     renderDayView();
-    var today = new Date();
+    var _tParts = todayISO().split('-').map(Number);
+    var today = new Date(_tParts[0], _tParts[1] - 1, _tParts[2]);
     var target = new Date(today);
     target.setDate(today.getDate() + dayOffset);
     var dateISO = localISO(target);
@@ -1689,7 +2533,8 @@ var _memStore = {};
   }
 
   function renderDayView() {
-    var today    = new Date();
+    var _tParts  = todayISO().split('-').map(Number);
+    var today    = new Date(_tParts[0], _tParts[1] - 1, _tParts[2]);
     var target   = new Date(today);
     target.setDate(today.getDate() + dayOffset);
     var dateISO  = localISO(target);
@@ -1715,14 +2560,14 @@ var _memStore = {};
     var leaveSlot = dayData ? dayData.leaveSlot : null;
 
     if (isHoliday) {
-      cont.innerHTML = '<div class="day-empty">&#127774; ' + escapeHtml(holidayReason || 'Weekend — no classes scheduled.') + '</div>';
+      cont.innerHTML = '<div class="day-empty"><re-icon icon="sun"></re-icon> ' + escapeHtml(holidayReason || 'Weekend — no classes scheduled.') + '</div>';
       return;
     }
 
     var bannerHtml = '';
     if (onLeave) {
       bannerHtml = '<div style="margin-bottom:14px;padding:12px 14px;background:#fef3c7;border:1px solid #fde68a;border-radius:10px;color:#92400e;font-size:12.5px;font-weight:600;">'
-        + '🌴 You are on approved leave today (' + escapeHtml(leaveSlot || 'Full Day') + ').'
+        + '<re-icon icon="tree"></re-icon> You are on approved leave today (' + escapeHtml(leaveSlot || 'Full Day') + ').'
         + '</div>';
     }
 
@@ -1731,7 +2576,7 @@ var _memStore = {};
     var allAttendance = DB.get('attendance');
 
     if (!slots.length) {
-      cont.innerHTML = bannerHtml + '<div class="day-empty">&#128197; No classes scheduled for this day.</div>';
+      cont.innerHTML = bannerHtml + '<div class="day-empty"><re-icon icon="calendar"></re-icon> No classes scheduled for this day.</div>';
       return;
     }
 
@@ -1749,7 +2594,7 @@ var _memStore = {};
         statusChip = '<span class="badge badge-cancelled">Cancelled</span>';
         borderStyle = 'border-color:#e5e7eb;opacity:0.65;';
       } else if (isSubstituted) {
-        statusChip = '<span class="badge badge-sub-out">Substituted → ' + escapeHtml(slot.substituteTeacher || 'Substitute') + '</span>';
+        statusChip = '<span class="badge badge-sub-out">Substituted <re-icon icon="arrow-right"></re-icon> ' + escapeHtml(slot.substituteTeacher || 'Substitute') + '</span>';
         borderStyle = 'border-color:#f59e0b;background:#fffbeb;';
       } else if (isSubIn) {
         statusChip = '<span class="badge badge-sub-in">Substitute for ' + escapeHtml(slot.originalTeacher || 'Faculty') + '</span>';
@@ -1761,21 +2606,25 @@ var _memStore = {};
 
       var attBtn = '';
       if (marked) {
-        attBtn = '<span class="donetag" style="margin-left:auto;">&#9989; Marked</span>';
+        attBtn = '<span class="donetag" style="margin-left:auto;"><re-icon icon="check-circle"></re-icon> Marked</span>';
       } else if (isToday && (slot.status === 'scheduled' || isSubIn)) {
-        attBtn = '<button class="attbtn" style="margin-left:auto;" onclick="navigateToAttendance(\'' + (slot.classId || '') + '\',\'' + (slot.subjectId || '') + '\',' + (slot.periodNumber || 'null') + ',\'' + dateISO + '\')">&#9989; Take Attendance</button>';
+        attBtn = '<button class="attbtn" style="margin-left:auto;" onclick="navigateToAttendance(\'' + (slot.classId || '') + '\',\'' + (slot.subjectId || '') + '\',' + (slot.periodNumber || 'null') + ',\'' + dateISO + '\')"><re-icon icon="check-circle"></re-icon> Take Attendance</button>';
       }
 
       var slotKey = slot.key || slot._id || ((slot.dayFull || dFull) + '_' + slot.periodNumber);
-      return '<div class="day-slot-card' + (isToday ? ' today-slot' : '') + '" style="' + borderStyle + 'cursor:pointer;" onclick="showTeacherSlotPopover(\'' + escapeHtml(slotKey) + '\', event)">'
+      var col = (typeof TeacherTimetable !== 'undefined' && TeacherTimetable.getClassColor) ? TeacherTimetable.getClassColor(slot.className) : null;
+      var classStyle = (col && !borderStyle) ? ('--cls-border:' + col.border + ';--cls-border-light:' + col.borderLight + ';--cls-text:' + col.text + ';') : '';
+      var classCls = (col && !borderStyle) ? ' has-class-color' : '';
+
+      return '<div class="day-slot-card' + (isToday ? ' today-slot' : '') + classCls + '" style="' + borderStyle + classStyle + 'cursor:pointer;" onclick="showTeacherSlotPopover(\'' + escapeHtml(slotKey) + '\', event)">'
         + '<div class="day-time-col">' + escapeHtml(slot.start || '') + '<br><span style="color:var(--tdi);font-weight:400;">to</span><br>' + escapeHtml(slot.end || '') + '</div>'
         + '<div style="flex:1;min-width:0;">'
         +   '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:3px;">'
         +     '<div style="font-size:14px;font-weight:700;color:var(--td);">' + escapeHtml(slot.subjectName || slot.subject || 'Subject') + '</div>'
         +     (statusChip || '')
         +   '</div>'
-        +   '<div style="font-size:12px;color:var(--tmu);">&#127979; ' + escapeHtml(slot.className || '') + (slot.periodNumber ? ' · Period ' + slot.periodNumber : '') + ((slot.hallNo || slot.room) ? ' · ' + escapeHtml(slot.hallNo || slot.room) : '') + '</div>'
-        +   (slot.note ? '<div style="font-size:11px;color:#d97706;margin-top:3px;">ℹ️ ' + escapeHtml(slot.note) + '</div>' : '')
+        +   '<div style="font-size:12px;color:var(--tmu);"><re-icon icon="school"></re-icon> ' + (col ? '<span style="color:' + col.text + ';font-weight:700;">' + escapeHtml(slot.className || '') + '</span>' : escapeHtml(slot.className || '')) + (slot.periodNumber ? ' · Period ' + slot.periodNumber : '') + ((slot.hallNo || slot.room) ? ' · ' + escapeHtml(slot.hallNo || slot.room) : '') + '</div>'
+        +   (slot.note ? '<div style="font-size:11px;color:#d97706;margin-top:3px;"><re-icon icon="info-circle"></re-icon> ' + escapeHtml(slot.note) + '</div>' : '')
         + '</div>'
         + (attBtn ? '<div onclick="event.stopPropagation();">' + attBtn + '</div>' : '')
         + '</div>';
@@ -1786,155 +2635,50 @@ var _memStore = {};
   const TEACHER_PERIODS = [
     { id:1, num:1, label:'P1', time:'08:30–09:15', start:'08:30', end:'09:15' },
     { id:2, num:2, label:'P2', time:'09:15–10:00', start:'09:15', end:'10:00' },
-    { id:'B1', isBreak:true, label:'☕ Break', time:'10:00–10:15' },
+    { id:'B1', isBreak:true, label:'<re-icon icon="coffee"></re-icon> Break', time:'10:00–10:15' },
     { id:3, num:3, label:'P3', time:'10:15–11:00', start:'10:15', end:'11:00' },
     { id:4, num:4, label:'P4', time:'11:00–11:45', start:'11:00', end:'11:45' },
     { id:5, num:5, label:'P5', time:'11:45–12:30', start:'11:45', end:'12:30' },
-    { id:'L',  isBreak:true, label:'🍱 Lunch', time:'12:30–13:15' },
+    { id:'L',  isBreak:true, label:'<re-icon icon="fork-knife"></re-icon> Lunch', time:'12:30–13:15' },
     { id:6, num:6, label:'P6', time:'01:15–02:00', start:'13:15', end:'14:00' },
     { id:7, num:7, label:'P7', time:'02:00–02:45', start:'14:00', end:'14:45' },
-    { id:'B2', isBreak:true, label:'☕ Break', time:'02:45–03:00' },
+    { id:'B2', isBreak:true, label:'<re-icon icon="coffee"></re-icon> Break', time:'02:45–03:00' },
     { id:8, num:8, label:'P8', time:'03:00–03:45', start:'15:00', end:'15:45' },
     { id:9, num:9, label:'P9', time:'03:45–04:30', start:'15:45', end:'16:30' },
   ];
 
   // ── MY WEEKLY TIMETABLE GRID ──
-  // Renders the published weekly template against the institutional timing set
-  function renderTimetableGrid() {
-    var days    = ['Mon','Tue','Wed','Thu','Fri','Sat'];
-    var dayFull = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
-    var timetable = getMyTimetable();
+  // Adaptive multi-set matrix grid powered by TeacherTimetable component module
+  var _teacherTimetableView = null;
 
+  function renderTimetableGrid() {
     var container = document.getElementById('tt-grid');
     if (!container) return;
 
-    var timingSets = DB.get('timing-sets') || [];
-    var setCounts = {};
-    timetable.forEach(function(s) {
-      var code = s.timingSetCode || 'SET_1';
-      setCounts[code] = (setCounts[code] || 0) + 1;
-    });
-    var primaryCode = Object.keys(setCounts).sort(function(a, b) { return setCounts[b] - setCounts[a]; })[0] || 'SET_1';
-    var primarySet = timingSets.find(function(ts) { return ts.code === primaryCode; }) || timingSets[0] || null;
+    if (typeof TeacherTimetable === 'undefined' || !TeacherTimetable.mount) {
+      console.warn('TeacherTimetable module not loaded');
+      return;
+    }
 
-    var periodCols = [];
-    if (primarySet && Array.isArray(primarySet.periods) && primarySet.periods.length) {
-      primarySet.periods.forEach(function(p, idx) {
-        var pNum = p.periodNumber || p.number || (idx + 1);
-        periodCols.push({
-          num: pNum,
-          label: 'P' + pNum,
-          start: p.start,
-          end: p.end,
-          time: p.start + '–' + p.end,
-          isBreak: false
-        });
-        if (primarySet.morningBreakAfter && pNum === primarySet.morningBreakAfter) {
-          periodCols.push({ isBreak: true, label: '☕ Break', time: 'Break' });
-        }
-        if (primarySet.lunchAfter && pNum === primarySet.lunchAfter) {
-          periodCols.push({ isBreak: true, label: '🍱 Lunch', time: 'Lunch' });
-        }
-      });
+    var timingSets = DB.get('timing-sets');
+    if (!Array.isArray(timingSets) || timingSets.length < 2) {
+      timingSets = (typeof TeacherTimetable !== 'undefined' && TeacherTimetable.CANONICAL_TIMING_SETS) || [];
+    }
+    var slots      = getMyTimetable();
+
+    if (_teacherTimetableView && container.querySelector('.ttx')) {
+      _teacherTimetableView.update({ timingSets: timingSets, slots: slots });
     } else {
-      periodCols = TEACHER_PERIODS;
-    }
-
-    var thead = '<thead><tr><th style="width:75px;">Day</th>';
-    periodCols.forEach(function(p) {
-      if (p.isBreak) {
-        thead += '<th class="tt-break-col"><span class="tt-break-text">' + p.label + '</span></th>';
-      } else {
-        thead += '<th>' + p.label + '<span class="tt-th-time">' + p.time + '</span></th>';
-      }
-    });
-    thead += '</tr></thead>';
-
-    function findSlotForCol(daySlots, col) {
-      return daySlots.find(function(s) {
-        if (s.periodNumber === col.num) return true;
-        if (s.start && col.start) {
-          var sMins = parseInt(s.start.split(':')[0], 10) * 60 + parseInt(s.start.split(':')[1], 10);
-          var cMins = parseInt(col.start.split(':')[0], 10) * 60 + parseInt(col.start.split(':')[1], 10);
-          return Math.abs(sMins - cMins) <= 15;
+      _teacherTimetableView = TeacherTimetable.mount(container, {
+        timingSets: timingSets,
+        slots: slots,
+        timeFormat: '24h',
+        onSlotClick: function(rawSlot, ev) {
+          var slotKey = rawSlot.key || rawSlot._id || ((rawSlot.dayFull || rawSlot.day) + '_' + rawSlot.periodNumber);
+          showTeacherSlotPopover(slotKey, ev);
         }
-        return false;
       });
     }
-
-    var tbody = '<tbody>';
-    days.forEach(function(day, dIdx) {
-      var dFull = dayFull[dIdx];
-      var daySlots = timetable.filter(function(t) { return t.day === day || t.dayFull === dFull; });
-      tbody += '<tr>';
-      tbody += '<td class="tt-day-label">' + day + '</td>';
-
-      var i = 0;
-      while (i < periodCols.length) {
-        var col = periodCols[i];
-        if (col.isBreak) {
-          tbody += '<td class="tt-break-col" style="background:rgba(27,94,32,.04);border-right:1px solid var(--brl);"></td>';
-          i++;
-          continue;
-        }
-
-        var slot = findSlotForCol(daySlots, col);
-        if (!slot) {
-          tbody += '<td style="vertical-align:middle;padding:3px;">';
-          tbody += '<div class="tt-cell-empty" style="cursor:default;opacity:0.3;">—</div>';
-          tbody += '</td>';
-          i++;
-          continue;
-        }
-
-        var spanPeriods = Number(slot.span || 1);
-        var isLab  = slot.type === 'Lab' || slot.isLab === true || spanPeriods >= 2;
-        var isSub  = slot.role === 'substitute' || slot.isSubstitute === true;
-        var isComb = Array.isArray(slot.combinedWith) && slot.combinedWith.length > 0;
-
-        var cardClass = 'slot-theory';
-        var badgeHtml = '';
-        if (isSub) {
-          cardClass = 'slot-sub';
-          badgeHtml = '<span class="tt-slot-badge badge-sub">Sub</span>';
-        } else if (isLab) {
-          cardClass = 'slot-lab';
-          badgeHtml = '<span class="tt-slot-badge badge-lab">Lab (' + spanPeriods + 'P)</span>';
-        } else if (isComb) {
-          cardClass = 'slot-comb';
-          badgeHtml = '<span class="tt-slot-badge badge-comb">' + escapeHtml((slot.combinedWith || []).join('+')) + '</span>';
-        }
-
-        var customTimeHtml = '';
-        if (slot.start && slot.end && (slot.timingSetCode !== primaryCode || slot.start !== col.start)) {
-          customTimeHtml = '<div style="font-size:9.5px;color:var(--gD);font-weight:700;">' + escapeHtml(slot.start) + '–' + escapeHtml(slot.end) + '</div>';
-        }
-
-        var colspan = 0, covered = 0, j = i;
-        while (j < periodCols.length && covered < spanPeriods) {
-          colspan++;
-          if (!periodCols[j].isBreak) covered++;
-          j++;
-        }
-
-        var hallDisplay = (slot.hallNo || slot.room) ? ' • ' + escapeHtml(slot.hallNo || slot.room) : '';
-        var slotKey = slot.key || slot._id || (dFull + '_' + slot.periodNumber);
-        tbody += '<td ' + (colspan > 1 ? 'colspan="' + colspan + '"' : '') + ' style="vertical-align:top;padding:3px;">';
-        tbody += '<div class="tt-slot-card ' + cardClass + '" onclick="showTeacherSlotPopover(\'' + escapeHtml(slotKey) + '\', event)" title="Click to view slot actions">';
-        tbody += '<div class="tt-slot-title">' + escapeHtml(slot.subjectName || slot.subject || 'Subject') + '</div>';
-        tbody += '<div class="tt-slot-meta">';
-        tbody += '<span>' + escapeHtml(slot.className || '') + hallDisplay + '</span>';
-        tbody += badgeHtml;
-        tbody += '</div>';
-        tbody += customTimeHtml;
-        tbody += '</div></td>';
-        i = j;
-      }
-      tbody += '</tr>';
-    });
-    tbody += '</tbody>';
-
-    container.innerHTML = '<table class="tt-teacher-grid">' + thead + tbody + '</table>';
   }
 
   // ── TEACHER SLOT POPOVER QUICK ACTIONS ──
@@ -1970,26 +2714,26 @@ var _memStore = {};
 
     var isTTC = !!(currentUser.isTimeTableCoordinator || (Array.isArray(currentUser.specials) && currentUser.specials.some(function(s) { return s.option === 'isTimeTableCoordinator'; })));
     var todayStr = todayISO();
-    var isToday = (slot.date === todayStr) || (!slot.date && DAY_NAMES[new Date().getDay()] === (slot.dayFull || slot.day));
+    var isToday = (slot.date === todayStr) || (!slot.date && DAY_NAMES[new Date(todayStr + 'T00:00:00').getDay()] === (slot.dayFull || slot.day));
     var canTakeAtt = isToday && (!slot.attendance || !slot.attendance.marked) && slot.status === 'scheduled';
 
     var actionsHtml = '';
     if (canTakeAtt) {
-      actionsHtml += '<button class="tt-pop-btn" style="background:#16a34a;color:#fff;font-weight:700;" onclick="document.getElementById(\'tt-active-popover\').remove();navigateToAttendance(\'' + (slot.classId || '') + '\',\'' + (slot.subjectId || '') + '\',' + (slot.periodNumber || 'null') + ',\'' + todayStr + '\')">&#9989; Take Attendance Now</button>';
+      actionsHtml += '<button class="tt-pop-btn" style="background:#16a34a;color:#fff;font-weight:700;" onclick="document.getElementById(\'tt-active-popover\').remove();navigateToAttendance(\'' + (slot.classId || '') + '\',\'' + (slot.subjectId || '') + '\',' + (slot.periodNumber || 'null') + ',\'' + todayStr + '\')"><re-icon icon="check-circle"></re-icon> Take Attendance Now</button>';
     }
 
-    actionsHtml += '<button class="tt-pop-btn" onclick="document.getElementById(\'tt-active-popover\').remove();requestSubstituteForSlot(\'' + escapeHtml(slotKey) + '\')">&#128260; Request Substitute / Apply Leave</button>';
+    actionsHtml += '<button class="tt-pop-btn" onclick="document.getElementById(\'tt-active-popover\').remove();requestSubstituteForSlot(\'' + escapeHtml(slotKey) + '\')"><re-icon icon="user-plus"></re-icon> Request Substitute / Apply Leave</button>';
 
     if (isTTC) {
-      actionsHtml += '<button class="tt-pop-btn" onclick="document.getElementById(\'tt-active-popover\').remove();goToTimetable()">✏️ Edit in Timetable Workspace</button>';
+      actionsHtml += '<button class="tt-pop-btn" onclick="document.getElementById(\'tt-active-popover\').remove();goToTimetable()"><re-icon icon="edit"></re-icon> Edit in Timetable Workspace</button>';
     }
 
     var box = document.createElement('div');
     box.className = 'tt-popover-box';
     box.innerHTML =
-      '<div class="tt-popover-title">&#128203; ' + escapeHtml(slot.subjectName || slot.subject || 'Schedule Slot') + '</div>'
+      '<div class="tt-popover-title"><re-icon icon="clipboard"></re-icon> ' + escapeHtml(slot.subjectName || slot.subject || 'Schedule Slot') + '</div>'
       + '<div class="tt-popover-sub">' + escapeHtml(slot.dayFull || slot.day || '') + ' ' + escapeHtml(slot.start || '') + '–' + escapeHtml(slot.end || '') + ' | ' + escapeHtml(slot.className || '') + ((slot.hallNo || slot.room) ? ' (' + escapeHtml(slot.hallNo || slot.room) + ')' : '') + '</div>'
-      + (slot.note ? '<div style="font-size:12px;color:#d97706;margin:8px 0 12px;background:#fef3c7;padding:6px 10px;border-radius:6px;">ℹ️ ' + escapeHtml(slot.note) + '</div>' : '')
+      + (slot.note ? '<div style="font-size:12px;color:#d97706;margin:8px 0 12px;background:#fef3c7;padding:6px 10px;border-radius:6px;"><re-icon icon="info-circle"></re-icon> ' + escapeHtml(slot.note) + '</div>' : '')
       + '<div class="tt-popover-actions">'
       + actionsHtml
       + '</div>';
@@ -2083,7 +2827,7 @@ var _memStore = {};
 
   function openTeacherAddSlot(day, periodNum) {
     document.getElementById('schedeid').value = '';
-    document.getElementById('mschedtit').innerHTML = '&#10133; Add Schedule Slot';
+    document.getElementById('mschedtit').innerHTML = '<re-icon icon="plus"></re-icon> Add Schedule Slot';
     document.getElementById('schedday').value = day || 'Mon';
     document.getElementById('schedperiod').value = periodNum ? String(periodNum) : '1';
     onSchedPeriodChange();
@@ -2112,7 +2856,7 @@ var _memStore = {};
     const slot = DB.get('timetable').find(function(t) { return t._id === slotId; });
     if (!slot) return;
     document.getElementById('schedeid').value = slotId;
-    document.getElementById('mschedtit').innerHTML = '&#9999; Edit Schedule Slot';
+    document.getElementById('mschedtit').innerHTML = '<re-icon icon="edit"></re-icon> Edit Schedule Slot';
     document.getElementById('schedday').value = slot.day;
     document.getElementById('schedst').value = slot.start;
     document.getElementById('schedet').value = slot.end;
@@ -2202,7 +2946,7 @@ var _memStore = {};
         body: JSON.stringify(slotData)
       }).then(readJson).then(function(saved) {
         DB.update('timetable', editId, normalizeScheduleSlot(Object.assign({}, slotData, saved || {}, { _id: editId })));
-        showToast('&#9989; Slot updated!');
+        showToast('<re-icon icon="check-circle"></re-icon> Slot updated!');
       });
     } else {
       savePromise = fetch('/api/timetable', {
@@ -2213,7 +2957,7 @@ var _memStore = {};
         var rows = DB.get('timetable');
         rows.push(normalizeScheduleSlot(Object.assign({}, slotData, saved || {})));
         DB.set('timetable', rows);
-        showToast('&#9989; Slot added!');
+        showToast('<re-icon icon="check-circle"></re-icon> Slot added!');
       });
     }
 
@@ -2229,8 +2973,9 @@ var _memStore = {};
   var saveSlot = saveScheduleSlot;
   window.saveSlot = saveSlot;
 
-  function deleteSlot(slotId) {
-    if (!confirm('Delete this slot from your timetable?')) return;
+  async function deleteSlot(slotId) {
+    const ok = await showConfirm('Delete this slot from your timetable?', 'Delete Timetable Slot', null, null, { danger: true, confirmText: 'Delete Slot' });
+    if (!ok) return;
     // Remove locally only after the server confirms (it used to delete the
     // card immediately even when the request was rejected).
     fetch('/api/timetable/' + encodeURIComponent(slotId), {
@@ -2260,30 +3005,645 @@ var _memStore = {};
   // TAKE ATTENDANCE
   let attendanceStudents = [];
 
-  function initAttendancePage() {
-    document.getElementById('attcls').innerHTML  = buildClassOptions(false);
-    document.getElementById('attsub').innerHTML  = '<option value="">— Select —</option>';
-    document.getElementById('attsheet').style.display = 'none';
-    if (!document.getElementById('attdate').value) {
-      document.getElementById('attdate').value = todayISO();
+  // ── All Classes & All Subjects (Non-strict Mode) ──
+  function fetchAllClassesAndSubjects() {
+    var tok = getToken();
+    if (!tok) return Promise.resolve({ classes: [], subjects: [] });
+
+    var pClasses = (DB.get('all-classes') && DB.get('all-classes').length)
+      ? Promise.resolve(DB.get('all-classes'))
+      : fetch('/api/classes', { headers: authHeaders() })
+          .then(function(r) { return r.ok ? r.json() : []; })
+          .then(function(list) {
+            var rows = Array.isArray(list) ? list : (list && list.data ? list.data : []);
+            DB.set('all-classes', rows);
+            return rows;
+          })
+          .catch(function(err) {
+            console.error('[fetchAllClasses Error]:', err);
+            return DB.get('all-classes') || [];
+          });
+
+    var pSubjects = (DB.get('all-subjects') && DB.get('all-subjects').length)
+      ? Promise.resolve(DB.get('all-subjects'))
+      : fetch('/api/subjects', { headers: authHeaders() })
+          .then(function(r) { return r.ok ? r.json() : []; })
+          .then(function(list) {
+            var rows = Array.isArray(list) ? list : (list && list.data ? list.data : []);
+            DB.set('all-subjects', rows);
+            if (!DB.get('subjects') || !DB.get('subjects').length) {
+              DB.set('subjects', rows);
+            }
+            return rows;
+          })
+          .catch(function(err) {
+            console.error('[fetchAllSubjects Error]:', err);
+            return DB.get('all-subjects') || [];
+          });
+
+    return Promise.all([pClasses, pSubjects]).then(function(results) {
+      return { classes: results[0] || [], subjects: results[1] || [] };
+    });
+  }
+  window.fetchAllClassesAndSubjects = fetchAllClassesAndSubjects;
+
+  function buildAttendanceClassOptions(selectedId) {
+    var classes = DB.get('all-classes') || [];
+    if (!classes.length) {
+      var myCls = getMyClasses();
+      if (myCls.length) {
+        return '<option value="">— Select Class —</option>' + myCls.map(function(c) {
+          var isSel = selectedId && (String(c.id) === String(selectedId));
+          return '<option value="' + escapeHtml(c.id) + '"' + (isSel ? ' selected' : '') + '>' + escapeHtml(c.name) + '</option>';
+        }).join('');
+      }
+      return '<option value="">— Select Class —</option>';
     }
+
+    var sorted = classes.slice().sort(function(a, b) {
+      return String(a.name || '').localeCompare(String(b.name || ''), undefined, { numeric: true, sensitivity: 'base' });
+    });
+
+    var html = '<option value="">— Select Class —</option>';
+    sorted.forEach(function(cls) {
+      var cId = String(cls._id || cls.classTrackId || cls.trackId || '');
+      var cName = cls.name || 'Class';
+      var badge = cls.batch || '';
+      var badgeAttr = badge ? (' data-badge="' + escapeHtml(badge) + '"') : '';
+      var isSel = selectedId && (cId === String(selectedId));
+      html += '<option value="' + escapeHtml(cId) + '"' + badgeAttr + (isSel ? ' selected' : '') + '>' + escapeHtml(cName) + '</option>';
+    });
+    return html;
+  }
+  window.buildAttendanceClassOptions = buildAttendanceClassOptions;
+
+  function buildAttendanceSubjectOptions(selectedId, filterClassId) {
+    var subjects = DB.get('all-subjects') || DB.get('subjects') || [];
+    if (!subjects.length) {
+      var mySubs = getMySubjects();
+      if (mySubs.length) {
+        return '<option value="">— Select Subject —</option>' + mySubs.map(function(s) {
+          var isSel = selectedId && (String(s.id) === String(selectedId));
+          return '<option value="' + escapeHtml(s.id) + '"' + (isSel ? ' selected' : '') + '>' + escapeHtml(s.name) + '</option>';
+        }).join('');
+      }
+      return '<option value="">— Select Subject —</option>';
+    }
+
+    var sorted = subjects.slice().sort(function(a, b) {
+      var codeA = (a.code || a.subjectCode || a.courseCode || '').trim();
+      var codeB = (b.code || b.subjectCode || b.courseCode || '').trim();
+      if (codeA && codeB) return codeA.localeCompare(codeB, undefined, { numeric: true });
+      return String(a.name || '').localeCompare(String(b.name || ''));
+    });
+
+    var myAssigns = getMyAssignments() || [];
+    var classAssignSubjectIds = new Set();
+    if (filterClassId) {
+      myAssigns.filter(function(a) { return String(a.classId) === String(filterClassId); }).forEach(function(a) {
+        if (a.subjectId) classAssignSubjectIds.add(String(a.subjectId));
+      });
+    }
+
+    var prioritized = [];
+    var others = [];
+    sorted.forEach(function(s) {
+      var sId = String(s._id || s.subjectTrackId || s.trackId || '');
+      if (classAssignSubjectIds.has(sId)) {
+        prioritized.push(s);
+      } else {
+        others.push(s);
+      }
+    });
+
+    var finalSubs = prioritized.length ? prioritized.concat(others) : sorted;
+
+    var html = '<option value="">— Select Subject —</option>';
+    finalSubs.forEach(function(sub) {
+      var sId = String(sub._id || sub.subjectTrackId || sub.trackId || '');
+      var sName = sub.name || 'Subject';
+      var sCode = (sub.code || sub.subjectCode || sub.courseCode || '').trim();
+      var label = sCode ? (sCode + ' - ' + sName) : sName;
+      var isAssigned = classAssignSubjectIds.has(sId);
+      var badgeAttr = sCode ? (' data-badge="' + escapeHtml(sCode) + '"') : (isAssigned ? ' data-badge="Assigned"' : '');
+      var isSel = selectedId && (sId === String(selectedId));
+      html += '<option value="' + escapeHtml(sId) + '"' + badgeAttr + (isSel ? ' selected' : '') + '>' + escapeHtml(label) + '</option>';
+    });
+    return html;
+  }
+  window.buildAttendanceSubjectOptions = buildAttendanceSubjectOptions;
+
+  function initAttendanceSearchableDropdowns() {
+    if (typeof SearchableDropdown === 'undefined') return;
+    if (!SearchableDropdown.get('attcls')) {
+      SearchableDropdown.attach('attcls', {
+        kind: 'class',
+        placeholder: '— Select Class —',
+        searchPlaceholder: 'Search class, batch…'
+      });
+    } else {
+      SearchableDropdown.sync('attcls');
+    }
+
+    if (!SearchableDropdown.get('attsub')) {
+      SearchableDropdown.attach('attsub', {
+        kind: 'subject',
+        placeholder: '— Select Subject —',
+        searchPlaceholder: 'Search subject name, code…'
+      });
+    } else {
+      SearchableDropdown.sync('attsub');
+    }
+  }
+
+  function isForceTimetableSlots() {
+    var pub = window._publicSettings || window._pubSettings || (DB.get('settings') || {}).public || {};
+    return !!(pub && pub.attendance && pub.attendance.forceTimetableSlots);
+  }
+  window.isForceTimetableSlots = isForceTimetableSlots;
+
+  function ensureMyScheduleDay(dateISO) {
+    if (!dateISO) return Promise.resolve(null);
+    var cached = DB.get('schedule-days') || {};
+    if (cached[dateISO]) return Promise.resolve(cached[dateISO]);
+
+    var tok = getToken();
+    if (!tok) return Promise.resolve(null);
+
+    return fetch('/api/timetable/my-schedule?from=' + encodeURIComponent(dateISO) + '&to=' + encodeURIComponent(dateISO), {
+      headers: authHeaders()
+    })
+    .then(function(r) { return r.ok ? r.json() : null; })
+    .then(function(res) {
+      if (res && res.ok && res.data && Array.isArray(res.data.days) && res.data.days[0]) {
+        var dayDoc = res.data.days[0];
+        var cur = DB.get('schedule-days') || {};
+        cur[dateISO] = dayDoc;
+        DB.set('schedule-days', cur);
+        return dayDoc;
+      }
+      return null;
+    })
+    .catch(function(err) {
+      console.error('[ensureMyScheduleDay Error]:', err);
+      return null;
+    });
+  }
+
+  function initAttendancePageStandard() {
+    var enfBanner = document.getElementById('att-tt-enforced-banner');
+    if (enfBanner) enfBanner.style.display = 'none';
+
+    var clsEl = document.getElementById('attcls');
+    var subEl = document.getElementById('attsub');
+
+    var currentCls = clsEl ? clsEl.value : '';
+    var currentSub = subEl ? subEl.value : '';
+
+    if (clsEl) {
+      clsEl.innerHTML = buildAttendanceClassOptions(currentCls);
+      if (currentCls && clsEl.querySelector('option[value="' + currentCls + '"]')) {
+        clsEl.value = currentCls;
+      }
+    }
+
+    if (subEl) {
+      subEl.innerHTML = buildAttendanceSubjectOptions(currentSub, currentCls);
+      if (currentSub && subEl.querySelector('option[value="' + currentSub + '"]')) {
+        subEl.value = currentSub;
+      }
+    }
+
+    populatePeriodOptions('attperiod');
+    initAttendanceSearchableDropdowns();
     renderTodayClassesChips();
     checkTimetableMatch();
+
+    // Ensure all classes and subjects are fetched and rendered if DB wasn't loaded yet
+    if (!DB.get('all-classes') || !DB.get('all-subjects')) {
+      fetchAllClassesAndSubjects().then(function() {
+        var keepC = clsEl ? clsEl.value : '';
+        var keepS = subEl ? subEl.value : '';
+        if (clsEl) {
+          clsEl.innerHTML = buildAttendanceClassOptions(keepC);
+          if (keepC && clsEl.querySelector('option[value="' + keepC + '"]')) clsEl.value = keepC;
+        }
+        if (subEl) {
+          subEl.innerHTML = buildAttendanceSubjectOptions(keepS, keepC);
+          if (keepS && subEl.querySelector('option[value="' + keepS + '"]')) subEl.value = keepS;
+        }
+        initAttendanceSearchableDropdowns();
+      });
+    }
+  }
+
+  function populateStrictSubjectsAndPeriods(classId, preferredPeriod, preferredSubjectId, optSlots) {
+    var subEl = document.getElementById('attsub');
+    var periodEl = document.getElementById('attperiod');
+    if (!classId) {
+      if (subEl) subEl.innerHTML = '<option value="">— Select Class First —</option>';
+      if (periodEl) periodEl.innerHTML = '<option value="">—</option>';
+      if (typeof SearchableDropdown !== 'undefined') SearchableDropdown.sync('attsub');
+      return;
+    }
+
+    var dateVal = document.getElementById('attdate') ? document.getElementById('attdate').value : todayISO();
+    if (!dateVal) dateVal = todayISO();
+    var cached = DB.get('schedule-days') || {};
+    var dayData = cached[dateVal];
+    var slots = optSlots || ((dayData && Array.isArray(dayData.slots)) ? dayData.slots.filter(function(s) { return s.status === 'scheduled'; }) : []);
+
+    var classSlots = slots.filter(function(s) {
+      return String(s.classId) === String(classId);
+    });
+
+    if (!classSlots.length) {
+      if (subEl) subEl.innerHTML = '<option value="">No subjects scheduled</option>';
+      if (periodEl) periodEl.innerHTML = '<option value="">—</option>';
+      if (typeof SearchableDropdown !== 'undefined') SearchableDropdown.sync('attsub');
+      return;
+    }
+
+    // Populate Subjects
+    var subjectMap = new Map();
+    var allSubs = (typeof DB !== 'undefined' && DB.get) ? (DB.get('subjects') || []) : [];
+    classSlots.forEach(function(s) {
+      var rawSub = s.subjectName || s.subject || '';
+      var subKey = String(s.subjectId || rawSub || '');
+      if (subKey && !subjectMap.has(subKey)) {
+        var resolvedId = s.subjectId;
+        if (!resolvedId && allSubs.length && rawSub) {
+          var rawLower = String(rawSub).trim().toLowerCase();
+          var sMatch = allSubs.find(function(sub) {
+            var sc = (sub.code || sub.subjectCode || '').trim().toLowerCase();
+            var sn = (sub.name || '').trim().toLowerCase();
+            var ss = (sub.shortName || '').trim().toLowerCase();
+            return (sc && rawLower.includes(sc)) || (sn && (rawLower === sn || rawLower.includes(sn))) || (ss && (rawLower === ss || rawLower.endsWith(' ' + ss)));
+          });
+          if (sMatch) resolvedId = String(sMatch._id || sMatch.subjectTrackId);
+        }
+        subjectMap.set(subKey, {
+          id: resolvedId || s.subjectId || rawSub || 'Subject',
+          name: rawSub || 'Subject'
+        });
+      }
+    });
+
+    var subList = Array.from(subjectMap.values());
+    if (subEl) {
+      subEl.innerHTML = (subList.length > 1 ? '<option value="">— Select Subject —</option>' : '') +
+        subList.map(function(sub) {
+          return '<option value="' + escapeHtml(sub.id) + '">' + escapeHtml(sub.name) + '</option>';
+        }).join('');
+
+      if (preferredSubjectId && subList.some(function(s) { return String(s.id) === String(preferredSubjectId); })) {
+        subEl.value = String(preferredSubjectId);
+      } else if (subList.length === 1) {
+        subEl.value = String(subList[0].id);
+      }
+    }
+    if (typeof SearchableDropdown !== 'undefined') SearchableDropdown.sync('attsub');
+
+    // Populate Periods
+    var periodNumbers = [];
+    classSlots.forEach(function(s) {
+      if (Array.isArray(s.periods) && s.periods.length) {
+        s.periods.forEach(function(p) { if (!periodNumbers.includes(p)) periodNumbers.push(p); });
+      } else if (s.periodNumber && !periodNumbers.includes(s.periodNumber)) {
+        periodNumbers.push(s.periodNumber);
+      }
+    });
+    periodNumbers.sort(function(a, b) { return a - b; });
+
+    if (periodEl) {
+      periodEl.innerHTML = (periodNumbers.length > 1 ? '<option value="">— Period —</option>' : '') +
+        periodNumbers.map(function(p) {
+          return '<option value="' + p + '">' + p + '</option>';
+        }).join('');
+
+      if (preferredPeriod && periodNumbers.includes(Number(preferredPeriod))) {
+        periodEl.value = String(preferredPeriod);
+      } else if (periodNumbers.length === 1) {
+        periodEl.value = String(periodNumbers[0]);
+      }
+    }
+  }
+  window.populateStrictSubjectsAndPeriods = populateStrictSubjectsAndPeriods;
+
+  function initAttendancePageStrict(preferredClassId, preferredPeriodNumber, preferredSubjectId) {
+    var warnEl = document.getElementById('att-tt-warn');
+    if (warnEl) warnEl.style.display = 'none';
+
+    var enfBanner = document.getElementById('att-tt-enforced-banner');
+    var enfText = document.getElementById('att-tt-enforced-text');
+    var activePill = document.getElementById('att-tt-active-pill');
+    if (enfBanner) enfBanner.style.display = 'flex';
+    if (activePill) activePill.style.display = 'none';
+
+    var dateVal = document.getElementById('attdate') ? document.getElementById('attdate').value : todayISO();
+    if (!dateVal) dateVal = todayISO();
+
+    var classEl = document.getElementById('attcls');
+    var subEl = document.getElementById('attsub');
+    var periodEl = document.getElementById('attperiod');
+
+    if (classEl && (!classEl.options || classEl.options.length <= 1)) {
+      classEl.innerHTML = '<option value="">Loading scheduled classes…</option>';
+      if (typeof SearchableDropdown !== 'undefined') SearchableDropdown.sync('attcls');
+    }
+
+    ensureMyScheduleDay(dateVal).then(function(dayData) {
+      var rawSlots = (dayData && Array.isArray(dayData.slots)) ? dayData.slots : [];
+      var validSlots = rawSlots.filter(function(s) {
+        return s.status === 'scheduled';
+      });
+
+      renderTodayClassesChips();
+
+      if (!validSlots.length) {
+        if (enfText) {
+          enfText.textContent = 'No classes or approved substitutions are scheduled in your timetable for ' + dateVal + '.';
+        }
+        if (classEl) classEl.innerHTML = '<option value="">No classes scheduled</option>';
+        if (subEl) subEl.innerHTML = '<option value="">—</option>';
+        if (periodEl) periodEl.innerHTML = '<option value="">—</option>';
+        if (typeof SearchableDropdown !== 'undefined') {
+          SearchableDropdown.sync('attcls');
+          SearchableDropdown.sync('attsub');
+        }
+        return;
+      }
+
+      if (enfText) {
+        enfText.textContent = 'Timetable Enforced — Selectable classes, subjects, and periods are locked to your schedule.';
+      }
+
+      var classMap = new Map();
+      validSlots.forEach(function(s) {
+        var cId = String(s.classId);
+        if (!classMap.has(cId)) {
+          var isSub = (s.role === 'substitute');
+          classMap.set(cId, {
+            id: cId,
+            name: s.className ? (s.className + (isSub ? ' [Sub]' : '')) : 'Class',
+            isSub: isSub
+          });
+        }
+      });
+
+      var classList = Array.from(classMap.values());
+      if (classEl) {
+        classEl.innerHTML = '<option value="">— Select Scheduled Class —</option>' +
+          classList.map(function(c) {
+            return '<option value="' + escapeHtml(c.id) + '"' + (c.isSub ? ' data-sub="1"' : '') + '>' + escapeHtml(c.name) + '</option>';
+          }).join('');
+      }
+
+      initAttendanceSearchableDropdowns();
+
+      // Smart Auto-Selection
+      var targetSlot = null;
+      if (preferredClassId) {
+        targetSlot = validSlots.find(function(s) {
+          var matchCls = String(s.classId) === String(preferredClassId);
+          var matchP = preferredPeriodNumber ? (s.periodNumber === Number(preferredPeriodNumber) || (s.periods && s.periods.includes(Number(preferredPeriodNumber)))) : true;
+          var matchSub = preferredSubjectId ? (String(s.subjectId) === String(preferredSubjectId)) : true;
+          return matchCls && matchP && matchSub;
+        }) || validSlots.find(function(s) {
+          return String(s.classId) === String(preferredClassId);
+        });
+      }
+
+      if (!targetSlot && dateVal === todayISO()) {
+        var now = new Date();
+        var nowMins = now.getHours() * 60 + now.getMinutes();
+        var activeSlot = null;
+        var upcomingSlot = null;
+        var firstPendingSlot = null;
+
+        validSlots.forEach(function(s) {
+          if (!s.start || !s.end) return;
+          var sP = s.start.split(':');
+          var eP = s.end.split(':');
+          var sMin = parseInt(sP[0], 10) * 60 + parseInt(sP[1], 10);
+          var eMin = parseInt(eP[0], 10) * 60 + parseInt(eP[1], 10);
+
+          if (nowMins >= sMin && nowMins <= eMin) {
+            activeSlot = s;
+          }
+          if (sMin > nowMins && (!upcomingSlot || sMin < upcomingSlot._sMin)) {
+            upcomingSlot = Object.assign({}, s, { _sMin: sMin });
+          }
+          if (!s.attendance?.marked && !firstPendingSlot) {
+            firstPendingSlot = s;
+          }
+        });
+
+        targetSlot = activeSlot || upcomingSlot || firstPendingSlot || validSlots[0];
+
+        if (activeSlot && activePill) {
+          activePill.textContent = '⚡ Active: P' + activeSlot.periodNumber;
+          activePill.style.display = 'inline-block';
+        }
+      } else if (!targetSlot) {
+        targetSlot = validSlots[0];
+      }
+
+      if (targetSlot) {
+        if (classEl) classEl.value = String(targetSlot.classId);
+        if (typeof SearchableDropdown !== 'undefined') SearchableDropdown.sync('attcls');
+        populateStrictSubjectsAndPeriods(targetSlot.classId, targetSlot.periodNumber, targetSlot.subjectId, validSlots);
+      }
+    });
+  }
+  window.initAttendancePageStrict = initAttendancePageStrict;
+
+  function initAttendancePage() {
+    var dateEl = document.getElementById('attdate');
+    if (dateEl && !dateEl.value) {
+      dateEl.value = todayISO();
+    }
+    var attSheet = document.getElementById('attsheet');
+    if (attSheet) attSheet.style.display = 'none';
+
+    if (isForceTimetableSlots()) {
+      initAttendancePageStrict();
+    } else {
+      initAttendancePageStandard();
+    }
   }
   var initAttPage = initAttendancePage;
+  window.initAttendancePage = initAttendancePage;
 
   function loadSubjectsForClass() {
-    const classId = document.getElementById('attcls').value;
-    const relatedAssignments = getMyAssignments().filter(function(a) { return a.classId === classId; });
-    document.getElementById('attsub').innerHTML = '<option value="">— Select —</option>'
-      + relatedAssignments.map(function(a) {
-          return '<option value="' + a.subjectId + '">' + a.subjectName + '</option>';
-        }).join('');
+    var inputs = (typeof getSelectedAttendanceInputs === 'function') ? getSelectedAttendanceInputs() : {};
+    var classId = inputs.classId || (document.getElementById('attcls') ? document.getElementById('attcls').value : '');
+    if (isForceTimetableSlots()) {
+      populateStrictSubjectsAndPeriods(classId);
+      return;
+    }
+
+    var subEl = document.getElementById('attsub');
+    var currentSub = subEl ? subEl.value : '';
+
+    // If teacher has an assigned subject for this class and no subject is currently selected, pre-select it
+    if (!currentSub && classId) {
+      var assigned = getMyAssignments().find(function(a) { return String(a.classId) === String(classId); });
+      if (assigned && assigned.subjectId) {
+        currentSub = String(assigned.subjectId);
+      }
+    }
+
+    if (subEl) {
+      subEl.innerHTML = buildAttendanceSubjectOptions(currentSub, classId);
+      if (currentSub && subEl.querySelector('option[value="' + currentSub + '"]')) {
+        subEl.value = currentSub;
+      }
+    }
+
+    if (typeof SearchableDropdown !== 'undefined') {
+      SearchableDropdown.sync('attsub');
+    }
     checkTimetableMatch();
   }
   var attLoadSubs = loadSubjectsForClass;
   window.attLoadSubs = loadSubjectsForClass;
   window.loadSubjectsForClass = loadSubjectsForClass;
+
+  function handleAttendanceDateChange() {
+    if (isForceTimetableSlots()) {
+      initAttendancePageStrict();
+    } else {
+      checkTimetableMatch();
+    }
+  }
+  window.handleAttendanceDateChange = handleAttendanceDateChange;
+
+  function handleAttendancePeriodChange() {
+    if (isForceTimetableSlots()) {
+      var clsId = document.getElementById('attcls') ? document.getElementById('attcls').value : '';
+      var pNum = document.getElementById('attperiod') ? parseInt(document.getElementById('attperiod').value, 10) : 0;
+      var dateVal = document.getElementById('attdate') ? document.getElementById('attdate').value : todayISO();
+      var cached = DB.get('schedule-days') || {};
+      var dayData = cached[dateVal];
+      if (dayData && Array.isArray(dayData.slots) && clsId && pNum) {
+        var match = dayData.slots.find(function(s) {
+          return String(s.classId) === String(clsId) &&
+            (s.periodNumber === pNum || (Array.isArray(s.periods) && s.periods.includes(pNum)));
+        });
+        if (match && (match.subjectId || match.subject)) {
+          var subEl = document.getElementById('attsub');
+          if (subEl) {
+            var targetVal = String(match.subjectId || match.subject);
+            var opt = Array.from(subEl.options).find(function(o) {
+              return o.value === targetVal || o.text === targetVal || (match.subject && o.text.includes(match.subject));
+            });
+            if (opt) {
+              subEl.value = opt.value;
+              if (typeof SearchableDropdown !== 'undefined') SearchableDropdown.sync('attsub');
+            } else if (match.subjectId) {
+              subEl.value = String(match.subjectId);
+              if (typeof SearchableDropdown !== 'undefined') SearchableDropdown.sync('attsub');
+            }
+          }
+        }
+      }
+    } else {
+      checkTimetableMatch();
+    }
+  }
+  window.handleAttendancePeriodChange = handleAttendancePeriodChange;
+
+  function getSelectedAttendanceInputs() {
+    var clsEl = document.getElementById('attcls');
+    var subEl = document.getElementById('attsub');
+    var dateEl = document.getElementById('attdate');
+    var periodEl = document.getElementById('attperiod');
+
+    var classId = clsEl ? (clsEl.value || '') : '';
+    if (!classId && clsEl && clsEl.options && clsEl.selectedIndex >= 0) {
+      var cOpt = clsEl.options[clsEl.selectedIndex];
+      if (cOpt.value) classId = cOpt.value;
+    }
+    if (!classId && typeof SearchableDropdown !== 'undefined') {
+      var cInst = SearchableDropdown.get('attcls');
+      if (cInst && cInst.triggerBtn) {
+        var cText = cInst.triggerBtn.querySelector('.tt-dropdown-trigger-text');
+        var cVal = cText ? cText.textContent.trim() : '';
+        if (cVal && !cVal.startsWith('—') && !cVal.toLowerCase().includes('select')) {
+          classId = cVal;
+        }
+      }
+    }
+
+    var subjectId = subEl ? (subEl.value || '') : '';
+    if (!subjectId && subEl && subEl.options && subEl.selectedIndex >= 0) {
+      var sOpt = subEl.options[subEl.selectedIndex];
+      if (sOpt.value) {
+        subjectId = sOpt.value;
+      } else if (sOpt.text && !sOpt.text.startsWith('—') && !sOpt.text.toLowerCase().includes('select')) {
+        subjectId = sOpt.text;
+      }
+    }
+    if (!subjectId && typeof SearchableDropdown !== 'undefined') {
+      var sInst = SearchableDropdown.get('attsub');
+      if (sInst && sInst.triggerBtn) {
+        var sText = sInst.triggerBtn.querySelector('.tt-dropdown-trigger-text');
+        var sVal = sText ? sText.textContent.trim() : '';
+        if (sVal && !sVal.startsWith('—') && !sVal.toLowerCase().includes('select')) {
+          subjectId = sVal;
+        }
+      }
+    }
+
+    // Try resolving classId if it is a class name
+    if (classId && !/^[a-f\d]{24}$/i.test(classId) && typeof DB !== 'undefined' && DB.get) {
+      var allClasses = DB.get('all-classes') || DB.get('classes') || [];
+      var cLower = String(classId).trim().toLowerCase();
+      var foundCls = allClasses.find(function(c) {
+        var idStr = String(c._id || c.classTrackId || c.id || '').toLowerCase();
+        if (idStr === cLower) return true;
+        var cn = (c.className || c.name || '').trim().toLowerCase();
+        return cn && (cn === cLower || cLower.includes(cn));
+      });
+      if (foundCls) {
+        classId = String(foundCls._id || foundCls.classTrackId || foundCls.id);
+      }
+    }
+
+    // Try resolving subjectId if it is a subject name/code
+    if (subjectId && !/^[a-f\d]{24}$/i.test(subjectId) && typeof DB !== 'undefined' && DB.get) {
+      var allSubs = DB.get('all-subjects') || DB.get('subjects') || [];
+      var sLower = String(subjectId).trim().toLowerCase();
+      var foundSub = allSubs.find(function(s) {
+        var idStr = String(s._id || s.subjectTrackId || s.id || '').toLowerCase();
+        if (idStr === sLower) return true;
+        var sc = (s.code || s.subjectCode || '').trim().toLowerCase();
+        var sn = (s.name || '').trim().toLowerCase();
+        var ss = (s.shortName || '').trim().toLowerCase();
+        return (sc && sLower.includes(sc)) || (sn && (sLower === sn || sLower.includes(sn))) || (ss && (sLower === ss || sLower.endsWith(' ' + ss)));
+      });
+      if (foundSub) {
+        subjectId = String(foundSub._id || foundSub.subjectTrackId || foundSub.id);
+      }
+    }
+
+    // Synchronize select values if resolved
+    if (clsEl && classId && clsEl.value !== classId) {
+      var matchOpt = Array.from(clsEl.options || []).find(function(o) { return o.value === classId; });
+      if (matchOpt) clsEl.value = classId;
+    }
+    if (subEl && subjectId && subEl.value !== subjectId) {
+      var matchSubOpt = Array.from(subEl.options || []).find(function(o) { return o.value === subjectId; });
+      if (matchSubOpt) subEl.value = subjectId;
+    }
+
+    var date = dateEl ? dateEl.value : '';
+    var period = periodEl ? periodEl.value : '1';
+
+    return { classId: classId, subjectId: subjectId, date: date, period: period };
+  }
+  window.getSelectedAttendanceInputs = getSelectedAttendanceInputs;
 
   function updateAttendanceSavedStatusCard(isSaved, existingCount) {
     var card = document.getElementById('att-saved-status-card');
@@ -2296,7 +3656,7 @@ var _memStore = {};
     if (isSaved) {
       card.style.background = '#f0fdf4';
       card.style.border = '1.5px solid #86efac';
-      if (icon) icon.textContent = '🟢';
+      if (icon) icon.innerHTML = '<span class="status-dot green"></span>';
       if (title) {
         title.style.color = '#166534';
         title.textContent = 'Attendance Saved in Database';
@@ -2314,7 +3674,7 @@ var _memStore = {};
     } else {
       card.style.background = '#fffbeb';
       card.style.border = '1.5px solid #fde68a';
-      if (icon) icon.textContent = '⚠️';
+      if (icon) icon.innerHTML = '<re-icon icon="alert-triangle"></re-icon>';
       if (title) {
         title.style.color = '#92400e';
         title.textContent = 'Attendance Not Saved in Database';
@@ -2334,20 +3694,39 @@ var _memStore = {};
   window.updateAttendanceSavedStatusCard = updateAttendanceSavedStatusCard;
 
   function loadAttendanceSheet() {
+    var inputs = getSelectedAttendanceInputs();
+    var classId   = inputs.classId;
+    var subjectId = inputs.subjectId;
+    var date      = inputs.date;
+    var period    = inputs.period;
+
+    if (!classId || !subjectId || !date) {
+      if (typeof dbToast === 'function') dbToast('Select class, subject and date first', 'error');
+      else showToast('Select class, subject and date', 'warn');
+      return;
+    }
+
     if (typeof dbToast === 'function') {
       dbToast('Fetching students & attendance from database…', 'saving');
     } else {
       showToast("Loading…", 'saving');
     }
 
-    var classId   = document.getElementById('attcls').value;
-    var subjectId = document.getElementById('attsub').value;
-    var date      = document.getElementById('attdate').value;
-    var period    = document.getElementById('attperiod') ? document.getElementById('attperiod').value : '1';
-    if (!classId || !subjectId || !date) {
-      if (typeof dbToast === 'function') dbToast('Select class, subject and date first', 'error');
-      else showToast('Select class, subject and date', 'warn');
-      return;
+    if (typeof isForceTimetableSlots === 'function' && isForceTimetableSlots()) {
+      var pNum = parseInt(period, 10) || 1;
+      var cached = DB.get('schedule-days') || {};
+      var dayData = cached[date];
+      var validSlots = (dayData && Array.isArray(dayData.slots)) ? dayData.slots.filter(function(s) { return s.status === 'scheduled'; }) : [];
+      var match = validSlots.find(function(s) {
+        return String(s.classId) === String(classId) &&
+          (s.periodNumber === pNum || (Array.isArray(s.periods) && s.periods.includes(pNum)));
+      });
+      if (!match) {
+        var strictMsg = 'Strict Mode: Attendance can only be loaded for scheduled timetable slots or approved substitutions.';
+        if (typeof dbToast === 'function') dbToast(strictMsg, 'error');
+        else showToast(strictMsg, 'error');
+        return;
+      }
     }
 
     var assignment = getMyAssignments().find(function(a) {
@@ -2435,7 +3814,7 @@ var _memStore = {};
         });
         if (activeSlot && activeSlot.isCancelled) {
           if (typeof dbToast === 'function') {
-            dbToast('⚠️ Period ' + period + ' is marked Cancelled: ' + (activeSlot.cancelReason || activeSlot.note || 'Cancelled'), 'warn');
+            dbToast('Period ' + period + ' is marked Cancelled: ' + (activeSlot.cancelReason || activeSlot.note || 'Cancelled'), 'warn');
           }
         }
       }
@@ -2457,7 +3836,7 @@ var _memStore = {};
           } catch (e) {}
         }
         if (typeof dbToast === 'function') {
-          dbToast('👥 Combined Session: Loaded students from all combined sections', 'info');
+          dbToast('<re-icon icon="users"></re-icon> Combined Session: Loaded students from all combined sections', 'info');
         }
       }
 
@@ -2518,11 +3897,15 @@ var _memStore = {};
         if (rec) {
           initialStatus = rec.status;
         }
+        var leaveLabel = matchingLeave
+          ? ('On Leave' + (matchingLeave.slot && matchingLeave.slot !== 'Full Day' ? ' (' + matchingLeave.slot + ')' : ''))
+          : '';
         return Object.assign({}, student, {
           status:     initialStatus,
           existingId: rec ? rec._id : null,
           onLeave:    !!matchingLeave,
-          leaveBadge: matchingLeave ? ('✈️ On Leave' + (matchingLeave.slot && matchingLeave.slot !== 'Full Day' ? ' (' + matchingLeave.slot + ')' : '')) : ''
+          leaveText:  leaveLabel,
+          leaveBadge: leaveLabel
         });
       });
 
@@ -2553,7 +3936,7 @@ var _memStore = {};
       if (attSheetEl) attSheetEl.style.display = 'block';
       var methodInd = document.getElementById('att-method-indicator');
       if (methodInd && !methodInd.textContent) {
-        methodInd.textContent = '📋 Manual Entry';
+        methodInd.innerHTML = '<re-icon icon="clipboard-list"></re-icon> Manual Entry';
         methodInd.style.display = 'inline-block';
       }
       renderAttendanceSheet();
@@ -2579,10 +3962,11 @@ var _memStore = {};
       // 'unmarked' (teacher preference "Neutral / Unmarked") used to render
       // as Absent and was silently saved as AB.
       const isPresent  = student.status === 'present';
-      const isAbsent   = !isPresent && student.status !== 'unmarked'; // absent/od/leave → A
+      const isAbsent   = !isPresent && student.status !== 'unmarked'; // absent/od/leave <re-icon icon="arrow-right"></re-icon> A
       const rowClass   = isPresent ? 'pr' : (isAbsent ? 'ab' : 'um');
+      const leaveText = student.leaveText || (typeof student.leaveBadge === 'string' ? student.leaveBadge.replace(/<[^>]*>/g, '').trim() : '') || 'On Leave';
       const leaveBadgeHtml = student.onLeave
-        ? '<span style="background:rgba(239,68,68,0.12);color:#dc2626;border:1px solid rgba(239,68,68,0.28);font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;margin-left:7px;display:inline-flex;align-items:center;" title="Approved Leave">' + escapeHtml(student.leaveBadge || '✈️ On Leave') + '</span>'
+        ? '<span class="att-leave-pill" title="Approved Leave"><re-icon icon="plane" size="11"></re-icon><span>' + escapeHtml(leaveText) + '</span></span>'
         : '';
       return '<tr class="' + rowClass + '" id="student-row-' + index + '">'
         + '<td style="font-weight:700;color:var(--tdi);">' + (index + 1) + '</td>'
@@ -2598,6 +3982,10 @@ var _memStore = {};
   }
 
   function setAttendanceStatus(index, status) {
+    var student = attendanceStudents[index];
+    if (student && student.onLeave && status === 'present') {
+      showToast('Note: ' + (student.name || student.fullName || 'Student') + ' has approved leave (' + (student.leaveText || 'On Leave') + ')', 'warn');
+    }
     attendanceStudents[index].status = status;
     const row = document.getElementById('student-row-' + index);
     if (row) {
@@ -2611,8 +3999,19 @@ var _memStore = {};
   var setS = setAttendanceStatus;
 
   function markAllStudents(status) {
-    attendanceStudents.forEach(function(_, index) { attendanceStudents[index].status = status; });
+    var leaveCount = 0;
+    attendanceStudents.forEach(function(student, index) {
+      if (student.onLeave) {
+        attendanceStudents[index].status = 'absent';
+        leaveCount++;
+      } else {
+        attendanceStudents[index].status = status;
+      }
+    });
     renderAttendanceSheet();
+    if (status === 'present' && leaveCount > 0) {
+      showToast(leaveCount + (leaveCount === 1 ? ' student on approved leave kept absent' : ' students on approved leave kept absent'), 'info');
+    }
   }
   var markAll = markAllStudents;
 
@@ -2644,11 +4043,11 @@ var _memStore = {};
       methodInd.style.display = 'none';
       methodInd.textContent = '';
     }
-    // Remove temporary substitution options
-    document.querySelectorAll('#attcls option[data-sub="1"], #attsub option[data-sub="1"]').forEach(function(opt) {
-      opt.remove();
-    });
-    checkTimetableMatch();
+    if (typeof isForceTimetableSlots === 'function' && isForceTimetableSlots()) {
+      initAttendancePageStrict();
+    } else {
+      initAttendancePageStandard();
+    }
   }
   window.resetAttendanceView = resetAttendanceView;
 
@@ -2682,7 +4081,7 @@ var _memStore = {};
       var chipClass = 'today-chip' + (isDone ? ' done' : '') + (isSub ? ' sub' : '');
       var label = 'P' + s.periodNumber + ' · ' + escapeHtml(s.className) + ' (' + escapeHtml(s.subjectName || s.subject) + ')';
       if (isSub) label += ' [Sub]';
-      if (isDone) label = '✅ ' + label;
+      if (isDone) label = '<re-icon icon="check-circle"></re-icon> ' + label;
 
       return '<button type="button" class="' + chipClass + '" onclick="navigateToAttendance(\'' + s.classId + '\', \'' + (s.subjectId || '') + '\', ' + s.periodNumber + ', \'' + today + '\')">'
         + '<span class="chip-time">' + escapeHtml(s.start) + '</span>'
@@ -2695,6 +4094,10 @@ var _memStore = {};
   function checkTimetableMatch() {
     var warnEl = document.getElementById('att-tt-warn');
     if (!warnEl) return;
+    if (typeof isForceTimetableSlots === 'function' && isForceTimetableSlots()) {
+      warnEl.style.display = 'none';
+      return;
+    }
     var clsId = document.getElementById('attcls') ? document.getElementById('attcls').value : '';
     var period = document.getElementById('attperiod') ? document.getElementById('attperiod').value : '';
     var dateVal = document.getElementById('attdate') ? document.getElementById('attdate').value : todayISO();
@@ -2731,14 +4134,34 @@ var _memStore = {};
   };
 
   function triggerAttendanceMethod(mode) {
-    var classId = document.getElementById('attcls').value;
-    var subjectId = document.getElementById('attsub').value;
-    var date = document.getElementById('attdate').value;
+    var inputs = (typeof getSelectedAttendanceInputs === 'function') ? getSelectedAttendanceInputs() : {};
+    var classId = inputs.classId || (document.getElementById('attcls') ? document.getElementById('attcls').value : '');
+    var subjectId = inputs.subjectId || (document.getElementById('attsub') ? document.getElementById('attsub').value : '');
+    var date = inputs.date || (document.getElementById('attdate') ? document.getElementById('attdate').value : '');
+    var period = inputs.period || (document.getElementById('attperiod') ? document.getElementById('attperiod').value : '1');
     if (!classId || !subjectId || !date) {
       if (typeof dbToast === 'function') dbToast('Select class, subject and date first', 'warn');
       else showToast('Select class, subject and date first', 'warn');
       return;
     }
+
+    if (typeof isForceTimetableSlots === 'function' && isForceTimetableSlots()) {
+      var pNum = parseInt(period, 10) || 1;
+      var cached = DB.get('schedule-days') || {};
+      var dayData = cached[date];
+      var validSlots = (dayData && Array.isArray(dayData.slots)) ? dayData.slots.filter(function(s) { return s.status === 'scheduled'; }) : [];
+      var match = validSlots.find(function(s) {
+        return String(s.classId) === String(classId) &&
+          (s.periodNumber === pNum || (Array.isArray(s.periods) && s.periods.includes(pNum)));
+      });
+      if (!match) {
+        var strictMsg = 'Strict Mode: Attendance can only be marked for scheduled timetable slots or approved substitutions.';
+        if (typeof dbToast === 'function') dbToast(strictMsg, 'error');
+        else showToast(strictMsg, 'error');
+        return;
+      }
+    }
+
     if (mode === 'code') {
       startLiveSession('code');
     } else if (mode === 'qr') {
@@ -2775,10 +4198,11 @@ var _memStore = {};
   let quickPassRecords = [];
 
   function startQuickPassSession() {
-    var classId = document.getElementById('attcls').value;
-    var subjectId = document.getElementById('attsub').value;
-    var date = document.getElementById('attdate').value;
-    var period = document.getElementById('attperiod') ? document.getElementById('attperiod').value : '1';
+    var inputs = (typeof getSelectedAttendanceInputs === 'function') ? getSelectedAttendanceInputs() : {};
+    var classId = inputs.classId || (document.getElementById('attcls') ? document.getElementById('attcls').value : '');
+    var subjectId = inputs.subjectId || (document.getElementById('attsub') ? document.getElementById('attsub').value : '');
+    var date = inputs.date || (document.getElementById('attdate') ? document.getElementById('attdate').value : '');
+    var period = inputs.period || (document.getElementById('attperiod') ? document.getElementById('attperiod').value : '1');
 
     if (!classId || !subjectId || !date) {
       if (typeof dbToast === 'function') dbToast('Select class, subject and date first', 'warn');
@@ -2982,7 +4406,7 @@ var _memStore = {};
 
       var methodInd = document.getElementById('att-method-indicator');
       if (methodInd) {
-        methodInd.textContent = '🔢 Quick Pass (' + (isDraft ? 'Draft' : 'Completed') + ')';
+        methodInd.innerHTML = '<re-icon icon="hashtag"></re-icon> Quick Pass (' + (isDraft ? 'Draft' : 'Completed') + ')';
         methodInd.style.display = 'inline-block';
       }
 
@@ -3060,11 +4484,11 @@ var _memStore = {};
       startQuickPassSession();
       return;
     }
-    const classId   = document.getElementById('attcls').value;
-    const subjectId = document.getElementById('attsub').value;
-    const date      = document.getElementById('attdate').value;
-    const periodEl  = document.getElementById('attperiod');
-    const period    = periodEl ? periodEl.value : '1';
+    var inputs = (typeof getSelectedAttendanceInputs === 'function') ? getSelectedAttendanceInputs() : {};
+    const classId   = inputs.classId || (document.getElementById('attcls') ? document.getElementById('attcls').value : '');
+    const subjectId = inputs.subjectId || (document.getElementById('attsub') ? document.getElementById('attsub').value : '');
+    const date      = inputs.date || (document.getElementById('attdate') ? document.getElementById('attdate').value : '');
+    const period    = inputs.period || (document.getElementById('attperiod') ? document.getElementById('attperiod').value : '1');
 
     if (!classId || !subjectId || !date) {
       if (typeof dbToast === 'function') dbToast('Select class, subject and date', 'warn');
@@ -3080,7 +4504,7 @@ var _memStore = {};
 
     var methodInd = document.getElementById('att-method-indicator');
     if (methodInd) {
-      methodInd.textContent = '📷 Scan Live QR (Active)';
+      methodInd.innerHTML = '<re-icon icon="camera"></re-icon> Scan Live QR (Active)';
       methodInd.style.display = 'inline-block';
     }
 
@@ -3111,9 +4535,9 @@ var _memStore = {};
       if (ctrlEl) {
         ctrlEl.style.display = 'inline-flex';
         ctrlEl.innerHTML =
-          '<button class="btn-pri" onclick="showQrModal()" style="background:#4f46e5;box-shadow:none;font-size:12px;padding:6px 12px;">📷 View QR</button>' +
-          '<button class="btn-pri" onclick="openQrReviewModal()" style="background:#0f172a;box-shadow:none;font-size:12px;padding:6px 12px;">📋 Review</button>' +
-          '<button class="btn-pri" onclick="endLiveSession()" style="background:#dc2626;box-shadow:none;font-size:12px;padding:6px 12px;">⏹ End</button>';
+          '<button class="btn-pri" onclick="showQrModal()" style="background:#4f46e5;box-shadow:none;font-size:12px;padding:6px 12px;"><re-icon icon="camera"></re-icon> View QR</button>' +
+          '<button class="btn-pri" onclick="openQrReviewModal()" style="background:#0f172a;box-shadow:none;font-size:12px;padding:6px 12px;"><re-icon icon="clipboard-list"></re-icon> Review</button>' +
+          '<button class="btn-pri" onclick="endLiveSession()" style="background:#dc2626;box-shadow:none;font-size:12px;padding:6px 12px;"><re-icon icon="pause"></re-icon> End</button>';
       }
 
       showQrModal();
@@ -3386,21 +4810,53 @@ var _memStore = {};
 
       if (part && part.status === 'completed') {
         var windowBadge = part.qrWindowType === 'grace' ? ' <span style="color:#d97706;font-size:10px;">(5s Grace)</span>' : '';
-        liveStatusBadge = '<span style="background:#dcfce7;color:#166534;font-size:11px;padding:3px 8px;border-radius:6px;font-weight:700;">🟢 Completed' + windowBadge + '</span>';
+        liveStatusBadge = '<span style="background:#dcfce7;color:#166534;font-size:11px;padding:3px 8px;border-radius:6px;font-weight:700;"><span class="status-dot green"></span> Completed' + windowBadge + '</span>';
         qrTiming = (part.qrTrackId || 'QR') + ' @ ' + (new Date(part.markedAt).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'}));
         isPrePresent = true;
         setAttendanceStatus(idx, 'present');
       } else if (part && part.status === 'pending') {
         var reason = (part.verificationDetails && part.verificationDetails.failReason) || 'Awaiting Review';
-        liveStatusBadge = '<span style="background:#fef3c7;color:#92400e;font-size:11px;padding:3px 8px;border-radius:6px;font-weight:700;" title="' + reason + '">🟡 Pending: ' + reason + '</span>';
+        liveStatusBadge = '<span style="background:#fef3c7;color:#92400e;font-size:11px;padding:3px 8px;border-radius:6px;font-weight:700;" title="' + escapeHtml(reason) + '"><span class="status-dot amber"></span> Pending: ' + escapeHtml(reason) + '</span>';
         qrTiming = (part.qrTrackId || 'QR') + ' @ ' + (new Date(part.markedAt).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'}));
         isPrePresent = false;
         setAttendanceStatus(idx, 'absent');
       } else {
         // Not Scanned -> Mark as AB (absent), NOT P
-        liveStatusBadge = '<span style="background:#fee2e2;color:#991b1b;font-size:11px;padding:3px 8px;border-radius:6px;font-weight:700;">🔴 Not Scanned</span>';
+        liveStatusBadge = '<span style="background:#fee2e2;color:#991b1b;font-size:11px;padding:3px 8px;border-radius:6px;font-weight:700;"><span class="status-dot red"></span> Not Scanned</span>';
         isPrePresent = false;
         setAttendanceStatus(idx, 'absent');
+      }
+
+      // Security column (§7.4)
+      var securityHtml = '<span style="color:#94a3b8;font-size:11px;">—</span>';
+      if (part && part.security) {
+        var sec = part.security;
+        var trustHalf = Math.round((sec.trustScoreAtMark || 100) / 2);
+        var devHalf = sec.deviceScoreAtMark || 0;
+        var combined = sec.combinedScoreAtMark || (trustHalf + devHalf);
+        var risk = sec.riskLevelAtMark || 'low';
+        var riskColor = risk === 'low' ? '#166534' : (risk === 'medium' ? '#92400e' : '#991b1b');
+        var riskBg = risk === 'low' ? '#dcfce7' : (risk === 'medium' ? '#fef3c7' : '#fee2e2');
+
+        securityHtml = '<div style="line-height:1.3;">' +
+          '<div style="font-weight:700;color:#0f172a;"><b>' + combined + '</b>/100 <span style="background:' + riskBg + ';color:' + riskColor + ';font-size:9.5px;padding:1px 6px;border-radius:4px;text-transform:uppercase;font-weight:700;">' + escapeHtml(risk) + '</span></div>' +
+          '<div style="font-size:10.5px;color:#64748b;">Trust ' + trustHalf + '/50 · Dev ' + devHalf + '/50</div>';
+
+        if (sec.teacherVerification && sec.teacherVerification.required) {
+          if (sec.teacherVerification.result === 'present') {
+            securityHtml += '<div style="color:#16a34a;font-size:10.5px;font-weight:700;margin-top:2px;">✓ Verified Present</div>';
+          } else if (sec.teacherVerification.result === 'not_in_class') {
+            securityHtml += '<div style="color:#ef4444;font-size:10.5px;font-weight:700;margin-top:2px;">✗ Marked Not in Class</div>';
+          } else if (sec.teacherVerification.result === 'denied_low_trust') {
+            securityHtml += '<div style="color:#d97706;font-size:10.5px;font-weight:700;margin-top:2px;">⚠ Denied (Low Trust)</div>';
+          } else {
+            securityHtml += '<div style="display:flex;gap:4px;margin-top:4px;">' +
+              '<button type="button" style="padding:2px 7px;background:#16a34a;color:#fff;border:none;border-radius:4px;font-size:10.5px;font-weight:600;cursor:pointer;" onclick="verifyStudentAttendance(\'' + activeLiveSessionTrackId + '\', \'' + st._id + '\', \'present\', ' + idx + ')">Present</button>' +
+              '<button type="button" style="padding:2px 7px;background:#dc2626;color:#fff;border:none;border-radius:4px;font-size:10.5px;font-weight:600;cursor:pointer;" onclick="verifyStudentAttendance(\'' + activeLiveSessionTrackId + '\', \'' + st._id + '\', \'not_in_class\', ' + idx + ')">Not in Class</button>' +
+            '</div>';
+          }
+        }
+        securityHtml += '</div>';
       }
 
       html += '<tr style="border-bottom:1px solid #f1f5f9;">' +
@@ -3408,6 +4864,7 @@ var _memStore = {};
         '<td style="padding:10px 8px;font-weight:700;">' + (st.regNo || '—') + '</td>' +
         '<td style="padding:10px 8px;">' + (st.fullName || st.name || '—') + '</td>' +
         '<td style="padding:10px 8px;">' + liveStatusBadge + '</td>' +
+        '<td style="padding:10px 8px;">' + securityHtml + '</td>' +
         '<td style="padding:10px 8px;font-size:11.5px;color:#64748b;">' + qrTiming + '</td>' +
         '<td style="padding:10px 8px;text-align:center;">' +
           '<label style="display:inline-flex;align-items:center;gap:4px;cursor:pointer;margin-right:8px;">' +
@@ -3424,6 +4881,43 @@ var _memStore = {};
 
     tbody.innerHTML = html;
   }
+
+  async function verifyStudentAttendance(sessionTrackId, studentId, result, idx) {
+    try {
+      var res = await fetch('/api/trust/verify', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + getToken()
+        },
+        body: JSON.stringify({ sessionTrackId: sessionTrackId, studentId: studentId, result: result })
+      });
+      var data = await res.json();
+      if (!res.ok || !data.ok) {
+        dbToast(data.message || data.error || 'Verification action failed', 'error');
+      } else {
+        dbToast(data.message || 'Verification updated', result === 'present' ? 'success' : 'warn');
+        if (result === 'present') {
+          setAttendanceStatus(idx, 'present');
+        } else {
+          setAttendanceStatus(idx, 'absent');
+        }
+      }
+      if (activeLiveSessionTrackId) {
+        fetch('/api/qr-attendance/participation/' + activeLiveSessionTrackId, {
+          headers: { 'Authorization': 'Bearer ' + getToken() }
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+          qrReviewParticipationData = d.records || [];
+          renderQrReviewTable();
+        });
+      }
+    } catch (e) {
+      dbToast('Error updating student verification: ' + e.message, 'error');
+    }
+  }
+  window.verifyStudentAttendance = verifyStudentAttendance;
 
   function applyQrParticipationToRoster(callback) {
     var targetTrackId = activeLiveSessionTrackId;
@@ -3487,7 +4981,7 @@ var _memStore = {};
         hideQrModal();
         var methodInd = document.getElementById('att-method-indicator');
         if (methodInd) {
-          methodInd.textContent = '📷 Scan Live (Draft Saved)';
+          methodInd.innerHTML = '<re-icon icon="camera"></re-icon> Scan Live (Draft Saved)';
           methodInd.style.display = 'inline-block';
         }
         dbToast('QR attendance saved as draft and applied to roster', 'success');
@@ -3554,7 +5048,7 @@ var _memStore = {};
       applyQrParticipationToRoster(function() {
         var methodInd = document.getElementById('att-method-indicator');
         if (methodInd) {
-          methodInd.textContent = '📷 Scan Live (Session Ended)';
+          methodInd.innerHTML = '<re-icon icon="camera"></re-icon> Scan Live (Session Ended)';
           methodInd.style.display = 'inline-block';
         }
         activeLiveSessionId = null;
@@ -3573,16 +5067,20 @@ var _memStore = {};
   function submitAttendance() {
     if (!attendanceStudents.length) { showToast('No students loaded', 'warn'); return; }
 
-    var classId     = document.getElementById('attcls').value;
-    var subjectId   = document.getElementById('attsub').value;
-    var date        = document.getElementById('attdate').value;
-    var periodEl    = document.getElementById('attperiod');
-    var periodNumber = periodEl ? Number(periodEl.value) || 1 : 1;
-    var assignment  = getMyAssignments().find(function(a) { return a.classId === classId && a.subjectId === subjectId; });
+    var inputs = (typeof getSelectedAttendanceInputs === 'function') ? getSelectedAttendanceInputs() : {};
+    var classId     = inputs.classId || (document.getElementById('attcls') ? document.getElementById('attcls').value : '');
+    var subjectId   = inputs.subjectId || (document.getElementById('attsub') ? document.getElementById('attsub').value : '');
+    var date        = inputs.date || (document.getElementById('attdate') ? document.getElementById('attdate').value : '');
+    var periodNumber = Number(inputs.period) || (document.getElementById('attperiod') ? Number(document.getElementById('attperiod').value) || 1 : 1);
+    var assignment  = getMyAssignments().find(function(a) { return String(a.classId) === String(classId) && String(a.subjectId) === String(subjectId); });
     var tok         = getToken();
 
     if (!tok) { showToast('Not authenticated', 'warn'); return; }
-    if (!assignment) { showToast('Assignment not found', 'warn'); return; }
+    if (!classId || !subjectId || !date) {
+      if (typeof dbToast === 'function') dbToast('Select class, subject and date first', 'warn');
+      else showToast('Select class, subject and date first', 'warn');
+      return;
+    }
 
     var unmarked = attendanceStudents.filter(function(st) { return st.status === 'unmarked'; }).length;
     if (unmarked) {
@@ -3644,14 +5142,20 @@ var _memStore = {};
       return syncMyAttendance();
     }).then(function() {
       updateAttendanceSavedStatusCard(true, attendanceStudents.length);
+      var clsName = (assignment && assignment.className) ? assignment.className : '';
+      if (!clsName && typeof DB !== 'undefined' && DB.get) {
+        var cObj = (DB.get('classes') || []).find(function(c) { return String(c._id || c.classTrackId || c.id) === String(classId); });
+        if (cObj) clsName = cObj.className || cObj.name || '';
+      }
+      if (!clsName) clsName = 'Class';
       if (typeof dbToast === 'function') {
-        dbToast('✅ Attendance saved to MongoDB!', 'success', (assignment.className || 'Class') + ' • ' + attendanceStudents.length + ' records');
+        dbToast('Attendance saved to MongoDB!', 'success', clsName + ' • ' + attendanceStudents.length + ' records');
       } else {
-        showToast('✅ Attendance saved!', 'success');
+        showToast('Attendance saved!', 'success');
       }
       renderAttendanceSheet();
     }).catch(function(err) {
-      var msg = (err && err.error) ? ('❌ ' + err.error) : 'Error saving attendance — please retry';
+      var msg = (err && err.error) ? ('<re-icon icon="x-circle"></re-icon> ' + err.error) : 'Error saving attendance — please retry';
       if (typeof dbToast === 'function') dbToast(msg, 'error');
       else showToast(msg, 'warn');
     });
@@ -3738,8 +5242,8 @@ var _memStore = {};
       if (cells.length) rows.push(cells);
     });
     downloadCSV(rows, 'Attendance_Record');
-    if (typeof dbToast === 'function') dbToast('📥 Attendance CSV downloaded!', 'success');
-    else showToast('📥 Downloaded!', 'success');
+    if (typeof dbToast === 'function') dbToast('<re-icon icon="download"></re-icon> Attendance CSV downloaded!', 'success');
+    else showToast('<re-icon icon="download"></re-icon> Downloaded!', 'success');
   }
   var exportAttCSV = exportAttendanceCSV;
   window.exportAttendanceCSV = exportAttendanceCSV;
@@ -3784,7 +5288,7 @@ var _memStore = {};
     const tbody = document.getElementById('deftbody');
 
     if (!defaulterRows.length) {
-      tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:24px;color:var(--tdi);">No defaulters &#127881;</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:24px;color:var(--tdi);">No defaulters <re-icon icon="party"></re-icon></td></tr>';
       return;
     }
 
@@ -3813,8 +5317,8 @@ var _memStore = {};
       if (cells.length) rows.push(cells);
     });
     downloadCSV(rows, 'Defaulters_List');
-    if (typeof dbToast === 'function') dbToast('📥 Defaulters CSV downloaded!', 'success');
-    else showToast('📥 Downloaded!', 'success');
+    if (typeof dbToast === 'function') dbToast('<re-icon icon="download"></re-icon> Defaulters CSV downloaded!', 'success');
+    else showToast('<re-icon icon="download"></re-icon> Downloaded!', 'success');
   }
   var exportDefCSV = exportDefaultersCSV;
   window.exportDefaultersCSV = exportDefaultersCSV;
@@ -3864,8 +5368,8 @@ var _memStore = {};
       if (cells.length) rows.push(cells);
     });
     downloadCSV(rows, 'Student_List');
-    if (typeof dbToast === 'function') dbToast('📥 Student List CSV downloaded!', 'success');
-    else showToast('📥 Downloaded!', 'success');
+    if (typeof dbToast === 'function') dbToast('<re-icon icon="download"></re-icon> Student List CSV downloaded!', 'success');
+    else showToast('<re-icon icon="download"></re-icon> Downloaded!', 'success');
   }
   var exportStuCSV = exportStudentCSV;
   window.exportStudentCSV = exportStudentCSV;
@@ -4085,7 +5589,7 @@ var _memStore = {};
           var insightEl = document.getElementById('ins-period-insight');
           if (insightEl) {
             insightEl.textContent = lowestPeriod
-              ? '⚠️ Lowest turnout detected in Period ' + lowestPeriod + ' (' + lowestPct + '% average). Consider scheduling interactive sessions earlier.'
+              ? '<re-icon icon="alert-triangle"></re-icon> Lowest turnout detected in Period ' + lowestPeriod + ' (' + lowestPct + '% average). Consider scheduling interactive sessions earlier.'
               : 'Consistent attendance distribution across teaching periods.';
           }
         }
@@ -4096,7 +5600,7 @@ var _memStore = {};
 
         if (tbodyAlerts) {
           if (consecutiveAlerts.length === 0) {
-            tbodyAlerts.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:28px;color:#10b981;font-weight:600;">✓ No consecutive absence patterns detected in this timeframe!</td></tr>';
+            tbodyAlerts.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:28px;color:#10b981;font-weight:600;"><re-icon icon="check"></re-icon> No consecutive absence patterns detected in this timeframe!</td></tr>';
           } else {
             consecutiveAlerts.sort(function(a, b) { return b.consecutive - a.consecutive; });
             tbodyAlerts.innerHTML = consecutiveAlerts.map(function(item) {
@@ -4124,82 +5628,151 @@ var _memStore = {};
   }
   window.exportAttendanceInsightsPDF = exportAttendanceInsightsPDF;
 
-  // GRIEVANCES
-  // Grievances used to live only in the in-memory cache: nothing reached
-  // the server, admin was never notified and the list was empty after reload.
+  // ─── TEACHER GRIEVANCES (UPGRADED) ──────────────────────────────────
+  let _teacherGrievancesList = [];
+  let _teacherGrievFilterStatus = 'all';
+  let _teacherGrievSearchQuery = '';
+
   function renderGrievances() {
     const containerEl = document.getElementById('grievlist');
     if (!containerEl) return;
-    containerEl.innerHTML = '<div class="est"><span class="ei">&#8987;</span><p style="font-size:12px;">Loading grievances…</p></div>';
+    containerEl.innerHTML = '<div class="est"><span class="ei"><re-icon icon="clock"></re-icon></span><p style="font-size:12px;">Loading grievances…</p></div>';
     fetch('/api/grievances', { headers: authHeaders() })
       .then(function(r) { return r.json().catch(function() { return []; }).then(function(d) { return r.ok && Array.isArray(d) ? d : []; }); })
-      .then(function(rows) { DB.set('teacher-grievances', rows); paintGrievances(); })
-      .catch(function() { paintGrievances(); });
+      .then(function(rows) {
+        _teacherGrievancesList = rows;
+        DB.set('teacher-grievances', rows);
+        updateTeacherGrievanceStats();
+        paintGrievances();
+      })
+      .catch(function() {
+        _teacherGrievancesList = DB.get('teacher-grievances') || [];
+        updateTeacherGrievanceStats();
+        paintGrievances();
+      });
   }
 
-  function paintGrievances() {
-    const myGrievances = DB.get('teacher-grievances');
-    const containerEl  = document.getElementById('grievlist');
+  function updateTeacherGrievanceStats() {
+    const total = _teacherGrievancesList.length;
+    const pending = _teacherGrievancesList.filter(function(g) { return g.status === 'Pending' || g.status === 'In Progress'; }).length;
+    const resolved = _teacherGrievancesList.filter(function(g) { return g.status === 'Resolved'; }).length;
 
-    if (!myGrievances.length) {
-      containerEl.innerHTML = '<div class="est"><span class="ei">&#128205;</span><p style="font-size:12px;">No grievances raised yet.</p></div>';
+    if (document.getElementById('griev-stat-total')) document.getElementById('griev-stat-total').textContent = total;
+    if (document.getElementById('griev-stat-pending')) document.getElementById('griev-stat-pending').textContent = pending;
+    if (document.getElementById('griev-stat-resolved')) document.getElementById('griev-stat-resolved').textContent = resolved;
+  }
+
+  function filterTeacherGrievances(status) {
+    _teacherGrievFilterStatus = status || 'all';
+    document.querySelectorAll('.griev-filter-pill').forEach(function(pill) {
+      if (pill.getAttribute('data-status') === _teacherGrievFilterStatus) {
+        pill.classList.add('act');
+      } else {
+        pill.classList.remove('act');
+      }
+    });
+    paintGrievances();
+  }
+  window.filterTeacherGrievances = filterTeacherGrievances;
+
+  function searchTeacherGrievances(val) {
+    _teacherGrievSearchQuery = (val || '').toLowerCase().trim();
+    paintGrievances();
+  }
+  window.searchTeacherGrievances = searchTeacherGrievances;
+
+  function paintGrievances() {
+    const containerEl = document.getElementById('grievlist');
+    if (!containerEl) return;
+
+    let filtered = _teacherGrievancesList.slice();
+    if (_teacherGrievFilterStatus && _teacherGrievFilterStatus !== 'all') {
+      filtered = filtered.filter(function(g) { return g.status === _teacherGrievFilterStatus; });
+    }
+    if (_teacherGrievSearchQuery) {
+      filtered = filtered.filter(function(g) {
+        return (g.subject && g.subject.toLowerCase().includes(_teacherGrievSearchQuery)) ||
+               (g.detail && g.detail.toLowerCase().includes(_teacherGrievSearchQuery)) ||
+               (g.category && g.category.toLowerCase().includes(_teacherGrievSearchQuery));
+      });
+    }
+
+    if (!filtered.length) {
+      containerEl.innerHTML = '<div class="est"><span class="ei"><re-icon icon="pin"></re-icon></span><p style="font-size:12px;">'
+        + (_teacherGrievancesList.length ? 'No grievances match your search or filter.' : 'No grievances raised yet.')
+        + '</p></div>';
       return;
     }
 
-    // API returns newest first
-    containerEl.innerHTML = myGrievances.map(function(grievance) {
-      const isResolved  = grievance.status === 'Resolved';
-      const isCancelled = grievance.status === 'Cancelled';
-      const isPending   = !isResolved && !isCancelled;
-      const iconCode    = isResolved ? '&#9989;' : isCancelled ? '&#10060;' : '&#128225;';
-      const icClass     = isResolved ? 'res' : 'pend';
-      const pillClass   = isResolved ? 'sres' : 'spend';
-      const pillStyle   = isCancelled ? 'style="background:#fef2f2;color:#dc2626;border-color:rgba(239,68,68,.3);"' : '';
+    containerEl.innerHTML = filtered.map(function(grievance) {
+      const isResolved   = grievance.status === 'Resolved';
+      const isCancelled  = grievance.status === 'Cancelled';
+      const isInProgress = grievance.status === 'In Progress';
+      const iconCode     = isResolved ? '<re-icon icon="check-circle"></re-icon>' : isCancelled ? '<re-icon icon="x-circle"></re-icon>' : isInProgress ? '<re-icon icon="refresh"></re-icon>' : '<re-icon icon="bell"></re-icon>';
+      const icClass      = isResolved ? 'res' : (isCancelled ? 'spend' : 'pend');
+      const pillClass    = isResolved ? 'sres' : 'spend';
+      const pillStyle    = isCancelled ? 'style="background:#fef2f2;color:#dc2626;border-color:rgba(239,68,68,.3);"'
+                         : (isInProgress ? 'style="background:#eff6ff;color:#2563eb;border-color:rgba(37,99,235,.3);"' : '');
+
+      const priorityBadge = grievance.priority && grievance.priority !== 'Normal'
+        ? '<span style="font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px;background:' + (grievance.priority === 'Urgent' ? '#fee2e2;color:#b91c1c;' : '#fef3c7;color:#b45309;') + '">' + escapeHtml(grievance.priority) + '</span>'
+        : '';
 
       let statusNote = '';
       if (isResolved) {
-        statusNote = '<div style="margin-top:6px;font-size:10.5px;color:var(--gD);background:var(--gLt);padding:4px 10px;border-radius:6px;display:inline-flex;align-items:center;gap:5px;">'
-          + '&#9989; Resolved by Admin'
+        statusNote = '<div style="margin-top:8px;font-size:11px;color:var(--gD);background:var(--gLt);padding:8px 12px;border-radius:8px;display:flex;flex-direction:column;gap:3px;border:1px solid rgba(16,185,129,.2);">'
+          + '<div style="display:flex;align-items:center;gap:6px;font-weight:700;"><re-icon icon="check-circle" size="14"></re-icon> Resolved by ' + escapeHtml(grievance.resolvedBy || 'Admin')
           + (grievance.resolvedAt ? ' &nbsp;·&nbsp; ' + new Date(grievance.resolvedAt).toLocaleDateString('en-IN', {day:'numeric',month:'short',year:'numeric'}) : '')
+          + '</div>'
+          + (grievance.resolutionNote ? '<div style="color:var(--td);font-size:11.5px;margin-top:2px;font-style:italic;">“' + escapeHtml(grievance.resolutionNote) + '”</div>' : '')
           + '</div>';
       } else if (isCancelled) {
-        statusNote = '<div style="margin-top:6px;font-size:10.5px;color:#dc2626;background:#fef2f2;padding:4px 10px;border-radius:6px;display:inline-flex;align-items:center;gap:5px;">'
-          + '&#10060; Declined by Admin'
+        statusNote = '<div style="margin-top:8px;font-size:11px;color:#dc2626;background:#fef2f2;padding:8px 12px;border-radius:8px;border:1px solid rgba(239,68,68,.2);">'
+          + '<re-icon icon="x-circle" size="14"></re-icon> <strong>Declined by Admin</strong>'
+          + (grievance.resolutionNote ? '<div style="margin-top:2px;color:#7f1d1d;">' + escapeHtml(grievance.resolutionNote) + '</div>' : '')
+          + '</div>';
+      } else if (isInProgress) {
+        statusNote = '<div style="margin-top:8px;font-size:11px;color:#2563eb;background:#eff6ff;padding:8px 12px;border-radius:8px;border:1px solid rgba(37,99,235,.2);display:flex;align-items:center;gap:6px;">'
+          + '<re-icon icon="refresh" size="14"></re-icon> <span>Admin is currently working on your request.</span>'
           + '</div>';
       } else {
-        statusNote = '<div style="margin-top:6px;font-size:10.5px;color:#92400e;background:#fef3c7;padding:4px 10px;border-radius:6px;display:inline-flex;align-items:center;gap:5px;">'
-          + '&#8987; Awaiting admin response'
+        statusNote = '<div style="margin-top:8px;font-size:10.5px;color:#92400e;background:#fef3c7;padding:6px 10px;border-radius:6px;display:inline-flex;align-items:center;gap:5px;">'
+          + '<re-icon icon="clock"></re-icon> Awaiting admin review'
           + '</div>';
       }
 
-      return '<div class="gcard">'
+      return '<div class="gcard" style="margin-bottom:12px;">'
         + '<div class="gic ' + icClass + '">' + iconCode + '</div>'
         + '<div style="flex:1;">'
         + '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px;">'
-        + '<div style="font-size:13px;font-weight:700;color:var(--td);">' + escapeHtml(grievance.subject) + '</div>'
+        + '<div style="font-size:13.5px;font-weight:700;color:var(--td);">' + escapeHtml(grievance.subject) + '</div>'
         + '<span class="spill ' + pillClass + '" ' + pillStyle + '>' + escapeHtml(grievance.status) + '</span>'
         + '<span class="bge">' + escapeHtml(grievance.category) + '</span>'
+        + priorityBadge
         + '</div>'
-        + '<div style="font-size:11.5px;color:var(--tmu);line-height:1.5;">' + escapeHtml(grievance.detail) + '</div>'
-        + '<div style="font-size:10px;color:var(--tdi);margin-top:5px;">' + formatDateLong(grievance.createdAt) + ' · Sent to Admin</div>'
+        + '<div style="font-size:12px;color:var(--tmu);line-height:1.5;">' + escapeHtml(grievance.detail) + '</div>'
+        + '<div style="font-size:10.5px;color:var(--tdi);margin-top:6px;">' + formatDateLong(grievance.createdAt) + ' · Ticket filed</div>'
         + statusNote
         + '</div></div>';
     }).join('');
   }
+  window.paintGrievances = paintGrievances;
+  window.renderGrievances = renderGrievances;
   var renderGrievs = renderGrievances;
 
   function submitGrievance() {
     const subject    = (document.getElementById('gsubj')   ? document.getElementById('gsubj').value   : '').trim();
     const category   = document.getElementById('gcat')     ? document.getElementById('gcat').value    : 'Other';
     const detail     = (document.getElementById('gdetail') ? document.getElementById('gdetail').value : '').trim();
+    const priority   = document.getElementById('gpriority') ? document.getElementById('gpriority').value : 'Normal';
 
-    if (!subject || !detail) { showToast('Please fill all fields', 'warn'); return; }
+    if (!subject || !detail) { showToast('Please fill title and details', 'warn'); return; }
 
     showToast('Submitting grievance…', 'saving');
     fetch('/api/grievances', {
       method: 'POST',
       headers: authHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({ subject: subject, category: category, detail: detail })
+      body: JSON.stringify({ subject: subject, category: category, detail: detail, priority: priority })
     })
     .then(function(r) {
       return r.json().catch(function() { return {}; }).then(function(body) {
@@ -4208,17 +5781,378 @@ var _memStore = {};
       });
     })
     .then(function() {
-      document.getElementById('gsubj').value   = '';
-      document.getElementById('gdetail').value = '';
+      if (document.getElementById('gsubj')) document.getElementById('gsubj').value   = '';
+      if (document.getElementById('gdetail')) document.getElementById('gdetail').value = '';
       closeModal('mgriev');
-      showToast('&#128225; Grievance submitted to admin!', 'success');
+      showToast('<re-icon icon="check"></re-icon> Grievance submitted successfully!', 'success');
       renderGrievances();
     })
     .catch(function(err) {
       showToast('Could not submit grievance: ' + err.message, 'error');
     });
   }
+  window.submitGrievance = submitGrievance;
   var submitGriev = submitGrievance;
+
+  // ─── TEACHER ON-DUTY (OD) APPROVAL SUITE ────────────────────────────
+  let _teacherODData = { pending: [], verify: [], history: [] };
+  let _activeODReview = null;
+  let _activeODVerify = null;
+
+  function loadTeacherODData() {
+    const tbodyPending = document.getElementById('od-pending-tbody');
+    const tbodyVerify  = document.getElementById('od-verify-tbody');
+    const tbodyHistory = document.getElementById('od-history-tbody');
+    if (tbodyPending) tbodyPending.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:32px;color:var(--tdi);"><span class="spin"></span> Loading pending OD approvals…</td></tr>';
+    if (tbodyVerify)  tbodyVerify.innerHTML  = '<tr><td colspan="8" style="text-align:center;padding:32px;color:var(--tdi);"><span class="spin"></span> Loading outcome verification queue…</td></tr>';
+    if (tbodyHistory) tbodyHistory.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:32px;color:var(--tdi);"><span class="spin"></span> Loading OD history…</td></tr>';
+
+    fetch('/api/od/pending?type=all', { headers: authHeaders() })
+      .then(function(r) { return r.json(); })
+      .then(function(res) {
+        if (!res.ok) throw new Error(res.error || 'Failed to load OD data');
+        _teacherODData.pending = Array.isArray(res.pending) ? res.pending : (Array.isArray(res.requests) ? res.requests : []);
+        _teacherODData.verify  = Array.isArray(res.verify)  ? res.verify  : [];
+        _teacherODData.history = Array.isArray(res.history) ? res.history : [];
+
+        // KPI Counts
+        const pendingCount = _teacherODData.pending.length;
+        const verifyCount  = _teacherODData.verify.length;
+        const approvedCount = res.counts ? res.counts.approved : _teacherODData.history.filter(function(r) { return r.status === 'approved' || r.status === 'completed'; }).length;
+        const totalCount   = res.counts ? res.counts.total : (pendingCount + verifyCount + _teacherODData.history.length);
+
+        if (document.getElementById('od-kpi-pending'))  document.getElementById('od-kpi-pending').textContent  = pendingCount;
+        if (document.getElementById('od-kpi-verify'))   document.getElementById('od-kpi-verify').textContent   = verifyCount;
+        if (document.getElementById('od-kpi-approved')) document.getElementById('od-kpi-approved').textContent = approvedCount;
+        if (document.getElementById('od-kpi-total'))    document.getElementById('od-kpi-total').textContent    = totalCount;
+
+        // Subtab badges
+        const bPending = document.getElementById('badge-tab-od-pending');
+        if (bPending) {
+          bPending.textContent = pendingCount;
+          bPending.style.display = pendingCount > 0 ? 'inline-block' : 'none';
+        }
+        const bVerify = document.getElementById('badge-tab-od-verify');
+        if (bVerify) {
+          bVerify.textContent = verifyCount;
+          bVerify.style.display = verifyCount > 0 ? 'inline-block' : 'none';
+        }
+
+        // Sidebar badge on sn-od
+        const totalActionRequired = pendingCount + verifyCount;
+        const snOdBadge = document.getElementById('sn-od-badge');
+        if (snOdBadge) {
+          snOdBadge.textContent = totalActionRequired;
+          snOdBadge.style.display = totalActionRequired > 0 ? 'inline-block' : 'none';
+        }
+
+        renderTeacherODPendingTable();
+        renderTeacherODVerifyTable();
+        renderTeacherODHistoryTable();
+      })
+      .catch(function(err) {
+        console.error('[Load Teacher OD Error]:', err);
+        if (tbodyPending) tbodyPending.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:32px;color:#ef4444;">Failed to load OD approvals.</td></tr>';
+      });
+  }
+  window.loadTeacherODData = loadTeacherODData;
+
+  function switchTeacherODTab(tabName) {
+    const tabs = ['pending', 'verify', 'history'];
+    tabs.forEach(function(t) {
+      const btn  = document.getElementById('tab-od-' + t);
+      const cont = document.getElementById('cont-od-' + t);
+      if (btn) {
+        if (t === tabName) btn.classList.add('act');
+        else btn.classList.remove('act');
+      }
+      if (cont) {
+        cont.style.display = (t === tabName) ? 'block' : 'none';
+      }
+    });
+  }
+  window.switchTeacherODTab = switchTeacherODTab;
+
+  function renderTeacherODPendingTable() {
+    const tbody = document.getElementById('od-pending-tbody');
+    if (!tbody) return;
+    const list = _teacherODData.pending || [];
+    if (!list.length) {
+      tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:36px;color:var(--tdi);"><re-icon icon="check-circle" size="24" style="display:block;margin:0 auto 8px;color:#10b981;"></re-icon>All caught up! No OD requests currently awaiting your approval.</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = list.map(function(r) {
+      const datesStr = Array.isArray(r.dates) && r.dates.length ? (r.dates.length === 1 ? r.dates[0] : (r.dates[0] + ' to ' + r.dates[r.dates.length - 1] + ' (' + r.dates.length + 'd)')) : '—';
+      const eventTitle = (r.eventDetails && r.eventDetails.name) || r.eventName || 'Academic Event';
+      const eventLevel = (r.eventDetails && r.eventDetails.level) || 'Inter-Collegiate';
+      const coverage   = r.coverage === 'full_day' ? 'Full Day' : (r.coverage === 'fn' ? 'FN Half' : (r.coverage === 'an' ? 'AN Half' : 'Period-based'));
+
+      const evidenceLink = Array.isArray(r.evidenceAtRequest) && r.evidenceAtRequest.length
+        ? '<a href="' + escapeHtml(r.evidenceAtRequest[0].webViewLink || '#') + '" target="_blank" style="color:#0284c7;font-weight:600;display:inline-flex;align-items:center;gap:4px;"><re-icon icon="external-link" size="13"></re-icon> View</a>'
+        : '<span style="color:var(--tdi);">None</span>';
+
+      return '<tr>'
+        + '<td><span style="font-weight:600;color:var(--td);">' + (r.createdAt ? new Date(r.createdAt).toLocaleDateString('en-IN', {day:'numeric',month:'short'}) : '—') + '</span></td>'
+        + '<td><div style="font-weight:700;color:var(--td);">' + escapeHtml(r.studentName || 'Student') + '</div><div style="font-size:11px;color:var(--tmu);">' + escapeHtml(r.studentRegNo || '—') + '</div></td>'
+        + '<td><span class="bge">' + escapeHtml(r.className || 'Class') + '</span></td>'
+        + '<td><div style="font-weight:600;color:var(--td);">' + escapeHtml(eventTitle) + '</div><div style="font-size:11px;color:var(--tmu);text-transform:capitalize;">' + escapeHtml(eventLevel) + '</div></td>'
+        + '<td><div style="font-size:12px;font-weight:600;">' + escapeHtml(datesStr) + '</div><div style="font-size:11px;color:var(--tmu);">' + escapeHtml(coverage) + '</div></td>'
+        + '<td><span style="font-size:12px;color:var(--td);">' + escapeHtml(r.mentorName || '—') + '</span></td>'
+        + '<td><span class="badge" style="background:#fef3c7;color:#b45309;padding:3px 8px;border-radius:12px;font-size:10px;font-weight:700;text-transform:uppercase;">' + escapeHtml(r.currentStage || 'Pending') + '</span></td>'
+        + '<td>' + evidenceLink + '</td>'
+        + '<td><button class="btn-pri bxs" onclick="openODStageReviewModal(\'' + (r._id || r.requestId) + '\')" style="background:#0284c7;color:#fff;display:inline-flex;align-items:center;gap:4px;"><re-icon icon="clipboard-check" size="13"></re-icon> Review</button></td>'
+        + '</tr>';
+    }).join('');
+  }
+
+  function renderTeacherODVerifyTable() {
+    const tbody = document.getElementById('od-verify-tbody');
+    if (!tbody) return;
+    const list = _teacherODData.verify || [];
+    if (!list.length) {
+      tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:36px;color:var(--tdi);"><re-icon icon="trophy" size="24" style="display:block;margin:0 auto 8px;color:#8b5cf6;"></re-icon>No completed ODs awaiting outcome evidence verification.</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = list.map(function(r) {
+      const completedOn = r.outcome && r.outcome.submittedAt ? new Date(r.outcome.submittedAt).toLocaleDateString('en-IN', {day:'numeric',month:'short'}) : '—';
+      const eventTitle  = (r.eventDetails && r.eventDetails.name) || r.eventName || 'Event';
+      const outcomeText = (r.outcome && r.outcome.primaryOutcome) || 'Participated';
+      const evObj       = (r.outcome && r.outcome.evidence) || {};
+      const evLink      = evObj.webViewLink ? '<a href="' + escapeHtml(evObj.webViewLink) + '" target="_blank" style="color:#0284c7;font-weight:600;"><re-icon icon="external-link" size="13"></re-icon> Document</a>' : '<span style="color:var(--tdi);">Uploaded</span>';
+      const isDup       = !!(r.verification && r.verification.duplicateFlag);
+
+      return '<tr>'
+        + '<td>' + completedOn + '</td>'
+        + '<td><div style="font-weight:700;color:var(--td);">' + escapeHtml(r.studentName) + '</div><div style="font-size:11px;color:var(--tmu);">' + escapeHtml(r.studentRegNo || '') + '</div></td>'
+        + '<td><span style="font-weight:600;">' + escapeHtml(eventTitle) + '</span></td>'
+        + '<td><span class="badge" style="background:#ecfdf5;color:#065f46;font-weight:700;">' + escapeHtml(outcomeText) + '</span></td>'
+        + '<td>1 Certificate</td>'
+        + '<td>' + evLink + '</td>'
+        + '<td>' + (isDup ? '<span style="color:#dc2626;font-weight:700;font-size:11px;"><re-icon icon="alert-triangle"></re-icon> Duplicate MD5</span>' : '<span style="color:#16a34a;font-size:11px;">Verified Clean</span>') + '</td>'
+        + '<td><button class="btn-pri bxs" onclick="openODOutcomeVerifyModal(\'' + (r._id || r.requestId) + '\')" style="background:#8b5cf6;"><re-icon icon="check" size="13"></re-icon> Inspect &amp; Verify</button></td>'
+        + '</tr>';
+    }).join('');
+  }
+
+  function renderTeacherODHistoryTable() {
+    const tbody = document.getElementById('od-history-tbody');
+    if (!tbody) return;
+    const list = _teacherODData.history || [];
+    if (!list.length) {
+      tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:36px;color:var(--tdi);">No completed or approved OD records in history.</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = list.map(function(r) {
+      const datesStr = Array.isArray(r.dates) && r.dates.length ? (r.dates[0] + (r.dates.length > 1 ? ' (' + r.dates.length + 'd)' : '')) : '—';
+      const eventTitle = (r.eventDetails && r.eventDetails.name) || r.eventName || 'Event';
+      const statusPill = r.status === 'completed'
+        ? '<span class="badge" style="background:#ecfdf5;color:#065f46;font-weight:700;">Completed &amp; Verified</span>'
+        : (r.status === 'approved' ? '<span class="badge" style="background:#eff6ff;color:#1e40af;font-weight:700;">Approved</span>'
+        : '<span class="badge" style="background:#fef2f2;color:#991b1b;font-weight:700;">Rejected</span>');
+
+      const outcomeStatus = (r.verification && r.verification.status === 'verified')
+        ? '<span style="color:#16a34a;font-weight:600;"><re-icon icon="check-circle" size="12"></re-icon> Verified</span>'
+        : ((r.outcome && r.outcome.primaryOutcome) ? '<span style="color:#f59e0b;font-weight:600;">Pending Review</span>' : '<span style="color:var(--tdi);">Awaiting Submission</span>');
+
+      return '<tr>'
+        + '<td><code>' + escapeHtml(r.requestId || '—') + '</code></td>'
+        + '<td>' + (r.createdAt ? new Date(r.createdAt).toLocaleDateString('en-IN', {day:'numeric',month:'short'}) : '—') + '</td>'
+        + '<td><div style="font-weight:700;">' + escapeHtml(r.studentName) + '</div><div style="font-size:11px;color:var(--tmu);">' + escapeHtml(r.studentRegNo || '') + '</div></td>'
+        + '<td>' + escapeHtml(eventTitle) + '</td>'
+        + '<td>' + escapeHtml(datesStr) + '</td>'
+        + '<td>' + escapeHtml(r.mentorName || '—') + '</td>'
+        + '<td>' + statusPill + '</td>'
+        + '<td>' + outcomeStatus + '</td>'
+        + '<td><button class="btn-out bxs" onclick="openODStageReviewModal(\'' + (r._id || r.requestId) + '\')"><re-icon icon="eye" size="13"></re-icon> View</button></td>'
+        + '</tr>';
+    }).join('');
+  }
+
+  function openODStageReviewModal(id) {
+    const list = (_teacherODData.pending || []).concat(_teacherODData.history || []).concat(_teacherODData.verify || []);
+    let req = list.find(function(item) { return item._id === id || item.requestId === id; });
+
+    const populateModal = function(r) {
+      _activeODReview = r;
+      document.getElementById('odr-student-name').textContent = r.studentName || '—';
+      document.getElementById('odr-student-reg').textContent  = (r.studentRegNo || '') + (r.className ? ' (' + r.className + ')' : '');
+      document.getElementById('odr-event-title').textContent  = (r.eventDetails && r.eventDetails.name) || r.eventName || '—';
+      document.getElementById('odr-event-level').textContent  = ((r.eventDetails && r.eventDetails.level) || 'Inter-Collegiate') + ' · ' + ((r.eventDetails && r.eventDetails.type) || 'Technical');
+
+      const datesStr = Array.isArray(r.dates) && r.dates.length ? r.dates.join(', ') : '—';
+      document.getElementById('odr-dates').textContent = datesStr;
+      document.getElementById('odr-coverage').textContent = r.coverage === 'full_day' ? 'Full Day' : (r.coverage || '—');
+
+      const evEl = document.getElementById('odr-evidence-link');
+      if (Array.isArray(r.evidenceAtRequest) && r.evidenceAtRequest.length && r.evidenceAtRequest[0].webViewLink) {
+        evEl.innerHTML = '<a href="' + escapeHtml(r.evidenceAtRequest[0].webViewLink) + '" target="_blank" style="color:#0284c7;font-weight:700;"><re-icon icon="external-link"></re-icon> Open Attached Document</a>';
+      } else {
+        evEl.textContent = 'No document attached';
+      }
+
+      document.getElementById('odr-reason').textContent = (r.eventDetails && r.eventDetails.description) || r.reason || '—';
+      if (document.getElementById('odr-remarks')) document.getElementById('odr-remarks').value = '';
+
+      // Principal escalation button visibility
+      const btnPrin = document.getElementById('btn-odr-principal');
+      if (btnPrin) {
+        btnPrin.style.display = (r.currentStage === 'hod') ? 'inline-flex' : 'none';
+      }
+
+      // Verification score if available
+      const scoreEl = document.getElementById('odr-verification-score');
+      if (scoreEl) scoreEl.style.display = 'none';
+
+      openModal('m-od-stage-review');
+    };
+
+    if (req) {
+      populateModal(req);
+    } else {
+      fetch('/api/od/' + id, { headers: authHeaders() })
+        .then(function(r) { return r.json(); })
+        .then(function(res) {
+          if (res.ok && res.request) populateModal(res.request);
+          else showToast('Could not find OD details', 'warn');
+        })
+        .catch(function(err) { showToast('Error loading OD details: ' + err.message, 'error'); });
+    }
+  }
+  window.openODStageReviewModal = openODStageReviewModal;
+
+  function submitODStageAction(action) {
+    if (!_activeODReview) return;
+    const reqId = _activeODReview._id || _activeODReview.requestId;
+    const remarks = document.getElementById('odr-remarks') ? document.getElementById('odr-remarks').value.trim() : '';
+
+    showToast('Processing OD ' + action + '…', 'saving');
+    fetch('/api/od/' + reqId + '/' + action, {
+      method: 'POST',
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ remarks: remarks })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(res) {
+      if (!res.ok) throw new Error(res.error || 'Failed to execute ' + action);
+      closeModal('m-od-stage-review');
+      showToast('<re-icon icon="check"></re-icon> ' + (res.message || 'Stage updated successfully'), 'success');
+      loadTeacherODData();
+    })
+    .catch(function(err) {
+      showToast('Error: ' + err.message, 'error');
+    });
+  }
+  window.submitODStageAction = submitODStageAction;
+
+  function openODOutcomeVerifyModal(id) {
+    const list = (_teacherODData.verify || []).concat(_teacherODData.pending || []).concat(_teacherODData.history || []);
+    const req = list.find(function(item) { return item._id === id || item.requestId === id; });
+    if (!req) return;
+    _activeODVerify = req;
+
+    document.getElementById('odv-student-name').textContent = req.studentName || '—';
+    document.getElementById('odv-event-title').textContent  = (req.eventDetails && req.eventDetails.name) || req.eventName || '—';
+    document.getElementById('odv-outcome-summary').textContent = (req.outcome && req.outcome.primaryOutcome) || 'Completed';
+
+    const evObj = (req.outcome && req.outcome.evidence) || {};
+    const linkEl = document.getElementById('odv-evidence-link');
+    if (evObj.webViewLink) {
+      linkEl.innerHTML = '<a href="' + escapeHtml(evObj.webViewLink) + '" target="_blank" style="color:#0284c7;font-weight:700;"><re-icon icon="external-link"></re-icon> View Certificate</a>';
+    } else {
+      linkEl.textContent = 'None';
+    }
+
+    const dupAlert = document.getElementById('odv-dup-alert');
+    if (dupAlert) {
+      dupAlert.style.display = (req.verification && req.verification.duplicateFlag) ? 'block' : 'none';
+    }
+
+    if (document.getElementById('odv-notes')) document.getElementById('odv-notes').value = '';
+    openModal('m-od-outcome-verify');
+  }
+  window.openODOutcomeVerifyModal = openODOutcomeVerifyModal;
+
+  function submitODOutcomeVerification(status) {
+    if (!_activeODVerify) return;
+    const reqId = _activeODVerify._id || _activeODVerify.requestId;
+    const notes = document.getElementById('odv-notes') ? document.getElementById('odv-notes').value.trim() : '';
+
+    showToast('Submitting verification…', 'saving');
+    fetch('/api/od/' + reqId + '/verify', {
+      method: 'POST',
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ status: status, comment: notes })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(res) {
+      if (!res.ok) throw new Error(res.error || 'Failed to submit verification');
+      closeModal('m-od-outcome-verify');
+      showToast('<re-icon icon="check"></re-icon> ' + (res.message || 'Outcome verification recorded'), 'success');
+      loadTeacherODData();
+    })
+    .catch(function(err) {
+      showToast('Error: ' + err.message, 'error');
+    });
+  }
+  window.submitODOutcomeVerification = submitODOutcomeVerification;
+
+  function openFacultyGroupODModal() {
+    openModal('m-faculty-group-od');
+  }
+  window.openFacultyGroupODModal = openFacultyGroupODModal;
+
+  function submitFacultyGroupOD(e) {
+    if (e && e.preventDefault) e.preventDefault();
+    const eventName = (document.getElementById('god-event-title') ? document.getElementById('god-event-title').value : '').trim();
+    const type      = document.getElementById('god-type') ? document.getElementById('god-type').value : 'Academic';
+    const level     = document.getElementById('god-level') ? document.getElementById('god-level').value : 'Inter-Collegiate';
+    const regNosStr = (document.getElementById('god-reg-nos') ? document.getElementById('god-reg-nos').value : '').trim();
+    const fromDate  = document.getElementById('god-from-date') ? document.getElementById('god-from-date').value : '';
+    const toDate    = document.getElementById('god-to-date') ? document.getElementById('god-to-date').value : '';
+    const reason    = (document.getElementById('god-reason') ? document.getElementById('god-reason').value : '').trim();
+
+    if (!eventName || !regNosStr || !fromDate || !toDate) {
+      showToast('Please fill all required fields', 'warn');
+      return;
+    }
+
+    const students = regNosStr.split(',').map(function(s) { return s.trim(); }).filter(Boolean);
+    if (!students.length) {
+      showToast('Enter at least one student register number', 'warn');
+      return;
+    }
+
+    showToast('Submitting group OD…', 'saving');
+    fetch('/api/od/group', {
+      method: 'POST',
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({
+        eventName: eventName,
+        type: type,
+        level: level,
+        students: students,
+        startDate: fromDate,
+        endDate: toDate,
+        reason: reason,
+        description: reason,
+        coverage: 'full_day'
+      })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(res) {
+      if (!res.ok) throw new Error(res.error || 'Failed to create group OD');
+      closeModal('m-faculty-group-od');
+      showToast('<re-icon icon="users"></re-icon> Group OD created successfully for ' + students.length + ' student(s)!', 'success');
+      loadTeacherODData();
+    })
+    .catch(function(err) {
+      showToast('Error: ' + err.message, 'error');
+    });
+  }
+  window.submitFacultyGroupOD = submitFacultyGroupOD;
 
   // PROFILE PAGE
   function initProfilePage() {
@@ -4239,10 +6173,10 @@ var _memStore = {};
       document.getElementById('prof-hod-tag').style.display = currentUser.isHOD ? 'inline-block' : 'none';
     }
 
-    if (document.getElementById('pdrhod')) document.getElementById('pdrhod').innerHTML = currentUser.isHOD ? '<span class="field-badge fb-yes">⭐ '+ (currentUser.HoddeptName || 'Yes') +'</span>' : '<span class="field-badge fb-no">No</span>';
-    if (document.getElementById('pdrclassadv')) document.getElementById('pdrclassadv').innerHTML = currentUser.isClassAdvisor ? '<span class="field-badge fb-yes">⭐ ' + (currentUser.advisorClassName || 'Yes') + '</span>' : '<span class="field-badge fb-no">No</span>';
-    if (document.getElementById('pdrttcoord')) document.getElementById('pdrttcoord').innerHTML = currentUser.isTimeTableCoordinator ? '<span class="field-badge fb-yes">⭐ ' + (currentUser.TTdeptName || 'Yes') + '</span>' : '<span class="field-badge fb-no">No</span>';
-    if (document.getElementById('pdradmin')) document.getElementById('pdradmin').innerHTML = currentUser.isAdmin ? '<span class="field-badge fb-yes">⭐ Yes</span>' : '<span class="field-badge fb-no">No</span>';
+    if (document.getElementById('pdrhod')) document.getElementById('pdrhod').innerHTML = currentUser.isHOD ? '<span class="field-badge fb-yes"><re-icon icon="sparkles"></re-icon> '+ (currentUser.HoddeptName || 'Yes') +'</span>' : '<span class="field-badge fb-no">No</span>';
+    if (document.getElementById('pdrclassadv')) document.getElementById('pdrclassadv').innerHTML = currentUser.isClassAdvisor ? '<span class="field-badge fb-yes"><re-icon icon="sparkles"></re-icon> ' + (currentUser.advisorClassName || 'Yes') + '</span>' : '<span class="field-badge fb-no">No</span>';
+    if (document.getElementById('pdrttcoord')) document.getElementById('pdrttcoord').innerHTML = currentUser.isTimeTableCoordinator ? '<span class="field-badge fb-yes"><re-icon icon="sparkles"></re-icon> ' + (currentUser.TTdeptName || 'Yes') + '</span>' : '<span class="field-badge fb-no">No</span>';
+    if (document.getElementById('pdradmin')) document.getElementById('pdradmin').innerHTML = currentUser.isAdmin ? '<span class="field-badge fb-yes"><re-icon icon="sparkles"></re-icon> Yes</span>' : '<span class="field-badge fb-no">No</span>';
 
     const assignedClasses = Array.from(new Set(getMyAssignments().map(function(a) { return a.className; })));
     document.getElementById('pdrcls').textContent = assignedClasses.length ? assignedClasses.join(', ') : 'None assigned';
@@ -4296,7 +6230,7 @@ var _memStore = {};
       .then(function(r) { return r.json(); })
       .then(function(res) {
         if (res && res.error) {
-          showToast('❌ ' + res.error, 'error');
+          showToast('' + res.error, 'error');
           return;
         }
         if (!currentUser.preferences) currentUser.preferences = {};
@@ -4304,14 +6238,14 @@ var _memStore = {};
         currentUser.preferences.autoAttendancePrompt = autoPrompt;
         currentUser.preferences.promptLeadMinutes = leadMinutes;
         sessionStorage.setItem('eams_user', JSON.stringify(currentUser));
-        showToast('✅ Preferences saved!', 'success');
+        showToast('Preferences saved!', 'success');
       })
       .catch(function(err) {
-        showToast('❌ Network error', 'error');
+        showToast('Network error', 'error');
       });
   }
 
-  // Profile → Change Password. It compared against currentUser.password (never
+  // Profile <re-icon icon="arrow-right"></re-icon> Change Password. It compared against currentUser.password (never
   // present client-side, so it always said "incorrect") and only updated the
   // in-memory cache. Uses the same endpoint as the change-password modal.
   function changePassword() {
@@ -4337,7 +6271,7 @@ var _memStore = {};
       if (d && d.error) return fail(d.error);
       ['pwcur','pwnew','pwconf'].forEach(function(id) { document.getElementById(id).value = ''; });
       sessionStorage.setItem('eams_mustChangePw', '0');
-      showToast('&#128274; Password updated successfully!', 'success');
+      showToast('<re-icon icon="lock"></re-icon> Password updated successfully!', 'success');
     })
     .catch(function() { fail('Server error. Try again.'); });
   }
@@ -4378,14 +6312,8 @@ var _memStore = {};
 
   (function checkAuthAndBoot() {
     const storedUser = sessionStorage.getItem('eams_user');
-    if (!storedUser) { window.location.href = 'index.html'; return; }
-    try {
-      currentUser = JSON.parse(storedUser);
-    } catch (e) {
-      window.location.href = 'index.html'; return;
-    }
-    if (!currentUser || currentUser.role !== 'teacher') {
-      window.location.href = 'index.html'; return;
+    if (storedUser) {
+      try { currentUser = JSON.parse(storedUser); } catch (e) {}
     }
     bootApp();
   })();
@@ -4394,7 +6322,9 @@ var _memStore = {};
 var _pwToken = getToken();
 
 function showForcePwModal() {
-  document.getElementById('forcePwModal').style.display = 'flex';
+  if (window._pubSettings?.isDev || (window._pubSettings?.security && window._pubSettings.security.isDev) || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') return;
+  var el = document.getElementById('forcePwModal');
+  if (el) el.style.display = 'flex';
 }
 function openChangePwModal() {
   ['changePwCur','changePwNew','changePwConf'].forEach(function(id){ document.getElementById(id).value=''; });
@@ -4421,7 +6351,7 @@ function submitForcePw() {
     if(d.error){err.textContent=d.error;err.style.display='block';return;}
     sessionStorage.setItem('eams_mustChangePw','0');
     document.getElementById('forcePwModal').style.display='none';
-    showToast('✅ Password changed successfully! Please remember your new password.');
+    showToast('Password changed successfully! Please remember your new password.');
   }).catch(function(){err.textContent='Server error. Try again.';err.style.display='block';});
 }
 function submitChangePw() {
@@ -4439,7 +6369,7 @@ function submitChangePw() {
     body:JSON.stringify({currentPassword:cur,newPassword:nw})
   }).then(function(r){return r.json();}).then(function(d){
     if(d.error){err.textContent=d.error;err.style.display='block';return;}
-    ok.textContent='✅ Password updated successfully!';ok.style.display='block';
+    ok.innerHTML='<re-icon icon="check-circle"></re-icon> Password updated successfully!';ok.style.display='block';
     ['changePwCur','changePwNew','changePwConf'].forEach(function(id){document.getElementById(id).value='';});
     setTimeout(closeChangePwModal,1500);
   }).catch(function(){err.textContent='Server error. Try again.';err.style.display='block';});
@@ -4452,9 +6382,10 @@ function forwardToRepModal() {
     showToast('Delegation to Class Representative is disabled in settings.', 'warn');
     return;
   }
-  var classId = document.getElementById('attcls').value;
-  var subjectId = document.getElementById('attsub').value;
-  var date = document.getElementById('attdate').value;
+  var inputs = (typeof getSelectedAttendanceInputs === 'function') ? getSelectedAttendanceInputs() : {};
+  var classId = inputs.classId || (document.getElementById('attcls') ? document.getElementById('attcls').value : '');
+  var subjectId = inputs.subjectId || (document.getElementById('attsub') ? document.getElementById('attsub').value : '');
+  var date = inputs.date || (document.getElementById('attdate') ? document.getElementById('attdate').value : '');
   if (!classId || !subjectId || !date) {
     if (typeof dbToast === 'function') dbToast('Select class, subject and date first', 'warn');
     else showToast('Select class, subject and date first', 'warn');
@@ -4479,7 +6410,7 @@ function forwardToRepModal() {
     var reps = data.reps || [];
     if (!reps.length) {
       list.innerHTML = '<div style="text-align:center;padding:24px;color:#64748b;">'
-        + '<div style="font-size:28px;margin-bottom:8px;">⚠️</div>'
+        + '<div style="font-size:28px;margin-bottom:8px;"><re-icon icon="alert-triangle"></re-icon></div>'
         + '<div style="font-size:13px;font-weight:600;">No students found in this class roster.</div>'
         + '</div>';
       return;
@@ -4498,7 +6429,7 @@ function forwardToRepModal() {
         + '  </div>'
         + '</div>'
         + '<button class="btn-pri" onclick="delegateAttendanceToRep(\'' + rep._id + '\', \'' + (rep.fullName || '').replace(/'/g, "\\'") + '\')" style="font-size:12px;padding:7px 14px;background:#059669;">'
-        + '  Delegate ➔'
+        + '  Delegate <re-icon icon="arrow-right"></re-icon>'
         + '</button>'
         + '</div>';
     });
@@ -4521,11 +6452,11 @@ function closeRepShareModal() {
 window.closeRepShareModal = closeRepShareModal;
 
 function delegateAttendanceToRep(repId, repName) {
-  var classId = document.getElementById('attcls').value;
-  var subjectId = document.getElementById('attsub').value;
-  var date = document.getElementById('attdate').value;
-  var periodEl = document.getElementById('attperiod');
-  var periodNumber = periodEl ? Number(periodEl.value) || 1 : 1;
+  var inputs = (typeof getSelectedAttendanceInputs === 'function') ? getSelectedAttendanceInputs() : {};
+  var classId = inputs.classId || (document.getElementById('attcls') ? document.getElementById('attcls').value : '');
+  var subjectId = inputs.subjectId || (document.getElementById('attsub') ? document.getElementById('attsub').value : '');
+  var date = inputs.date || (document.getElementById('attdate') ? document.getElementById('attdate').value : '');
+  var periodNumber = Number(inputs.period) || (document.getElementById('attperiod') ? Number(document.getElementById('attperiod').value) || 1 : 1);
   var topicVal = (document.getElementById('att-topic') ? document.getElementById('att-topic').value : '').trim();
 
   if (typeof dbToast === 'function') dbToast('Delegating attendance to ' + repName + '…', 'saving');
@@ -4570,7 +6501,7 @@ function delegateAttendanceToRep(repId, repName) {
 
     var methodInd = document.getElementById('att-method-indicator');
     if (methodInd) {
-      methodInd.textContent = '👥 Rep Share (' + repName + ' Pending)';
+      methodInd.innerHTML = '<re-icon icon="users"></re-icon> Rep Share (' + repName + ' Pending)';
       methodInd.style.display = 'inline-block';
     }
 
@@ -4628,7 +6559,7 @@ function applyRepDraftToAttendance(session) {
     renderAttendanceSheet();
     var methodInd = document.getElementById('att-method-indicator');
     if (methodInd) {
-      methodInd.textContent = '👥 Rep Share Draft Loaded (' + (session.repConfirmedCount || 0) + ' Verified Present)';
+      methodInd.innerHTML = '<re-icon icon="users"></re-icon> Rep Share Draft Loaded (' + (session.repConfirmedCount || 0) + ' Verified Present)';
       methodInd.style.display = 'inline-block';
     }
     if (typeof dbToast === 'function') {
@@ -4646,10 +6577,13 @@ function applyRepDraftToAttendance(session) {
 window.applyRepDraftToAttendance = applyRepDraftToAttendance;
 
 window.addEventListener('load', function(){
-  if(sessionStorage.getItem('eams_mustChangePw')==='1'){ showForcePwModal(); }
+  var isDevHost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+  if(!isDevHost && sessionStorage.getItem('eams_mustChangePw')==='1'){ showForcePwModal(); }
   fetch('/api/settings/public')
     .then(function(r){ return r.json(); })
     .then(function(pub){
+      pub = (pub && typeof pub === 'object') ? pub : {};
+      pub.attendance = pub.attendance || {};
       window._pubSettings = pub;
       if (pub.institution) {
         var shortN = pub.institution.institutionShort || '';
@@ -4696,6 +6630,12 @@ window.addEventListener('load', function(){
           if (reqBadge) reqBadge.style.display = 'inline-block';
           var starTopic = document.getElementById('star-topic-req');
           if (starTopic) starTopic.style.display = 'inline';
+        }
+        if (pub.attendance.forceTimetableSlots) {
+          var attPg = document.getElementById('pg-att');
+          if (attPg && (attPg.classList.contains('active') || attPg.style.display === 'block')) {
+            if (typeof initAttendancePage === 'function') initAttendancePage();
+          }
         }
       }
     }).catch(function(e){ console.warn(e); });
@@ -4771,7 +6711,7 @@ function renderHodTeacherLeavesTable() {
   if (!tbody) return;
 
   if (_hodPendingLeaves.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:32px;color:#16a34a;font-weight:600;">✓ No pending department leave requests to review.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:32px;color:#16a34a;font-weight:600;"><re-icon icon="check"></re-icon> No pending department leave requests to review.</td></tr>';
     return;
   }
 
@@ -4791,15 +6731,19 @@ function renderHodTeacherLeavesTable() {
       + '<td style="font-size:11.5px;max-width:180px;white-space:normal;">' + escapeHtml(l.reason || '—') + '</td>'
       + '<td>' + subsHtml + '</td>'
       + '<td style="text-align:center;white-space:nowrap;">'
-      + '  <button class="btno bsm" style="margin-right:6px;font-size:11px;padding:4px 10px;background:var(--gD);color:#fff;border-color:var(--gD);" onclick="approveTeacherLeaveHod(\'' + l._id + '\')">✓ Approve</button>'
-      + '  <button class="btno bsm" style="font-size:11px;padding:4px 10px;color:#dc2626;border-color:rgba(220,38,38,0.4);" onclick="rejectTeacherLeaveHod(\'' + l._id + '\')">✕ Reject</button>'
+      + '  <button class="btno bsm" style="margin-right:6px;font-size:11px;padding:4px 10px;background:var(--gD);color:#fff;border-color:var(--gD);" onclick="approveTeacherLeaveHod(\'' + l._id + '\')"><re-icon icon="check"></re-icon> Approve</button>'
+      + '  <button class="btno bsm" style="font-size:11px;padding:4px 10px;color:#dc2626;border-color:rgba(220,38,38,0.4);" onclick="rejectTeacherLeaveHod(\'' + l._id + '\')"><re-icon icon="x"></re-icon> Reject</button>'
       + '</td>'
       + '</tr>';
   }).join('');
 }
 
-function approveTeacherLeaveHod(id) {
-  if (!confirm('Approve this faculty leave request?\n\nThis will automatically create Timetable Day Overrides for all arranged substitute slots and notify the substitute teachers.')) return;
+async function approveTeacherLeaveHod(id) {
+  const ok = await showConfirm(
+    'Approve this faculty leave request?\n\nThis will automatically create Timetable Day Overrides for all arranged substitute slots and notify the substitute teachers.',
+    'Approve Faculty Leave'
+  );
+  if (!ok) return;
   fetch('/api/leave/teacher/' + id + '/hod-approve', {
     method: 'PUT',
     headers: authHeaders({ 'Content-Type': 'application/json' })
@@ -4819,8 +6763,8 @@ function approveTeacherLeaveHod(id) {
 }
 window.approveTeacherLeaveHod = approveTeacherLeaveHod;
 
-function rejectTeacherLeaveHod(id) {
-  var reason = prompt('Enter reason for rejecting this leave request:');
+async function rejectTeacherLeaveHod(id) {
+  var reason = await showPrompt('Enter reason for rejecting this leave request:', '', 'Reject Leave Request');
   if (reason === null) return;
   fetch('/api/leave/teacher/' + id + '/hod-reject', {
     method: 'PUT',
@@ -4846,6 +6790,33 @@ function loadMyTeacherLeaves() {
   var tbodyApps = document.getElementById('tl-apps-tbody');
   if (tbodyApps) tbodyApps.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:24px;color:var(--tdi);">Loading your leave requests…</td></tr>';
 
+  // Fetch settings to get configured annualLeaveQuota
+  fetch('/api/settings/public')
+    .then(function(r) { return r.json(); })
+    .then(function(s) {
+      if (s && s.teachers && s.teachers.annualLeaveQuota !== undefined) {
+        window._teacherAnnualLeaveQuota = Number(s.teachers.annualLeaveQuota) || 15;
+        updateTeacherLeaveKPIs();
+      }
+    })
+    .catch(function() {});
+
+  // Fetch real-time balance breakdown if available
+  fetch('/api/leave/balance', { headers: authHeaders() })
+    .then(function(r) { return r.json(); })
+    .then(function(bal) {
+      if (bal && bal.ok && bal.data) {
+        if (typeof bal.data.annualLeaveQuota === 'number') {
+          window._teacherAnnualLeaveQuota = bal.data.annualLeaveQuota;
+        }
+        if (typeof bal.data.remainingLeaves === 'number') {
+          window._teacherRemainingLeaves = bal.data.remainingLeaves;
+        }
+        updateTeacherLeaveKPIs();
+      }
+    })
+    .catch(function() {});
+
   fetch('/api/leave/teacher/my-requests', { headers: authHeaders() })
     .then(function(res) { return res.json(); })
     .then(function(data) {
@@ -4861,17 +6832,35 @@ function loadMyTeacherLeaves() {
 
 function updateTeacherLeaveKPIs() {
   var total = _myTeacherLeaves.length;
-  var approved = _myTeacherLeaves.filter(function(l) { return l.status === 'Approved'; }).length;
-  var pending = _myTeacherLeaves.filter(function(l) { return l.status === 'Pending'; }).length;
+  var pending = _myTeacherLeaves.filter(function(l) { return l.status === 'Pending' || l.status === 'pending'; }).length;
   var subs = _myTeacherLeaves.reduce(function(acc, l) { return acc + (l.substitutions ? l.substitutions.length : 0); }, 0);
 
+  // Calculate approved leave days taken
+  var approvedDays = _myTeacherLeaves
+    .filter(function(l) { return String(l.status).toLowerCase() === 'approved'; })
+    .reduce(function(acc, l) {
+      var d = Number(l.daysCount);
+      if (isNaN(d) || d <= 0) {
+        d = Array.isArray(l.dates) && l.dates.length ? l.dates.length : 1;
+      }
+      return acc + d;
+    }, 0);
+
+  var totalQuota = (typeof window._teacherAnnualLeaveQuota === 'number') ? window._teacherAnnualLeaveQuota : 15;
+  var remainingLeaves = Math.max(0, totalQuota - approvedDays);
+  if (typeof window._teacherRemainingLeaves === 'number') {
+    remainingLeaves = window._teacherRemainingLeaves;
+  }
+
   var elTot = document.getElementById('tl-stat-total');
+  var elRem = document.getElementById('tl-stat-remaining') || document.getElementById('tl-stat-approved');
   var elApp = document.getElementById('tl-stat-approved');
   var elPen = document.getElementById('tl-stat-pending');
   var elSub = document.getElementById('tl-stat-subs');
 
   if (elTot) elTot.textContent = total;
-  if (elApp) elApp.textContent = approved;
+  if (elRem) elRem.textContent = remainingLeaves;
+  if (elApp && elApp !== elRem) elApp.textContent = remainingLeaves;
   if (elPen) elPen.textContent = pending;
   if (elSub) elSub.textContent = subs;
 }
@@ -4968,15 +6957,15 @@ function renderTeacherSubstituteDuties() {
 
         if (isToday) {
           if (isMarked) {
-            actionCol = '<span style="color:#16a34a;font-weight:700;display:inline-flex;align-items:center;gap:4px;">✅ Done</span>';
+            actionCol = '<span style="color:#16a34a;font-weight:700;display:inline-flex;align-items:center;gap:4px;"><re-icon icon="check-circle"></re-icon> Done</span>';
           } else {
-            actionCol = '<button class="attbtn" onclick="navigateToAttendance(\'' + (s.classId || '') + '\',\'' + (s.subjectId || '') + '\',' + (s.periodNumber || 1) + ',\'' + s.date + '\')">📋 Take Att.</button>';
+            actionCol = '<button class="attbtn" onclick="navigateToAttendance(\'' + (s.classId || '') + '\',\'' + (s.subjectId || '') + '\',' + (s.periodNumber || 1) + ',\'' + s.date + '\')"><re-icon icon="clipboard-list"></re-icon> Take Att.</button>';
           }
         } else if (s.date > todayStr) {
           actionCol = '<span style="color:var(--tmu);font-size:12px;background:var(--bg2,#f1f5f9);padding:3px 8px;border-radius:6px;font-weight:600;">Upcoming</span>';
         } else {
           actionCol = isMarked
-            ? '<span style="color:#16a34a;font-size:12px;font-weight:700;">✅ Done</span>'
+            ? '<span style="color:#16a34a;font-size:12px;font-weight:700;"><re-icon icon="check-circle"></re-icon> Done</span>'
             : '<span style="color:var(--tdi);font-size:12px;">Past</span>';
         }
 
@@ -4997,8 +6986,9 @@ function renderTeacherSubstituteDuties() {
     });
 }
 
-function cancelTeacherLeaveReq(id) {
-  if (!confirm('Are you sure you want to cancel this leave request?')) return;
+async function cancelTeacherLeaveReq(id) {
+  const ok = await showConfirm('Are you sure you want to cancel this leave request?', 'Cancel Leave Request', null, null, { danger: true, confirmText: 'Cancel Request' });
+  if (!ok) return;
   fetch('/api/leave/teacher/cancel/' + encodeURIComponent(id), {
     method: 'PUT',
     headers: authHeaders()
@@ -5048,7 +7038,7 @@ function fetchTeacherAffectedSlots() {
     return;
   }
 
-  if (cont) cont.innerHTML = '<div style="text-align:center;padding:16px;color:var(--tdi);font-size:12px;">🔍 Detecting scheduled teaching slots…</div>';
+  if (cont) cont.innerHTML = '<div style="text-align:center;padding:16px;color:var(--tdi);font-size:12px;"><re-icon icon="search"></re-icon> Detecting scheduled teaching slots…</div>';
 
   fetch('/api/leave/affected-slots?fromDate=' + encodeURIComponent(fromDate) + '&toDate=' + encodeURIComponent(toDate) + '&slot=' + encodeURIComponent(slot), {
     headers: authHeaders()
@@ -5076,24 +7066,24 @@ function renderAffectedSlotsList() {
   if (!cont) return;
 
   if (_currentAffectedSlots.length === 0) {
-    cont.innerHTML = '<div style="text-align:center;padding:16px;color:#16a34a;font-size:12.5px;font-weight:700;">✅ No scheduled classes on these selected dates/periods! No substitutions required.</div>';
+    cont.innerHTML = '<div style="text-align:center;padding:16px;color:#16a34a;font-size:12.5px;font-weight:700;"><re-icon icon="check-circle"></re-icon> No scheduled classes on these selected dates/periods! No substitutions required.</div>';
     return;
   }
 
   cont.innerHTML = _currentAffectedSlots.map(function(slot, idx) {
     var subAssigned = slot.substituteTeacherName;
     var subDisplay = subAssigned
-      ? '<span style="font-size:12px;font-weight:800;color:#16a34a;background:rgba(22,163,74,0.12);padding:4px 10px;border-radius:10px;display:inline-flex;align-items:center;gap:5px;">✅ Sub: ' + slot.substituteTeacherName + '</span>'
-      : '<span style="font-size:11.5px;font-weight:700;color:#d97706;background:rgba(217,119,6,0.1);padding:4px 9px;border-radius:10px;">⚠️ Substitute Required</span>';
+      ? '<span style="font-size:12px;font-weight:800;color:#16a34a;background:rgba(22,163,74,0.12);padding:4px 10px;border-radius:10px;display:inline-flex;align-items:center;gap:5px;"><re-icon icon="check-circle"></re-icon> Sub: ' + slot.substituteTeacherName + '</span>'
+      : '<span style="font-size:11.5px;font-weight:700;color:#d97706;background:rgba(217,119,6,0.1);padding:4px 9px;border-radius:10px;"><re-icon icon="alert-triangle"></re-icon> Substitute Required</span>';
 
     return '<div style="display:flex;align-items:center;justify-content:space-between;background:#fff;border:1px solid var(--brl);border-radius:10px;padding:10px 14px;flex-wrap:wrap;gap:8px;">'
       + '<div>'
       + '<div style="font-size:12.5px;font-weight:800;color:var(--td);">' + slot.date + ' (' + slot.day + ') · Period ' + slot.periodNumber + ' <span style="font-size:11px;font-weight:500;color:var(--tmu);">(' + slot.start + '–' + slot.end + ')</span></div>'
-      + '<div style="font-size:12px;color:var(--tmu);margin-top:2px;">🏫 ' + slot.className + ' • <strong>' + slot.subjectName + '</strong> ' + (slot.hallNo ? '• Hall: ' + slot.hallNo : '') + '</div>'
+      + '<div style="font-size:12px;color:var(--tmu);margin-top:2px;"><re-icon icon="chalkboard"></re-icon> ' + slot.className + ' • <strong>' + slot.subjectName + '</strong> ' + (slot.hallNo ? '• Hall: ' + slot.hallNo : '') + '</div>'
       + '</div>'
       + '<div style="display:flex;align-items:center;gap:10px;">'
       + subDisplay
-      + '<button class="btno bsm" onclick="openFreeSlotFinderForSlot(' + idx + ')" style="padding:6px 12px;font-size:11.5px;">🔍 ' + (subAssigned ? 'Change' : 'Find Substitute') + '</button>'
+      + '<button class="btno bsm" onclick="openFreeSlotFinderForSlot(' + idx + ')" style="padding:6px 12px;font-size:11.5px;"><re-icon icon="search"></re-icon> ' + (subAssigned ? 'Change' : 'Find Substitute') + '</button>'
       + '</div>'
       + '</div>';
   }).join('');
@@ -5173,11 +7163,11 @@ function runFreeSlotSearch() {
           if (isSelf) {
             statusPill = '<span class="tt-slot-badge" style="background:#e2e8f0;color:#64748b;">Current Faculty (You)</span>';
           } else if (t.isFreeForTarget) {
-            statusPill = '<span class="tt-slot-badge" style="background:#dcfce7;color:#166534;font-weight:800;">🟢 FREE for Period ' + period + '</span>';
+            statusPill = '<span class="tt-slot-badge" style="background:#dcfce7;color:#166534;font-weight:800;"><span class="status-dot green"></span> FREE for Period ' + period + '</span>';
             canAssign = true;
           } else {
-            var busyReason = t.targetPeriodStatus === 'leave' ? '🌴 On Leave' : '🔴 Teaching Class';
-            statusPill = '<span class="tt-slot-badge" style="background:#fee2e2;color:#991b1b;font-weight:700;">' + busyReason + '</span>';
+            var busyReason = t.targetPeriodStatus === 'leave' ? '<re-icon icon="tree"></re-icon> On Leave' : '<span class="status-dot red"></span> Teaching Class';
+            statusPill = '<span class="tt-slot-badge" style="background:#fee2e2;color:#991b1b;font-weight:700;">' + escapeHtml(busyReason || '') + '</span>';
           }
 
           var periodBadges = '';
@@ -5189,7 +7179,7 @@ function runFreeSlotSearch() {
           }
 
           var actionBtn = canAssign && _targetSlotForSubstitute !== null
-            ? '<button class="btnp bsm" onclick="assignSubstituteToSlot(\'' + t.trackId + '\',\'' + t.fullName.replace(/'/g, "\\'") + '\',\'' + t._id + '\')">&#9989; Select</button>'
+            ? '<button class="btnp bsm" onclick="assignSubstituteToSlot(\'' + t.trackId + '\',\'' + t.fullName.replace(/'/g, "\\'") + '\',\'' + t._id + '\')"><re-icon icon="check-circle"></re-icon> Select</button>'
             : '';
 
           return '<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-radius:12px;background:#fff;border:1px solid var(--brl);gap:10px;flex-wrap:wrap;">'
@@ -5225,7 +7215,7 @@ function assignSubstituteToSlot(trackId, name, teacherId) {
   showToast('Assigned ' + name + ' as substitute for slot ' + (_targetSlotForSubstitute + 1), 'success');
 }
 
-function submitTeacherLeaveApplication() {
+async function submitTeacherLeaveApplication() {
   var category = document.getElementById('tl-cat')?.value || 'Leave';
   var leaveType = document.getElementById('tl-type')?.value || 'Casual Leave';
   var slot = document.getElementById('tl-slot')?.value || 'Full Day';
@@ -5245,9 +7235,14 @@ function submitTeacherLeaveApplication() {
 
   var unassignedSlots = _currentAffectedSlots.filter(function(s) { return !s.substituteTeacherTrackId; });
   if (unassignedSlots.length > 0 && !isEmergency) {
-    if (!confirm('You have ' + unassignedSlots.length + ' scheduled class(es) without an assigned substitute teacher. Would you like to proceed anyway?')) {
-      return;
-    }
+    const ok = await showConfirm(
+      'You have ' + unassignedSlots.length + ' scheduled class(es) without an assigned substitute teacher. Would you like to proceed anyway?',
+      'Unassigned Substitutes Warning',
+      null,
+      null,
+      { type: 'warn', confirmText: 'Proceed Anyway' }
+    );
+    if (!ok) return;
   }
 
   var payload = {
@@ -5414,8 +7409,8 @@ var LiveSlotPrompt = (function () {
     var isSub = primarySlot.role === 'substitute';
     if (titleEl) {
       titleEl.textContent = (slots.length > 1)
-        ? '✅ Classes starting now'
-        : (isSub ? '🔄 Substitution Class starting now' : '✅ Class starting now');
+        ? '<re-icon icon="check-circle"></re-icon> Classes starting now'
+        : (isSub ? '<re-icon icon="refresh"></re-icon> Substitution Class starting now' : '<re-icon icon="check-circle"></re-icon> Class starting now');
     }
 
     if (subEl) {
@@ -5426,7 +7421,7 @@ var LiveSlotPrompt = (function () {
     if (bodyEl) {
       bodyEl.innerHTML = slots.map(function(s) {
         var subBadge = (s.role === 'substitute')
-          ? '<span class="badge-sub-role">🔄 Substitute for ' + escapeHtml(s.originalTeacher || 'Faculty') + '</span>'
+          ? '<span class="badge-sub-role"><re-icon icon="refresh"></re-icon> Substitute for ' + escapeHtml(s.originalTeacher || 'Faculty') + '</span>'
           : '';
         return '<div class="mls-slot-card">'
           + '<div class="mls-slot-header">'

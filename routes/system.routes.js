@@ -3,67 +3,125 @@ const router = express.Router();
 const crypto = require('crypto');
 const mongoose = require('mongoose');
 const M = require('../models');
-const { authMiddleware, adminOnly, requireRight } = require('../middleware/auth');
+const { authMiddleware, requirePage } = require('../middleware/auth');
 const { logAction } = require('../utils/logAction');
 const { _serverStartTime, _serverLogs } = require('../utils/serverState');
 const { criticalDeleteLimiter } = require('../utils/rateLimiters');
 const { sanitizeToString } = require('../utils/sanitizeQuery');
 const { checkModuleGuard } = require('../middleware/portalGuard');
+const { invalidateSettingsCache } = require('../utils/settingsCache');
 
-// POST /api/system/backup - Create full database snapshot backup
-router.post('/backup', authMiddleware, adminOnly, requireRight('controlPage'), criticalDeleteLimiter, checkModuleGuard('modelBackup', 'Database Backup'), async (req, res) => {
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 100 * 1024 * 1024 } });
+const { isSudoAdmin } = require('../utils/access');
+const { createFullBackup, inspectBackupArchive, executeBackupRestore } = require('../services/backupRestoreService');
+
+// POST /api/system/backup - Create full database snapshot backup with AES-256-GCM encryption, GDrive upload, and Sudo Admin mail
+router.post('/backup', authMiddleware, requirePage('control', 'create', { tab: 'backup' }), criticalDeleteLimiter, checkModuleGuard('modelBackup', 'Database Backup'), async (req, res) => {
   try {
-    const [students, teachers, departments, classes, subjects, classAttendance, studentAttendance, assignments] = await Promise.all([
-      M.Student.find().lean(),
-      M.Teacher.find().lean(),
-      M.Department.find().lean(),
-      M.Class.find().lean(),
-      M.Subject.find().lean(),
-      M.ClassAttendance.find().lean(),
-      M.StudentAttendance.find().lean(),
-      M.Assignment.find().lean(),
-    ]);
-    const totalDocs = students.length + teachers.length + departments.length
-      + classes.length + subjects.length + classAttendance.length + studentAttendance.length + assignments.length;
-    const backupPayload = {
-      meta: { createdAt: new Date().toISOString(), createdBy: req.user.name, totalDocs },
-      students, teachers, departments, classes, subjects, classAttendance, studentAttendance, assignments
-    };
-    const backupPassword = crypto.randomBytes(6).toString('hex').toUpperCase();
-    // Backup cloud storage upload stub
-    await logAction(
-      req.user.trackId || req.user._id,
-      req.user.name,
-      req.user.role,
-      'System Backup Created',
-      `${totalDocs} docs — GDrive upload pending`,
-      'system',
-      'info',
-      req.ip,
-      req.user.sessionId,
-      { module: 'control', subType: 'backup', trackId: req.user.trackId }
-    );
-    res.json({
-      ok: true, totalDocs, backupPassword, createdAt: backupPayload.meta.createdAt,
-      collections: {
-        students: students.length, teachers: teachers.length, departments: departments.length,
-        classes: classes.length, subjects: subjects.length,
-        classAttendance: classAttendance.length, studentAttendance: studentAttendance.length,
-        assignments: assignments.length
-      }
+    const result = await createFullBackup({
+      user: req.user,
+      ip: req.ip,
+      userAgent: req.headers['user-agent'] || '',
+      clientDeviceInfo: req.body.clientDeviceInfo || {}
     });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+
+    res.json(result);
+  } catch (err) {
+    console.error('[System Backup Route Error]:', err);
+    res.status(500).json({ error: err.message || 'Failed to generate system backup' });
+  }
 });
 
-router.get('/backup/history', authMiddleware, adminOnly, requireRight('controlPage'), async (req, res) => {
+// GET /api/system/backup/download/:backupId - Redirect to Google Drive cloud backup
+router.get('/backup/download/:backupId', authMiddleware, requirePage('control', 'view', { tab: 'backup' }), async (req, res) => {
+  try {
+    const backupId = sanitizeToString(req.params.backupId);
+    if (!backupId || !backupId.startsWith('EAMS_BK_')) {
+      return res.status(400).json({ error: 'Invalid backup identifier' });
+    }
+
+    const log = await M.Log.findOne({ 'metadata.backupId': backupId }).lean();
+    if (log && log.metadata && log.metadata.driveUrl) {
+      return res.redirect(log.metadata.driveUrl);
+    }
+    return res.status(404).json({ error: 'Backup archive stored in Google Drive. Check notification email or Google Drive backup folder.' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/backup/history', authMiddleware, requirePage('control', 'view', { tab: 'backup' }), async (req, res) => {
   try {
     const logs = await M.Log.find({ action: 'System Backup Created' }).sort({ time: -1 }).limit(20).lean();
     res.json(logs);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// POST /api/system/restore/inspect - Upload encrypted ZIP and inspect conflicts (Sudo Admin only)
+router.post('/restore/inspect', authMiddleware, upload.single('backupFile'), async (req, res) => {
+  try {
+    if (!isSudoAdmin(req.user)) {
+      return res.status(403).json({ error: 'Access denied: Restore from backup is strictly restricted to Sudo Admin.' });
+    }
+
+    if (!req.file || !req.file.buffer) {
+      return res.status(400).json({ error: 'No backup archive uploaded. Please select a genuine .zip backup file.' });
+    }
+
+    const backupPassword = sanitizeToString(req.body.backupPassword || '');
+    const report = await inspectBackupArchive(req.file.buffer, backupPassword);
+    res.json(report);
+  } catch (err) {
+    console.error('[Restore Inspect Error]:', err);
+    res.status(400).json({ error: err.message || 'Failed to inspect backup file' });
+  }
+});
+
+// POST /api/system/restore/execute - Execute restoration with conflict resolution strategy (Sudo Admin only)
+router.post('/restore/execute', authMiddleware, upload.single('backupFile'), async (req, res) => {
+  try {
+    if (!isSudoAdmin(req.user)) {
+      return res.status(403).json({ error: 'Access denied: Restore from backup is strictly restricted to Sudo Admin.' });
+    }
+
+    if (!req.file || !req.file.buffer) {
+      return res.status(400).json({ error: 'No backup archive uploaded.' });
+    }
+
+    const backupPassword = sanitizeToString(req.body.backupPassword || '');
+    const strategy = sanitizeToString(req.body.strategy || 'overwrite');
+    let selectedCollections = [];
+    if (req.body.selectedCollections) {
+      try {
+        selectedCollections = typeof req.body.selectedCollections === 'string'
+          ? JSON.parse(req.body.selectedCollections)
+          : req.body.selectedCollections;
+      } catch (e) {
+        selectedCollections = [];
+      }
+    }
+
+    const result = await executeBackupRestore({
+      zipBuffer: req.file.buffer,
+      backupPassword,
+      strategy,
+      selectedCollections,
+      user: req.user,
+      ip: req.ip
+    });
+
+    res.json(result);
+  } catch (err) {
+    console.error('[Restore Execute Error]:', err);
+    res.status(500).json({ error: err.message || 'Failed to execute restoration' });
+  }
+});
+
 // POST /api/system/export - Export database collections with password protection
-router.post('/export', authMiddleware, adminOnly, requireRight('downloadDatas', 'controlPage'), async (req, res) => {
+router.post('/export', authMiddleware, requirePage('control', 'export', { tab: 'data' }), async (req, res) => {
   try {
     const type = req.body.type || 'all';
     const studentCount = await M.Student.countDocuments();
@@ -114,7 +172,7 @@ router.post('/export', authMiddleware, adminOnly, requireRight('downloadDatas', 
 });
 
 // GET /api/system/dbstats - Return database storage and collection statistics
-router.get('/dbstats', authMiddleware, adminOnly, async (req, res) => {
+router.get('/dbstats', authMiddleware, requirePage('control', 'view', { tab: 'overview' }), async (req, res) => {
   try {
     const db = mongoose.connection.db;
     const stats = await db.command({ dbStats: 1, scale: 1024 * 1024 });
@@ -124,7 +182,7 @@ router.get('/dbstats', authMiddleware, adminOnly, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-router.get('/serverlogs', authMiddleware, adminOnly, (req, res) => {
+router.get('/serverlogs', authMiddleware, requirePage('control', 'view'), (req, res) => {
   const sinceStr = sanitizeToString(req.query.since);
   const since = sinceStr ? new Date(sinceStr) : null;
   const logs = since ? _serverLogs.filter(l => new Date(l.time) > since) : _serverLogs.slice(-100);
@@ -133,25 +191,27 @@ router.get('/serverlogs', authMiddleware, adminOnly, (req, res) => {
     uptime: Math.floor((Date.now() - _serverStartTime) / 1000),
     startTime: _serverStartTime.toISOString(),
     nodeVersion: process.version,
-    env: process.env.NODE_ENV || 'development',
+    env: process.env.NODE_ENV || 'production',
     memMB: Math.round(process.memoryUsage().rss / 1024 / 1024),
   });
 });
 
 // GET /api/system/health - Return system runtime health and overview metrics
-router.get('/health', authMiddleware, adminOnly, async (req, res) => {
+router.get('/health', authMiddleware, requirePage('control', 'view', { tab: 'overview' }), async (req, res) => {
   try {
     const dbState = mongoose.connection.readyState;
     const dbStateMap = { 0: 'Disconnected', 1: 'Connected', 2: 'Connecting', 3: 'Disconnecting' };
     const activeTeachersCount = await M.User.countDocuments({ role: 'teacher', status: 'active' });
     const activeStudentsCount = await M.User.countDocuments({ role: 'student', status: 'active' });
-    const activeAdminsCount = await M.User.countDocuments({ role: 'admin', status: 'active' });
+    const adminTeachers = await M.Teacher.find({ 'specials.option': 'isAdmin' }).select('trackId').lean();
+    const adminTrackIds = adminTeachers.map(t => t.trackId).filter(Boolean);
+    const activeAdminsCount = await M.User.countDocuments({ trackId: { $in: adminTrackIds }, status: 'active' });
     
     const [errorCount, warnCount] = await Promise.all([
       M.Log.countDocuments({ severity: { $in: ['critical', 'error'] } }),
       M.Log.countDocuments({ severity: 'warning' }),
     ]);
-    const totalUsers = activeTeachersCount + activeStudentsCount + activeAdminsCount;
+    const totalUsers = await M.User.countDocuments({ status: 'active' });
     const activeTeachers = activeTeachersCount;
     const errFilter = { severity: { $in: ['critical', 'error', 'warning'] } };
     const errLimitParam = sanitizeToString(req.query.errLimit);
@@ -182,7 +242,7 @@ const ADDER_MODELS = {
   teachers:    M.Teacher,
 };
 
-router.post('/delete-adder', criticalDeleteLimiter, authMiddleware, adminOnly, requireRight('deletings'), async (req, res) => {
+router.post('/delete-adder', authMiddleware, requirePage('control', 'delete', { tab: 'data' }), criticalDeleteLimiter, async (req, res) => {
   try {
     const { collections } = req.body;
     if (!Array.isArray(collections) || collections.length === 0) {
@@ -224,7 +284,7 @@ router.post('/delete-adder', criticalDeleteLimiter, authMiddleware, adminOnly, r
 });
 
 // POST /api/system/broadcast/send - Dispatch broadcast banner and notifications
-router.post('/broadcast/send', authMiddleware, adminOnly, async (req, res) => {
+router.post('/broadcast/send', authMiddleware, requirePage('control', 'create', { tab: 'broadcasts' }), async (req, res) => {
   try {
     const { message, level = 'info', targetRoles = ['all'], isForcedAll = false, popupDurationSec = 10 } = req.body;
     if (!message || !message.trim()) {
@@ -252,6 +312,7 @@ router.post('/broadcast/send', authMiddleware, adminOnly, async (req, res) => {
       },
       { upsert: true }
     );
+    invalidateSettingsCache('broadcast');
 
     // Fetch target user IDs
     const sentUserIds = [];
@@ -294,7 +355,7 @@ router.post('/broadcast/send', authMiddleware, adminOnly, async (req, res) => {
             toStudentTrackId: s.trackId || '',
             message: message.trim(),
             priority: 'High',
-            status: 'Solved',
+            status: 'Delivered',
             time: new Date()
           });
         });
@@ -310,7 +371,7 @@ router.post('/broadcast/send', authMiddleware, adminOnly, async (req, res) => {
             toTeacherTrackId: t.trackId || '',
             message: message.trim(),
             priority: 'High',
-            status: 'Solved',
+            status: 'Delivered',
             time: new Date()
           });
         });
@@ -370,7 +431,7 @@ router.post('/broadcast/send', authMiddleware, adminOnly, async (req, res) => {
   }
 });
 
-router.get('/broadcast/history', authMiddleware, adminOnly, async (req, res) => {
+router.get('/broadcast/history', authMiddleware, requirePage('control', 'view', { tab: 'broadcasts' }), async (req, res) => {
   try {
     const history = await M.BroadcastHistory.find()
       .sort({ dispatchedAt: -1 })
@@ -382,12 +443,13 @@ router.get('/broadcast/history', authMiddleware, adminOnly, async (req, res) => 
   }
 });
 
-router.post('/broadcast/clear', authMiddleware, adminOnly, async (req, res) => {
+router.post('/broadcast/clear', authMiddleware, requirePage('control', 'delete', { tab: 'broadcasts' }), async (req, res) => {
   try {
     await M.Settings.findOneAndUpdate(
       { key: 'broadcast' },
       { $set: { 'value.systemBannerActive': false } }
     );
+    invalidateSettingsCache('broadcast');
     await logAction(req.user._id, req.user.name, req.user.role, 'Broadcast Cleared', 'Active banner deactivated', 'system', 'info', req.ip);
     res.json({ success: true, message: 'Broadcast banner deactivated' });
   } catch (err) {
@@ -395,4 +457,4 @@ router.post('/broadcast/clear', authMiddleware, adminOnly, async (req, res) => {
   }
 });
 
-module.exports = router;
+module.exports = router;

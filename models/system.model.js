@@ -8,7 +8,9 @@ const CounterSchema = new mongoose.Schema({
 const LoginHistorySchema = new mongoose.Schema({
   username:   { type: String, required: true, trim: true, lowercase: true, unique: true},
   trackId:    { type: String,  unique: true, sparse: true },
-  role:       { type: String, enum: ['student', 'teacher', 'admin'], required: true},
+  role:       { type: String, enum: ['student', 'teacher', 'admin', 'board'], required: true},
+  identityType: { type: String, enum: ['human', 'board'], default: 'human' },
+  boardId:    { type: String, default: '' },
   firstLogin: { type: Date },
   lastLogin:  { type: Date },
   totalLogins: { type: Number, default: 0 },
@@ -27,6 +29,11 @@ const LoginHistorySchema = new mongoose.Schema({
     browser:      { type: String, enum: ['Chrome','Firefox','Edge','Safari','Opera','Brave','Other'] },
     os:           { type: String, enum: ['Windows','Linux','MacOS','Android','iOS','Other'] },
     status:       { type: String, enum: ['success', 'failed'] },
+    deviceId:        { type: String, default: '' },
+    deviceName:      { type: String, default: '' },
+    deviceInstallId: { type: String, default: '' },
+    deviceInfo:      { type: mongoose.Schema.Types.Mixed, default: null },
+    identityType:    { type: String, enum: ['human', 'board'], default: 'human' },
     location: {
       latitude:  { type: Number },
       longitude: { type: Number },
@@ -47,7 +54,7 @@ LoginHistorySchema.index({ trackId: 1, "history.sessionId": 1 });
 LoginHistorySchema.index({ "history.sessionId": 1 });
 
 const NotificationSchema = new mongoose.Schema({
-  type:          { type: String, enum: ['request','error','info','attendance-alert','leave-request','leave-approval','leave-rejection'], default: 'request' },
+  type:          { type: String, enum: ['request','error','info','attendance-alert','leave-request','leave-approval','leave-rejection','trust-dispute','timetable-verification'], default: 'request' },
   from:          { type: String, required: true },
   fromRole:      { type: String, default: 'Teacher' },
   toTeacherId:   { type: mongoose.Schema.Types.ObjectId, ref: 'Teacher', default: null },
@@ -57,30 +64,43 @@ const NotificationSchema = new mongoose.Schema({
   toStudentName: { type: String, default: '' },
   toStudentTrackId: { type: String, default: '' },
   leaveRequestId:{ type: mongoose.Schema.Types.ObjectId, ref: 'LeaveRequest', default: null },
+  timetableVersionId: { type: mongoose.Schema.Types.ObjectId, ref: 'TimetableVersion', default: null },
+  classId:       { type: mongoose.Schema.Types.ObjectId, ref: 'Class', default: null },
+  className:     { type: String, default: '' },
   message:       { type: String, required: true },
   priority:      { type: String, enum: ['Normal','High','Urgent'], default: 'Normal' },
-  status:        { type: String, enum: ['Pending','Solved','Cancelled'], default: 'Pending' },
+  status:        { type: String, enum: ['Pending','Solved','Cancelled','Delivered','Read'], default: 'Delivered' },
   read:          { type: Boolean, default: false },
+  readAt:        { type: Date, default: null },
+  deliveredAt:   { type: Date, default: Date.now },
   grievanceId:   { type: mongoose.Schema.Types.ObjectId, ref: 'Grievance', default: null },
   solvedAt:      { type: Date },
   cancelledAt:   { type: Date },
-  time:          { type: Date },
+  time:          { type: Date, default: Date.now },
 }, { timestamps: true });
 
 const GrievanceSchema = new mongoose.Schema({
-  teacherId:   { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-  teacherName: { type: String, required: true },
-  subject:     { type: String, required: true },
-  category:    { type: String, default: 'Other' },
-  detail:      { type: String, required: true },
-  status:      { type: String, enum: ['Pending','Resolved','Cancelled'], default: 'Pending' },
-  resolvedBy:  { type: String, default: '' },
-  resolvedAt:  { type: Date },
-  cancelledAt: { type: Date },
+  teacherId:      { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+  teacherName:    { type: String, default: '' },
+  teacherDept:    { type: String, default: '' },
+  studentId:      { type: mongoose.Schema.Types.ObjectId, ref: 'Student', default: null },
+  studentName:    { type: String, default: '' },
+  studentTrackId: { type: String, default: '' },
+  kind:           { type: String, default: 'general' },
+  disputeId:      { type: mongoose.Schema.Types.ObjectId, ref: 'TrustDispute', default: null },
+  subject:        { type: String, required: true },
+  category:       { type: String, default: 'Other' },
+  detail:         { type: String, required: true },
+  priority:       { type: String, enum: ['Low', 'Normal', 'High', 'Urgent'], default: 'Normal' },
+  status:         { type: String, enum: ['Pending', 'In Progress', 'Resolved', 'Cancelled'], default: 'Pending' },
+  resolutionNote: { type: String, default: '' },
+  resolvedBy:     { type: String, default: '' },
+  resolvedAt:     { type: Date },
+  cancelledAt:    { type: Date },
 }, { timestamps: true });
 
 const LogSchema = new mongoose.Schema({
-  logTrackId:            { type: String, unique: true, sparse: true, index: true },
+  logTrackId:            { type: String, unique: true, sparse: true },
   userName:              { type: String, required: true },
   role:                  { type: String, default: 'admin' },
   trackId:               { type: String, default: '' },
@@ -96,6 +116,10 @@ const LogSchema = new mongoose.Schema({
     accuracy:  { type: Number, default: null },
     address:   { type: String, default: '' },
   },
+  deviceId:              { type: String, default: '', index: true },
+  deviceName:            { type: String, default: '' },
+  deviceInstallId:       { type: String, default: '' },
+  deviceInfo:            { type: mongoose.Schema.Types.Mixed, default: null },
   module:                { type: String, default: 'system' },
   subType:               { type: String, default: 'action' },
   actingWithAdminRights: { type: Boolean, default: false },
@@ -187,26 +211,35 @@ const LiveSessionSchema = new mongoose.Schema({
     time:      { type: Date, default: Date.now },
     ip:        { type: String },
     deviceId:  { type: String, default: '' },
-    source:    { type: String, enum: ['code', 'qr', 'passcode'], default: 'code' }
+    source:    { type: String, enum: ['code', 'qr', 'passcode'], default: 'code' },
+    status:    { type: String, enum: ['pending', 'completed'], default: 'completed' },
+    security: {
+      deviceTrackId: { type: String, default: '' },
+      deviceProofOk: { type: Boolean, default: false },
+      trustScoreAtMark: { type: Number, default: 100 },
+      deviceScoreAtMark: { type: Number, default: 0 },
+      combinedScoreAtMark: { type: Number, default: 50 },
+      riskLevelAtMark: { type: String, enum: ['low', 'medium', 'high', 'very_high'], default: 'low' },
+      riskReasons: { type: [String], default: [] },
+      teacherVerification: {
+        required: { type: Boolean, default: false },
+        result: { type: String, default: null },
+        by: { type: String, default: null },
+        at: { type: Date, default: null }
+      }
+    }
   }]
 }, { timestamps: true });
 
 
-const ManageAdminSchema = new mongoose.Schema({
-  trackId    : { type: String, required: true, unique: true},
-  role       : { type: String, enum: ['admin','teacher']},
-  permissions: { type: [String], default: ['calendar','exam','attendance'] },
-  addedBy    : { type: String, default: 'Admin' },
-  createdAt  : { type: Date, default: Date.now },
-  status     : { type: String, enum: ['active','inactive'], default: 'active' },
-});
+const { LoginSession } = require('./loginSession.model');
 
 module.exports = {
   Counter:      mongoose.model('Counter',      CounterSchema),
   LoginHistory: mongoose.model('LoginHistory', LoginHistorySchema),
+  LoginSession: LoginSession,
   Notification: mongoose.model('Notification', NotificationSchema),
   Grievance:    mongoose.model('Grievance',    GrievanceSchema),
   Log:          mongoose.model('Log',          LogSchema),
   LiveSession:  mongoose.model('LiveSession',  LiveSessionSchema),
-  ManageAdmin:  mongoose.model('ManageAdmin', ManageAdminSchema),
 };

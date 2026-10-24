@@ -3,12 +3,14 @@ const router = express.Router();
 const crypto = require('crypto');
 const mongoose = require('mongoose');
 const M = require('../models');
-const { authMiddleware, adminOnly } = require('../middleware/auth');
-const { liveSessionMarkLimiter } = require('../utils/rateLimiters');
+const { authMiddleware } = require('../middleware/auth');
+const { liveSessionMarkLimiter, liveSessionMarkIpLimiter } = require('../utils/rateLimiters');
 const { checkLiveSessionGuard } = require('../middleware/portalGuard');
 const { verifyTeacherAssignment } = require('../utils/assignmentAuth');
+const { isSudoAdmin } = require('../utils/access');
 const { isCampusIpAllowed } = require('../utils/ipCheck');
 const { logAction } = require('../utils/logAction');
+const { evaluateDeviceTrust } = require('../utils/deviceTrust');
 
 function generate12CharCode() {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -173,13 +175,13 @@ router.get('/active', authMiddleware, checkLiveSessionGuard, async (req, res) =>
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-router.post('/mark', liveSessionMarkLimiter, authMiddleware, checkLiveSessionGuard, async (req, res) => {
+router.post('/mark', authMiddleware, liveSessionMarkIpLimiter, liveSessionMarkLimiter, checkLiveSessionGuard, async (req, res) => {
   if (req.user.role !== 'student') return res.status(403).json({ error: 'Students only' });
-  const { sessionId, passcode, deviceId } = req.body;
+  const { sessionId, passcode, deviceId, deviceProof, latitude, longitude, accuracy } = req.body;
 
   const cleanSessionId = String(sessionId || '').trim();
   const cleanPasscode = String(passcode || '').trim();
-  const cleanDeviceId = String(deviceId || '').trim();
+  const effectiveDeviceId = String(deviceId || deviceProof?.installId || '').trim();
 
   if (!cleanSessionId || cleanSessionId.length > 50) {
     return res.status(400).json({ error: 'Valid session ID required' });
@@ -187,7 +189,7 @@ router.post('/mark', liveSessionMarkLimiter, authMiddleware, checkLiveSessionGua
   if (!cleanPasscode || cleanPasscode.length > 50) {
     return res.status(400).json({ error: 'Valid passcode required' });
   }
-  if (!cleanDeviceId || cleanDeviceId.length > 150) {
+  if (!effectiveDeviceId || effectiveDeviceId.length > 150) {
     return res.status(400).json({ error: 'Device identification (max 150 chars) is required to mark attendance.' });
   }
 
@@ -208,14 +210,11 @@ router.post('/mark', liveSessionMarkLimiter, authMiddleware, checkLiveSessionGua
       return res.status(400).json({ error: 'This session does not accept passcode submissions. Please scan the live QR code.' });
     }
 
-    // Device identification and proxy check (A5)
-    const cleanDeviceId = deviceId ? String(deviceId).trim() : '';
-    if (!cleanDeviceId) {
-      return res.status(400).json({ error: 'Device identification is required to mark attendance.' });
-    }
-
+    // Device identification and proxy check (A5, §7.1)
     const deviceAlreadyUsed = session.markedStudents.some(
-      s => s.deviceId && s.deviceId === cleanDeviceId && String(s.studentId) !== String(student._id)
+      s => (s.deviceId === effectiveDeviceId || (deviceProof?.installId && s.security?.deviceTrackId === deviceProof.installId)) &&
+      String(s.studentId) !== String(student._id) &&
+      s.status === 'completed'
     );
     if (deviceAlreadyUsed) {
       return res.status(403).json({ error: 'This physical device was already used by another student for this session.' });
@@ -229,7 +228,7 @@ router.post('/mark', liveSessionMarkLimiter, authMiddleware, checkLiveSessionGua
     }
 
     // Passcode Check
-    if (!session.passcode || session.passcode !== passcode) {
+    if (!session.passcode || session.passcode !== cleanPasscode) {
       return res.status(400).json({ error: 'Incorrect Passcode' });
     }
 
@@ -237,17 +236,56 @@ router.post('/mark', liveSessionMarkLimiter, authMiddleware, checkLiveSessionGua
     const alreadyMarked = session.markedStudents.some(s => String(s.studentId) === String(student._id));
     if (alreadyMarked) return res.json({ success: true, message: 'Already marked' });
 
+    // Evaluate Device Trust & Risk Gate (§7, §9, T2.1-T2.5)
+    const trustEval = await evaluateDeviceTrust({
+      student,
+      deviceProof,
+      payload: { sessionId: session.trackId || String(session._id), passcode: cleanPasscode },
+      location: {
+        latitude: latitude !== undefined ? Number(latitude) : undefined,
+        longitude: longitude !== undefined ? Number(longitude) : undefined,
+        accuracy: accuracy !== undefined ? Number(accuracy) : undefined,
+        isClassroomRadiusOk: true,
+        locationOk: true
+      },
+      ip: req.ip,
+      deviceId: effectiveDeviceId
+    });
+
+    if (!trustEval.allowed) {
+      return res.status(403).json({
+        error: trustEval.error,
+        code: trustEval.code,
+        trustScore: trustEval.trustScore,
+        isLocked: trustEval.isLocked
+      });
+    }
+
+    const markStatus = trustEval.requiresTeacherVerification ? 'pending' : 'completed';
+
     session.markedStudents.push({
       studentId: student._id,
       regNo: student.registerNo || student.regNo,
       time: new Date(),
       ip: req.ip,
-      deviceId: cleanDeviceId,
-      source: 'passcode'
+      deviceId: effectiveDeviceId,
+      source: 'passcode',
+      status: markStatus,
+      security: trustEval.security
     });
     await session.save();
 
-    res.json({ success: true });
+    res.json({
+      success: true,
+      status: markStatus,
+      pendingVerification: trustEval.requiresTeacherVerification,
+      requiresTeacherVerification: trustEval.requiresTeacherVerification,
+      riskLevel: trustEval.security.riskLevelAtMark,
+      message: trustEval.requiresTeacherVerification
+        ? 'Attendance recorded and pending teacher verification.'
+        : 'Attendance successfully marked!',
+      security: trustEval.security
+    });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -261,7 +299,7 @@ router.get('/status/:id', authMiddleware, checkLiveSessionGuard, async (req, res
       idQueries.unshift({ _id: idParam });
     }
     const query = { $or: idQueries };
-    if (req.user.role !== 'admin') {
+    if (!isSudoAdmin(req.user)) {
       query.$and = [
         { $or: [{ teacherId: req.user._id }, { teacherTrackId }] }
       ];
@@ -298,7 +336,7 @@ router.post('/end/:id', authMiddleware, checkLiveSessionGuard, async (req, res) 
     if (typeof idParam === 'string' && mongoose.Types.ObjectId.isValid(idParam) && idParam.length === 24) {
       idQueries.unshift({ _id: idParam });
     }
-    const teacherFilter = req.user.role === 'admin' ? {} : { $or: [{ teacherId: req.user._id }, { teacherTrackId }] };
+    const teacherFilter = isSudoAdmin(req.user) ? {} : { $or: [{ teacherId: req.user._id }, { teacherTrackId }] };
 
     await Promise.all([
       M.LiveSession.findOneAndUpdate({
@@ -321,4 +359,4 @@ router.post('/end/:id', authMiddleware, checkLiveSessionGuard, async (req, res) 
   }
 });
 
-module.exports = router;
+module.exports = router;

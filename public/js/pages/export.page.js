@@ -22,7 +22,7 @@ var activeConfig = null;
 
 // ─── INIT ────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async function () {
-  currentUser = checkAuth('any');
+  currentUser = getUser();
   if (!currentUser) return;
 
   setupUserProfile();
@@ -66,7 +66,7 @@ function applyTimetableExportLock() {
     var banner = document.createElement('div');
     banner.id = 'tt-export-restricted-banner';
     banner.style.cssText = 'background:rgba(37,99,235,0.08);border:1.5px solid rgba(37,99,235,0.3);border-radius:12px;padding:12px 18px;margin-bottom:18px;display:flex;align-items:center;gap:12px;color:var(--td);';
-    banner.innerHTML = '<span style="font-size:20px;">ℹ️</span><div><div style="font-weight:700;font-size:13px;color:#1e40af;">Showing Timetable Export Tools (Restricted Mode)</div><div style="font-size:11.5px;color:var(--tmu);margin-top:2px;">Navigation is locked to Class and Faculty timetable schedules and term archiving.</div></div>';
+    banner.innerHTML = '<span style="font-size:20px;"><re-icon icon="info-circle"></re-icon></span><div><div style="font-weight:700;font-size:13px;color:#1e40af;">Showing Timetable Export Tools (Restricted Mode)</div><div style="font-size:11.5px;color:var(--tmu);margin-top:2px;">Navigation is locked to Class and Faculty timetable schedules and term archiving.</div></div>';
     mainContent.insertBefore(banner, mainContent.firstChild);
   }
 
@@ -109,13 +109,13 @@ function toggleExportSidebar() {
   if (isMobile) {
     var isOpen = sidebar.classList.toggle('sb-mobile-open');
     if (overlay) overlay.classList.toggle('visible', isOpen);
-    if (toggleButton) toggleButton.innerHTML = isOpen ? '✖' : '☰';
+    if (toggleButton) toggleButton.innerHTML = isOpen ? '<re-icon icon="x"></re-icon>' : '<re-icon icon="menu"></re-icon>';
   } else {
     var isHidden = sidebar.classList.toggle('sb-hidden');
     if (mainContent) mainContent.classList.toggle('sb-expanded', isHidden);
     if (toggleButton) {
       toggleButton.classList.toggle('closed', isHidden);
-      toggleButton.innerHTML = isHidden ? '☰' : '✖';
+      toggleButton.innerHTML = isHidden ? '<re-icon icon="menu"></re-icon>' : '<re-icon icon="x"></re-icon>';
     }
   }
 }
@@ -176,7 +176,7 @@ function nav(pageName) {
     if (sidebar && sidebar.classList.contains('sb-mobile-open')) {
       sidebar.classList.remove('sb-mobile-open');
       if (overlay) overlay.classList.remove('visible');
-      if (toggleButton) toggleButton.innerHTML = '☰';
+      if (toggleButton) toggleButton.innerHTML = '<re-icon icon="menu"></re-icon>';
     }
   }
 
@@ -203,12 +203,23 @@ function updateTopDate() {
 function goHome() {
   var user = currentUser || (typeof getUser === 'function' ? getUser() : null);
   if (!user) { window.location.href = 'index.html'; return; }
-  if (user.role === 'admin') window.location.href = 'admin.html';
+  var isAdm = typeof isAdminUser === 'function' ? isAdminUser(user) : (['admin', 'sudo'].includes(user.role) || Boolean(user.isAdmin));
+  if (isAdm) window.location.href = 'selector.html';
   else if (user.role === 'teacher') window.location.href = 'teacher.html';
   else if (user.role === 'student') window.location.href = 'student.html';
   else window.location.href = 'index.html';
 }
 window.goHome = goHome;
+
+function openUserProfile() {
+  var user = currentUser || (typeof getUser === 'function' ? getUser() : null);
+  if (!user) { window.location.href = 'index.html'; return; }
+  if (user.role === 'teacher') window.location.href = 'teacher.html?tab=profile';
+  else if (user.role === 'student') window.location.href = 'student.html';
+  else if (['admin', 'sudo'].includes(user.role) || Boolean(user.isAdmin)) window.location.href = 'admin.html';
+  else window.location.href = 'teacher.html?tab=profile';
+}
+window.openUserProfile = openUserProfile;
 
 // ─── EVENT LISTENERS ─────────────────────────────────────────────────────
 function attachEventListeners() {
@@ -426,7 +437,7 @@ function renderRecentExports(exports) {
         '<span class="export-records">' + (exp.recordCount || 0) + ' records</span>' +
       '</div>' +
       '<div class="export-card-footer" style="margin-top:8px;">' +
-        '<button class="btn-download" style="width:100%;justify-content:center;" onclick="downloadExport(\'' + trackId + '\')">📥 Re-Download</button>' +
+        '<button class="btn-download" style="width:100%;justify-content:center;" onclick="downloadExport(\'' + trackId + '\')"><re-icon icon="download"></re-icon> Re-Download</button>' +
       '</div>' +
     '</div>';
   }).join('');
@@ -445,10 +456,10 @@ async function buildFilterOptions() {
     if (data.students) filterOptions.students = data.students;
 
     // Populate search bar selects
-    populateSelect('filter-department', filterOptions.departments, currentFilters.department, '🏛️ All Departments');
-    populateSelect('filter-year', filterOptions.years, currentFilters.year, '🎓 All Years');
-    populateSelect('filter-section', filterOptions.sections, currentFilters.section, '🏷️ All Sections');
-    populateSelect('filter-subject', filterOptions.subjects, currentFilters.subject, '📚 All Subjects');
+    populateSelect('filter-department', filterOptions.departments, currentFilters.department, '<re-icon icon="building2"></re-icon> All Departments');
+    populateSelect('filter-year', filterOptions.years, currentFilters.year, '<re-icon icon="graduation-cap"></re-icon> All Years');
+    populateSelect('filter-section', filterOptions.sections, currentFilters.section, '<re-icon icon="tag"></re-icon> All Sections');
+    populateSelect('filter-subject', filterOptions.subjects, currentFilters.subject, '<re-icon icon="book-open"></re-icon> All Subjects');
 
     // Populate modal selects
     populateSelect('config-department', filterOptions.departments, '', 'All Departments');
@@ -493,9 +504,11 @@ function setupDateRangeButtons() {
 }
 
 function applyDatePreset(range) {
-  var today = new Date();
+  var endStr = todayIST();
+  var todayParts = endStr.split('-').map(Number);
+  var today = new Date(todayParts[0], todayParts[1] - 1, todayParts[2]);
   var startStr = '';
-  var endStr = today.toISOString().split('T')[0];
+  // endStr initialized above
 
   if (range === 'today') {
     startStr = endStr;
@@ -503,17 +516,17 @@ function applyDatePreset(range) {
     var d = new Date(today);
     var day = d.getDay() || 7;
     d.setDate(d.getDate() - day + 1);
-    startStr = d.toISOString().split('T')[0];
+    startStr = todayIST(d);
   } else if (range === 'month') {
     var start = new Date(today.getFullYear(), today.getMonth(), 1);
-    startStr = start.toISOString().split('T')[0];
+    startStr = todayIST(start);
   } else if (range === 'semester') {
     var semMonth = today.getMonth() >= 6 ? 6 : 0;
     var start = new Date(today.getFullYear(), semMonth, 1);
-    startStr = start.toISOString().split('T')[0];
+    startStr = todayIST(start);
   } else if (range === 'year') {
     var start = new Date(today.getFullYear(), 0, 1);
-    startStr = start.toISOString().split('T')[0];
+    startStr = todayIST(start);
   } else if (range === 'custom') {
     var fromEl = document.getElementById('config-date-from');
     if (fromEl) fromEl.focus();
@@ -656,7 +669,7 @@ async function handlePreviewClick() {
   } catch (err) {
     showToast('Preview calculation failed: ' + err.message, 'error');
   } finally {
-    if (btn) { btn.disabled = false; btn.textContent = '👁️ Preview Count'; }
+    if (btn) { btn.disabled = false; btn.innerHTML = '<re-icon icon="eye"></re-icon>️ Preview Count'; }
   }
 }
 window.handlePreviewClick = handlePreviewClick;
@@ -743,8 +756,9 @@ async function executeGenerate(config) {
 
     if (typeof window.dbToast === 'function') {
       window.dbToast('Report ready! Initiating download…', 'success');
+    } else {
+      showToast('Export successful! Starting download…', 'success');
     }
-    showToast('Export successful! Starting download…', 'success');
 
     var downloadUrl = data.downloadUrl || ('/api/export/download/' + data.exportTrackId);
     var ext = config.format === 'excel' ? 'csv' : (config.format === 'csv' ? 'csv' : 'html');
@@ -759,10 +773,11 @@ async function executeGenerate(config) {
     console.error('Generation failed:', err);
     if (typeof window.dbToast === 'function') {
       window.dbToast('Export failed: ' + err.message, 'error');
+    } else {
+      showToast('Export generation failed: ' + err.message, 'error');
     }
-    showToast('Export generation failed: ' + err.message, 'error');
   } finally {
-    if (genBtn) { genBtn.disabled = false; genBtn.textContent = '🚀 Generate & Download'; }
+    if (genBtn) { genBtn.disabled = false; genBtn.innerHTML = '<re-icon icon="rocket"></re-icon> Generate & Download'; }
   }
 }
 
@@ -802,7 +817,11 @@ async function triggerAuthenticatedDownload(url, defaultFilename) {
     }, 400);
   } catch (err) {
     console.error('Download error:', err);
-    showToast('Download error: ' + err.message, 'error');
+    if (typeof window.dbToast === 'function') {
+      window.dbToast('Download error: ' + err.message, 'error');
+    } else {
+      showToast('Download error: ' + err.message, 'error');
+    }
   }
 }
 
@@ -841,7 +860,7 @@ function renderTemplates(templates) {
   if (!templates || templates.length === 0) {
     container.innerHTML =
       '<div class="ec-empty-state">' +
-        '<div class="empty-icon">⭐</div>' +
+        '<div class="empty-icon"><re-icon icon="sparkles"></re-icon></div>' +
         '<div class="empty-title">No saved templates yet</div>' +
         '<div class="empty-desc">Configure any report and provide a template name to quickly regenerate it anytime.</div>' +
       '</div>';
@@ -860,8 +879,8 @@ function renderTemplates(templates) {
         '<span class="template-date">' + (tmpl.updatedAt || tmpl.createdAt ? formatDate(tmpl.updatedAt || tmpl.createdAt) : 'N/A') + '</span>' +
       '</div>' +
       '<div class="template-card-footer">' +
-        '<button class="btn-sm btn-load-template" onclick="loadTemplate(\'' + tmpl._id + '\')">⚡ Load Preset</button>' +
-        '<button class="btn-sm btn-delete-template" onclick="deleteTemplate(\'' + tmpl._id + '\')">🗑️ Delete</button>' +
+        '<button class="btn-sm btn-load-template" onclick="loadTemplate(\'' + tmpl._id + '\')"><re-icon icon="bolt"></re-icon> Load Preset</button>' +
+        '<button class="btn-sm btn-delete-template" onclick="deleteTemplate(\'' + tmpl._id + '\')"><re-icon icon="trash2"></re-icon> Delete</button>' +
       '</div>' +
     '</div>';
   }).join('');
@@ -968,7 +987,7 @@ async function confirmDeleteTemplateAction() {
   } finally {
     if (confirmBtn) {
       confirmBtn.disabled = false;
-      confirmBtn.innerHTML = '🗑️ Delete Template';
+      confirmBtn.innerHTML = '<re-icon icon="trash2"></re-icon> Delete Template';
     }
   }
 }
@@ -1034,7 +1053,7 @@ function renderHistory(items) {
       '<td>' + statusBadge + '</td>' +
       '<td style="text-align:right;">' +
         '<button class="btn-download" onclick="downloadExport(\'' + trackId + '\')">' +
-          '📥 Download' +
+          '<re-icon icon="download"></re-icon> Download' +
         '</button>' +
       '</td>' +
     '</tr>';
@@ -1080,10 +1099,10 @@ function clearFilters() {
   var toEl = document.getElementById('filter-date-to');
   if (toEl) toEl.value = '';
 
-  populateSelect('filter-department', filterOptions.departments, '', '🏛️ All Departments');
-  populateSelect('filter-year', filterOptions.years, '', '🎓 All Years');
-  populateSelect('filter-section', filterOptions.sections, '', '🏷️ All Sections');
-  populateSelect('filter-subject', filterOptions.subjects, '', '📚 All Subjects');
+  populateSelect('filter-department', filterOptions.departments, '', '<re-icon icon="building2"></re-icon> All Departments');
+  populateSelect('filter-year', filterOptions.years, '', '<re-icon icon="graduation-cap"></re-icon> All Years');
+  populateSelect('filter-section', filterOptions.sections, '', '<re-icon icon="tag"></re-icon> All Sections');
+  populateSelect('filter-subject', filterOptions.subjects, '', '<re-icon icon="book-open"></re-icon> All Subjects');
 
   filterReportCards();
   historyPage = 1;
@@ -1125,14 +1144,17 @@ function formatDate(isoDate) {
   }
 }
 
-function showToast(msg, type) {
-  if (typeof window.showToast === 'function') {
-    window.showToast(msg, type);
-  } else if (typeof window.dbToast === 'function') {
-    window.dbToast(msg, type);
-  } else {
-    alert(msg);
-  }
+// Provide fallback if toast.js isn't loaded; do not shadow/recursively call window.showToast
+if (typeof window.showToast !== 'function') {
+  window.showToast = function (msg, type) {
+    if (typeof window.dbToast === 'function') {
+      window.dbToast(msg, type);
+    } else if (typeof window.showPopup === 'function') {
+      window.showPopup(msg, 'Export Center', type || 'info');
+    } else {
+      console.log('[' + (type || 'info') + '] ' + msg);
+    }
+  };
 }
 
 // ══ TIME TABLE EXPORT CENTER INTEGRATION ═════════════════════════════════
@@ -1345,7 +1367,7 @@ function exportTTCurrentCSV() {
     ].map(function (v) { return '"' + String(v || '').replace(/"/g, '""') + '"'; }));
   });
   var csv = rows.map(function (r) { return r.join(','); }).join('\n');
-  downloadTTFile(csv, 'EAMS-Timetable-' + (ttState.activeClassName || 'Section') + '-' + new Date().toISOString().slice(0, 10) + '.csv', 'text/csv;charset=utf-8');
+  downloadTTFile(csv, 'EAMS-Timetable-' + (ttState.activeClassName || 'Section') + '-' + todayIST() + '.csv', 'text/csv;charset=utf-8');
   showToast('Section timetable exported to CSV.', 'success');
 }
 
@@ -1400,7 +1422,7 @@ function exportTTCurrentExcel() {
   });
 
   html += '</table></body></html>';
-  downloadTTFile(html, 'EAMS-Timetable-' + secName + '-' + new Date().toISOString().slice(0, 10) + '.xls', 'application/vnd.ms-excel;charset=utf-8');
+  downloadTTFile(html, 'EAMS-Timetable-' + secName + '-' + todayIST() + '.xls', 'application/vnd.ms-excel;charset=utf-8');
   showToast('Excel timetable downloaded for ' + secName, 'success');
 }
 
@@ -1431,7 +1453,7 @@ async function exportTTAllSectionsCSV() {
       ].map(function (v) { return '"' + String(v || '').replace(/"/g, '""') + '"'; }));
     });
     var csv = rows.map(function (r) { return r.join(','); }).join('\n');
-    downloadTTFile(csv, 'EAMS-All-Sections-Master-Timetable-' + new Date().toISOString().slice(0, 10) + '.csv', 'text/csv;charset=utf-8');
+    downloadTTFile(csv, 'EAMS-All-Sections-Master-Timetable-' + todayIST() + '.csv', 'text/csv;charset=utf-8');
     showToast(all.length + ' timetable records exported for all sections.', 'success');
   } catch (err) {
     showToast('Failed to export all sections: ' + err.message, 'error');
@@ -1449,7 +1471,7 @@ async function exportTTJSON() {
       slots: all
     };
     var jsonStr = JSON.stringify(snapshot, null, 2);
-    downloadTTFile(jsonStr, 'EAMS-Timetable-Snapshot-' + new Date().toISOString().slice(0, 10) + '.json', 'application/json');
+    downloadTTFile(jsonStr, 'EAMS-Timetable-Snapshot-' + todayIST() + '.json', 'application/json');
     showToast('Timetable raw JSON snapshot exported.', 'success');
   } catch (err) {
     showToast('Failed to export JSON snapshot: ' + err.message, 'error');
@@ -1478,7 +1500,7 @@ async function exportTTFacultyCSV() {
       ].map(function (v) { return '"' + String(v || '').replace(/"/g, '""') + '"'; }));
     });
     var csv = rows.map(function (r) { return r.join(','); }).join('\n');
-    downloadTTFile(csv, 'EAMS-Faculty-Schedules-' + new Date().toISOString().slice(0, 10) + '.csv', 'text/csv;charset=utf-8');
+    downloadTTFile(csv, 'EAMS-Faculty-Schedules-' + todayIST() + '.csv', 'text/csv;charset=utf-8');
     showToast('Faculty teaching schedules exported.', 'success');
   } catch (err) {
     showToast('Failed to export faculty schedules: ' + err.message, 'error');
@@ -1518,7 +1540,7 @@ async function exportTTWorkloadCSV() {
       ].map(function (v) { return '"' + String(v || '').replace(/"/g, '""') + '"'; }));
     });
     var csv = rows.map(function (r) { return r.join(','); }).join('\n');
-    downloadTTFile(csv, 'EAMS-Faculty-Workload-Summary-' + new Date().toISOString().slice(0, 10) + '.csv', 'text/csv;charset=utf-8');
+    downloadTTFile(csv, 'EAMS-Faculty-Workload-Summary-' + todayIST() + '.csv', 'text/csv;charset=utf-8');
     showToast('Faculty workload matrix exported.', 'success');
   } catch (err) {
     showToast('Failed to export workload matrix: ' + err.message, 'error');
@@ -1546,7 +1568,7 @@ async function exportTTRoomsCSV() {
       ].map(function (v) { return '"' + String(v || '').replace(/"/g, '""') + '"'; }));
     });
     var csv = rows.map(function (r) { return r.join(','); }).join('\n');
-    downloadTTFile(csv, 'EAMS-Room-Allocations-' + new Date().toISOString().slice(0, 10) + '.csv', 'text/csv;charset=utf-8');
+    downloadTTFile(csv, 'EAMS-Room-Allocations-' + todayIST() + '.csv', 'text/csv;charset=utf-8');
     showToast('Room allocations matrix exported.', 'success');
   } catch (err) {
     showToast('Failed to export room allocations: ' + err.message, 'error');
@@ -1595,7 +1617,7 @@ async function exportTTSubjectDistributionCSV() {
     });
 
     var csv = rows.map(function (r) { return r.join(','); }).join('\n');
-    downloadTTFile(csv, 'EAMS-Subject-Distribution-Report-' + new Date().toISOString().slice(0, 10) + '.csv', 'text/csv;charset=utf-8');
+    downloadTTFile(csv, 'EAMS-Subject-Distribution-Report-' + todayIST() + '.csv', 'text/csv;charset=utf-8');
     showToast('Subject distribution report exported.', 'success');
   } catch (err) {
     showToast('Failed to export subject distribution: ' + err.message, 'error');
@@ -1658,7 +1680,7 @@ async function exportTTRoomUtilizationCSV() {
     });
 
     var csv = rows.map(function (r) { return r.join(','); }).join('\n');
-    downloadTTFile(csv, 'EAMS-Room-Utilization-Report-' + new Date().toISOString().slice(0, 10) + '.csv', 'text/csv;charset=utf-8');
+    downloadTTFile(csv, 'EAMS-Room-Utilization-Report-' + todayIST() + '.csv', 'text/csv;charset=utf-8');
     showToast('Room utilization report exported.', 'success');
   } catch (err) {
     showToast('Failed to export room utilization: ' + err.message, 'error');
