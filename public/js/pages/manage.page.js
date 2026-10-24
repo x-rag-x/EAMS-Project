@@ -19,7 +19,16 @@ var _hasLocalDraft = false;
 
 // Utils
 function pad2(n){ return String(n).padStart(2,'0'); }
-function todayStr(){ return new Date().toISOString().split('T')[0]; }
+function todayStr(){ return typeof todayIST === 'function' ? todayIST() : (window.todayIST ? window.todayIST() : ''); }
+
+function openUserProfile() {
+  var user = (typeof getUser === 'function' ? getUser() : null) || JSON.parse(sessionStorage.getItem('eams_user') || '{}');
+  if (user.role === 'teacher') window.location.href = 'teacher.html?tab=profile';
+  else if (user.role === 'student') window.location.href = 'student.html';
+  else if (['admin', 'sudo'].includes(user.role) || Boolean(user.isAdmin)) window.location.href = 'admin.html';
+  else window.location.href = 'teacher.html?tab=profile';
+}
+window.openUserProfile = openUserProfile;
 function fmtDate(s){ if(!s) return '—'; var d=new Date(s+'T00:00:00'); return d.toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}); }
 function normalizeCalDateKey(d){
   if(!d) return '';
@@ -43,9 +52,53 @@ function examDates(ex){
   return { start: arr[0]||'', end: arr[arr.length-1]||'' };
 }
 
+function isManageReadOnly() {
+  try {
+    var access = JSON.parse(sessionStorage.getItem('eams_access') || '{}');
+    if (access && access.flags && access.flags.isSudo) return false;
+    var pageInfo = access && access.pages && access.pages.manage;
+    if (!pageInfo) return true;
+    var actions = pageInfo.actions || [];
+    return !actions.includes('*') && !actions.includes('create') && !actions.includes('edit');
+  } catch (e) {
+    return false;
+  }
+}
+
+function applyManageReadOnlyRestrictions() {
+  if (!isManageReadOnly()) return;
+  var selectors = [
+    '#delete-month-btn',
+    '#clear-draft-btn',
+    'button[onclick*="generateMonthDefaults"]',
+    'button[onclick*="saveCalendarMonth"]',
+    'button[onclick*="openExamModal"]',
+    'button[onclick*="clearExamList"]',
+    'button[onclick*="openYearModal"]',
+    'button[onclick*="openRegulationModal"]',
+    'button[onclick*="openAdminModal"]',
+    'button[onclick*="saveDayModal"]',
+    'button[onclick*="deleteExam"]',
+    'button[onclick*="saveExam"]',
+    'button[onclick*="deleteYear"]',
+    'button[onclick*="saveYear"]',
+    'button[onclick*="saveBatch"]',
+    'button[onclick*="confirmDeleteCalendarMonth"]',
+    'button[onclick*="saveRegulation"]',
+    'button[onclick*="addBatchRow"]',
+    'button[onclick*="quickAddBatch"]',
+    'button[onclick*="addSemesterDateRow"]'
+  ];
+  selectors.forEach(function (sel) {
+    document.querySelectorAll(sel).forEach(function (el) {
+      el.style.display = 'none';
+    });
+  });
+}
+
 // Boot
 (function() {
-  currentUser = checkAuth("admin", "managePage");
+  currentUser = getUser();
   if (!currentUser) return;
 
   // Loader message sequence (3 s total)
@@ -98,6 +151,7 @@ function examDates(ex){
       }, 360);
     }
     document.getElementById('app-shell').classList.add('vis');
+    applyManageReadOnlyRestrictions();
     if (fetchCb) fetchCb();
   }
 
@@ -108,14 +162,18 @@ function examDates(ex){
   ['sb-av','topbar-av'].forEach(function(id){ var el=document.getElementById(id); if(el) el.textContent=av; });
   ['sb-name','topbar-name'].forEach(function(id){ var el=document.getElementById(id); if(el) el.textContent=nm; });
   
+  var isAdm = typeof isAdminUser === 'function' ? isAdminUser(currentUser) : (currentUser && (['admin', 'sudo'].includes(currentUser.role) || Boolean(currentUser.isAdmin)));
+  var isSudo = typeof isSudoAdmin === 'function' ? isSudoAdmin(currentUser) : (currentUser && ['admin', 'sudo'].includes(currentUser.role) && currentUser.adminFlag !== 'subadmin');
+  var roleEl = document.querySelector('.sb-urole');
+  if (roleEl) {
+    roleEl.textContent = isSudo ? 'Sudo Administrator' : (isAdm ? 'Administrator' : (currentUser && currentUser.role === 'teacher' ? 'Faculty Member' : 'Admin'));
+  }
   var backBtn = document.querySelector('.sb-back-btn');
   if (backBtn) {
-    if (currentUser && currentUser.role === 'teacher') {
-      var roleEl = document.querySelector('.sb-urole');
-      if (roleEl) roleEl.textContent = 'Teacher (Admin)';
-      backBtn.textContent = '← Back to Hub';
+    if (currentUser && (currentUser.role === 'teacher' || isAdm)) {
+      backBtn.innerHTML = '<re-icon icon="arrow-left"></re-icon> Back to Hub';
     } else {
-      backBtn.textContent = '← Back to Dashboard';
+      backBtn.innerHTML = '<re-icon icon="arrow-left"></re-icon> Back to Dashboard';
     }
   }
 
@@ -133,14 +191,18 @@ function examDates(ex){
           brandSub.textContent = pub.institution.institutionShort + ' EAMS';
         }
       }
-      if (currentUser && currentUser.role !== 'admin') {
+      if (currentUser && !isAdminUser(currentUser)) {
         var pState = pub.pages ? pub.pages.pageManage : 'enabled';
         if (pState === 'hidden') {
           window.location.href = 'teacher.html';
           return;
         } else if (pState === 'disabled') {
-          alert('Data & Exam Management portal is currently disabled for maintenance.');
-          window.location.href = 'selector.html';
+          showPopup({
+            title: 'Portal Disabled',
+            message: 'Data & Exam Management portal is currently disabled for maintenance.',
+            type: 'warn',
+            onConfirm: function () { window.location.href = 'selector.html'; }
+          });
           return;
         }
       }
@@ -176,7 +238,8 @@ function examDates(ex){
 })();
 
 function goBack() {
-  if (currentUser && currentUser.role === 'teacher') {
+  var isAdm = typeof isAdminUser === 'function' ? isAdminUser(currentUser) : (currentUser && (['admin', 'sudo'].includes(currentUser.role) || Boolean(currentUser.isAdmin)));
+  if (currentUser && (currentUser.role === 'teacher' || isAdm)) {
     window.location.href = "selector.html";
   } else {
     window.location.href = "admin.html";
@@ -195,7 +258,7 @@ function goBack() {
 
       // Already expired
       if (remainingTime <= 0) {
-      showToast('⚠️ Session expired. Logging out...', 'error');
+      showToast('Session expired. Logging out...', 'error');
       return setTimeout(() => { doLogout('timeout', 'error'); }, 1000);
       }
 
@@ -219,7 +282,7 @@ function toggleSidebar() {
     var btn = document.getElementById('sbtoggle');
     if (sb) sb.classList.toggle('sb-mobile-open');
     if (ov) ov.classList.toggle('visible');
-    if (btn) btn.innerHTML = (sb && sb.classList.contains('sb-mobile-open')) ? '✖' : '☰';
+    if (btn) btn.innerHTML = (sb && sb.classList.contains('sb-mobile-open')) ? '<re-icon icon="x"></re-icon>' : '<re-icon icon="menu"></re-icon>';
   } else {
     var sb = document.querySelector('.sb');
     var mc = document.querySelector('.mc');
@@ -247,27 +310,42 @@ function nav(page) {
   if(page==='exam')      { loadExams(); populateExamSel(); populateDeptCheckboxes(); }
   if(page==='years')     loadYears();
   if(page==='settings')  loadManageAdmins();
+  applyManageReadOnlyRestrictions();
 }
 
 // OVERVIEW
 function loadOverview() {
   var now = new Date(), m = now.getMonth()+1, y = now.getFullYear();
   document.getElementById('ov-month-label').textContent = ['','January','February','March','April','May','June','July','August','September','October','November','December'][m]+' '+y;
+  var ovStatsBar = document.getElementById('ov-stats-bar');
   apiCall('GET','/calendar?month='+m+'&year='+y).then(function(days){
-    var map={}; (Array.isArray(days)?days:[]).forEach(function(d){ var key=normalizeCalDateKey(d.dateKey || d.date || d); map[key]=d; });
+    var daysArr = Array.isArray(days) ? days : [];
+    var map={}; daysArr.forEach(function(d){ var key=normalizeCalDateKey(d.dateKey || d.date || d); map[key]=d; });
     renderCalGrid(map,m,y,'ov-cal-grid',true);
-    var stats={working:0,leave:0,exam:0,total:new Date(y,m,0).getDate()};
-    for(var day=1;day<=stats.total;day++){
-      var ds=y+'-'+pad2(m)+'-'+pad2(day),d=map[ds],dow=new Date(ds+'T00:00:00').getDay();
+    if(daysArr.length === 0){
+      if(ovStatsBar) ovStatsBar.style.display = 'none';
+      return;
+    }
+    if(ovStatsBar) ovStatsBar.style.display = 'grid';
+    var stats={working:0,leave:0,exam:0,total:0};
+    var lastDay=new Date(y,m,0).getDate();
+    for(var day=1;day<=lastDay;day++){
+      var ds=y+'-'+pad2(m)+'-'+pad2(day),d=map[ds];
+      if(!d) continue;
+      var dow=new Date(ds+'T00:00:00').getDay();
       var eff=getEffType(d,dow,day,m,y);
       if(eff.type==='exam')stats.exam++; else if(!eff.working)stats.leave++; else stats.working++;
     }
+    stats.total = stats.working + stats.leave + stats.exam;
     document.getElementById('ov-working').textContent = stats.working;
     document.getElementById('ov-leave').textContent   = stats.leave;
     document.getElementById('ov-exam').textContent    = stats.exam;
     document.getElementById('ov-total').textContent   = stats.total;
 
-  }).catch(function(){ renderCalGrid({} , m, y, 'ov-cal-grid', true); });
+  }).catch(function(){ 
+    if(ovStatsBar) ovStatsBar.style.display = 'none';
+    renderCalGrid({} , m, y, 'ov-cal-grid', true); 
+  });
 
   apiCall('GET','/exams/active').then(function(data){
     renderUpcomingExams(Array.isArray(data)?data:[]);
@@ -280,11 +358,11 @@ function loadOverview() {
 function renderUpcomingExams(exams) {
   var cont = document.getElementById('ov-exams-list');
   if(!exams.length){ cont.innerHTML='<div style="text-align:center;padding:24px;color:var(--tdi);font-size:12px;">No upcoming exams.</div>'; return; }
-  var typeIcons={'Internal 1':'📘','Internal 2':'📙','Practicals':'🔬','Semester':'📚'};
+  var typeIcons={'Internal 1':'<re-icon icon="book-open"></re-icon>','Internal 2':'<re-icon icon="book-open"></re-icon>','Practicals':'<re-icon icon="microscope"></re-icon>','Semester':'<re-icon icon="book-open"></re-icon>'};
   var typeColors={'Internal 1':'#eff6ff','Internal 2':'#fdf4ff','Practicals':'#fff7ed','Semester':'#fef2f2'};
   var html='';
   exams.slice(0,8).forEach(function(ex){
-    var ic=typeIcons[ex.examType]||'📄';
+    var ic=typeIcons[ex.examType]||'<re-icon icon="file-text"></re-icon>';
     var col=typeColors[ex.examType]||'#f3f4f6';
     var rng=examDates(ex);
     var statusPill = ex.status==='ongoing'?'<span class="bge bgg">Ongoing</span>':'<span class="bge bgb">'+ex.status+'</span>';
@@ -480,13 +558,16 @@ function loadCalendar(){
     renderCalGrid(renderMap, m, y, 'cal-grid', false);
     updateCalStats(m, y);
     var badge = document.getElementById('cal-finalized-badge');
-    if (badge) { badge.textContent = '📝 Local Draft'; badge.style.color = '#b45309'; }
+    if (badge) { badge.innerHTML = '<re-icon icon="file-text"></re-icon> Local Draft'; badge.style.color = '#b45309'; }
     return;
   }
 
   _hasLocalDraft = false;
   var clrBtn = document.getElementById('clear-draft-btn');
   if(clrBtn) clrBtn.style.display = 'none';
+
+  var calStatsBar = document.getElementById('cal-stats-bar');
+  if(calStatsBar) calStatsBar.style.display = 'none';
 
   document.getElementById('cal-grid').innerHTML='<div style="grid-column:span 7;text-align:center;padding:20px;color:var(--tdi);font-size:16px;">Loading… This may take few seconds.</div>';
   apiCall('GET','/calendar?month='+m+'&year='+y).then(function(days){
@@ -509,24 +590,57 @@ function loadCalendar(){
     updateCalStats(m,y);
     dbToast('Synced successfully','success');
   }).catch(function(){ 
+    calendarData = {};
     renderCalGrid({},m,y,'cal-grid',false); 
     updateFinalizedBadge([]); 
+    updateCalStats(m,y);
     dbToast('Sync failed','error');
   });
 }
 
 function updateCalStats(m,y){
   var lastDay=new Date(y,m,0).getDate();
-  var stats={working:0,leave:0,exam:0,total:lastDay};
+  var yf = (typeof document !== 'undefined' && document.getElementById('cal-year-filter')) ? document.getElementById('cal-year-filter').value : '';
+  var bar = document.getElementById('cal-stats-bar');
+
+  var stats={working:0,leave:0,exam:0,total:0};
+  var markedCount=0;
+
   for(var day=1;day<=lastDay;day++){
-    var ds=y+'-'+pad2(m)+'-'+pad2(day),doc=calendarData[ds],dow=new Date(y, m-1, day).getDay();
+    var ds=y+'-'+pad2(m)+'-'+pad2(day);
+    var doc = (calendarData && calendarData[ds]) ? calendarData[ds] : null;
+    if(!doc) continue; // Unconfigured / unmarked day
+
+    // If year filter is active, check if this day applies to selected year
+    if(yf && doc.details && doc.details.length > 0){
+      var hasYear = doc.details.some(function(det){ return det.year === yf; });
+      if(!hasYear) continue;
+    }
+
+    markedCount++;
+    var dow=new Date(y, m-1, day).getDay();
     var eff=getEffType(doc,dow,day,m,y);
-    if(eff.type==='exam')stats.exam++; else if(!eff.working)stats.leave++; else stats.working++;
+    if(eff.type==='exam') stats.exam++;
+    else if(!eff.working || eff.type==='leave') stats.leave++;
+    else stats.working++;
   }
-  document.getElementById('cs-working').textContent=stats.working;
-  document.getElementById('cs-leave').textContent=stats.leave;
-  document.getElementById('cs-exam').textContent=stats.exam;
-  document.getElementById('cs-total').textContent=stats.total;
+
+  stats.total = stats.working + stats.leave + stats.exam;
+
+  if(markedCount === 0){
+    if(bar) bar.style.display = 'none';
+    var elW=document.getElementById('cs-working'); if(elW) elW.textContent='—';
+    var elL=document.getElementById('cs-leave'); if(elL) elL.textContent='—';
+    var elE=document.getElementById('cs-exam'); if(elE) elE.textContent='—';
+    var elT=document.getElementById('cs-total'); if(elT) elT.textContent='—';
+    return;
+  }
+
+  if(bar) bar.style.display = 'grid';
+  var elW=document.getElementById('cs-working'); if(elW) elW.textContent=stats.working;
+  var elL=document.getElementById('cs-leave'); if(elL) elL.textContent=stats.leave;
+  var elE=document.getElementById('cs-exam'); if(elE) elE.textContent=stats.exam;
+  var elT=document.getElementById('cs-total'); if(elT) elT.textContent=stats.total;
 }
 
 function generateMonthDefaults(){
@@ -564,7 +678,7 @@ function generateMonthDefaults(){
   renderCalGrid(renderMap,m,y,'cal-grid',false);
   updateCalStats(m,y);
   var badge = document.getElementById('cal-finalized-badge');
-  if (badge) { badge.textContent = '📝 Local Draft'; badge.style.color = '#b45309'; }
+  if (badge) { badge.innerHTML = '<re-icon icon="file-text"></re-icon> Local Draft'; badge.style.color = '#b45309'; }
   dbToast('Month auto-filled locally and saved to session draft. Click Save Draft or Save & Finalize to push to DB.','success');
 }
 
@@ -611,10 +725,10 @@ function updateFinalizedBadge(days){
   }
   var allFinalized=arr.every(function(d){ return d.isFinalized===true; });
   if(allFinalized){
-    badge.textContent='✅ Finalized';
+    badge.innerHTML = '<re-icon icon="check-circle"></re-icon> Finalized';
     badge.style.color='var(--gK,#16a34a)';
   } else {
-    badge.textContent='💾 DB Draft';
+    badge.innerHTML = '<re-icon icon="save"></re-icon> DB Draft';
     badge.style.color='#d97706';
   }
 }
@@ -731,7 +845,7 @@ function saveDayModal(){
   renderCalGrid(calendarData,m,y,'cal-grid',false);
   updateCalStats(m,y);
   var badge = document.getElementById('cal-finalized-badge');
-  if (badge) { badge.textContent = '📝 Local Draft'; badge.style.color = '#b45309'; }
+  if (badge) { badge.innerHTML = '<re-icon icon="file-text"></re-icon> Local Draft'; badge.style.color = '#b45309'; }
   closeModal('day-modal-bg');
   showToast('Day updated in session draft. Click Save Draft or Save & Finalize to push to DB.','success');
 }
@@ -787,8 +901,8 @@ function renderExamsTable(exams){
     var rng=examDates(ex);
     html+='<tr><td class="b">'+(i+1)+'</td><td class="b">'+ex.title+'</td><td>'+(typePills[ex.examType]||ex.examType)+'</td><td><span class="bge bgg">'+ex.semester+'</span></td><td>'+(ex.deptName||'<em style="color:var(--tdi)">All</em>')+'</td><td>'+fmtDate(rng.start)+'</td><td>'+fmtDate(rng.end)+'</td><td style="white-space:nowrap;">'+(ex.timing?ex.timing.start+'–'+ex.timing.end:'—')+'</td><td>'+(statusPills[ex.status]||ex.status)+'</td>'
       +'<td style="white-space:nowrap;">'
-      +'<button class="btn-out btn-xs" onclick="openExamModal(\''+ex.ExamTrackId+'\')" style="margin-right:4px;">✏️</button>'
-      +'<button style="background:rgba(59,130,246,.08);color:#2563eb;border:1px solid rgba(59,130,246,.2);border-radius:9px;padding:3px 8px;font-size:11px;font-weight:600;cursor:pointer;font-family:\'Poppins\',sans-serif;" onclick="quickViewAtt(\''+ex.ExamTrackId+'\',\''+ex.title+'\')">👁️</button>'
+      +(isManageReadOnly() ? '' : ('<button class="btn-out btn-xs" onclick="openExamModal(\''+ex.ExamTrackId+'\')" style="margin-right:4px;"><re-icon icon="edit"></re-icon></button>'))
+      +'<button style="background:rgba(59,130,246,.08);color:#2563eb;border:1px solid rgba(59,130,246,.2);border-radius:9px;padding:3px 8px;font-size:11px;font-weight:600;cursor:pointer;font-family:\'Poppins\',sans-serif;" onclick="quickViewAtt(\''+ex.ExamTrackId+'\',\''+ex.title+'\')"><re-icon icon="eye"></re-icon>️</button>'
       +'</td></tr>';
   });
   document.getElementById('exams-tbody').innerHTML=html;
@@ -987,8 +1101,9 @@ function saveExam(finalize){
   }).catch(function(err){ dbToast('Error: '+(err&&err.message?err.message:'Server error'),'error'); });
 }
 
-function deleteExam(){
-  if(!confirm('Delete this exam? Calendar exam entries will also be removed.')) return;
+async function deleteExam(){
+  const ok = await showConfirm('Delete this exam? Calendar exam entries will also be removed.', 'Delete Exam', null, null, { danger: true, confirmText: 'Delete Exam' });
+  if (!ok) return;
   var id=document.getElementById('em-id').value;
   dbToast('Deleting exam & syncing calendar…','saving');
   apiCall('DELETE','/exams/'+id).then(function(r){ 
@@ -1021,7 +1136,7 @@ function populateDateDrop(ex){
   var rng=examDates(ex);
   if(!rng.start||!rng.end) return;
   var cur=new Date(rng.start+'T00:00:00'), end=new Date(rng.end+'T00:00:00');
-  while(cur<=end){ var ds=cur.getFullYear()+'-'+pad2(cur.getMonth()+1)+'-'+pad2(cur.getDate()); var dow=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][cur.getDay()]; sel.innerHTML+='<option value="'+ds+'">'+dow+' '+fmtDate(ds)+(ds===todayStr()?' ← Today':'')+'</option>'; cur.setDate(cur.getDate()+1); }
+  while(cur<=end){ var ds=cur.getFullYear()+'-'+pad2(cur.getMonth()+1)+'-'+pad2(cur.getDate()); var dow=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][cur.getDay()]; sel.innerHTML+='<option value="'+ds+'">'+dow+' '+fmtDate(ds)+(ds===todayStr()?' (Today)':'')+'</option>'; cur.setDate(cur.getDate()+1); }
   if(rng.start<=todayStr()&&todayStr()<=rng.end) sel.value=todayStr();
 }
 function onExamDateChange(){ loadHallSummary(); }
@@ -1049,7 +1164,7 @@ function renderSrchDd(students){
   var dd=document.getElementById('ea-search-dd');
   if(!students.length){ dd.innerHTML='<div class="srch-item" style="color:var(--tdi);cursor:default;">No matching students.</div>'; dd.classList.add('open'); return; }
   dd.innerHTML='';
-  students.forEach(function(s){ var already=eaStudentList.some(function(r){return r.regNo===s.regNo;}); var div=document.createElement('div'); div.className='srch-item'; div.innerHTML='<div class="srch-name">'+(s.name||'Unknown')+(already?' <span style="color:var(--gK);font-size:10px;">✓ Added</span>':'')+'</div><div class="srch-meta">Reg: <strong>'+s.regNo+'</strong> · '+s.deptName+' · Year '+s.year+'</div>'; if(!already) div.onclick=function(){ addStudent(s); document.getElementById('ea-regno-inp').value=''; dd.classList.remove('open'); }; dd.appendChild(div); });
+  students.forEach(function(s){ var already=eaStudentList.some(function(r){return r.regNo===s.regNo;}); var div=document.createElement('div'); div.className='srch-item'; div.innerHTML='<div class="srch-name">'+(s.name||'Unknown')+(already?' <span style="color:var(--gK);font-size:10px;"><re-icon icon="check"></re-icon> Added</span>':'')+'</div><div class="srch-meta">Reg: <strong>'+s.regNo+'</strong> · '+s.deptName+' · Year '+s.year+'</div>'; if(!already) div.onclick=function(){ addStudent(s); document.getElementById('ea-regno-inp').value=''; dd.classList.remove('open'); }; dd.appendChild(div); });
   dd.classList.add('open');
 }
 document.addEventListener('click',function(e){ if(!e.target.closest('#ea-search-dd')&&!e.target.matches('#ea-regno-inp')) document.getElementById('ea-search-dd').classList.remove('open'); });
@@ -1058,7 +1173,7 @@ function renderStudentList(){
   var cont=document.getElementById('ea-student-list'), pill=document.getElementById('ea-count-pill'), sub=document.getElementById('ea-submit-btn');
   if(!eaStudentList.length){ cont.innerHTML='<div style="text-align:center;color:var(--tdi);font-size:11.5px;padding:30px 0;">No students added yet.</div>'; pill.textContent='0 students'; document.getElementById('ea-present-count').textContent='0'; document.getElementById('ea-absent-count').textContent='0'; sub.disabled=true; sub.style.opacity='.5'; sub.style.cursor='not-allowed'; return; }
   var present=0,absent=0,html='';
-  eaStudentList.forEach(function(s,i){ if(s.status==='present')present++;else absent++; html+='<div class="ea-row"><div style="font-size:11px;color:var(--tdi);width:18px;font-weight:700;">'+(i+1)+'</div><div class="ea-info"><div class="ea-name">'+s.name+'</div><div class="ea-meta">'+s.regNo+' · '+s.deptName+' · Year '+s.year+'</div></div><button class="ea-status-btn '+(s.status==='present'?'present':'absent')+'" onclick="toggleEaStatus('+i+')">'+(s.status==='present'?'✓ Present':'✗ Absent')+'</button><button class="ea-rm" onclick="removeEaStudent('+i+')">✕</button></div>'; });
+  eaStudentList.forEach(function(s,i){ if(s.status==='present')present++;else absent++; html+='<div class="ea-row"><div style="font-size:11px;color:var(--tdi);width:18px;font-weight:700;">'+(i+1)+'</div><div class="ea-info"><div class="ea-name">'+s.name+'</div><div class="ea-meta">'+s.regNo+' · '+s.deptName+' · Year '+s.year+'</div></div><button class="ea-status-btn '+(s.status==='present'?'present':'absent')+'" onclick="toggleEaStatus('+i+')">'+(s.status==='present'?'<re-icon icon="check"></re-icon> Present':'<re-icon icon="x"></re-icon> Absent')+'</button><button class="ea-rm" onclick="removeEaStudent('+i+')"><re-icon icon="x"></re-icon></button></div>'; });
   cont.innerHTML=html; pill.textContent=eaStudentList.length+' student'+(eaStudentList.length>1?'s':'');
   document.getElementById('ea-present-count').textContent=present; document.getElementById('ea-absent-count').textContent=absent;
   sub.disabled=false; sub.style.opacity='1'; sub.style.cursor='pointer';
@@ -1082,11 +1197,11 @@ function renderHallSummary(halls){
   var tbody=document.getElementById('hall-summary-tbody');
   if(!halls.length){tbody.innerHTML='<tr><td colspan="8" style="text-align:center;color:var(--tdi);padding:16px;font-size:12px;">No submissions yet.</td></tr>';return;}
   var html='';
-  halls.forEach(function(h){ var t=h.markedAt?new Date(h.markedAt).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}):'—'; html+='<tr><td class="b">'+h.hallNo+'</td><td class="b">'+h.teacherName+'</td><td>'+(h.examTitle||'—')+'</td><td>'+fmtDate(h.date)+'</td><td><strong style="color:var(--gK);">'+h.totalPresent+'</strong></td><td><strong style="color:#dc2626;">'+h.totalAbsent+'</strong></td><td>'+t+'</td><td><button class="btn-out btn-xs" onclick="viewHallAtt(\''+h._id+'\')">👁️</button></td></tr>'; });
+  halls.forEach(function(h){ var t=h.markedAt?new Date(h.markedAt).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}):'—'; html+='<tr><td class="b">'+h.hallNo+'</td><td class="b">'+h.teacherName+'</td><td>'+(h.examTitle||'—')+'</td><td>'+fmtDate(h.date)+'</td><td><strong style="color:var(--gK);">'+h.totalPresent+'</strong></td><td><strong style="color:#dc2626;">'+h.totalAbsent+'</strong></td><td>'+t+'</td><td><button class="btn-out btn-xs" onclick="viewHallAtt(\''+h._id+'\')"><re-icon icon="eye"></re-icon>️</button></td></tr>'; });
   tbody.innerHTML=html;
 }
 function viewHallAtt(id){
-  apiCall('GET','/exam-attendance/'+id).then(function(r){ if(!r){showToast('Failed','warn');return;} document.getElementById('vam-title').textContent='Hall '+r.hallNo; document.getElementById('vam-sub').textContent=r.examTitle+' — '+fmtDate(r.date); document.getElementById('vam-meta').innerHTML='<span>👩‍🏫 <strong>'+r.teacherName+'</strong></span><span>🏛️ '+r.hallNo+'</span><span>📅 '+fmtDate(r.date)+'</span>'; var tb=document.getElementById('vam-tbody'); tb.innerHTML=''; r.records.forEach(function(rec,i){ tb.innerHTML+='<tr><td class="b">'+(i+1)+'</td><td class="b">'+rec.regNo+'</td><td>'+rec.name+'</td><td>'+rec.deptName+'</td><td>'+rec.year+'</td><td>'+(rec.status==='present'?'<span class="bge bgg">Present</span>':'<span class="bge bgr">Absent</span>')+'</td></tr>'; }); document.getElementById('vam-present-total').textContent='✓ Present: '+r.totalPresent; document.getElementById('vam-absent-total').textContent='✗ Absent: '+r.totalAbsent; openModal('view-att-bg'); }).catch(function(){showToast('Server error','warn');});
+  apiCall('GET','/exam-attendance/'+id).then(function(r){ if(!r){showToast('Failed','warn');return;} document.getElementById('vam-title').textContent='Hall '+r.hallNo; document.getElementById('vam-sub').textContent=r.examTitle+' — '+fmtDate(r.date); document.getElementById('vam-meta').innerHTML='<span><re-icon icon="teacher"></re-icon> <strong>'+r.teacherName+'</strong></span><span><re-icon icon="building2"></re-icon> '+r.hallNo+'</span><span><re-icon icon="calendar"></re-icon> '+fmtDate(r.date)+'</span>'; var tb=document.getElementById('vam-tbody'); tb.innerHTML=''; r.records.forEach(function(rec,i){ tb.innerHTML+='<tr><td class="b">'+(i+1)+'</td><td class="b">'+rec.regNo+'</td><td>'+rec.name+'</td><td>'+rec.deptName+'</td><td>'+rec.year+'</td><td>'+(rec.status==='present'?'<span class="bge bgg">Present</span>':'<span class="bge bgr">Absent</span>')+'</td></tr>'; }); document.getElementById('vam-present-total').innerHTML = '<re-icon icon="check"></re-icon> Present: '+r.totalPresent; document.getElementById('vam-absent-total').innerHTML = '<re-icon icon="x"></re-icon> Absent: '+r.totalAbsent; openModal('view-att-bg'); }).catch(function(){showToast('Server error','warn');});
 }
 function quickViewAtt(examId,title){ examSubTab('attendance'); setTimeout(function(){ document.getElementById('ea-exam-sel').value=examId; onExamSelChange(); },100); }
 
@@ -1098,13 +1213,14 @@ function loadTeachersForAdminModal(){
   if(!sel) return;
   sel.innerHTML = '<option value="">-- Loading Teachers… --</option>';
   apiCall('GET', '/teachers').then(function(data){
-    _teachersForAdminList = Array.isArray(data) ? data : [];
+    _teachersForAdminList = Array.isArray(data) ? data : (data && Array.isArray(data.data) ? data.data : []);
     var optHtml = '<option value="">-- Choose Teacher to Grant Access --</option>';
     _teachersForAdminList.forEach(function(t){
-      optHtml += '<option value="' + t._id + '" data-name="' + (t.name||'') + '" data-user="' + (t.username||'') + '" data-email="' + (t.email||'') + '" data-dept="' + (t.dept||t.department||'') + '">' + (t.name||'Teacher') + ' (' + (t.dept||t.department||'Faculty') + ') - @' + (t.username||'') + '</option>';
+      optHtml += '<option value="' + t._id + '" data-name="' + escapeHtml(t.name||t.fullName||'') + '" data-user="' + escapeHtml(t.username||'') + '" data-email="' + escapeHtml(t.email||'') + '" data-dept="' + escapeHtml(t.dept||t.department||'') + '">' + escapeHtml(t.name||t.fullName||'Teacher') + ' (' + escapeHtml(t.dept||t.department||'Faculty') + ') - @' + escapeHtml(t.username||'') + '</option>';
     });
     sel.innerHTML = optHtml;
-  }).catch(function(){
+  }).catch(function(err){
+    console.error('[loadTeachers error]:', err);
     sel.innerHTML = '<option value="">-- Could not load teachers --</option>';
   });
 }
@@ -1127,31 +1243,50 @@ function onAdminTeacherSelect(){
 }
 
 function loadManageAdmins(){
-  document.getElementById('manage-admins-list').innerHTML='<div style="text-align:center;padding:20px;color:var(--tdi);font-size:12px;">Loading…</div>';
+  var container = document.getElementById('manage-admins-list');
+  if (!container) return;
+  container.innerHTML='<div style="text-align:center;padding:20px;color:var(--tdi);font-size:12px;">Loading…</div>';
   apiCall('GET','/manage-admins').then(function(data){
-    var admins=Array.isArray(data)?data:[];
-    if(!admins.length){ document.getElementById('manage-admins-list').innerHTML='<div style="text-align:center;padding:24px;color:var(--tdi);font-size:12px;">No manage portal admins added yet.</div>'; return; }
+    var admins=Array.isArray(data) ? data : (data && Array.isArray(data.data) ? data.data : []);
+    if(!admins.length){
+      container.innerHTML='<div style="text-align:center;padding:24px;color:var(--tdi);font-size:12px;">No manage portal admins added yet. Use the "+ Add Admin" button above to grant portal access to faculty members.</div>';
+      return;
+    }
     var html='<div style="display:flex;flex-direction:column;gap:10px;">';
     admins.forEach(function(a){
-      var permsHtml=(a.permissions||[]).map(function(p){ return '<span class="perm-chip">'+p+'</span>'; }).join('');
-      var roleBadge = a.type === 'teacher' ? '<span class="bge" style="background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;">👨‍🏫 Faculty (' + (a.department || 'Staff') + ')</span>' : '<span class="bge bgp">👤 Custom Admin</span>';
+      var permsHtml=(a.permissions||[]).map(function(p){ return '<span class="perm-chip">'+escapeHtml(p)+'</span>'; }).join('');
+      var roleBadge = a.isFullAdmin
+        ? '<span class="bge bgp" style="background:#fef3c7;color:#92400e;border:1px solid #fde68a;"><re-icon icon="shield"></re-icon> Full Admin</span>'
+        : (a.type === 'teacher' ? '<span class="bge" style="background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;"><re-icon icon="teacher"></re-icon> Faculty (' + escapeHtml(a.department || 'Staff') + ')</span>' : '<span class="bge bgp"><re-icon icon="user"></re-icon> Custom Admin</span>');
       var statusPill=a.active!==false?'<span class="bge bgg">Active</span>':'<span class="bge bgr">Inactive</span>';
+      var safeName = escapeHtml(a.name || 'Admin');
+      var safeUsername = escapeHtml(a.username || '');
+      var safeEmail = a.email ? ' · ' + escapeHtml(a.email) : '';
+      var safeId = escapeHtml(a._id || a.grantId || a.teacherId);
+
+      var actionBtnHtml = a.isFullAdmin
+        ? '<span style="font-size:10px;color:var(--tmu);padding:3px 7px;border-radius:4px;background:var(--bg3);border:1px solid var(--brl);">Full Access</span>'
+        : '<button class="btn-out btn-xs" style="color:#dc2626;border-color:#fca5a5;" onclick="deleteManageAdminDirect(\''+safeId+'\',\''+safeName.replace(/'/g,"\\'")+'\')"><re-icon icon="trash2"></re-icon> Revoke</button>';
+
       html+='<div class="admin-card">'
-        +'<div class="admin-av" style="' + (a.type==='teacher'?'background:linear-gradient(135deg,#3b82f6,#1d4ed8);':'') + '">'+(a.name[0]||'A').toUpperCase()+'</div>'
+        +'<div class="admin-av" style="' + (a.type==='teacher'?'background:linear-gradient(135deg,#3b82f6,#1d4ed8);':'') + '">'+(safeName[0]||'A').toUpperCase()+'</div>'
         +'<div class="admin-info">'
-          +'<div class="admin-name" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">'+a.name+' '+roleBadge+' '+statusPill+'</div>'
-          +'<div class="admin-user">@'+a.username+(a.email?' · '+a.email:'')+'</div>'
+          +'<div class="admin-name" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">'+safeName+' '+roleBadge+' '+statusPill+'</div>'
+          +'<div class="admin-user">@'+safeUsername+safeEmail+'</div>'
           +'<div style="margin-top:4px;">'+permsHtml+'</div>'
         +'</div>'
         +'<div style="display:flex;flex-direction:column;gap:5px;align-items:flex-end;">'
-          +'<button class="btn-out btn-xs" style="color:#dc2626;border-color:#fca5a5;" onclick="deleteManageAdminDirect(\''+a._id+'\',\''+a.name.replace(/'/g,"\\'")+'\')">🗑 Revoke</button>'
-          +'<div style="font-size:9.5px;color:var(--tdi);">'+(a.addedBy ? 'Added by ' + a.addedBy : '')+'</div>'
+          + actionBtnHtml
+          +'<div style="font-size:9.5px;color:var(--tdi);">'+(a.addedBy ? 'Added by ' + escapeHtml(a.addedBy) : '')+'</div>'
         +'</div>'
         +'</div>';
     });
     html+='</div>';
-    document.getElementById('manage-admins-list').innerHTML=html;
-  }).catch(function(){ document.getElementById('manage-admins-list').innerHTML='<div style="text-align:center;padding:20px;color:#dc2626;font-size:12px;">Failed to load</div>'; });
+    container.innerHTML=html;
+  }).catch(function(err){
+    console.error('[loadManageAdmins error]:', err);
+    container.innerHTML='<div style="text-align:center;padding:20px;color:#dc2626;font-size:12px;">Failed to load: ' + escapeHtml(err && err.message ? err.message : 'Server error') + '</div>';
+  });
 }
 
 function openAdminModal(){
@@ -1172,6 +1307,10 @@ function saveManageAdmin(){
   }
   var perms=[]; 
   document.querySelectorAll('#am-perms-wrap input').forEach(function(cb){ if(cb.checked) perms.push(cb.value); });
+  if(!perms.length){
+    showToast('Please select at least one permission module','warn');
+    return;
+  }
 
   dbToast('Granting access…','saving');
   apiCall('POST','/manage-admins',{ teacherId: teacherId, permissions: perms })
@@ -1190,8 +1329,9 @@ function deleteManageAdmin(){
   deleteManageAdminDirect(id, 'this admin');
 }
 
-function deleteManageAdminDirect(id, name){
-  if(!confirm('Remove / revoke manage portal access for ' + name + '?')) return;
+async function deleteManageAdminDirect(id, name){
+  const ok = await showConfirm('Remove / revoke manage portal access for ' + name + '?', 'Revoke Manage Access', null, null, { danger: true, confirmText: 'Revoke Access' });
+  if (!ok) return;
   dbToast('Removing…','saving');
   apiCall('DELETE','/manage-admins/'+id).then(function(r){ 
     dbToast('Access removed','success'); 
@@ -1285,18 +1425,20 @@ function renderRegulationsTable() {
   var tbody = document.getElementById('regulations-tbody');
   if (!tbody) return;
   if (!regulationsData.length) {
-    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--tdi);padding:18px;">No curriculum regulations configured. Click <strong>+ Add Regulation</strong>.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--tdi);padding:18px;">No curriculum regulations configured. Click <strong>+ Add Regulation</strong>.</td></tr>';
     return;
   }
   var html = '';
   regulationsData.forEach(function(r) {
+    var minAttVal = (r.minAttendance !== undefined && r.minAttendance !== null) ? r.minAttendance : 75;
     html += '<tr>';
-    html += '<td><span class="yr-badge yr-badge-I" style="font-weight:700;">' + (r.code || '—') + '</span></td>';
-    html += '<td><strong>' + (r.name || ('Regulation ' + r.code)) + '</strong></td>';
-    html += '<td>' + (r.year || r.code || '—') + '</td>';
+    html += '<td><span class="yr-badge yr-badge-I" style="font-weight:700;">' + escapeHtml(r.code || '—') + '</span></td>';
+    html += '<td><strong>' + escapeHtml(r.name || ('Regulation ' + r.code)) + '</strong></td>';
+    html += '<td>' + escapeHtml(r.year || r.code || '—') + '</td>';
+    html += '<td><span class="bge bgg" style="font-weight:700;">' + minAttVal + '%</span></td>';
     html += '<td>' + (r.isDefault ? '<span class="status-badge status-published">● Default</span>' : '<span style="color:var(--tmu);font-size:12px;">Active</span>') + '</td>';
     html += '<td>';
-    html += '<button class="btn-out btn-xs" style="color:var(--red,#dc2626);border-color:rgba(220,38,38,0.3);" onclick="deleteRegulation(\'' + (r.code || '') + '\')">🗑 Delete</button>';
+    html += '<button class="btn-out btn-xs" style="color:var(--red,#dc2626);border-color:rgba(220,38,38,0.3);" onclick="deleteRegulation(\'' + escapeHtml(r.code || '') + '\')"><re-icon icon="trash2"></re-icon> Delete</button>';
     html += '</td>';
     html += '</tr>';
   });
@@ -1306,6 +1448,8 @@ function renderRegulationsTable() {
 function openRegulationModal() {
   document.getElementById('reg-code-inp').value = '';
   document.getElementById('reg-name-inp').value = '';
+  var minAttInp = document.getElementById('reg-minatt-inp');
+  if (minAttInp) minAttInp.value = 75;
   document.getElementById('reg-default-chk').checked = false;
   openModal('reg-modal-bg');
 }
@@ -1313,13 +1457,14 @@ function openRegulationModal() {
 function saveRegulation() {
   var code = document.getElementById('reg-code-inp').value.trim();
   var name = document.getElementById('reg-name-inp').value.trim();
+  var minAtt = parseInt(document.getElementById('reg-minatt-inp')?.value, 10) || 75;
   var isDefault = document.getElementById('reg-default-chk').checked;
 
   if (!code) { showToast('Regulation Code / Year is required', 'warn'); return; }
   if (!name) name = 'Regulation ' + code;
 
   dbToast('Saving regulation…', 'saving');
-  apiCall('POST', '/year/regulations', { code: code, name: name, year: code, isDefault: isDefault })
+  apiCall('POST', '/year/regulations', { code: code, name: name, year: code, isDefault: isDefault, minAttendance: minAtt })
     .then(function(res) {
       dbToast('Regulation saved', 'success');
       closeModal('reg-modal-bg');
@@ -1329,8 +1474,9 @@ function saveRegulation() {
     });
 }
 
-function deleteRegulation(code) {
-  if (!confirm('Are you sure you want to delete Regulation ' + code + '?')) return;
+async function deleteRegulation(code) {
+  const ok = await showConfirm('Are you sure you want to delete Regulation ' + code + '?', 'Delete Regulation', null, null, { danger: true, confirmText: 'Delete Regulation' });
+  if (!ok) return;
   dbToast('Deleting regulation…', 'saving');
   apiCall('DELETE', '/year/regulations/' + encodeURIComponent(code))
     .then(function() {
@@ -1368,7 +1514,7 @@ function renderCurrentYear() {
   }
   
   var html = '<div style="background:var(--gLt);border:2px solid var(--gM);border-radius:12px;padding:16px;">';
-  html += '<div style="font-size:20px;font-weight:800;color:var(--gD);margin-bottom:12px;">📚 ' + (currentYear.academicYear || '—') + '</div>';
+  html += '<div style="font-size:20px;font-weight:800;color:var(--gD);margin-bottom:12px;"><re-icon icon="book-open"></re-icon> ' + (currentYear.academicYear || '—') + '</div>';
   html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;">';
   (currentYear.batches || []).forEach(function(b) {
     var idx = ROMAN_ORDER.indexOf(b.currentSem);
@@ -1380,7 +1526,7 @@ function renderCurrentYear() {
     html += '</div>';
     html += '<div style="font-size:11px;color:var(--tmu);">Semester ' + b.currentSem + ' of VIII</div>';
     html += '<div class="yr-progress-track"><div class="yr-progress-fill" style="width:' + pct + '%;"></div></div>';
-    html += '<button class="btn-out btn-xs" style="margin-top:10px;" onclick="openBatchModal(\'' + currentYear._id + '\',\'' + b.batchTrackId + '\',\'' + b.batch + '\',\'' + b.currentYear + '\',\'' + b.currentSem + '\')">✏️ Edit</button>';
+    html += '<button class="btn-out btn-xs" style="margin-top:10px;" onclick="openBatchModal(\'' + currentYear._id + '\',\'' + b.batchTrackId + '\',\'' + b.batch + '\',\'' + b.currentYear + '\',\'' + b.currentSem + '\')"><re-icon icon="edit"></re-icon> Edit</button>';
     html += '</div>';
   });
   html += '</div></div>';
@@ -1406,12 +1552,16 @@ function renderYearsTable() {
     var batchPills = (y.batches || []).map(function(b) {
       return '<span class="yr-batch-pill">' + b.batch + '<span class="yr-badge yr-badge-' + b.currentYear + '" style="padding:1px 6px;">' + b.currentYear + '·' + b.currentSem + '</span></span>';
     }).join('');
-    var currentBadge = y.isCurrent ? '<span class="bge bgg">🎯 Current</span>' : '<span class="bge bggy">—</span>';
+    var currentBadge = y.isCurrent ? '<span class="bge bgg"><re-icon icon="flag"></re-icon> Current</span>' : '<span class="bge bggy">—</span>';
     var createdAt = y.createdAt ? fmtDate(y.createdAt.split('T')[0]) : '—';
     html += '<tr class="' + (y.isCurrent ? 'yr-row-current' : '') + '"><td class="b">' + y.academicYear + '</td><td>' + batchPills + '</td><td>' + currentBadge + '</td><td>' + (y.createdBy || '—') + '</td><td>' + createdAt + '</td>';
     html += '<td style="white-space:nowrap;">';
-    html += '<button class="btn-out btn-xs" onclick="openYearModal(\'' + y._id + '\')" style="margin-right:4px;">✏️</button>';
-    if (!y.isCurrent) html += '<button class="btn-danger btn-xs" onclick="setYearAsCurrent(\'' + y._id + '\')">Set Current</button>';
+    if (isManageReadOnly()) {
+      html += '—';
+    } else {
+      html += '<button class="btn-out btn-xs" onclick="openYearModal(\'' + y._id + '\')" style="margin-right:4px;"><re-icon icon="edit"></re-icon></button>';
+      if (!y.isCurrent) html += '<button class="btn-danger btn-xs" onclick="setYearAsCurrent(\'' + y._id + '\')">Set Current</button>';
+    }
     html += '</td></tr>';
   });
   tbody.innerHTML = html;
@@ -1419,7 +1569,7 @@ function renderYearsTable() {
 
 // Add / Edit Academic Year modal
 function openYearModal(yearId) {
-  document.getElementById('ym-title').textContent = yearId ? '📚 Edit Academic Year' : '📚 Add Academic Year';
+  document.getElementById('ym-title').innerHTML = yearId ? '<re-icon icon="book-open"></re-icon> Edit Academic Year' : '<re-icon icon="book-open"></re-icon> Add Academic Year';
   document.getElementById('ym-sub').textContent = yearId ? 'Update year and batch configurations' : 'Create a new academic year with batch configurations';
   document.getElementById('ym-id').value = yearId || '';
   document.getElementById('ym-delete-btn').style.display = yearId ? '' : 'none';
@@ -1477,7 +1627,7 @@ function addSemesterDateRow(year, semester, startDate, endDate) {
   var rowId = 'sem-row-' + Date.now() + Math.floor(Math.random() * 1000);
 
   var html = '<div class="batch-row" id="' + rowId + '" style="background:var(--gP);border:1.5px solid var(--br);border-radius:10px;padding:12px;position:relative;margin-bottom:8px;">';
-  html += '<button type="button" onclick="removeSemesterDateRow(\'' + rowId + '\')" style="position:absolute;top:8px;right:8px;width:22px;height:22px;border-radius:50%;background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.2);color:#dc2626;cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center;">✕</button>';
+  html += '<button type="button" onclick="removeSemesterDateRow(\'' + rowId + '\')" style="position:absolute;top:8px;right:8px;width:22px;height:22px;border-radius:50%;background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.2);color:#dc2626;cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center;"><re-icon icon="x"></re-icon></button>';
 
   html += '<div style="padding-right:30px;margin-bottom:9px;"><span class="batch-preview">Semester Info</span></div>';
 
@@ -1630,7 +1780,7 @@ function addBatchRow(trackId, batch, year, sem, regulation) {
   var rowId = 'batch-row-' + Date.now() + Math.floor(Math.random() * 1000);
 
   var html = '<div class="batch-row" id="' + rowId + '" style="background:var(--gP);border:1.5px solid var(--br);border-radius:10px;padding:12px;position:relative;">';
-  html += '<button type="button" onclick="removeBatchRow(\'' + rowId + '\')" style="position:absolute;top:8px;right:8px;width:22px;height:22px;border-radius:50%;background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.2);color:#dc2626;cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center;">✕</button>';
+  html += '<button type="button" onclick="removeBatchRow(\'' + rowId + '\')" style="position:absolute;top:8px;right:8px;width:22px;height:22px;border-radius:50%;background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.2);color:#dc2626;cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center;"><re-icon icon="x"></re-icon></button>';
 
   html += '<div style="padding-right:30px;margin-bottom:9px;"><span class="batch-preview">Incomplete</span></div>';
 
@@ -1736,10 +1886,10 @@ function validateYearForm() {
     checkEl.innerHTML = '<span style="color:var(--tdi);font-weight:500;">Format: YYYY-YYYY (e.g., 2026-2027)</span>';
   } else if (!validFormat) {
     checkEl.classList.add('bad');
-    checkEl.innerHTML = '⚠️ Use format YYYY-YYYY with consecutive years';
+    checkEl.innerHTML = '<re-icon icon="alert-triangle"></re-icon> Use format YYYY-YYYY with consecutive years';
   } else {
     checkEl.classList.add('ok');
-    checkEl.innerHTML = '✓ Looks good';
+    checkEl.innerHTML = '<re-icon icon="check"></re-icon> Looks good';
   }
 
   var batchRows = document.querySelectorAll('.batch-row');
@@ -1798,7 +1948,7 @@ function updateYmToggle(val) {
   if (warn) {
     if (val && existingCurrent && existingCurrent._id !== editingId) {
       warn.className = 'field-check bad';
-      warn.innerHTML = '⚠️ Replaces "' + existingCurrent.academicYear + '" as the active year';
+      warn.innerHTML = '<re-icon icon="alert-triangle"></re-icon> Replaces "' + existingCurrent.academicYear + '" as the active year';
     } else {
       warn.className = 'field-check';
       warn.innerHTML = '';
@@ -1873,8 +2023,9 @@ function saveYear() {
     }).catch(function(err) { dbToast('Error: ' + (err&&err.message?err.message:'Server error'), 'error'); });
 }
 
-function deleteYear() {
-  if (!confirm('Delete this academic year?')) return;
+async function deleteYear() {
+  const ok = await showConfirm('Delete this academic year? This will also remove configured batches.', 'Delete Academic Year', null, null, { danger: true, confirmText: 'Delete Year' });
+  if (!ok) return;
   var id = document.getElementById('ym-id').value;
   dbToast('Deleting…', 'saving');
   apiCall('DELETE', '/year/' + id)
@@ -1885,8 +2036,9 @@ function deleteYear() {
     }).catch(function(err) { dbToast('Error: ' + (err&&err.message?err.message:'Server error'), 'error'); });
 }
 
-function setYearAsCurrent(yearId) {
-  if (!confirm('Set this as the current academic year?')) return;
+async function setYearAsCurrent(yearId) {
+  const ok = await showConfirm('Set this as the current academic year?', 'Set Current Academic Year', null, null, { confirmText: 'Set as Current' });
+  if (!ok) return;
   dbToast('Updating…', 'saving');
   apiCall('PUT', '/year/' + yearId, { isCurrent: true })
     .then(function(r) {
@@ -1922,12 +2074,12 @@ function updateBmPreview() {
     advBtn.disabled = true;
     advBtn.style.opacity = '.5';
     advBtn.style.cursor = 'not-allowed';
-    advBtn.textContent = '🏁 Final Semester';
+    advBtn.innerHTML = '<re-icon icon="flag"></re-icon> Final Semester';
   } else {
     advBtn.disabled = false;
     advBtn.style.opacity = '1';
     advBtn.style.cursor = 'pointer';
-    advBtn.textContent = '⏭ Advance to Next Sem';
+    advBtn.innerHTML = '<re-icon icon="arrow-right"></re-icon> Advance to Next Sem';
   }
 }
 
@@ -1950,7 +2102,7 @@ function saveBatch() {
   if (!year) { showToast('Year not found', 'warn'); return; }
   var updatedBatches = year.batches.map(function(b) {
     if (b.batchTrackId === batchTrackId) {
-      return { batchTrackId: b.batchTrackId, batch: b.batch, currentYear: currentYear, currentSem: currentSem };
+      return { batchTrackId: b.batchTrackId, batch: b.batch, currentYear: currentYear, currentSem: currentSem, regulation: b.regulation || '' };
     }
     return b;
   });

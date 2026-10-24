@@ -1,0 +1,67 @@
+{
+  "type": "teacher",
+  "totalRows": 3,
+  "eligibleCount": 2,
+  "skippedCount": 1,
+  "eligibleRows": [
+    {
+      "rowNumber": 2,
+      "data": {
+        "fullName": "Dr Alice Smith",
+        "firstName": "Alice Smith",
+        "lastName": "Dr",
+        "employeeNo": "EMP1001",
+        "trackId": "TRTCHEMP1001",
+        "department": "Computer Science & Engineering",
+        "deptId": "60d5ec49f1b2c8b1f8e4e1a1",
+        "deptCode": "CSE",
+        "designation": "Professor",
+        "username": "alicesmith",
+        "password": "[REDACTED]",
+        "email": "alice.smith@example.com",
+        "gender": "unspecified"
+      },
+      "isVerified": false,
+      "emailSent": false
+    },
+    {
+      "rowNumber": 3,
+      "data": {
+        "fullName": "Dr Samuel Stone",
+        "firstName": "Samuel Stone",
+        "lastName": "Dr",
+        "employeeNo": "EMP1002",
+        "trackId": "TRTCHEMP1002",
+        "department": "Computer Science & Engineering",
+        "deptId": "60d5ec49f1b2c8b1f8e4e1a1",
+        "deptCode": "CSE",
+        "designation": "Assoc Professor",
+        "username": "samuelstone",
+        "password": "[REDACTED]",
+        "email": "samuel.stone@example.com",
+        "gender": "unspecified"
+      },
+      "isVerified": false,
+      "emailSent": false
+    }
+  ],
+  "skippedRows": [
+    {
+      "rowNumber": 4,
+      "name": "(blank)",
+      "issues": [
+        "Name missing",
+        "Username missing"
+      ],
+      "data": {
+        "name": "",
+        "department": "Computer Science & Engineering",
+        "employeeNo": "EMP1003",
+        "designation": "Asst Professor",
+        "email": "no.name@example.com",
+        "username": "",
+        "password": "Teacher@123"
+      }
+    }
+  ]
+}

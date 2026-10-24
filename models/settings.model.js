@@ -33,7 +33,17 @@ const SettingsSchema = new mongoose.Schema({
       'Models & Features',
       'System Broadcasts',
       'System Utilities',
-      'Settings'
+      'Settings',
+      'Controller Settings',
+      'Student Leave Policy',
+      'On-Duty (OD) Settings',
+      'Approval Engine Settings',
+      'Faculty Substitution Settings',
+      'Faculty Leave Settings',
+      'Teachers Management',
+      'Evidence & Drive Storage',
+      'Hostel Settings',
+      'Trust & Devices'
     ], 
     required: true 
   },
@@ -91,9 +101,11 @@ const UndoLogSchema = new mongoose.Schema({
   label:    { type: String, required: true },
   snapshot: { type: mongoose.Schema.Types.Mixed, required: true },
   deletedBy:{ type: String, default: 'admin' },
-  expiresAt:{ type: String, required: true},
+  expiresAt:{ type: Date, required: true, default: () => new Date(Date.now() + 10 * 24 * 60 * 60 * 1000) },
 }, { timestamps: true });
 UndoLogSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
+UndoLogSchema.index({ collectionName: 1, createdAt: -1 });
+UndoLogSchema.index({ createdAt: -1 });
 
 module.exports = {
   Settings:         mongoose.model('Settings',          SettingsSchema),

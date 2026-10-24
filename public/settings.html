@@ -5,15 +5,24 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>EAMS – System Settings &amp; Security Hub</title>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&family=Playfair+Display:wght@700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <script src="js/core/escape.js"></script>
+  <script src="js/core/icons.js"></script>
   <link rel="stylesheet" href="css/base.css">
-  <link rel="stylesheet" href="css/settings.css">
+  <link rel="stylesheet" href="css/settings.css?v=2.6.0">
 </head>
 <body>
 
-  <!-- SIDEBAR -->
-  <nav class="sb">
+  <!-- APP SHELL (Matching admin.html) -->
+  <div id="app-shell">
+    <div class="sb-overlay" id="sb-overlay" onclick="toggleAdminSidebar()"></div>
+
+    <!-- SIDEBAR TOGGLE BUTTON (as in admin.html) -->
+    <button class="sb-toggle-btn" id="sbtoggle" onclick="toggleAdminSidebar()" title="Toggle menu"><re-icon icon="x" size="16"></re-icon></button>
+
+    <!-- SIDEBAR -->
+    <nav class="sb">
     <div class="sb-logo">
-      <div class="sb-logo-ic">⚙️</div>
+      <div class="sb-logo-ic"><re-icon icon="settings"></re-icon></div>
       <div>
         <div class="sb-brand">EAMS Settings</div>
         <div class="sb-sub">CONFIGURATION HUB</div>
@@ -22,19 +31,22 @@
 
     <div style="flex:1;overflow-y:auto;padding:6px 0;">
       <div class="sb-section-label">General</div>
-      <button class="sb-item act" onclick="nav('institution')"><span class="sbi-ic">🏫</span>Institution Info</button>
-      <button class="sb-item" onclick="nav('pages')"><span class="sbi-ic">🌐</span>Pages &amp; Portals</button>
-      <button class="sb-item" onclick="nav('attendance')"><span class="sbi-ic">📅</span>Attendance Policy</button>
+      <button class="sb-item act" onclick="nav('institution')"><span class="sbi-ic"><re-icon icon="chalkboard"></re-icon></span>Institution Info</button>
+      <button class="sb-item" onclick="nav('pages')"><span class="sbi-ic"><re-icon icon="globe"></re-icon></span>Pages &amp; Portals</button>
+      <button class="sb-item" onclick="nav('attendance')"><span class="sbi-ic"><re-icon icon="calendar"></re-icon></span>Attendance Policy</button>
 
       <div class="sb-section-label">Modules &amp; Rules</div>
-      <button class="sb-item" onclick="nav('models')"><span class="sbi-ic">🧩</span>Models &amp; Features</button>
-      <button class="sb-item" onclick="nav('academic')"><span class="sbi-ic">🎓</span>Academic Config</button>
-      <button class="sb-item" onclick="nav('broadcast')"><span class="sbi-ic">📢</span>Broadcast Defaults</button>
+      <button class="sb-item" onclick="nav('teachers')"><span class="sbi-ic"><re-icon icon="teacher"></re-icon></span>Teachers Management</button>
+      <button class="sb-item" onclick="nav('models')"><span class="sbi-ic"><re-icon icon="puzzle"></re-icon></span>Models &amp; Features</button>
+      <button class="sb-item" onclick="nav('academic')"><span class="sbi-ic"><re-icon icon="graduation-cap"></re-icon></span>Academic Config</button>
+      <button class="sb-item" onclick="window.location.href='manage.html?tab=years'"><span class="sbi-ic"><re-icon icon="book-open"></re-icon></span>Years &amp; Batches <span style="font-size:10px;margin-left:auto;opacity:0.75;"><re-icon icon="external-link" size="12"></re-icon></span></button>
+      <button class="sb-item" onclick="nav('broadcast')"><span class="sbi-ic"><re-icon icon="bullhorn"></re-icon></span>Broadcast Defaults</button>
 
       <div class="sb-section-label">Security &amp; Audit</div>
-      <button class="sb-item" onclick="nav('security')"><span class="sbi-ic">🔐</span>Security &amp; Auth</button>
-      <button class="sb-item" onclick="nav('history')"><span class="sbi-ic">📜</span>Change History</button>
-      <button class="sb-item" onclick="nav('advanced')"><span class="sbi-ic">🧪</span>System Utilities</button>
+      <button class="sb-item" onclick="nav('security')"><span class="sbi-ic"><re-icon icon="shield-lock"></re-icon></span>Security &amp; Auth</button>
+      <button class="sb-item" onclick="nav('trust')"><span class="sbi-ic"><re-icon icon="shield-halved"></re-icon></span>Trust &amp; Devices</button>
+      <button class="sb-item" onclick="nav('history')"><span class="sbi-ic"><re-icon icon="scroll"></re-icon></span>Change History</button>
+      <button class="sb-item" onclick="nav('advanced')"><span class="sbi-ic"><re-icon icon="flask"></re-icon></span>System Utilities</button>
     </div>
 
     <div class="sb-bottom">
@@ -45,8 +57,27 @@
           <div class="sb-urole" id="sb-role">Admin</div>
         </div>
       </div>
-      <button class="sb-back-btn" onclick="goBackHub()" id="back-hub-btn">← Back to System Control</button>
-      <button class="sb-back-btn" style="border-color:#fecaca;color:#dc2626;" onclick="doLogout()">🚪 Logout</button>
+      <div class="sb-actions-row">
+        <button class="sb-back-btn" onclick="goBackHub()" id="back-hub-btn" title="Back">
+          <div class="back-sign">
+            <svg viewBox="0 0 512 512">
+              <path d="M 86 253 L 257 106 L 257 189 C 355 189 426 255 426 405 C 390 345 335 316 257 316 L 257 399 Z"></path>
+            </svg>
+          </div>
+          <div class="back-text" id="back-hub-text">Back</div>
+        </button>
+
+        <button class="sb-logout-btn" onclick="doLogout()" title="Logout">
+          <div class="logout-sign">
+            <svg viewBox="0 0 512 512">
+              <path
+                d="M377.9 105.9L500.7 228.7c7.2 7.2 11.3 17.1 11.3 27.3s-4.1 20.1-11.3 27.3L377.9 406.1c-6.4 6.4-15 9.9-24 9.9c-18.7 0-33.9-15.2-33.9-33.9l0-62.1-128 0c-17.7 0-32-14.3-32-32l0-64c0-17.7 14.3-32 32-32l128 0 0-62.1c0-18.7 15.2-33.9 33.9-33.9c9 0 17.6 3.6 24 9.9zM160 96L96 96c-17.7 0-32 14.3-32 32l0 256c0 17.7 14.3 32 32 32l64 0c17.7 0 32 14.3 32 32s-14.3 32-32 32l-64 0c-53 0-96-43-96-96L0 128C0 75 43 32 96 32l64 0c17.7 0 32 14.3 32 32s-14.3 32-32 32z">
+              </path>
+            </svg>
+          </div>
+          <div class="logout-text">Logout</div>
+        </button>
+      </div>
     </div>
   </nav>
 
@@ -55,11 +86,17 @@
 
     <!-- Topbar -->
     <div class="topbar">
-      <div class="topbar-title">
-        ⚙️ Settings &amp; Security Hub
-        <span class="topbar-badge" id="hub-badge">CONTROL HUB</span>
+      <div class="topbar-left" style="display:flex;align-items:center;gap:12px;">
+        <div style="width:32px;flex-shrink:0;"></div><!-- spacer for toggle btn -->
+        <div class="topbar-title">
+          <re-icon icon="settings"></re-icon> Settings &amp; Security Hub
+        </div>
       </div>
       <div class="topbar-right">
+        <span class="setting-sync-badge status-loading" id="setting-status" aria-live="polite" title="Settings Sync State">
+          <span class="setting-sync-dot"></span>
+          <span class="setting-sync-text" id="setting-status-text">Loading</span>
+        </span>
         <span><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#16a34a;margin-right:6px;"></span>System Online</span>
         <span id="top-time" style="font-family:'JetBrains Mono',monospace;font-size:11.5px;"></span>
       </div>
@@ -69,15 +106,14 @@
     <div class="pg act" id="pg-institution">
       <div class="page-hd">
         <div>
-          <div class="page-title">🏫 Institution &amp; Branding</div>
+          <div class="page-title"><re-icon icon="chalkboard"></re-icon> Institution &amp; Branding</div>
           <div class="page-sub">Campus names, acronyms, and official communication details</div>
         </div>
-        <button class="btn btn-pri" onclick="saveCard('institution')">💾 Save Institution Info</button>
       </div>
 
       <div class="card">
         <div class="card-hd">
-          <div class="card-icon blue">🏫</div>
+          <div class="card-icon blue"><re-icon icon="chalkboard"></re-icon></div>
           <div>
             <div class="card-title">Institution Profile</div>
             <div class="card-desc">Displayed on report headers, login screens, and PDF exports</div>
@@ -120,96 +156,121 @@
     <div class="pg" id="pg-pages">
       <div class="page-hd">
         <div>
-          <div class="page-title">🌐 Pages &amp; Portal Access Control</div>
+          <div class="page-title"><re-icon icon="globe"></re-icon> Pages &amp; Portal Access Control</div>
           <div class="page-sub">Configure access rules across all platform portals using the Tri-State model</div>
         </div>
-        <button class="btn btn-pri" onclick="saveCard('pages')">💾 Save Portal Settings</button>
       </div>
 
       <div class="card">
         <div class="card-hd">
-          <div class="card-icon green">🌐</div>
+          <div class="card-icon green"><re-icon icon="globe"></re-icon></div>
           <div>
             <div class="card-title">Portal Visibility &amp; Access Controls</div>
             <div class="card-desc">Choose between Enabled (Active), Disabled (Locked badge), or Hidden (Removed from UI)</div>
           </div>
         </div>
 
-        <!-- Student Portal -->
+        <!-- Students Portal -->
         <div class="toggle-row">
           <div>
-            <div class="toggle-label">🎓 Students Portal <span class="key-label">pageStudents</span></div>
+            <div class="toggle-label"><re-icon icon="graduation-cap"></re-icon> Students Portal <span class="key-label">pageStudents</span></div>
             <div class="toggle-hint">Controls student login access and student.html portal availability.</div>
           </div>
           <div class="tristate-wrap" data-key="pageStudents">
-            <button class="tristate-btn enabled" onclick="setTriState('pageStudents','enabled',this)">✅ Enabled</button>
-            <button class="tristate-btn disabled" onclick="setTriState('pageStudents','disabled',this)" title="Hover: 🔒 Disabled / Maintenance">🔒 Disabled</button>
-            <button class="tristate-btn hidden-mode" onclick="setTriState('pageStudents','hidden',this)">👁️ Hidden</button>
+            <button class="tristate-btn enabled" onclick="setTriState('pageStudents','enabled',this)"><re-icon icon="check-circle" size="14"></re-icon> Accessible</button>
+            <button class="tristate-btn disabled" onclick="setTriState('pageStudents','disabled',this)" title="Disabled / Maintenance"><re-icon icon="lock" size="14"></re-icon> Disabled</button>
+            <button class="tristate-btn hidden-mode" onclick="setTriState('pageStudents','hidden',this)"><re-icon icon="eye-off" size="14"></re-icon> Hidden</button>
           </div>
         </div>
 
         <!-- Teacher Portal -->
         <div class="toggle-row">
           <div>
-            <div class="toggle-label">👩‍🏫 Teachers Portal <span class="key-label">pageTeachers</span></div>
+            <div class="toggle-label"><re-icon icon="teacher"></re-icon> Teachers Portal <span class="key-label">pageTeachers</span></div>
             <div class="toggle-hint">Controls faculty sign-in and teacher.html roster management.</div>
           </div>
           <div class="tristate-wrap" data-key="pageTeachers">
-            <button class="tristate-btn enabled" onclick="setTriState('pageTeachers','enabled',this)">✅ Enabled</button>
-            <button class="tristate-btn disabled" onclick="setTriState('pageTeachers','disabled',this)" title="Hover: 🔒 Disabled / Maintenance">🔒 Disabled</button>
-            <button class="tristate-btn hidden-mode" onclick="setTriState('pageTeachers','hidden',this)">👁️ Hidden</button>
+            <button class="tristate-btn enabled" onclick="setTriState('pageTeachers','enabled',this)"><re-icon icon="check-circle" size="14"></re-icon> Accessible</button>
+            <button class="tristate-btn disabled" onclick="setTriState('pageTeachers','disabled',this)" title="Disabled / Maintenance"><re-icon icon="lock" size="14"></re-icon> Disabled</button>
+            <button class="tristate-btn hidden-mode" onclick="setTriState('pageTeachers','hidden',this)"><re-icon icon="eye-off" size="14"></re-icon> Hidden</button>
+          </div>
+        </div>
+
+        <!-- Controller Portal -->
+        <div class="toggle-row">
+          <div>
+            <div class="toggle-label"><re-icon icon="building2"></re-icon> Controller Hub <span class="key-label">pageController</span></div>
+            <div class="toggle-hint">Controls access to controller.html executive oversight hub and approvals.</div>
+          </div>
+          <div class="tristate-wrap" data-key="pageController">
+            <button class="tristate-btn enabled" onclick="setTriState('pageController','enabled',this)"><re-icon icon="check-circle" size="14"></re-icon> Enabled</button>
+            <button class="tristate-btn disabled" onclick="setTriState('pageController','disabled',this)" title="Disabled / Maintenance"><re-icon icon="lock" size="14"></re-icon> Disabled</button>
+            <button class="tristate-btn hidden-mode" onclick="setTriState('pageController','hidden',this)"><re-icon icon="eye-off" size="14"></re-icon> Hidden</button>
+          </div>
+        </div>
+
+        <!-- Room & Board Manager -->
+        <div class="toggle-row">
+          <div>
+            <div class="toggle-label"><re-icon icon="building2"></re-icon> Room &amp; Board Facilities <span class="key-label">pageRooms</span></div>
+            <div class="toggle-hint">Controls access to rooms.html, smart board allocations, and campus facilities.</div>
+          </div>
+          <div class="tristate-wrap" data-key="pageRooms">
+            <button class="tristate-btn enabled" onclick="setTriState('pageRooms','enabled',this)"><re-icon icon="check-circle" size="14"></re-icon> Enabled</button>
+            <button class="tristate-btn disabled" onclick="setTriState('pageRooms','disabled',this)" title="Disabled / Maintenance"><re-icon icon="lock" size="14"></re-icon> Disabled</button>
+            <button class="tristate-btn hidden-mode" onclick="setTriState('pageRooms','hidden',this)"><re-icon icon="eye-off" size="14"></re-icon> Hidden</button>
           </div>
         </div>
 
         <!-- Manage Portal -->
         <div class="toggle-row">
           <div>
-            <div class="toggle-label">📋 Data &amp; Calendar Manager <span class="key-label">pageManage</span></div>
+            <div class="toggle-label"><re-icon icon="clipboard-list"></re-icon> Data &amp; Calendar Manager <span class="key-label">pageManage</span></div>
             <div class="toggle-hint">Controls access to manage.html, college term calendar, and exams.</div>
           </div>
           <div class="tristate-wrap" data-key="pageManage">
-            <button class="tristate-btn enabled" onclick="setTriState('pageManage','enabled',this)">✅ Enabled</button>
-            <button class="tristate-btn disabled" onclick="setTriState('pageManage','disabled',this)" title="Hover: 🔒 Disabled / Maintenance">🔒 Disabled</button>
-            <button class="tristate-btn hidden-mode" onclick="setTriState('pageManage','hidden',this)">👁️ Hidden</button>
+            <button class="tristate-btn enabled" onclick="setTriState('pageManage','enabled',this)"><re-icon icon="check-circle" size="14"></re-icon> Enabled</button>
+            <button class="tristate-btn disabled" onclick="setTriState('pageManage','disabled',this)" title="Disabled / Maintenance"><re-icon icon="lock" size="14"></re-icon> Disabled</button>
+            <button class="tristate-btn hidden-mode" onclick="setTriState('pageManage','hidden',this)"><re-icon icon="eye-off" size="14"></re-icon> Hidden</button>
           </div>
         </div>
 
         <!-- Bulk Portal -->
         <div class="toggle-row">
           <div>
-            <div class="toggle-label">📦 Bulk Upload Portal <span class="key-label">pageBulk</span></div>
+            <div class="toggle-label"><re-icon icon="package"></re-icon> Bulk Upload Portal <span class="key-label">pageBulk</span></div>
             <div class="toggle-hint">Controls access to bulk.html spreadsheet data upload center.</div>
           </div>
           <div class="tristate-wrap" data-key="pageBulk">
-            <button class="tristate-btn enabled" onclick="setTriState('pageBulk','enabled',this)">✅ Enabled</button>
-            <button class="tristate-btn disabled" onclick="setTriState('pageBulk','disabled',this)" title="Hover: 🔒 Disabled / Maintenance">🔒 Disabled</button>
-            <button class="tristate-btn hidden-mode" onclick="setTriState('pageBulk','hidden',this)">👁️ Hidden</button>
+            <button class="tristate-btn enabled" onclick="setTriState('pageBulk','enabled',this)"><re-icon icon="check-circle" size="14"></re-icon> Enabled</button>
+            <button class="tristate-btn disabled" onclick="setTriState('pageBulk','disabled',this)" title="Disabled / Maintenance"><re-icon icon="lock" size="14"></re-icon> Disabled</button>
+            <button class="tristate-btn hidden-mode" onclick="setTriState('pageBulk','hidden',this)"><re-icon icon="eye-off" size="14"></re-icon> Hidden</button>
           </div>
         </div>
 
-        <!-- Timetable Portal -->
+        <!-- Timetable Hub -->
         <div class="toggle-row">
           <div>
-            <div class="toggle-label">🗓️ Timetable Hub <span class="key-label">pageTimeTable</span></div>
+            <div class="toggle-label"><re-icon icon="calendar-days"></re-icon> Timetable Hub <span class="key-label">pageTimeTable</span></div>
             <div class="toggle-hint">Controls access to timetable.html master schedules.</div>
           </div>
           <div class="tristate-wrap" data-key="pageTimeTable">
-            <button class="tristate-btn enabled" onclick="setTriState('pageTimeTable','enabled',this)">✅ Enabled</button>
-            <button class="tristate-btn disabled" onclick="setTriState('pageTimeTable','disabled',this)" title="Hover: 🔒 Disabled / Maintenance">🔒 Disabled</button>
-            <button class="tristate-btn hidden-mode" onclick="setTriState('pageTimeTable','hidden',this)">👁️ Hidden</button>
+            <button class="tristate-btn enabled" onclick="setTriState('pageTimeTable','enabled',this)"><re-icon icon="check-circle" size="14"></re-icon> Enabled</button>
+            <button class="tristate-btn disabled" onclick="setTriState('pageTimeTable','disabled',this)" title="Disabled / Maintenance"><re-icon icon="lock" size="14"></re-icon> Disabled</button>
+            <button class="tristate-btn hidden-mode" onclick="setTriState('pageTimeTable','hidden',this)"><re-icon icon="eye-off" size="14"></re-icon> Hidden</button>
           </div>
         </div>
 
         <!-- Workspace Selector -->
         <div class="toggle-row">
           <div>
-            <div class="toggle-label">⚡ Workspace Selector Hub <span class="key-label">pageSelector</span></div>
+            <div class="toggle-label"><re-icon icon="bolt"></re-icon> Workspace Selector Hub <span class="key-label">pageSelector</span></div>
             <div class="toggle-hint">When hidden or disabled, faculty logins bypass selector.html directly to teacher.html.</div>
           </div>
           <div class="tristate-wrap" data-key="pageSelector">
-            <button class="tristate-btn enabled" onclick="setTriState('pageSelector','enabled',this)">✅ Enabled</button>
-            <button class="tristate-btn disabled" onclick="setTriState('pageSelector','disabled',this)" title="Hover: 🔒 Disabled / Maintenance">🔒 Disabled</button>
-            <button class="tristate-btn hidden-mode" onclick="setTriState('pageSelector','hidden',this)">👁️ Hidden</button>
+            <button class="tristate-btn enabled" onclick="setTriState('pageSelector','enabled',this)"><re-icon icon="check-circle" size="14"></re-icon> Enabled</button>
+            <button class="tristate-btn disabled" onclick="setTriState('pageSelector','disabled',this)" title="Disabled / Maintenance"><re-icon icon="lock" size="14"></re-icon> Disabled</button>
+            <button class="tristate-btn hidden-mode" onclick="setTriState('pageSelector','hidden',this)"><re-icon icon="eye-off" size="14"></re-icon> Hidden</button>
           </div>
         </div>
       </div>
@@ -219,15 +280,14 @@
     <div class="pg" id="pg-attendance">
       <div class="page-hd">
         <div>
-          <div class="page-title">📅 Attendance Policy &amp; Rules</div>
+          <div class="page-title"><re-icon icon="calendar"></re-icon> Attendance Policy &amp; Rules</div>
           <div class="page-sub">Configure attendance marking mechanisms, backdating allowances, and auto-locks</div>
         </div>
-        <button class="btn btn-pri" onclick="saveCard('attendance')">💾 Save Attendance Policy</button>
       </div>
 
       <div class="card">
         <div class="card-hd">
-          <div class="card-icon green">📅</div>
+          <div class="card-icon green"><re-icon icon="calendar"></re-icon></div>
           <div>
             <div class="card-title">Marking Controls &amp; Modes</div>
             <div class="card-desc">Enable or lock faculty attendance submission channels</div>
@@ -246,7 +306,7 @@
 
         <div class="toggle-row">
           <div>
-            <div class="toggle-label">⚡ Quick Pass Attendance <span class="key-label">quickPass</span></div>
+            <div class="toggle-label"><re-icon icon="bolt"></re-icon> Quick Pass Attendance <span class="key-label">quickPass</span></div>
             <div class="toggle-hint">Allow faculty to start rapid 12-character passcode sessions with automatic rotations.</div>
           </div>
           <div class="toggle-wrap">
@@ -294,6 +354,16 @@
           </div>
         </div>
 
+        <div class="toggle-row">
+          <div>
+            <div class="toggle-label"><re-icon icon="calendar"></re-icon> Force Only Timetable Slots <span class="key-label">forceTimetableSlots</span></div>
+            <div class="toggle-hint">Strict mode: Faculty can only mark attendance for classes, subjects, and periods scheduled in their timetable (including approved substitutions) for that day. Pre-selects active slots automatically.</div>
+          </div>
+          <div class="toggle-wrap">
+            <label class="toggle"><input type="checkbox" id="att-force-timetable"><div class="toggle-track"></div><div class="toggle-thumb"></div></label>
+          </div>
+        </div>
+
         <div class="settings-grid" style="margin-top:20px;border-top:1px solid var(--brl);padding-top:20px;">
           <div class="form-group">
             <label class="form-label">Max Attendance Backdate (Days) <span class="key-label">maxAttendanceBackdateDays</span></label>
@@ -328,38 +398,130 @@
       </div>
     </div>
 
-    <!-- TAB 4: MODELS & FEATURES -->
-    <div class="pg" id="pg-models">
+    <!-- TAB: TEACHERS MANAGEMENT -->
+    <div class="pg" id="pg-teachers">
       <div class="page-hd">
         <div>
-          <div class="page-title">🧩 Models &amp; Feature Switches</div>
-          <div class="page-sub">Enable or disable academic modules across the entire application</div>
+          <div class="page-title"><re-icon icon="teacher"></re-icon> Teachers Management &amp; Leave Policy</div>
+          <div class="page-sub">Configure faculty annual leave allowances, substitution requirements, and leave quotas</div>
         </div>
-        <button class="btn btn-pri" onclick="saveCard('models')">💾 Save Module Settings</button>
       </div>
 
       <div class="card">
         <div class="card-hd">
-          <div class="card-icon purple">🧩</div>
+          <div class="card-icon green"><re-icon icon="calendar"></re-icon></div>
+          <div>
+            <div class="card-title">Faculty Leave Quota &amp; Allowances</div>
+            <div class="card-desc">Annual leave balances displayed as Remaining Leaves in the Teacher Portal</div>
+          </div>
+        </div>
+        <div class="settings-grid">
+          <div class="form-group">
+            <label class="form-label">Annual Total Leave Quota (Days) <span class="key-label">annualLeaveQuota</span></label>
+            <input type="number" class="form-input" id="tch-leave-quota" min="0" max="60" placeholder="15">
+            <span class="field-hint">Total annual paid leave days displayed as Remaining Leaves on Teacher Portal.</span>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Casual Leave (CL) Allowance <span class="key-label">casualLeaveAllowance</span></label>
+            <input type="number" class="form-input" id="tch-cl-quota" min="0" max="30" placeholder="12">
+            <span class="field-hint">Standard casual leave entitlement per academic calendar year.</span>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Medical Leave (ML) Allowance <span class="key-label">medicalLeaveAllowance</span></label>
+            <input type="number" class="form-input" id="tch-ml-quota" min="0" max="30" placeholder="10">
+            <span class="field-hint">Medical leave quota requiring proof document when exceeding threshold.</span>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Earned Leave (EL) Allowance <span class="key-label">earnedLeaveAllowance</span></label>
+            <input type="number" class="form-input" id="tch-el-quota" min="0" max="45" placeholder="15">
+            <span class="field-hint">Earned leave credit accrued for academic and institutional duties.</span>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Max Consecutive Leave Days <span class="key-label">maxConsecutiveLeaveDays</span></label>
+            <input type="number" class="form-input" id="tch-max-consecutive" min="1" max="15" placeholder="3">
+            <span class="field-hint">Maximum single leave stretch before mandatory HOD review.</span>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Medical Certificate Due (Days) <span class="key-label">medicalDocThresholdDays</span></label>
+            <input type="number" class="form-input" id="tch-med-threshold" min="1" max="10" placeholder="3">
+            <span class="field-hint">Number of continuous medical leave days requiring a doctor certificate.</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:20px;">
+        <div class="card-hd">
+          <div class="card-icon purple"><re-icon icon="refresh"></re-icon></div>
+          <div>
+            <div class="card-title">Substitution &amp; Operational Controls</div>
+            <div class="card-desc">Workload coverage rules and automated escalation thresholds</div>
+          </div>
+        </div>
+
+        <div class="toggle-row">
+          <div>
+            <div class="toggle-label">Require Mandatory Period Substitution <span class="key-label">requireSubstitution</span></div>
+            <div class="toggle-hint">Faculty must arrange colleagues to cover teaching periods before submitting leave.</div>
+          </div>
+          <div class="toggle-wrap">
+            <label class="toggle"><input type="checkbox" id="tch-req-sub" checked><div class="toggle-track"></div><div class="toggle-thumb"></div></label>
+          </div>
+        </div>
+
+        <div class="toggle-row">
+          <div>
+            <div class="toggle-label">Allow Hour / Period Permission Leaves <span class="key-label">allowPeriodLeave</span></div>
+            <div class="toggle-hint">Permit short 1-2 period permissions without deducting full-day balance units.</div>
+          </div>
+          <div class="toggle-wrap">
+            <label class="toggle"><input type="checkbox" id="tch-allow-period" checked><div class="toggle-track"></div><div class="toggle-thumb"></div></label>
+          </div>
+        </div>
+
+        <div class="toggle-row">
+          <div>
+            <div class="toggle-label">Carry Forward Unused Earned Leaves <span class="key-label">carryForward</span></div>
+            <div class="toggle-hint">Accumulate unutilized earned leaves into the subsequent academic term.</div>
+          </div>
+          <div class="toggle-wrap">
+            <label class="toggle"><input type="checkbox" id="tch-carry-forward" checked><div class="toggle-track"></div><div class="toggle-thumb"></div></label>
+          </div>
+        </div>
+
+        <div class="toggle-row">
+          <div>
+            <div class="toggle-label">Auto-Escalate to Principal if HOD Unresponsive <span class="key-label">autoEscalatePrincipal</span></div>
+            <div class="toggle-hint">Automatically escalate leave requests to the Principal if HOD does not act within 24 hours.</div>
+          </div>
+          <div class="toggle-wrap">
+            <label class="toggle"><input type="checkbox" id="tch-auto-escalate"><div class="toggle-track"></div><div class="toggle-thumb"></div></label>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 4: MODELS & FEATURES -->
+    <div class="pg" id="pg-models">
+      <div class="page-hd">
+        <div>
+          <div class="page-title"><re-icon icon="puzzle"></re-icon> Models &amp; Feature Switches</div>
+          <div class="page-sub">Enable or disable academic modules across the entire application</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-hd">
+          <div class="card-icon purple"><re-icon icon="puzzle"></re-icon></div>
           <div>
             <div class="card-title">Active Feature Modules</div>
             <div class="card-desc">Instantly activate or deactivate functional areas</div>
           </div>
         </div>
 
-        <div class="toggle-row">
-          <div>
-            <div class="toggle-label">📝 Assignments Module <span class="key-label">modelAssignments</span></div>
-            <div class="toggle-hint">Assignment creation, student submissions, and grading.</div>
-          </div>
-          <div class="toggle-wrap">
-            <label class="toggle"><input type="checkbox" id="mod-assign" checked><div class="toggle-track"></div><div class="toggle-thumb"></div></label>
-          </div>
-        </div>
 
         <div class="toggle-row">
           <div>
-            <div class="toggle-label">🌴 Student &amp; Faculty Leave / OD <span class="key-label">modelLeave</span></div>
+            <div class="toggle-label"><re-icon icon="tree"></re-icon> Student &amp; Faculty Leave / OD <span class="key-label">modelLeave</span></div>
             <div class="toggle-hint">Leave applications, on-duty approvals, and balance tracking.</div>
           </div>
           <div class="toggle-wrap">
@@ -369,7 +531,7 @@
 
         <div class="toggle-row">
           <div>
-            <div class="toggle-label">🎫 Grievance Redressal System <span class="key-label">modelGrievances</span></div>
+            <div class="toggle-label"><re-icon icon="ticket"></re-icon> Grievance Redressal System <span class="key-label">modelGrievances</span></div>
             <div class="toggle-hint">Faculty grievance ticketing and administrative resolution.</div>
           </div>
           <div class="toggle-wrap">
@@ -379,7 +541,7 @@
 
         <div class="toggle-row">
           <div>
-            <div class="toggle-label">📑 Examination Management <span class="key-label">modelExams</span></div>
+            <div class="toggle-label"><re-icon icon="file-text"></re-icon> Examination Management <span class="key-label">modelExams</span></div>
             <div class="toggle-hint">Exam schedules, seating, and hall attendance verification.</div>
           </div>
           <div class="toggle-wrap">
@@ -389,7 +551,7 @@
 
         <div class="toggle-row">
           <div>
-            <div class="toggle-label">🔔 In-App Notifications <span class="key-label">modelNotifications</span></div>
+            <div class="toggle-label"><re-icon icon="bell"></re-icon> In-App Notifications <span class="key-label">modelNotifications</span></div>
             <div class="toggle-hint">Automated alert badges and message notifications.</div>
           </div>
           <div class="toggle-wrap">
@@ -399,7 +561,7 @@
 
         <div class="toggle-row">
           <div>
-            <div class="toggle-label">🗄️ Database Backup Model <span class="key-label">modelBackup</span></div>
+            <div class="toggle-label"><re-icon icon="archive"></re-icon> Database Backup Model <span class="key-label">modelBackup</span></div>
             <div class="toggle-hint">Database snapshot creation and export capabilities.</div>
           </div>
           <div class="toggle-wrap">
@@ -409,7 +571,7 @@
 
         <div class="toggle-row">
           <div>
-            <div class="toggle-label">↩️ 10-Day Soft-Delete Undo Model <span class="key-label">modelUndo</span></div>
+            <div class="toggle-label"><re-icon icon="undo"></re-icon> 10-Day Soft-Delete Undo Model <span class="key-label">modelUndo</span></div>
             <div class="toggle-hint">Recycle bin for recovering accidentally deleted records within 10 days.</div>
           </div>
           <div class="toggle-wrap">
@@ -419,7 +581,7 @@
 
         <div class="toggle-row">
           <div>
-            <div class="toggle-label">➕ Manual Student Adder <span class="key-label">modelAddStudent</span></div>
+            <div class="toggle-label"><re-icon icon="plus"></re-icon> Manual Student Adder <span class="key-label">modelAddStudent</span></div>
             <div class="toggle-hint">Allow manual student account creation forms in administrative adders.</div>
           </div>
           <div class="toggle-wrap">
@@ -429,7 +591,7 @@
 
         <div class="toggle-row">
           <div>
-            <div class="toggle-label">📊 Export to Excel / CSV / PDF <span class="key-label">modelExportSheet</span></div>
+            <div class="toggle-label"><re-icon icon="grid"></re-icon> Export to Excel / CSV / PDF <span class="key-label">modelExportSheet</span></div>
             <div class="toggle-hint">Enable spreadsheet and document export buttons across data tables.</div>
           </div>
           <div class="toggle-wrap">
@@ -439,11 +601,21 @@
 
         <div class="toggle-row">
           <div>
-            <div class="toggle-label">🔐 Require Admin Password for Destructive Deletes <span class="key-label">moduleDelUseAdminPass</span></div>
+            <div class="toggle-label"><re-icon icon="shield-lock"></re-icon> Require Admin Password for Destructive Deletes <span class="key-label">moduleDelUseAdminPass</span></div>
             <div class="toggle-hint">Require the admin user's personal password before executing permanent collection purges.</div>
           </div>
           <div class="toggle-wrap">
             <label class="toggle"><input type="checkbox" id="mod-delpass" checked><div class="toggle-track"></div><div class="toggle-thumb"></div></label>
+          </div>
+        </div>
+
+        <div class="toggle-row">
+          <div>
+            <div class="toggle-label"><re-icon icon="tv"></re-icon> Smart Board Kiosk System <span class="key-label">modelSmartBoards</span></div>
+            <div class="toggle-hint">Enable or disable classroom autonomous smart board kiosk sign-in and attendance integration.</div>
+          </div>
+          <div class="toggle-wrap">
+            <label class="toggle"><input type="checkbox" id="mod-smartboards" checked><div class="toggle-track"></div><div class="toggle-thumb"></div></label>
           </div>
         </div>
       </div>
@@ -453,15 +625,14 @@
     <div class="pg" id="pg-security">
       <div class="page-hd">
         <div>
-          <div class="page-title">🔐 Security &amp; Password Policies</div>
+          <div class="page-title"><re-icon icon="shield-lock"></re-icon> Security &amp; Password Policies</div>
           <div class="page-sub">Authentication rules, brute-force defenses, session timeouts, and credentials</div>
         </div>
-        <button class="btn btn-pri" onclick="saveCard('security')">💾 Save Security Settings</button>
       </div>
 
       <div class="card">
         <div class="card-hd">
-          <div class="card-icon red">🔐</div>
+          <div class="card-icon red"><re-icon icon="shield-lock"></re-icon></div>
           <div>
             <div class="card-title">Authentication &amp; Password Rules</div>
             <div class="card-desc">Enforce institution-wide security standards</div>
@@ -507,11 +678,30 @@
             <label class="toggle"><input type="checkbox" id="sec-subadmin-logs"><div class="toggle-track"></div><div class="toggle-thumb"></div></label>
           </div>
         </div>
+        <div class="toggle-row">
+          <div>
+            <div class="toggle-label">Enforce Geolocation on Sign-In <span class="key-label">loginLocationRequired</span></div>
+            <div class="toggle-hint">Require valid device GPS coordinates to authenticate. (Automatically bypassed in development mode).</div>
+          </div>
+          <div class="toggle-wrap">
+            <label class="toggle"><input type="checkbox" id="sec-loc-required" checked><div class="toggle-track"></div><div class="toggle-thumb"></div></label>
+          </div>
+        </div>
+
+        <div class="toggle-row">
+          <div>
+            <div class="toggle-label">Enforce Location Accuracy Limit <span class="key-label">loginLocationAccuracyCheck</span></div>
+            <div class="toggle-hint">Verify GPS accuracy against maximum allowed meters. (Automatically bypassed in development mode).</div>
+          </div>
+          <div class="toggle-wrap">
+            <label class="toggle"><input type="checkbox" id="sec-loc-acc-check" checked><div class="toggle-track"></div><div class="toggle-thumb"></div></label>
+          </div>
+        </div>
 
         <div class="settings-grid" style="margin-top:20px;border-top:1px solid var(--brl);padding-top:20px;">
           <div class="form-group">
             <label class="form-label">Session Timeout (Minutes) <span class="key-label">sessionTimeoutMins</span></label>
-            <input type="number" class="form-input" id="sec-timeout-mins" min="5" max="240" placeholder="60">
+            <input type="number" class="form-input" id="sec-timeout-mins" min="1" max="240" placeholder="7">
           </div>
           <div class="form-group">
             <label class="form-label">Max Failed Login Attempts <span class="key-label">maxLoginAttempts</span></label>
@@ -525,13 +715,21 @@
             <label class="form-label">Audit Log Retention (Days - 0 for unlimited) <span class="key-label">logRetentionDays</span></label>
             <input type="number" class="form-input" id="sec-log-retention" min="0" max="3650" placeholder="0">
           </div>
+          <div class="form-group">
+            <label class="form-label">Max Geolocation Accuracy (Meters) <span class="key-label">loginLocationMaxAccuracyM</span></label>
+            <input type="number" class="form-input" id="sec-loc-max-acc" min="0" max="50000" placeholder="2000">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Max Geolocation Age (Seconds) <span class="key-label">loginLocationMaxAgeSec</span></label>
+            <input type="number" class="form-input" id="sec-loc-max-age" min="10" max="3600" placeholder="300">
+          </div>
         </div>
       </div>
 
       <!-- Reset Admin Password Card -->
       <div class="card">
         <div class="card-hd">
-          <div class="card-icon amber">🔑</div>
+          <div class="card-icon amber"><re-icon icon="key"></re-icon></div>
           <div>
             <div class="card-title">Reset Admin Account Password</div>
             <div class="card-desc">Immediately update the administrator login password</div>
@@ -552,7 +750,236 @@
           </div>
         </div>
         <div style="margin-top:18px;">
-          <button class="btn btn-warn" onclick="changeAdminPassword()">🔑 Update Admin Password</button>
+          <button class="btn btn-warn" onclick="changeAdminPassword()"><re-icon icon="key" size="14"></re-icon> Update Admin Password</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB: TRUST & DEVICES CONFIGURATION (§15) -->
+    <div class="pg" id="pg-trust">
+      <div class="page-hd">
+        <div>
+          <div class="page-title"><re-icon icon="shield-halved"></re-icon> Student Device Trust &amp; Anti-Fraud Policies</div>
+          <div class="page-sub">Cryptographic device binding, 15-day session duration, trust score weights, and penalty thresholds</div>
+        </div>
+      </div>
+
+      <!-- CARD 1: DEVICE REGISTRATION & SESSION CONFIG -->
+      <div class="card">
+        <div class="card-hd">
+          <div class="card-icon blue"><re-icon icon="smartphone"></re-icon></div>
+          <div>
+            <div class="card-title">Device Registration &amp; Sessions</div>
+            <div class="card-desc">Hardware-bound cryptographic attendance requirements and credential policies (§15)</div>
+          </div>
+        </div>
+
+        <div class="toggle-row">
+          <div>
+            <div class="toggle-label">Require Registered Device for Self-Attendance <span class="key-label">requireRegisteredDevice</span></div>
+            <div class="toggle-hint">When active, students can only mark attendance from their registered trusted smartphone.</div>
+          </div>
+          <div class="toggle-wrap">
+            <label class="toggle"><input type="checkbox" id="dev-req-bound" checked><div class="toggle-track"></div><div class="toggle-thumb"></div></label>
+          </div>
+        </div>
+
+        <div class="settings-grid" style="margin-top:16px;">
+          <div class="form-group">
+            <label class="form-label">Student Session Duration (Days) <span class="key-label">studentSessionDays</span></label>
+            <input type="number" class="form-input" id="dev-session-days" min="1" max="90" value="15">
+            <span class="field-hint">Max duration before student must re-authenticate (default 15 days).</span>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Registration Credential TTL (Minutes) <span class="key-label">credentialTtlMin</span></label>
+            <input type="number" class="form-input" id="dev-cred-ttl" min="1" max="60" value="10">
+            <span class="field-hint">Validity window for advisor's 12-char credential (default 10 min).</span>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Max Credential Attempts <span class="key-label">credentialMaxAttempts</span></label>
+            <input type="number" class="form-input" id="dev-cred-attempts" min="1" max="10" value="5">
+            <span class="field-hint">Locks ticket after failed entry attempts (default 5).</span>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">6-Digit Code TTL (Minutes) <span class="key-label">verifyCodeTtlMin</span></label>
+            <input type="number" class="form-input" id="dev-code-ttl" min="1" max="30" value="5">
+            <span class="field-hint">Validity window for phone's 6-digit verification code (default 5 min).</span>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Max 6-Digit Verify Attempts <span class="key-label">verifyCodeMaxAttempts</span></label>
+            <input type="number" class="form-input" id="dev-code-attempts" min="1" max="5" value="3">
+            <span class="field-hint">Locks ticket after failed advisor verification attempts (default 3).</span>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Replacement Requests Per Day <span class="key-label">replacementRequestsPerDay</span></label>
+            <input type="number" class="form-input" id="dev-rep-limit" min="1" max="10" value="3">
+            <span class="field-hint">Maximum device replacement requests a student can file per day.</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- CARD 2: TRUST SCORE ENGINE & PENALTIES -->
+      <div class="card" style="margin-top:20px;">
+        <div class="card-hd">
+          <div class="card-icon red"><re-icon icon="shield-halved"></re-icon></div>
+          <div>
+            <div class="card-title">Trust Score Engine &amp; Penalty Rules</div>
+            <div class="card-desc">Trust score bands, absence penalties, and proxy deterrents (§8, §15)</div>
+          </div>
+        </div>
+
+        <div class="toggle-row">
+          <div>
+            <div class="toggle-label">Enable Trust Score Gating <span class="key-label">enabled</span></div>
+            <div class="toggle-hint">Evaluate student trust bands and enforce teacher verification for high-risk attempts.</div>
+          </div>
+          <div class="toggle-wrap">
+            <label class="toggle"><input type="checkbox" id="trust-enabled" checked><div class="toggle-track"></div><div class="toggle-thumb"></div></label>
+          </div>
+        </div>
+
+        <div class="toggle-row">
+          <div>
+            <div class="toggle-label">Count Approved Leave in Frequency Rule <span class="key-label">countApprovedLeaveInFrequency</span></div>
+            <div class="toggle-hint">If enabled, approved leaves count toward the monthly frequent absence threshold (default off).</div>
+          </div>
+          <div class="toggle-wrap">
+            <label class="toggle"><input type="checkbox" id="trust-leave-freq"><div class="toggle-track"></div><div class="toggle-thumb"></div></label>
+          </div>
+        </div>
+
+        <div class="settings-grid" style="margin-top:16px;">
+          <div class="form-group">
+            <label class="form-label">Initial Baseline Score <span class="key-label">startScore</span></label>
+            <input type="number" class="form-input" id="trust-start-score" min="50" max="100" value="100">
+            <span class="field-hint">Starting trust score for newly enrolled students (default 100).</span>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Normal Band Floor <span class="key-label">bands.normal</span></label>
+            <input type="number" class="form-input" id="trust-band-normal" min="70" max="95" value="80">
+            <span class="field-hint">Score ≥ this gives uninterrupted self-marking (default 80).</span>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Monitor Band Floor <span class="key-label">bands.monitor</span></label>
+            <input type="number" class="form-input" id="trust-band-monitor" min="50" max="75" value="60">
+            <span class="field-hint">Score between this and Normal is closely monitored (default 60).</span>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Teacher Verify Band Floor <span class="key-label">bands.verify</span></label>
+            <input type="number" class="form-input" id="trust-band-verify" min="20" max="55" value="40">
+            <span class="field-hint">Score between this and Monitor requires teacher verification. &lt; this is High Risk (default 40).</span>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Uninformed Absence Penalty <span class="key-label">uninformedAbsencePenalty</span></label>
+            <input type="number" class="form-input" id="trust-uninformed-pen" min="1" max="20" value="4">
+            <span class="field-hint">Points deducted per full-day uninformed absence (default -4).</span>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Frequent Absence Threshold (Days) <span class="key-label">frequentAbsenceThreshold</span></label>
+            <input type="number" class="form-input" id="trust-freq-thresh" min="3" max="15" value="6">
+            <span class="field-hint">Monthly absence count that triggers frequency penalty (default &gt;6 days).</span>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Frequent Absence Penalty <span class="key-label">frequentAbsencePenalty</span></label>
+            <input type="number" class="form-input" id="trust-freq-pen" min="1" max="10" value="2">
+            <span class="field-hint">Points deducted once per month when threshold is exceeded (default -2).</span>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Teacher Denied Penalty <span class="key-label">teacherDeniedPenalty</span></label>
+            <input type="number" class="form-input" id="trust-denied-pen" min="10" max="60" value="40">
+            <span class="field-hint">Penalty when teacher marks student "Not in class" (default -40).</span>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Teacher Denied Lock Duration (Days) <span class="key-label">teacherDeniedLockDays</span></label>
+            <input type="number" class="form-input" id="trust-denied-lock" min="1" max="10" value="2">
+            <span class="field-hint">Days self-attendance is locked after being denied (default 2).</span>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Device Share Lock Duration (Days) <span class="key-label">deviceShareLockDays</span></label>
+            <input type="number" class="form-input" id="trust-share-lock" min="1" max="30" value="15">
+            <span class="field-hint">Lockout days for confirmed proxy device sharing (default 15).</span>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Device Share Absent Days <span class="key-label">deviceShareAbsentDays</span></label>
+            <input type="number" class="form-input" id="trust-share-absent" min="1" max="30" value="7">
+            <span class="field-hint">Past days marked Absent upon confirmed device sharing (default 7).</span>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Device Share Attendance Adjustment (%) <span class="key-label">deviceShareAttendancePenaltyPct</span></label>
+            <input type="number" class="form-input" id="trust-share-pct" min="1" max="20" value="5">
+            <span class="field-hint">Percentage penalty on overall attendance calculation (default -5%).</span>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Dispute Window (Days) <span class="key-label">disputeWindowDays</span></label>
+            <input type="number" class="form-input" id="trust-dispute-days" min="1" max="30" value="7">
+            <span class="field-hint">Days allowed after an event for student to file a dispute (default 7).</span>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Dispute Accepted Attendance Bonus (%) <span class="key-label">disputeBonusPct</span></label>
+            <input type="number" class="form-input" id="trust-dispute-bonus" min="0" max="10" value="2">
+            <span class="field-hint">One-time attendance adjustment bonus upon accepted dispute (default +2%).</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- CARD 3: DEVICE SIGNAL WEIGHTS (0-50) -->
+      <div class="card" style="margin-top:20px;">
+        <div class="card-hd">
+          <div class="card-icon green"><re-icon icon="signal"></re-icon></div>
+          <div>
+            <div class="card-title">Device Signal Scoring Weights (0–50 Formula)</div>
+            <div class="card-desc">Signal points allocated during attendance evaluation (§9, §15)</div>
+          </div>
+        </div>
+
+        <div class="settings-grid" style="margin-top:16px;">
+          <div class="form-group">
+            <label class="form-label">Cryptographic Key Signature Weight <span class="key-label">deviceWeights.key</span></label>
+            <input type="number" class="form-input" id="trust-wt-key" min="10" max="35" value="25">
+            <span class="field-hint">Points for valid WebCrypto ECDSA signature (default 25).</span>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Install ID &amp; Fingerprint Match <span class="key-label">deviceWeights.match</span></label>
+            <input type="number" class="form-input" id="trust-wt-match" min="5" max="20" value="10">
+            <span class="field-hint">Points for matching client installation ID and device profile (default 10).</span>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Classroom GPS Inside Radius <span class="key-label">deviceWeights.location</span></label>
+            <input type="number" class="form-input" id="trust-wt-loc" min="5" max="20" value="10">
+            <span class="field-hint">Points for verified GPS location within radius (default 10).</span>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Campus Wi-Fi / IP Match <span class="key-label">deviceWeights.campusIp</span></label>
+            <input type="number" class="form-input" id="trust-wt-ip" min="0" max="10" value="5">
+            <span class="field-hint">Points for campus intranet connection (default 5).</span>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Spoofing Detection Penalty <span class="key-label">deviceWeights.spoofPenalty</span></label>
+            <input type="number" class="form-input" id="trust-wt-spoof" min="5" max="30" value="10">
+            <span class="field-hint">Deduction per spoofing indicator: jump, identical coords, 0 accuracy (default -10).</span>
+          </div>
         </div>
       </div>
     </div>
@@ -561,15 +988,14 @@
     <div class="pg" id="pg-academic">
       <div class="page-hd">
         <div>
-          <div class="page-title">🎓 Academic Configuration</div>
+          <div class="page-title"><re-icon icon="graduation-cap"></re-icon> Academic Configuration</div>
           <div class="page-sub">Academic calendar year, minimum attendance thresholds, and working schedules</div>
         </div>
-        <button class="btn btn-pri" onclick="saveCard('academic')">💾 Save Academic Config</button>
       </div>
 
       <div class="card">
         <div class="card-hd">
-          <div class="card-icon green">🎓</div>
+          <div class="card-icon green"><re-icon icon="graduation-cap"></re-icon></div>
           <div>
             <div class="card-title">Term &amp; Eligibility Parameters</div>
             <div class="card-desc">Used in exam eligibility checks, attendance percentages, and reports</div>
@@ -577,8 +1003,19 @@
         </div>
         <div class="settings-grid">
           <div class="form-group">
-            <label class="form-label">Active Academic Year <span class="key-label">academicYear</span></label>
-            <input type="text" class="form-input" id="acad-year" placeholder="2026-27">
+            <label class="form-label">
+              Active Academic Year <span class="key-label">academicYear</span>
+              <a href="manage.html?tab=years" class="btn-link-edit" style="margin-left:auto;font-size:11px;color:var(--gD);font-weight:600;display:inline-flex;align-items:center;gap:4px;text-decoration:none;" title="Open Years in manage.html">
+                <re-icon icon="external-link" size="12"></re-icon> Edit in Years
+              </a>
+            </label>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <input type="text" class="form-input" id="acad-year" placeholder="2026-2027" readonly style="background:#f8fafc;cursor:default;font-weight:600;color:var(--td);">
+              <a href="manage.html?tab=years" class="btn btn-out" style="padding:8px 12px;font-size:12px;white-space:nowrap;display:inline-flex;align-items:center;gap:5px;text-decoration:none;" title="Manage Academic Years & Batches">
+                <re-icon icon="edit" size="13"></re-icon> Edit
+              </a>
+            </div>
+            <span class="field-hint">Active year is managed in <a href="manage.html?tab=years" style="color:var(--gD);font-weight:600;text-decoration:underline;">Years tab (manage.html)</a>. Click Edit to change or set current.</span>
           </div>
           <div class="form-group">
             <label class="form-label">Current Semester Type <span class="key-label">currentSemesterType</span></label>
@@ -587,22 +1024,50 @@
               <option value="Even">Even Semesters (2, 4, 6, 8)</option>
               <option value="All">All Semesters</option>
             </select>
+            <span class="field-hint">Platform-wide active term type across student and teacher workspaces.</span>
           </div>
           <div class="form-group">
-            <label class="form-label">Min. Attendance Requirement (%) <span class="key-label">minAttendance</span></label>
+            <label class="form-label">Default Min. Attendance Requirement (%) <span class="key-label">minAttendance</span></label>
             <input type="number" class="form-input" id="acad-minatt" min="0" max="100" placeholder="75">
+            <span class="field-hint">Global baseline attendance percentage required for exam eligibility (default 75%).</span>
           </div>
           <div class="form-group">
             <label class="form-label">Low Attendance Warning (%) <span class="key-label">lowAttendanceThreshold</span></label>
             <input type="number" class="form-input" id="acad-lowatt" min="0" max="100" placeholder="65">
+            <span class="field-hint">Threshold below which students and advisors receive warning notifications.</span>
           </div>
           <div class="form-group">
             <label class="form-label">Working Days per Week <span class="key-label">workingDays</span></label>
             <input type="number" class="form-input" id="acad-workdays" min="1" max="7" placeholder="6">
+            <span class="field-hint">Standard instructional schedule days per academic week.</span>
           </div>
           <div class="form-group">
             <label class="form-label">Academic Periods per Day <span class="key-label">periodsPerDay</span></label>
             <input type="number" class="form-input" id="acad-periods" min="1" max="12" placeholder="7">
+            <span class="field-hint">Number of regular lecture/lab periods scheduled per working day.</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- CARD: CURRICULUM REGULATIONS & ATTENDANCE THRESHOLDS -->
+      <div class="card" style="margin-top:20px;">
+        <div class="card-hd">
+          <div class="card-icon green"><re-icon icon="scroll"></re-icon></div>
+          <div style="flex:1;">
+            <div class="card-title">Curriculum Regulations &amp; Minimum Attendance</div>
+            <div class="card-desc">Auto-linked with manage.html. Set minimum attendance requirements for each curriculum regulation.</div>
+          </div>
+          <a href="manage.html?tab=years" class="btn btn-out btn-sm" style="display:inline-flex;align-items:center;gap:5px;text-decoration:none;" title="Manage Curriculum Regulations in Years tab">
+            <re-icon icon="external-link" size="13"></re-icon> Manage Regulations in Years
+          </a>
+        </div>
+
+        <div style="padding:16px 20px 8px;">
+          <div style="font-size:12px;color:var(--tmu);margin-bottom:14px;line-height:1.5;">
+            Configure individual passing/exam eligibility attendance thresholds per syllabus regulation (e.g. Regulation 2021, 2025). Any regulation without an override will inherit the default minimum requirement (<strong id="acad-global-min-badge" style="color:var(--gD);">75%</strong>).
+          </div>
+          <div id="acad-regulations-grid" style="display:grid;grid-template-columns:repeat(auto-fill, minmax(280px, 1fr));gap:14px;">
+            <div style="color:var(--tdi);font-size:12px;padding:12px 0;">Loading curriculum regulations…</div>
           </div>
         </div>
       </div>
@@ -612,15 +1077,14 @@
     <div class="pg" id="pg-broadcast">
       <div class="page-hd">
         <div>
-          <div class="page-title">📢 System Broadcast Defaults</div>
+          <div class="page-title"><re-icon icon="bullhorn"></re-icon> System Broadcast Defaults</div>
           <div class="page-sub">Configure default banner and popup behaviors. (Live broadcast dispatching is in control.html)</div>
         </div>
-        <button class="btn btn-pri" onclick="saveCard('broadcast')">💾 Save Broadcast Settings</button>
       </div>
 
       <div class="card">
         <div class="card-hd">
-          <div class="card-icon amber">📢</div>
+          <div class="card-icon amber"><re-icon icon="bullhorn"></re-icon></div>
           <div>
             <div class="card-title">Default Broadcast Parameters</div>
             <div class="card-desc">Control default popup durations and broadcast policies</div>
@@ -655,10 +1119,10 @@
     <div class="pg" id="pg-history">
       <div class="page-hd">
         <div>
-          <div class="page-title">📜 Change History &amp; Audit Trail</div>
+          <div class="page-title"><re-icon icon="scroll"></re-icon> Change History &amp; Audit Trail</div>
           <div class="page-sub">Immutable log of every single setting modification with before/after diffs</div>
         </div>
-        <button class="btn btn-out" onclick="loadHistory(1)">🔄 Refresh Log</button>
+        <button class="btn btn-out" onclick="loadHistory(1)"><re-icon icon="refresh" size="14"></re-icon> Refresh Log</button>
       </div>
 
       <div class="card">
@@ -674,7 +1138,11 @@
             <option value="System Broadcasts">Broadcasts</option>
             <option value="System Utilities">System Utilities</option>
           </select>
+          <input type="date" class="form-input" id="hist-date-filter" style="max-width:160px;" title="Filter by specific date" onchange="loadHistory(1)">
           <input type="text" class="form-input" id="hist-search" placeholder="Search by field, author name, or username..." style="flex:1;min-width:220px;" oninput="debounceHistorySearch()">
+          <button type="button" class="btn btn-out btn-sm" id="hist-reset-filters-btn" onclick="resetHistoryFilters()" style="display:none;white-space:nowrap;padding:8px 12px;" title="Reset all filters">
+            <re-icon icon="x"></re-icon> Reset
+          </button>
         </div>
 
         <div id="history-list-container">
@@ -684,8 +1152,8 @@
         <div id="history-pagination" style="display:flex;align-items:center;justify-content:space-between;margin-top:20px;padding-top:16px;border-top:1px solid var(--brl);">
           <span style="font-size:12px;color:var(--tmu);" id="hist-page-info">Showing page 1</span>
           <div style="display:flex;gap:8px;">
-            <button class="btn btn-out btn-sm" id="hist-prev-btn" onclick="histChangePage(-1)" disabled>← Previous</button>
-            <button class="btn btn-out btn-sm" id="hist-next-btn" onclick="histChangePage(1)" disabled>Next →</button>
+            <button class="btn btn-out btn-sm" id="hist-prev-btn" onclick="histChangePage(-1)" disabled><re-icon icon="arrow-left"></re-icon> Previous</button>
+            <button class="btn btn-out btn-sm" id="hist-next-btn" onclick="histChangePage(1)" disabled>Next <re-icon icon="arrow-right"></re-icon></button>
           </div>
         </div>
       </div>
@@ -695,15 +1163,14 @@
     <div class="pg" id="pg-advanced">
       <div class="page-hd">
         <div>
-          <div class="page-title">🧪 System Utilities &amp; Diagnostics</div>
+          <div class="page-title"><re-icon icon="flask"></re-icon> System Utilities &amp; Diagnostics</div>
           <div class="page-sub">Developer diagnostics, database health tools, and system reset</div>
         </div>
-        <button class="btn btn-pri" onclick="saveCard('advanced')">💾 Save System Utilities</button>
       </div>
 
       <div class="card">
         <div class="card-hd">
-          <div class="card-icon gray">🛠️</div>
+          <div class="card-icon gray"><re-icon icon="settings"></re-icon></div>
           <div>
             <div class="card-title">Diagnostics &amp; Developer Tools</div>
             <div class="card-desc">System-level runtime configurations</div>
@@ -751,7 +1218,7 @@
       <!-- Factory Reset Card -->
       <div class="card" style="border-color:#fecaca;background:#fffaf0;">
         <div class="card-hd">
-          <div class="card-icon red">⚠️</div>
+          <div class="card-icon red"><re-icon icon="alert-triangle"></re-icon></div>
           <div>
             <div class="card-title" style="color:#991b1b;">Factory Reset All Settings</div>
             <div class="card-desc">Restore all 8 configuration domain cards to standard factory defaults</div>
@@ -760,27 +1227,18 @@
         <p style="font-size:12.5px;color:#78350f;margin-bottom:14px;">
           This will restore institution info, academic rules, portal switches, and security parameters back to default values. Student, teacher, and attendance academic data is <strong>NOT</strong> deleted.
         </p>
-        <button class="btn btn-danger" onclick="openResetModal()">↩️ Restore Factory Defaults</button>
+        <button class="btn btn-danger" onclick="openResetModal()"><re-icon icon="undo"></re-icon> Restore Factory Defaults</button>
       </div>
     </div>
 
   </div><!-- end .mc -->
+  </div><!-- end #app-shell -->
 
-  <!-- FLOATING SAVE BAR -->
-  <div class="floating-save-bar" id="save-bar">
-    <div class="save-bar-info">
-      <span>⚠️ Unsaved changes detected in settings</span>
-    </div>
-    <div class="save-bar-actions">
-      <button class="btn btn-out" style="color:#fff;border-color:rgba(255,255,255,0.4);background:transparent;" onclick="discardChanges()">Discard</button>
-      <button class="btn btn-pri" style="background:#16a34a;" onclick="saveCurrentTab()">💾 Save Changes</button>
-    </div>
-  </div>
 
   <!-- RESET SETTINGS CONFIRMATION MODAL -->
   <div class="modal-overlay" id="reset-modal">
     <div class="modal-box">
-      <div style="font-size:36px;text-align:center;margin-bottom:12px;">⚠️</div>
+      <div style="font-size:36px;text-align:center;margin-bottom:12px;"><re-icon icon="alert-triangle"></re-icon></div>
       <div style="font-size:18px;font-weight:700;color:var(--td);text-align:center;margin-bottom:8px;">Reset All Settings to Default?</div>
       <div style="font-size:12.5px;color:var(--tmu);text-align:center;margin-bottom:18px;">
         Enter your administrator login password to confirm factory reset.
@@ -803,6 +1261,9 @@
   <script src="js/core/session.js"></script>
   <script src="js/core/api.js"></script>
   <script src="js/core/toast.js"></script>
-  <script src="js/pages/settings.page.js"></script>
+  <script src="js/core/modal.js"></script>
+  <script src="js/core/popup.js"></script>
+  <script src="js/core/guard.js"></script>
+  <script src="js/pages/settings.page.js?v=2.6.0"></script>
 </body>
 </html>

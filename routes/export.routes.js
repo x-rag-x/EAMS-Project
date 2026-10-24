@@ -2,12 +2,15 @@ const express = require('express');
 const router = express.Router();
 const mongoose = require('mongoose');
 const M = require('../models');
-const { authMiddleware, adminOnly, requireRight } = require('../middleware/auth');
+const { authMiddleware, requirePage, assertInScope } = require('../middleware/auth');
 const { controllerAuth } = require('../middleware/hodAuth');
+const { isSudo, isSudoAdmin } = require('../utils/access');
 const { sanitizeToString, sanitizeToObjectId } = require('../utils/sanitizeQuery');
 const { getSetting } = require('../utils/settingsCache');
 const { criticalDeleteLimiter } = require('../utils/rateLimiters');
 const { computeStudentAttendance } = require('../utils/attendanceCalculator');
+const { logAction } = require('../utils/logAction');
+const { todayInInstitutionTz, getStartOfInstitutionDaySync } = require('../utils/institutionTime');
 
 
 // Helper to get next export track ID
@@ -15,13 +18,15 @@ async function getNextExportTrackId() {
   const counter = await M.Counter.findByIdAndUpdate(
     'exportId',
     { $inc: { seq: 1 } },
-    { new: true, upsert: true }
+    { returnDocument: 'after', upsert: true }
   );
   return `TR-EXP-${String(counter.seq).padStart(6, '0')}`;
 }
 
 // Helper to determine user permissions based on role
-function getExportPermissions(user) {
+function getExportPermissions(reqOrUser) {
+  const req = (reqOrUser && reqOrUser.user) ? reqOrUser : null;
+  const user = req ? req.user : reqOrUser;
   const perms = {
     canExportAll: false,
     canExportDepartment: false,
@@ -31,9 +36,24 @@ function getExportPermissions(user) {
     classIds: []
   };
 
-  if (user.role === 'admin' || user.actingWithAdminRights) {
+  if (!user) return perms;
+
+  if (isSudo(req || user)) {
     perms.canExportAll = true;
     return perms;
+  }
+
+  const exportAccess = req?.access?.pages?.export;
+  if (exportAccess) {
+    if (exportAccess.scope === 'institution') {
+      perms.canExportAll = true;
+      return perms;
+    }
+    if (exportAccess.scope === 'department') {
+      perms.canExportDepartment = true;
+      perms.departmentId = exportAccess.deptId || user.deptId;
+      return perms;
+    }
   }
 
   if (user.role === 'teacher') {
@@ -69,9 +89,10 @@ router.get('/dashboard', authMiddleware, async (req, res) => {
       .lean();
 
     // Get stats
-    const thisMonth = new Date();
-    thisMonth.setDate(1);
-    thisMonth.setHours(0, 0, 0, 0);
+    const todayStr = await todayInInstitutionTz();
+    const thisMonth = getStartOfInstitutionDaySync(todayStr.slice(0, 7) + '-01');
+    // normalized to institution first-of-month
+    // exact start of current month in institution timezone
 
     const statsThisMonth = await M.ExportHistory.countDocuments({
       userId,
@@ -131,7 +152,7 @@ router.post('/templates', authMiddleware, async (req, res) => {
       { userId: req.user._id, templateName: String(templateName).trim() },
       {
         userId: req.user._id,
-        userModel: req.user.role === 'admin' ? 'Admin' : req.user.role === 'teacher' ? 'Teacher' : 'Student',
+        userModel: req.user.role === 'student' ? 'Student' : 'Teacher',
         role: req.user.role,
         templateName: String(templateName).trim(),
         reportType: String(reportType).trim(),
@@ -139,7 +160,7 @@ router.post('/templates', authMiddleware, async (req, res) => {
         lastUsed: new Date(),
         $inc: { useCount: 1 }
       },
-      { upsert: true, new: true }
+      { upsert: true, returnDocument: 'after' }
     );
 
     await logAction(
@@ -200,7 +221,7 @@ router.delete('/templates/:id', authMiddleware, criticalDeleteLimiter, async (re
 });
 
 // GET /api/export/history - Export history with pagination
-router.get('/history', authMiddleware, async (req, res) => {
+router.get('/history', authMiddleware, requirePage('export', 'view', { tab: 'history' }), async (req, res) => {
   try {
     const page = Math.max(1, parseInt(req.query.page, 10) || 1);
     const limit = Math.min(50, Math.max(1, parseInt(req.query.limit, 10) || 20));
@@ -245,13 +266,23 @@ router.post('/preview', authMiddleware, async (req, res) => {
       return res.status(400).json({ error: 'Report type and config are required' });
     }
 
-    const perms = getExportPermissions(req.user);
+    const perms = getExportPermissions(req);
     let preview = {
       reportType,
       estimatedRecords: 0,
       dateRange: config.dateRange || {},
       filters: config.filters || {}
     };
+
+    // Department scope enforcement
+    if (config.filters && config.filters.departmentId) {
+      if (!assertInScope(req, config.filters.departmentId, 'export')) {
+        return res.status(403).json({ error: 'Forbidden: department outside allowed scope' });
+      }
+    } else if (!perms.canExportAll && perms.departmentId) {
+      if (!config.filters) config.filters = {};
+      config.filters.departmentId = perms.departmentId;
+    }
 
     // Build filter based on report type and permissions
     const filter = {};
@@ -300,7 +331,7 @@ router.post('/student/complete', authMiddleware, async (req, res) => {
       return res.status(400).json({ error: 'Student ID is required' });
     }
 
-    const perms = getExportPermissions(req.user);
+    const perms = getExportPermissions(req);
 
     // Permission check
     if (!perms.canExportAll && req.user.role === 'student' && String(req.user._id) !== studentId) {
@@ -312,12 +343,16 @@ router.post('/student/complete', authMiddleware, async (req, res) => {
       return res.status(404).json({ error: 'Student not found' });
     }
 
+    if (!perms.canExportAll && student.deptId && !assertInScope(req, student.deptId, 'export')) {
+      return res.status(403).json({ error: 'Forbidden: student outside department scope' });
+    }
+
     // Create export history record
     const exportTrackId = await getNextExportTrackId();
     const historyRecord = await M.ExportHistory.create({
       exportTrackId,
       userId: req.user._id,
-      userModel: req.user.role === 'admin' ? 'Admin' : req.user.role === 'teacher' ? 'Teacher' : 'Student',
+      userModel: req.user.role === 'student' ? 'Student' : 'Teacher',
       userName: req.user.userName || req.user.fullName,
       role: req.user.role,
       reportType: 'student-complete',
@@ -338,8 +373,7 @@ router.post('/student/complete', authMiddleware, async (req, res) => {
       'export',
       'info',
       req.ip,
-      req.user.sessionId,
-      { module: 'Export', subType: 'Student Report' }
+      { module: 'export', subType: 'export', reportType: 'Student Report', filters: { studentId }, rowCount: 1 }
     );
 
     // TODO: Actual PDF/Excel generation would go here
@@ -369,12 +403,21 @@ router.post('/student/complete', authMiddleware, async (req, res) => {
 // POST /api/export/class/defaulters - Low attendance report
 router.post('/class/defaulters', authMiddleware, async (req, res) => {
   try {
-    const { threshold, filters, format } = req.body;
+    let { threshold, filters, format } = req.body;
 
-    const perms = getExportPermissions(req.user);
+    const perms = getExportPermissions(req);
 
     if (!perms.canExportAll && !perms.canExportDepartment && !perms.canExportOwnClasses) {
       return res.status(403).json({ error: 'Insufficient permissions to export class reports' });
+    }
+
+    if (filters && filters.departmentId) {
+      if (!assertInScope(req, filters.departmentId, 'export')) {
+        return res.status(403).json({ error: 'Forbidden: department outside allowed scope' });
+      }
+    } else if (!perms.canExportAll && perms.departmentId) {
+      if (!filters) filters = {};
+      filters.departmentId = perms.departmentId;
     }
 
     const thresholdValue = threshold || 75;
@@ -408,7 +451,7 @@ router.post('/class/defaulters', authMiddleware, async (req, res) => {
     await M.ExportHistory.create({
       exportTrackId,
       userId: req.user._id,
-      userModel: req.user.role === 'admin' ? 'Admin' : req.user.role === 'teacher' ? 'Teacher' : 'Student',
+      userModel: req.user.role === 'student' ? 'Student' : 'Teacher',
       userName: req.user.userName || req.user.fullName,
       role: req.user.role,
       reportType: 'class-defaulters',
@@ -431,7 +474,7 @@ router.post('/class/defaulters', authMiddleware, async (req, res) => {
       'info',
       req.ip,
       req.user.sessionId,
-      { module: 'Export', subType: 'Class Report' }
+      { module: 'export', subType: 'export', reportType: 'Defaulters Report', filters, rowCount: defaulters.length }
     );
 
     res.json({
@@ -453,14 +496,24 @@ router.post('/class/defaulters', authMiddleware, async (req, res) => {
 // POST /api/export/generate - Universal export generator endpoint
 router.post('/generate', authMiddleware, async (req, res) => {
   try {
-    const { reportType, format, dateRange, filters, studentId, threshold } = req.body;
+    let { reportType, format, dateRange, filters, studentId, threshold } = req.body;
     if (!reportType) {
       return res.status(400).json({ error: 'Report type is required' });
     }
 
-    const perms = getExportPermissions(req.user);
+    const perms = getExportPermissions(req);
     if (!perms.canExportAll && !perms.canExportDepartment && !perms.canExportOwnClasses && !perms.canExportOwnData) {
       return res.status(403).json({ error: 'Insufficient permissions for export' });
+    }
+
+    // Department scope enforcement
+    if (filters && filters.departmentId) {
+      if (!assertInScope(req, filters.departmentId, 'export')) {
+        return res.status(403).json({ error: 'Forbidden: department outside allowed scope' });
+      }
+    } else if (!perms.canExportAll && perms.departmentId) {
+      if (!filters) filters = {};
+      filters.departmentId = perms.departmentId;
     }
 
     const reqScope = req.query.scope || req.headers['x-export-scope'] || req.body.scope;
@@ -500,7 +553,7 @@ router.post('/generate', authMiddleware, async (req, res) => {
     await M.ExportHistory.create({
       exportTrackId,
       userId: req.user._id,
-      userModel: req.user.role === 'admin' ? 'Admin' : req.user.role === 'teacher' ? 'Teacher' : 'Student',
+      userModel: req.user.role === 'student' ? 'Student' : 'Teacher',
       userName: req.user.userName || req.user.fullName || req.user.name || 'User',
       role: req.user.role,
       reportType,
@@ -527,7 +580,7 @@ router.post('/generate', authMiddleware, async (req, res) => {
       'info',
       req.ip,
       req.user.sessionId,
-      { module: 'Export', subType: reportType }
+      { module: 'export', subType: 'export', reportType, filters: { reportType, format }, rowCount: count }
     );
 
     res.json({
@@ -566,7 +619,7 @@ router.get('/download/:trackId', authMiddleware, async (req, res) => {
 
     const format = (history.format || 'csv').toLowerCase();
     const reportType = history.reportType || 'report';
-    const timestamp = new Date().toISOString().slice(0, 10);
+    const timestamp = await todayInInstitutionTz();
 
     if (format === 'csv' || format === 'excel') {
       let csvContent = '';
@@ -713,7 +766,7 @@ router.get('/download/:trackId', authMiddleware, async (req, res) => {
 // GET /api/export/filter-options - Get filter options for dropdowns
 router.get('/filter-options', authMiddleware, async (req, res) => {
   try {
-    const perms = getExportPermissions(req.user);
+    const perms = getExportPermissions(req);
 
     let departmentFilter = {};
     if (perms.canExportDepartment && perms.departmentId) {

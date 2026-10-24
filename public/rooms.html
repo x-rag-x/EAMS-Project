@@ -9,6 +9,8 @@
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
 
   <!-- Base & EAMS Core Admin Stylesheets -->
+  <script src="js/core/escape.js"></script>
+  <script src="js/core/icons.js"></script>
   <link rel="stylesheet" href="css/base.css">
   <link rel="stylesheet" href="css/admin.css">
   <link rel="stylesheet" href="css/rooms.css">
@@ -43,7 +45,7 @@
     <div class="sb-overlay" id="sb-overlay" onclick="toggleAdminSidebar()"></div>
 
     <!-- SIDEBAR TOGGLE BUTTON -->
-    <button class="sb-toggle-btn" id="sbtoggle" onclick="toggleAdminSidebar()" title="Toggle menu">✖</button>
+    <button class="sb-toggle-btn" id="sbtoggle" onclick="toggleAdminSidebar()" title="Toggle menu"><re-icon icon="x" size="16"></re-icon></button>
 
     <!-- SIDEBAR -->
     <nav class="sb" id="sidebar">
@@ -55,30 +57,30 @@
       <div class="nav-section" style="flex:1;overflow-y:auto;padding:6px 0;" id="sb-nav">
         <div class="sb-section-label">Facilities Hub</div>
         <button class="sb-item act" id="tab-btn-explorer" onclick="switchMainTab('explorer')">
-          <span class="sbi-ic">🏢</span>Blocks Explorer
+          <span class="sbi-ic"><re-icon icon="building"></re-icon></span>Blocks Explorer
         </button>
         <button class="sb-item" id="tab-btn-maintenance" onclick="switchMainTab('maintenance')">
-          <span class="sbi-ic">🔧</span>Maintenance Blocks
+          <span class="sbi-ic"><re-icon icon="sledgehammer"></re-icon></span>Maintenance Blocks
         </button>
         <button class="sb-item" id="tab-btn-boards" onclick="switchMainTab('boards')">
-          <span class="sbi-ic">📺</span>Smart Board Center
+          <span class="sbi-ic"><re-icon icon="tv"></re-icon></span>Smart Board Center
         </button>
         <button class="sb-item" id="tab-btn-audit" onclick="switchMainTab('audit')">
-          <span class="sbi-ic">📋</span>Facility Audit Trail
+          <span class="sbi-ic"><re-icon icon="clipboard-list"></re-icon></span>Facility Audit Trail
         </button>
 
         <div class="sb-section-label" style="margin-top:16px;">Navigation</div>
         <button class="sb-item" onclick="location.href='admin.html'">
-          <span class="sbi-ic">🏛️</span>Admin Dashboard
+          <span class="sbi-ic"><re-icon icon="building2"></re-icon></span>Admin Dashboard
         </button>
         <button class="sb-item" onclick="location.href='timetable.html'">
-          <span class="sbi-ic">🗓️</span>Timetable Workspace
+          <span class="sbi-ic"><re-icon icon="calendar-days"></re-icon></span>Timetable Workspace
         </button>
         <button class="sb-item" onclick="location.href='board.html'">
-          <span class="sbi-ic">📺</span>Smart Board Kiosk
+          <span class="sbi-ic"><re-icon icon="tv"></re-icon></span>Smart Board Kiosk
         </button>
         <button class="sb-item" onclick="location.href='manage.html'">
-          <span class="sbi-ic">📤</span>Manage System
+          <span class="sbi-ic"><re-icon icon="upload"></re-icon></span>Manage System
         </button>
       </div>
 
@@ -90,7 +92,7 @@
             <div class="sb-urole">Admin</div>
           </div>
         </div>
-        <button class="sb-back-btn" id="admin-hub-back-btn" onclick="location.href='admin.html'">← Back to Admin</button>
+        <button class="sb-back-btn" id="admin-hub-back-btn" onclick="location.href='admin.html'"><re-icon icon="arrow-left"></re-icon> Back to Admin</button>
         <button class="sb-logout-btn" onclick="doLogout()" title="Logout">
           <div class="logout-sign">
             <svg viewBox="0 0 512 512">
@@ -113,9 +115,9 @@
           </div>
         </div>
         <div class="topbar-right">
-          <button class="btn-out btn-sm" onclick="refreshFacilitiesData()" title="Reload Data">🔄 Refresh</button>
-          <button class="btn-pri btn-sm" id="btn-topbar-primary" onclick="openAddBlockModal()">➕ Add Block</button>
-          <div class="tb-icon" onclick="location.href='admin.html'" title="Admin Dashboard">⚙️</div>
+          <button class="btn-out btn-sm" onclick="refreshFacilitiesData()" title="Reload Data"><re-icon icon="refresh" size="14"></re-icon> Refresh</button>
+          <button class="btn-pri btn-sm" id="btn-topbar-primary" onclick="openAddBlockModal()"><re-icon icon="plus" size="14"></re-icon> Add Block</button>
+          <div class="tb-icon" onclick="location.href='admin.html'" title="Admin Dashboard"><re-icon icon="settings"></re-icon></div>
         </div>
       </div>
 
@@ -131,8 +133,8 @@
             </div>
             <div class="page-actions">
               <button class="btn-pri" onclick="openAddBlockModal()">+ Add Block</button>
-              <button class="btn-out" onclick="switchMainTab('maintenance')">🔧 Maintenance Blocks</button>
-              <button class="btn-out" onclick="exportFacilityReport()">📤 Export Excel</button>
+              <button class="btn-out" onclick="switchMainTab('maintenance')"><re-icon icon="sledgehammer" size="14"></re-icon> Maintenance Blocks</button>
+              <button class="btn-out" onclick="exportFacilityReport()"><re-icon icon="upload" size="14"></re-icon> Export Excel</button>
             </div>
           </div>
 
@@ -142,7 +144,7 @@
             <div class="stat-card primary" onclick="setViewFilter('all')">
               <div class="sc-top">
                 <span class="sc-label">Total Blocks</span>
-                <div class="sc-arrow">🏢</div>
+                <div class="sc-arrow"><re-icon icon="building"></re-icon></div>
               </div>
               <div class="sc-val" id="kpi-total-blocks">0</div>
               <div class="sc-trend" id="kpi-total-blocks-sub">All campus buildings</div>
@@ -151,7 +153,7 @@
             <div class="stat-card" onclick="filterByUnitType('Room')">
               <div class="sc-top">
                 <span class="sc-label">Total Class Rooms</span>
-                <div class="sc-arrow" style="color:var(--gB);">🏛️</div>
+                <div class="sc-arrow" style="color:var(--gB);"><re-icon icon="building2"></re-icon></div>
               </div>
               <div class="sc-val" id="kpi-total-rooms" style="color:var(--gK);">0</div>
               <div class="sc-trend" id="kpi-total-rooms-sub" style="color:var(--gD);background:var(--gLt);">Lecture &amp; theory spaces</div>
@@ -160,7 +162,7 @@
             <div class="stat-card" onclick="filterByUnitType('Lab')">
               <div class="sc-top">
                 <span class="sc-label">Total Labs</span>
-                <div class="sc-arrow" style="color:var(--purple);">🔬</div>
+                <div class="sc-arrow" style="color:var(--purple);"><re-icon icon="microscope"></re-icon></div>
               </div>
               <div class="sc-val" id="kpi-total-labs" style="color:var(--purple);">0</div>
               <div class="sc-trend" id="kpi-total-labs-sub" style="color:var(--purple);background:rgba(139,92,246,0.1);">Computer &amp; science labs</div>
@@ -170,7 +172,7 @@
             <div class="stat-card" onclick="setViewFilter('Academic')">
               <div class="sc-top">
                 <span class="sc-label">Academic Blocks</span>
-                <div class="sc-arrow" style="color:var(--gD);">🎓</div>
+                <div class="sc-arrow" style="color:var(--gD);"><re-icon icon="graduation-cap"></re-icon></div>
               </div>
               <div class="sc-val" id="kpi-academic-blocks" style="color:var(--gD);">0</div>
               <div class="sc-trend" id="kpi-academic-sub" style="color:var(--gD);background:var(--gLt);">Teaching faculties</div>
@@ -179,7 +181,7 @@
             <div class="stat-card" onclick="setViewFilter('Hostel')">
               <div class="sc-top">
                 <span class="sc-label">Hostel Blocks</span>
-                <div class="sc-arrow" style="color:var(--teal);">🏠</div>
+                <div class="sc-arrow" style="color:var(--teal);"><re-icon icon="home"></re-icon></div>
               </div>
               <div class="sc-val" id="kpi-hostel-blocks" style="color:var(--teal);">0</div>
               <div class="sc-trend" id="kpi-hostel-sub" style="color:var(--teal);background:rgba(0,137,123,0.1);">Student residences</div>
@@ -188,7 +190,7 @@
             <div class="stat-card" onclick="setViewFilter('Other')">
               <div class="sc-top">
                 <span class="sc-label">Others</span>
-                <div class="sc-arrow" style="color:var(--amber);">🏛️</div>
+                <div class="sc-arrow" style="color:var(--amber);"><re-icon icon="building2"></re-icon></div>
               </div>
               <div class="sc-val" id="kpi-other-blocks" style="color:var(--warn);">0</div>
               <div class="sc-trend" id="kpi-other-sub" style="color:var(--warn);background:var(--warn-lt);">Admin, sports &amp; amenities</div>
@@ -218,9 +220,9 @@
             <div class="card slf-card" style="margin-bottom:16px;">
               <div class="single-line-filter-bar">
                 <div class="slf-search-box">
-                  <span class="slf-search-icon">🔍</span>
+                  <span class="slf-search-icon"><re-icon icon="search"></re-icon></span>
                   <input type="text" id="filter-search" class="slf-search-input" placeholder="Search Block name, Room name, Hall name, Lab name…" oninput="onFilterChange()" autocomplete="off">
-                  <button class="slf-clear-btn" id="filter-search-clear" onclick="clearSearch()" style="display:none;" title="Clear search">✖</button>
+                  <button class="slf-clear-btn" id="filter-search-clear" onclick="clearSearch()" style="display:none;" title="Clear search" aria-label="Clear search"><re-icon icon="x" size="14"></re-icon></button>
                   <div class="search-results-panel" id="search-results-panel"></div>
                 </div>
                 <div class="slf-dropdowns">
@@ -253,23 +255,23 @@
 
             <!-- FILE EXPLORER BREADCRUMB NAVIGATION BAR -->
             <div class="explorer-breadcrumb-bar" id="explorer-breadcrumbs">
-              <button class="eb-back-btn" id="eb-back-btn" onclick="navExplorerBack()" title="Go back one level" style="display:none;">←</button>
+              <button class="eb-back-btn" id="eb-back-btn" onclick="navExplorerBack()" title="Go back one level" style="display:none;"><re-icon icon="arrow-left"></re-icon></button>
               <div class="eb-crumb active" onclick="navExplorer(0)" title="Root Blocks Overview">
-                <span class="eb-icon">📁</span> Blocks
+                <span class="eb-icon"><re-icon icon="folder"></re-icon></span> Blocks
               </div>
               <div class="eb-crumb" id="eb-crumb-block" style="display:none;" onclick="navExplorer(1)">
                 <span class="eb-sep">›</span>
-                <span class="eb-icon">🏢</span>
+                <span class="eb-icon"><re-icon icon="building"></re-icon></span>
                 <span id="eb-label-block">Block Name</span>
               </div>
               <div class="eb-crumb" id="eb-crumb-floor" style="display:none;" onclick="navExplorer(2)">
                 <span class="eb-sep">›</span>
-                <span class="eb-icon">📶</span>
+                <span class="eb-icon"><re-icon icon="wifi"></re-icon></span>
                 <span id="eb-label-floor">Floor 1</span>
               </div>
               <div class="eb-crumb eb-leaf" id="eb-crumb-unit" style="display:none;">
                 <span class="eb-sep">›</span>
-                <span class="eb-icon" id="eb-icon-unit">🚪</span>
+                <span class="eb-icon" id="eb-icon-unit"><re-icon icon="arrow-door-in"></re-icon></span>
                 <span id="eb-label-unit">Unit Name</span>
               </div>
             </div>
@@ -335,11 +337,11 @@
           <div id="tab-view-maintenance" class="facilities-main-tab" style="display:none;">
             <div class="exp-header-card" style="margin-bottom:18px;">
               <div class="ehc-left">
-                <div class="ehc-title">🔧 Maintenance &amp; Offline Facilities</div>
+                <div class="ehc-title"><re-icon icon="sledgehammer"></re-icon> Maintenance &amp; Offline Facilities</div>
                 <div class="ehc-sub">Units and smart displays currently marked under maintenance, repair, or temporarily unavailable.</div>
               </div>
               <div class="ehc-actions">
-                <button class="btn-out btn-sm" onclick="switchMainTab('explorer')">← Back to Explorer</button>
+                <button class="btn-out btn-sm" onclick="switchMainTab('explorer')"><re-icon icon="arrow-left"></re-icon> Back to Explorer</button>
               </div>
             </div>
 
@@ -369,12 +371,12 @@
           <div id="tab-view-boards" class="facilities-main-tab" style="display:none;">
             <div class="exp-header-card" style="margin-bottom:18px;">
               <div class="ehc-left">
-                <div class="ehc-title">📺 Smart Board Center</div>
+                <div class="ehc-title"><re-icon icon="tv"></re-icon> Smart Board Center</div>
                 <div class="ehc-sub">Manage autonomous smart classroom displays, device keys, and installation points.</div>
               </div>
               <div class="ehc-actions">
                 <button class="btn-pri btn-sm" onclick="openRegisterBoardModal()">+ Register Smart Board</button>
-                <button class="btn-out btn-sm" onclick="location.href='board.html'">Open Board Kiosk Display →</button>
+                <button class="btn-out btn-sm" onclick="location.href='board.html'">Open Board Kiosk Display <re-icon icon="arrow-right"></re-icon></button>
               </div>
             </div>
 
@@ -404,11 +406,11 @@
           <div id="tab-view-audit" class="facilities-main-tab" style="display:none;">
             <div class="exp-header-card" style="margin-bottom:18px;">
               <div class="ehc-left">
-                <div class="ehc-title">📋 Linked Facility Activity Logs</div>
+                <div class="ehc-title"><re-icon icon="clipboard-list"></re-icon> Linked Facility Activity Logs</div>
                 <div class="ehc-sub">Cryptographically audited history of room creations, capacity revisions, maintenance toggles, and hall bookings.</div>
               </div>
               <div class="ehc-actions">
-                <button class="btn-out btn-sm" onclick="location.href='logs.html'">Open Master Audit Center →</button>
+                <button class="btn-out btn-sm" onclick="location.href='logs.html'">Open Master Audit Center <re-icon icon="arrow-right"></re-icon></button>
               </div>
             </div>
 
@@ -445,10 +447,10 @@
     <div class="modal modal-md">
       <div class="modal-hd">
         <div>
-          <div class="modal-title" id="block-modal-title">🏢 Add Campus Block</div>
+          <div class="modal-title" id="block-modal-title"><re-icon icon="building" size="18"></re-icon> Add Campus Block</div>
           <div class="modal-sub">Define building name, sub-name, code, gateway IP, and total floor capacity.</div>
         </div>
-        <div class="modal-close" onclick="closeModal('modal-block')">✖</div>
+        <div class="modal-close" onclick="closeModal('modal-block')"><re-icon icon="x" size="18"></re-icon></div>
       </div>
       <div class="mbody">
         <input type="hidden" id="block-edit-id">
@@ -501,12 +503,33 @@
           <select class="fc2" id="block-input-status">
             <option value="Active">Active</option>
             <option value="Inactive">Inactive</option>
+            <option value="Archived">Archived</option>
           </select>
+        </div>
+
+        <!-- Geolocation Section -->
+        <div class="fg" style="margin-top:10px;">
+          <label class="fl">Latitude</label>
+          <input type="number" class="fc2" id="block-input-latitude" placeholder="e.g. 12.9716" step="any" min="-90" max="90">
+        </div>
+        <div class="fg" style="margin-top:10px;">
+          <label class="fl">Longitude</label>
+          <input type="number" class="fc2" id="block-input-longitude" placeholder="e.g. 77.5946" step="any" min="-180" max="180">
+        </div>
+        <div class="form-grid form-grid-2" style="margin-top:10px;">
+          <div class="fg">
+            <label class="fl">Use Current Location</label>
+            <button type="button" class="btn-out btn-sm" onclick="detectBlockLocation()">📍 Detect Location</button>
+          </div>
+          <div class="fg">
+            <label class="fl">Map Preview</label>
+            <a href="#" class="btn-out btn-sm" id="block-map-preview-link" target="_blank" style="display:none;">🗺️ Open in Maps</a>
+          </div>
         </div>
       </div>
       <div class="form-actions">
         <button type="button" class="btn-out" onclick="closeModal('modal-block')">Cancel</button>
-        <button type="button" class="btn-pri" id="btn-save-block" onclick="saveBlockForm()">💾 Save Block</button>
+        <button type="button" class="btn-pri" id="btn-save-block" onclick="saveBlockForm()"><re-icon icon="save" size="14"></re-icon> Save Block</button>
       </div>
     </div>
   </div>
@@ -516,10 +539,10 @@
     <div class="modal modal-sm">
       <div class="modal-hd">
         <div>
-          <div class="modal-title">📶 Add Floor to Block</div>
+          <div class="modal-title"><re-icon icon="wifi" size="18"></re-icon> Add Floor to Block</div>
           <div class="modal-sub" id="floor-modal-block-name">Selected Block</div>
         </div>
-        <div class="modal-close" onclick="closeModal('modal-floor')">✖</div>
+        <div class="modal-close" onclick="closeModal('modal-floor')"><re-icon icon="x" size="18"></re-icon></div>
       </div>
       <div class="mbody">
         <input type="hidden" id="floor-block-id">
@@ -544,18 +567,18 @@
     <div class="modal modal-md">
       <div class="modal-hd">
         <div>
-          <div class="modal-title" id="unit-modal-title">🚪 Add Facility Unit</div>
+          <div class="modal-title" id="unit-modal-title"><re-icon icon="arrow-door-in" size="18"></re-icon> Add Facility Unit</div>
           <div class="modal-sub">Create classroom, seminar hall, or laboratory with network and telemetry specifications.</div>
         </div>
-        <div class="modal-close" onclick="closeModal('modal-unit')">✖</div>
+        <div class="modal-close" onclick="closeModal('modal-unit')"><re-icon icon="x" size="18"></re-icon></div>
       </div>
       <div class="mbody">
         <input type="hidden" id="unit-edit-id">
         <div class="unit-type-pills">
           <label class="fl" style="width:100%;">Unit Category<span style="color:var(--red);">*</span></label>
-          <button type="button" class="ut-pill act" data-cat="Room" onclick="selectUnitCategory('Room')">🏛️ Class Room</button>
-          <button type="button" class="ut-pill" data-cat="Hall" onclick="selectUnitCategory('Hall')">🎭 Special Hall</button>
-          <button type="button" class="ut-pill" data-cat="Lab" onclick="selectUnitCategory('Lab')">🔬 Laboratory</button>
+          <button type="button" class="ut-pill act" data-cat="Room" onclick="selectUnitCategory('Room')"><re-icon icon="building2" size="14"></re-icon> ️ Class Room</button>
+          <button type="button" class="ut-pill" data-cat="Hall" onclick="selectUnitCategory('Hall')"><re-icon icon="layout" size="14"></re-icon> Special Hall</button>
+          <button type="button" class="ut-pill" data-cat="Lab" onclick="selectUnitCategory('Lab')"><re-icon icon="microscope" size="14"></re-icon> Laboratory</button>
         </div>
 
         <div class="form-grid form-grid-2" style="margin-top:14px;">
@@ -616,9 +639,42 @@
           </div>
         </div>
 
+        <!-- Geolocation & Geofence Section -->
+        <div class="fg" style="margin-top:12px;">
+          <div style="font-weight:700;font-size:12px;color:var(--gD);margin-bottom:8px;"><re-icon icon="map-pin"></re-icon> Geolocation & Geofence Settings</div>
+        </div>
+        <div class="form-grid form-grid-3" style="margin-top:10px;">
+          <div class="fg">
+            <label class="fl">Latitude</label>
+            <input type="number" class="fc2" id="unit-input-latitude" placeholder="e.g. 12.9716" step="any" min="-90" max="90">
+          </div>
+          <div class="fg">
+            <label class="fl">Longitude</label>
+            <input type="number" class="fc2" id="unit-input-longitude" placeholder="e.g. 77.5946" step="any" min="-180" max="180">
+          </div>
+          <div class="fg">
+            <label class="fl">Location Accuracy (m)</label>
+            <input type="number" class="fc2" id="unit-input-accuracy" placeholder="e.g. 10" min="0" max="1000">
+          </div>
+        </div>
+        <div class="form-grid form-grid-3" style="margin-top:10px;">
+          <div class="fg">
+            <label class="fl">Geofence Radius (m)<span style="color:var(--red);">*</span></label>
+            <input type="number" class="fc2" id="unit-input-geofence-radius" value="50" min="5" max="1000" required>
+          </div>
+          <div class="fg">
+            <label class="fl">Use Current Location</label>
+            <button type="button" class="btn-out btn-sm" onclick="detectUnitLocation()">📍 Detect Location</button>
+          </div>
+          <div class="fg">
+            <label class="fl">Map Preview</label>
+            <a href="#" class="btn-out btn-sm" id="unit-map-preview-link" target="_blank" style="display:none;">🗺️ Open in Maps</a>
+          </div>
+        </div>
+
         <!-- Conditional: Special Hall Incharge -->
         <div id="unit-field-hall-incharge" style="margin-top:12px;display:none;background:var(--gLt);padding:12px;border-radius:10px;border:1px solid var(--br);">
-          <div style="font-weight:700;font-size:12px;color:var(--gD);margin-bottom:8px;">🎭 Special Hall Incharge Details</div>
+          <div style="font-weight:700;font-size:12px;color:var(--gD);margin-bottom:8px;"><re-icon icon="layout"></re-icon> Special Hall Incharge Details</div>
           <div class="form-grid form-grid-3">
             <div class="fg">
               <label class="fl">Incharge Name</label>
@@ -637,7 +693,7 @@
 
         <!-- Conditional: Lab Specs -->
         <div id="unit-field-lab-specs" style="margin-top:12px;display:none;background:rgba(139,92,246,0.08);padding:12px;border-radius:10px;border:1px solid rgba(139,92,246,0.2);">
-          <div style="font-weight:700;font-size:12px;color:var(--purple);margin-bottom:8px;">🔬 Laboratory Specifications</div>
+          <div style="font-weight:700;font-size:12px;color:var(--purple);margin-bottom:8px;"><re-icon icon="microscope"></re-icon> Laboratory Specifications</div>
           <div class="form-grid form-grid-2">
             <div class="fg">
               <label class="fl">Workstations / Computer Count</label>
@@ -657,7 +713,7 @@
       </div>
       <div class="form-actions">
         <button type="button" class="btn-out" onclick="closeModal('modal-unit')">Cancel</button>
-        <button type="button" class="btn-pri" id="btn-save-unit" onclick="saveUnitForm()">💾 Save Unit</button>
+        <button type="button" class="btn-pri" id="btn-save-unit" onclick="saveUnitForm()"><re-icon icon="save" size="14"></re-icon> Save Unit</button>
       </div>
     </div>
   </div>
@@ -667,10 +723,10 @@
     <div class="modal modal-md">
       <div class="modal-hd">
         <div>
-          <div class="modal-title">📺 Link Smart Board to Facility</div>
+          <div class="modal-title"><re-icon icon="tv" size="18"></re-icon> Link Smart Board to Facility</div>
           <div class="modal-sub" id="link-board-target-info">Connecting device to room</div>
         </div>
-        <div class="modal-close" onclick="closeModal('modal-link-board')">✖</div>
+        <div class="modal-close" onclick="closeModal('modal-link-board')"><re-icon icon="x" size="18"></re-icon></div>
       </div>
       <div class="mbody">
         <input type="hidden" id="link-board-room-id">
@@ -704,26 +760,29 @@
       </div>
       <div class="form-actions">
         <button type="button" class="btn-out" onclick="closeModal('modal-link-board')">Cancel</button>
-        <button type="button" class="btn-pri" onclick="submitLinkBoard()">⚡ Link &amp; Connect Board</button>
+        <button type="button" class="btn-pri" onclick="submitLinkBoard()"><re-icon icon="bolt" size="14"></re-icon> Link &amp; Connect Board</button>
       </div>
     </div>
   </div>
 
-  <!-- MODAL 5: SMART BOARD LOGS & TELEMETRY POPUP -->
+<!-- MODAL 5: SMART BOARD LOGS & TELEMETRY POPUP -->
   <div class="modal-bg" id="modal-board-logs">
     <div class="modal modal-md">
       <div class="modal-hd">
         <div>
-          <div class="modal-title" id="board-logs-title">📡 Smart Board Connection Logs</div>
+          <div class="modal-title" id="board-logs-title"><re-icon icon="radio" size="18"></re-icon> Smart Board Connection Logs</div>
           <div class="modal-sub" id="board-logs-sub">Device telemetry, ping and network status</div>
         </div>
-        <div class="modal-close" onclick="closeModal('modal-board-logs')">✖</div>
+        <div class="modal-close" onclick="closeModal('modal-board-logs')"><re-icon icon="x" size="18"></re-icon></div>
       </div>
       <div class="mbody">
         <div class="diag-grid" id="board-logs-metrics">
           <!-- Filled by JS -->
         </div>
-        <div style="font-size:11.5px;font-weight:700;color:var(--gD);margin:14px 0 6px;">TELEMETRY &amp; IP HISTORY</div>
+        <div id="board-logs-creds">
+          <!-- Filled by JS with Username & Password credentials -->
+        </div>
+        <div style="font-size:11.5px;font-weight:700;color:var(--gD);margin:14px 0 6px;">TELEMETRY & IP HISTORY</div>
         <div class="board-logs-box" id="board-logs-content">
           Loading board logs…
         </div>
@@ -734,15 +793,148 @@
     </div>
   </div>
 
+  <!-- MODAL 5B: REGISTER / EDIT SMART BOARD -->
+  <div class="modal-bg" id="modal-register-board">
+    <div class="modal modal-lg">
+      <div class="modal-hd">
+        <div>
+          <div class="modal-title" id="register-board-title"><re-icon icon="tv" size="18"></re-icon> Register Smart Board</div>
+          <div class="modal-sub" id="register-board-sub">Device provisioning: generates API key once. Store it securely — it won't be shown again.</div>
+        </div>
+        <div class="modal-close" onclick="closeModal('modal-register-board')"><re-icon icon="x" size="18"></re-icon></div>
+      </div>
+      <div class="mbody">
+        <input type="hidden" id="register-board-edit-id">
+        <input type="hidden" id="register-board-device-id">
+
+        <div class="form-grid form-grid-2">
+          <div class="fg">
+            <label class="fl">Board Name<span style="color:var(--red);">*</span></label>
+            <input type="text" class="fc2" id="register-board-name" placeholder="e.g. LH 38 Display" required>
+          </div>
+          <div class="fg">
+            <label class="fl">Device ID<span style="color:var(--red);">*</span></label>
+            <input type="text" class="fc2" id="register-board-device-id-input" placeholder="e.g. TR-RMB-LH38" style="text-transform:uppercase;" required>
+          </div>
+        </div>
+
+        <div class="form-grid form-grid-2" style="margin-top:10px;">
+          <div class="fg">
+            <label class="fl">Building<span style="color:var(--red);">*</span></label>
+            <select class="fc2" id="register-board-building" required onchange="onRegisterBoardBuildingChange()"></select>
+          </div>
+          <div class="fg">
+            <label class="fl">Room<span style="color:var(--red);">*</span></label>
+            <select class="fc2" id="register-board-room" required onchange="onRegisterBoardRoomChange()"></select>
+          </div>
+        </div>
+
+        <div class="fg" style="margin-top:10px;">
+          <label class="fl">Firmware Version</label>
+          <input type="text" class="fc2" id="register-board-firmware" placeholder="e.g. 1.0.0">
+        </div>
+
+        <div style="margin-top:12px;padding:12px;background:var(--gLt);border-radius:10px;border:1px solid var(--br);" id="register-board-key-section" style="display:none;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+            <div style="font-weight:700;font-size:12px;color:var(--gD);"><re-icon icon="key"></re-icon> Board API Key (Shown Once)</div>
+            <span class="badge badge-warning" id="register-board-key-warning">Copy now — won't be shown again</span>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <input type="text" class="fc2" id="register-board-api-key" readonly style="flex:1;font-family:monospace;font-size:13px;letter-spacing:0.5px;background:#f8fafc;border-color:var(--gD);">
+            <button type="button" class="btn-pri btn-sm" onclick="copyBoardApiKey()"><re-icon icon="copy" size="14"></re-icon> Copy</button>
+            <button type="button" class="btn-out btn-sm" onclick="openChangeBoardPasswordModal(document.getElementById('register-board-edit-id').value, document.getElementById('register-board-device-id-input').value, document.getElementById('register-board-name').value)"><re-icon icon="key" size="14"></re-icon> Change</button>
+            <button type="button" class="btn-out btn-sm text-danger" onclick="confirmRegenerateBoardKey()"><re-icon icon="rotate-cw" size="14"></re-icon> Regenerate Key</button>
+          </div>
+          <div style="font-size:11px;color:var(--tmu);margin-top:6px;">This key is used by the board device to authenticate. Provide it during the board's initial setup. It cannot be retrieved later.</div>
+        </div>
+
+        <div style="margin-top:12px;padding:12px;background:rgba(59,130,246,0.08);border-radius:10px;border:1px solid rgba(59,130,246,0.2);" id="register-board-actions-section" style="display:none;">
+          <div style="font-weight:700;font-size:12px;color:var(--info);margin-bottom:8px;"><re-icon icon="zap"></re-icon> Board Actions</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button type="button" class="btn-pri btn-sm" onclick="testBoardConnection()"><re-icon icon="wifi" size="14"></re-icon> Test Connection</button>
+            <button type="button" class="btn-out btn-sm" onclick="sendIdentifyCommand()"><re-icon icon="radio" size="14"></re-icon> Identify</button>
+            <button type="button" class="btn-out btn-sm" onclick="sendReloadCommand()"><re-icon icon="refresh" size="14"></re-icon> Reload</button>
+            <button type="button" class="btn-out btn-sm" onclick="sendResyncCommand()"><re-icon icon="sync" size="14"></re-icon> Resync</button>
+          </div>
+          <div id="register-board-test-result" style="margin-top:8px;font-size:12px;display:none;"></div>
+        </div>
+
+        <div id="register-board-status" style="margin-top:12px;padding:10px;border-radius:8px;display:none;"></div>
+      </div>
+      <div class="form-actions">
+        <button type="button" class="btn-out" onclick="closeModal('modal-register-board')">Cancel</button>
+        <button type="button" class="btn-pri" id="btn-save-register-board" onclick="saveRegisterBoard()"><re-icon icon="save" size="14"></re-icon> Register Board</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL 5C: CHANGE SMART BOARD PASSWORD -->
+  <div class="modal-bg" id="modal-change-board-pwd">
+    <div class="modal modal-sm">
+      <div class="modal-hd">
+        <div>
+          <div class="modal-title"><re-icon icon="key" size="18"></re-icon> Change Board Password</div>
+          <div class="modal-sub" id="change-board-pwd-sub">Update Kiosk &amp; Display sign-in password</div>
+        </div>
+        <div class="modal-close" onclick="closeModal('modal-change-board-pwd')"><re-icon icon="x" size="18"></re-icon></div>
+      </div>
+      <div class="mbody">
+        <input type="hidden" id="change-board-pwd-id">
+
+        <div class="fg" style="margin-bottom:12px;">
+          <label class="fl">Board Device ID</label>
+          <input type="text" class="fc2" id="change-board-pwd-device" readonly style="background:#f8fafc;font-family:monospace;font-weight:700;">
+        </div>
+
+        <div class="fg" style="margin-bottom:12px;">
+          <label class="fl">New Password / Device Key<span style="color:var(--red);">*</span></label>
+          <div style="position:relative;">
+            <input type="password" class="fc2" id="change-board-pwd-new" placeholder="Enter new password (min. 4 chars)" required style="padding-right:40px;">
+            <button type="button" class="board-cred-btn" id="btn-toggle-new-board-pwd" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);" title="Toggle Visibility" onclick="toggleInputVisibility('change-board-pwd-new', this)">
+              <re-icon icon="eye" size="14"></re-icon>
+            </button>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;">
+            <span style="font-size:11px;color:var(--tmu);">Minimum 4 characters.</span>
+            <button type="button" class="btn-out btn-xs" style="padding:2px 8px;font-size:10.5px;display:inline-flex;align-items:center;gap:4px;" onclick="generateRandomBoardPassword()">
+              <re-icon icon="refresh" size="11"></re-icon> Generate Key
+            </button>
+          </div>
+        </div>
+
+        <div class="fg" style="margin-bottom:10px;">
+          <label class="fl">Confirm New Password<span style="color:var(--red);">*</span></label>
+          <div style="position:relative;">
+            <input type="password" class="fc2" id="change-board-pwd-confirm" placeholder="Re-enter new password" required style="padding-right:40px;">
+            <button type="button" class="board-cred-btn" id="btn-toggle-confirm-board-pwd" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);" title="Toggle Visibility" onclick="toggleInputVisibility('change-board-pwd-confirm', this)">
+              <re-icon icon="eye" size="14"></re-icon>
+            </button>
+          </div>
+        </div>
+
+        <div style="font-size:11px;color:var(--tmu);display:flex;align-items:flex-start;gap:6px;background:var(--gLt);padding:8px 10px;border-radius:6px;line-height:1.4;">
+          <re-icon icon="info" size="14" style="flex-shrink:0;margin-top:2px;"></re-icon>
+          <span>This will immediately update the sign-in password for this Smart Board kiosk and display screen.</span>
+        </div>
+      </div>
+      <div class="form-actions">
+        <button type="button" class="btn-out" onclick="closeModal('modal-change-board-pwd')">Cancel</button>
+        <button type="button" class="btn-pri" id="btn-save-board-pwd" onclick="submitChangeBoardPassword()">
+          <re-icon icon="check" size="14"></re-icon> Update Password
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- MODAL 6: PRE-BOOK SPECIAL HALL -->
   <div class="modal-bg" id="modal-prebook-hall">
     <div class="modal modal-md">
       <div class="modal-hd">
         <div>
-          <div class="modal-title">📅 Pre-Book Special Hall</div>
+          <div class="modal-title"><re-icon icon="calendar" size="18"></re-icon> Pre-Book Special Hall</div>
           <div class="modal-sub" id="prebook-hall-title">Reserve seminar hall or auditorium</div>
         </div>
-        <div class="modal-close" onclick="closeModal('modal-prebook-hall')">✖</div>
+        <div class="modal-close" onclick="closeModal('modal-prebook-hall')"><re-icon icon="x" size="18"></re-icon></div>
       </div>
       <div class="mbody">
         <input type="hidden" id="prebook-hall-id">
@@ -787,10 +979,10 @@
     <div class="modal modal-sm">
       <div class="modal-hd">
         <div>
-          <div class="modal-title" id="confirm-modal-title">⚠️ Confirm Action</div>
+          <div class="modal-title" id="confirm-modal-title"><re-icon icon="alert-triangle" size="18"></re-icon> ️ Confirm Action</div>
           <div class="modal-sub" id="confirm-modal-sub">Please confirm to proceed</div>
         </div>
-        <div class="modal-close" onclick="closeModal('modal-confirm')">✖</div>
+        <div class="modal-close" onclick="closeModal('modal-confirm')"><re-icon icon="x" size="18"></re-icon></div>
       </div>
       <div class="mbody" id="confirm-modal-msg" style="font-size:13.5px;color:var(--td);line-height:1.5;">
         Are you sure you want to proceed?
@@ -809,7 +1001,7 @@
         <div>
           <div class="modal-title" id="alert-modal-title">Notification</div>
         </div>
-        <div class="modal-close" onclick="closeModal('modal-alert')">✖</div>
+        <div class="modal-close" onclick="closeModal('modal-alert')"><re-icon icon="x" size="18"></re-icon></div>
       </div>
       <div class="mbody" id="alert-modal-msg" style="font-size:13.5px;color:var(--td);line-height:1.5;">
         Message content
@@ -828,7 +1020,9 @@
   <script src="js/core/session.js"></script>
   <script src="js/core/api.js"></script>
   <script src="js/core/modal.js"></script>
+  <script src="js/core/popup.js"></script>
   <script src="js/core/toast.js"></script>
+  <script src="js/core/guard.js"></script>
 
   <!-- PAGE LOGIC -->
   <script src="js/pages/rooms.page.js"></script>

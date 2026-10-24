@@ -17,43 +17,43 @@ var serverStats = {};
 // Sub-filter configuration per section
 var SECTION_CHIPS = {
   overview: [
-    { id: 'all', label: '🗂️ All Activities' },
-    { id: 'session', label: '🔑 Logins & Sessions' },
-    { id: 'entry-create', label: '➕ Creations' },
-    { id: 'field-edit', label: '✏️ Field Edits' },
-    { id: 'entry-delete', label: '🗑️ Deletions' },
-    { id: 'attendance', label: '📅 Attendance' },
-    { id: 'security', label: '🚨 Security Events' }
+    { id: 'all', label: '<re-icon icon="folder"></re-icon> All Activities' },
+    { id: 'session', label: '<re-icon icon="key"></re-icon> Logins & Sessions' },
+    { id: 'entry-create', label: '<re-icon icon="plus"></re-icon> Creations' },
+    { id: 'field-edit', label: '<re-icon icon="edit"></re-icon> Field Edits' },
+    { id: 'entry-delete', label: '<re-icon icon="trash2"></re-icon> Deletions' },
+    { id: 'attendance', label: '<re-icon icon="calendar"></re-icon> Attendance' },
+    { id: 'security', label: '<re-icon icon="siren"></re-icon> Security Events' }
   ],
   admin: [
-    { id: 'all', label: '🗂️ All Admin Logs' },
-    { id: 'session', label: '🔑 Admin Sessions' },
-    { id: 'entry-create', label: '➕ Records Added' },
-    { id: 'field-edit', label: '✏️ Updates & Diffs' },
-    { id: 'entry-delete', label: '🗑️ Removed Records' },
-    { id: 'bulk-action', label: '📦 Bulk Operations' },
-    { id: 'action', label: '⚡ Administrative Actions' }
+    { id: 'all', label: '<re-icon icon="folder"></re-icon> All Admin Logs' },
+    { id: 'session', label: '<re-icon icon="key"></re-icon> Admin Sessions' },
+    { id: 'entry-create', label: '<re-icon icon="plus"></re-icon> Records Added' },
+    { id: 'field-edit', label: '<re-icon icon="edit"></re-icon> Updates & Diffs' },
+    { id: 'entry-delete', label: '<re-icon icon="trash2"></re-icon> Removed Records' },
+    { id: 'bulk-action', label: '<re-icon icon="package"></re-icon> Bulk Operations' },
+    { id: 'action', label: '<re-icon icon="bolt"></re-icon> Administrative Actions' }
   ],
   teacher: [
-    { id: 'all', label: '🗂️ All Teacher Logs' },
-    { id: 'session', label: '🔑 Faculty Sessions' },
-    { id: 'attendance', label: '📅 Attendance Marked' },
-    { id: 'leave', label: '📝 Leaves Reviewed' },
-    { id: 'entry-create', label: '📋 Grievances / Submissions' }
+    { id: 'all', label: '<re-icon icon="folder"></re-icon> All Teacher Logs' },
+    { id: 'session', label: '<re-icon icon="key"></re-icon> Faculty Sessions' },
+    { id: 'attendance', label: '<re-icon icon="calendar"></re-icon> Attendance Marked' },
+    { id: 'leave', label: '<re-icon icon="file-text"></re-icon> Leaves Reviewed' },
+    { id: 'entry-create', label: '<re-icon icon="clipboard-list"></re-icon> Grievances / Submissions' }
   ],
   student: [
-    { id: 'all', label: '🗂️ All Student Logs' },
-    { id: 'session', label: '🔑 Student Logins' },
-    { id: 'attendance', label: '📊 Daily Attendance' },
-    { id: 'leave', label: '🏖️ Leave Queries' }
+    { id: 'all', label: '<re-icon icon="folder"></re-icon> All Student Logs' },
+    { id: 'session', label: '<re-icon icon="key"></re-icon> Student Logins' },
+    { id: 'attendance', label: '<re-icon icon="grid"></re-icon> Daily Attendance' },
+    { id: 'leave', label: '<re-icon icon="tree"></re-icon> Leave Queries' }
   ],
   system: [
-    { id: 'all', label: '🗂️ All System Logs' },
-    { id: 'backup', label: '🗄️ Database Backups' },
-    { id: 'export', label: '⬇️ Data Exports' },
-    { id: 'broadcast', label: '📢 System Broadcasts' },
-    { id: 'danger', label: '⚠️ Bulk Clears / Purges' },
-    { id: 'security', label: '🔒 Lockouts & Resets' }
+    { id: 'all', label: '<re-icon icon="folder"></re-icon> All System Logs' },
+    { id: 'backup', label: '<re-icon icon="archive"></re-icon> Database Backups' },
+    { id: 'export', label: '<re-icon icon="download"></re-icon> Data Exports' },
+    { id: 'broadcast', label: '<re-icon icon="bullhorn"></re-icon> System Broadcasts' },
+    { id: 'danger', label: '<re-icon icon="alert-triangle"></re-icon> Bulk Clears / Purges' },
+    { id: 'security', label: '<re-icon icon="lock"></re-icon> Lockouts & Resets' }
   ]
 };
 
@@ -89,20 +89,12 @@ document.addEventListener('DOMContentLoaded', function () {
 });
 
 function checkAuthentication() {
-  if (!TOKEN) {
-    window.location.href = 'index.html?logout=timeout';
-    return;
-  }
   try {
     currentUser = JSON.parse(sessionStorage.getItem('eams_user'));
   } catch (e) {
     currentUser = null;
   }
-
-  if (!currentUser) {
-    window.location.href = 'index.html?logout=timeout';
-    return;
-  }
+  if (!currentUser) return;
 
   // Hydrate User Profile
   var name = currentUser.name || currentUser.fullName || currentUser.username || 'User';
@@ -112,7 +104,8 @@ function checkAuthentication() {
   document.getElementById('sb-user-avatar').textContent = name.charAt(0).toUpperCase();
 
   // Sub-admin / Admin validation
-  if (role === 'admin') {
+  var isSudo = typeof isSudoAdmin === 'function' ? isSudoAdmin(currentUser) : Boolean(currentUser.isSudoAdmin || ['admin', 'sudo'].includes(role));
+  if (isSudo) {
     var clearBtn = document.getElementById('btn-clear-all');
     if (clearBtn) clearBtn.style.display = 'inline-flex';
   }
@@ -120,15 +113,11 @@ function checkAuthentication() {
   // Back button text & routing
   var backBtn = document.getElementById('btn-back-hub');
   if (backBtn) {
-    if (role === 'teacher') {
-      backBtn.textContent = '← Back to Hub';
+    var ref = (document.referrer || '').toLowerCase();
+    if (ref.includes('control.html')) {
+      backBtn.innerHTML = '<re-icon icon="arrow-left"></re-icon> Back to Control Panel';
     } else {
-      var ref = (document.referrer || '').toLowerCase();
-      if (ref.includes('control.html')) {
-        backBtn.textContent = '← Back to Control Panel';
-      } else {
-        backBtn.textContent = '← Back to Dashboard';
-      }
+      backBtn.innerHTML = '<re-icon icon="arrow-left"></re-icon> Back to Hub';
     }
   }
 }
@@ -168,7 +157,7 @@ function freezeUIOnLogout(reason) {
       var overlay = document.createElement('div');
       overlay.id = 'logout-freeze-overlay';
       overlay.className = 'logout-freeze-overlay';
-      overlay.innerHTML = '<div style="width:58px;height:58px;border-radius:50%;background:#e8f5e9;border:2px solid #a5d6a7;display:flex;align-items:center;justify-content:center;font-size:26px;box-shadow:0 8px 30px rgba(0,0,0,0.35);">🔒</div>' +
+      overlay.innerHTML = '<div style="width:58px;height:58px;border-radius:50%;background:#e8f5e9;border:2px solid #a5d6a7;display:flex;align-items:center;justify-content:center;font-size:26px;box-shadow:0 8px 30px rgba(0,0,0,0.35);"><re-icon icon="lock"></re-icon></div>' +
         '<div style="font-size:18px;font-weight:700;letter-spacing:-0.3px;color:#ffffff;">' + (reason || 'Signing Out…') + '</div>' +
         '<div style="font-size:12.5px;color:#a5d6a7;font-weight:500;">Securing session and clearing credentials…</div>' +
         '<div style="width:22px;height:22px;border:2.5px solid rgba(255,255,255,0.25);border-top-color:#a5d6a7;border-radius:50%;animation:spinLoader 0.6s linear infinite;margin-top:4px;"></div>';
@@ -238,38 +227,38 @@ function renderStatusCards() {
   var cards = [];
   if (currentSection === 'overview') {
     cards = [
-      { ic: '📋', cls: 'blue', val: serverStats.totalLogs || 0, lbl: 'Total Audit Logs' },
-      { ic: '⚡', cls: 'green', val: serverStats.todayLogs || 0, lbl: 'Actions Logged Today' },
-      { ic: '🟢', cls: 'purple', val: serverStats.activeSessions || 0, lbl: 'Active Online Sessions' },
-      { ic: '🚨', cls: 'red', val: serverStats.criticalEvents || 0, lbl: 'Critical Security Events' }
+      { ic: '<re-icon icon="clipboard-list"></re-icon>', cls: 'blue', val: serverStats.totalLogs || 0, lbl: 'Total Audit Logs' },
+      { ic: '<re-icon icon="bolt"></re-icon>', cls: 'green', val: serverStats.todayLogs || 0, lbl: 'Actions Logged Today' },
+      { ic: '<re-icon icon="users"></re-icon>', cls: 'purple', val: serverStats.activeSessions || 0, lbl: 'Active Online Sessions' },
+      { ic: '<re-icon icon="siren"></re-icon>', cls: 'red', val: serverStats.criticalEvents || 0, lbl: 'Critical Security Events' }
     ];
   } else if (currentSection === 'admin') {
     cards = [
-      { ic: '👑', cls: 'red', val: serverStats.adminLogs || 0, lbl: 'Total Admin Logs' },
-      { ic: '🔒', cls: 'amber', val: serverStats.lockedCount || 0, lbl: 'Locked Accounts' },
-      { ic: '⚡', cls: 'blue', val: serverStats.todayLogs || 0, lbl: 'Today Activities' },
-      { ic: '🛡️', cls: 'green', val: 'Active', lbl: 'Audit Guard Status' }
+      { ic: '<re-icon icon="crown"></re-icon>', cls: 'red', val: serverStats.adminLogs || 0, lbl: 'Total Admin Logs' },
+      { ic: '<re-icon icon="lock"></re-icon>', cls: 'amber', val: serverStats.lockedCount || 0, lbl: 'Locked Accounts' },
+      { ic: '<re-icon icon="bolt"></re-icon>', cls: 'blue', val: serverStats.todayLogs || 0, lbl: 'Today Activities' },
+      { ic: '<re-icon icon="shield"></re-icon>', cls: 'green', val: 'Active', lbl: 'Audit Guard Status' }
     ];
   } else if (currentSection === 'teacher') {
     cards = [
-      { ic: '👩‍🏫', cls: 'blue', val: serverStats.teacherLogs || 0, lbl: 'Faculty Action Logs' },
-      { ic: '📅', cls: 'green', val: 'Realtime', lbl: 'Attendance Logging' },
-      { ic: '📝', cls: 'purple', val: 'Audited', lbl: 'Exam Submissions' },
-      { ic: '⚡', cls: 'amber', val: serverStats.activeSessions || 0, lbl: 'Active Faculty' }
+      { ic: '<re-icon icon="teacher"></re-icon>', cls: 'blue', val: serverStats.teacherLogs || 0, lbl: 'Faculty Action Logs' },
+      { ic: '<re-icon icon="calendar"></re-icon>', cls: 'green', val: 'Realtime', lbl: 'Attendance Logging' },
+      { ic: '<re-icon icon="file-text"></re-icon>', cls: 'purple', val: 'Audited', lbl: 'Exam Submissions' },
+      { ic: '<re-icon icon="bolt"></re-icon>', cls: 'amber', val: serverStats.activeSessions || 0, lbl: 'Active Faculty' }
     ];
   } else if (currentSection === 'student') {
     cards = [
-      { ic: '🎓', cls: 'green', val: serverStats.studentLogs || 0, lbl: 'Student Logs' },
-      { ic: '📊', cls: 'blue', val: 'Aggregated', lbl: 'Daily Attendance' },
-      { ic: '🏖️', cls: 'purple', val: 'Captured', lbl: 'Leave Queries' },
-      { ic: '🟢', cls: 'amber', val: serverStats.activeSessions || 0, lbl: 'Active Students' }
+      { ic: '<re-icon icon="graduation-cap"></re-icon>', cls: 'green', val: serverStats.studentLogs || 0, lbl: 'Student Logs' },
+      { ic: '<re-icon icon="grid"></re-icon>', cls: 'blue', val: 'Aggregated', lbl: 'Daily Attendance' },
+      { ic: '<re-icon icon="tree"></re-icon>', cls: 'purple', val: 'Captured', lbl: 'Leave Queries' },
+      { ic: '<re-icon icon="users"></re-icon>', cls: 'amber', val: serverStats.activeSessions || 0, lbl: 'Active Students' }
     ];
   } else if (currentSection === 'system') {
     cards = [
-      { ic: '🤖', cls: 'purple', val: serverStats.systemLogs || 0, lbl: 'System & Control Logs' },
-      { ic: '🗄️', cls: 'blue', val: 'Encrypted', lbl: 'Log AES-256 Storage' },
-      { ic: '📢', cls: 'amber', val: 'Audited', lbl: 'Broadcast History' },
-      { ic: '🚨', cls: 'red', val: serverStats.criticalEvents || 0, lbl: 'Critical Alerts' }
+      { ic: '<re-icon icon="microchip"></re-icon>', cls: 'purple', val: serverStats.systemLogs || 0, lbl: 'System & Control Logs' },
+      { ic: '<re-icon icon="archive"></re-icon>', cls: 'blue', val: 'Encrypted', lbl: 'Log AES-256 Storage' },
+      { ic: '<re-icon icon="bullhorn"></re-icon>', cls: 'amber', val: 'Audited', lbl: 'Broadcast History' },
+      { ic: '<re-icon icon="siren"></re-icon>', cls: 'red', val: serverStats.criticalEvents || 0, lbl: 'Critical Alerts' }
     ];
   }
 
@@ -355,7 +344,7 @@ function onFilterChange() {
 function refreshCurrentLogs() {
   loadStats();
   fetchLogs(true);
-  showToast('🔄 Audit logs refreshed', 'info');
+  showToast('<re-icon icon="refresh"></re-icon> Audit logs refreshed', 'info');
 }
 
 // LOG FETCHING & RENDERING
@@ -368,7 +357,7 @@ function fetchLogs(reset) {
     logsList = [];
     var container = document.getElementById('log-feed-container');
     if (container) {
-      container.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-muted);">⏳ Fetching decrypted audit trail…</div>';
+      container.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-muted);"><re-icon icon="hourglass"></re-icon> Fetching decrypted audit trail…</div>';
     }
   }
 
@@ -398,7 +387,7 @@ function fetchLogs(reset) {
     .then(function (data) {
       isLoading = false;
       if (data.error) {
-        showToast('❌ ' + data.error, 'error');
+        showToast('' + data.error, 'error');
         return;
       }
 
@@ -423,7 +412,7 @@ function fetchLogs(reset) {
     })
     .catch(function (err) {
       isLoading = false;
-      showToast('❌ Failed to fetch logs: ' + err.message, 'error');
+      showToast('Failed to fetch logs: ' + err.message, 'error');
     });
 }
 
@@ -440,7 +429,7 @@ function renderLogsList() {
 
   if (logsList.length === 0) {
     container.innerHTML = '<div class="empty-state">' +
-      '<div class="empty-icon">📭</div>' +
+      '<div class="empty-icon"><re-icon icon="inbox"></re-icon></div>' +
       '<div class="empty-title">No Audit Logs Found</div>' +
       '<div style="font-size:12.5px;">No activity records match your active section or filters.</div>' +
     '</div>';
@@ -490,7 +479,7 @@ function renderLogRow(log) {
   var userName = log.userName || 'System';
   var userInitial = userName.charAt(0).toUpperCase();
 
-  var avatarBg = role === 'admin' 
+  var avatarBg = ['admin', 'sudo'].includes(role) 
     ? 'linear-gradient(135deg, #dc2626, #b91c1c)' 
     : (role === 'teacher' 
       ? 'linear-gradient(135deg, #1b5e20, #388e3c)' 
@@ -503,7 +492,7 @@ function renderLogRow(log) {
   // Session ID badge
   var sessId = log.sessionId || (log.sessionInfo && log.sessionInfo.sessionId) || '';
   var sessBadge = sessId
-    ? '<span class="log-sess-badge" title="User Session ID: ' + escapeHtml(sessId) + '">🔑 ' + escapeHtml(sessId.length > 8 ? sessId.slice(0, 8) + '…' : sessId) + '</span>'
+    ? '<span class="log-sess-badge" title="User Session ID: ' + escapeHtml(sessId) + '"><re-icon icon="key"></re-icon> ' + escapeHtml(sessId.length > 8 ? sessId.slice(0, 8) + '…' : sessId) + '</span>'
     : '';
 
   // GPS Location badge
@@ -515,7 +504,7 @@ function renderLogRow(log) {
     locText = Number(loc.latitude).toFixed(4) + ', ' + Number(loc.longitude).toFixed(4);
   }
   var gpsBadge = locText
-    ? '<span class="log-gps-badge" title="GPS Location: ' + escapeHtml(locText) + '">📍 ' + escapeHtml(locText.length > 28 ? locText.slice(0, 28) + '…' : locText) + '</span>'
+    ? '<span class="log-gps-badge" title="GPS Location: ' + escapeHtml(locText) + '"><re-icon icon="pin"></re-icon> ' + escapeHtml(locText.length > 28 ? locText.slice(0, 28) + '…' : locText) + '</span>'
     : '';
 
   // Format rich Page View description
@@ -565,7 +554,7 @@ function getPageViewDescription(log) {
     var latestPeriod = acd.periods[acd.periods.length - 1];
     var pStats = latestPeriod.stats || {};
     var methodStr = latestPeriod.method ? ' via ' + latestPeriod.method : '';
-    return '📅 Class Attendance for <b>' + escapeHtml(acd.className || acd.classId) + '</b> on ' + escapeHtml(acd.date || '') +
+    return '<re-icon icon="calendar"></re-icon> Class Attendance for <b>' + escapeHtml(acd.className || acd.classId) + '</b> on ' + escapeHtml(acd.date || '') +
       ': <b>' + periodCount + ' Period' + (periodCount !== 1 ? 's' : '') + ' Recorded</b>' +
       ' · Last: Period ' + latestPeriod.periodNumber + ' (' + (pStats.present || 0) + '/' + (pStats.total || 0) + ' Present' + methodStr + ')';
   }
@@ -577,11 +566,11 @@ function getPageViewDescription(log) {
     var sess = log.sessionInfo;
     var loginTimeStr = sess.loginTime ? new Date(sess.loginTime).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '';
     if (sess.active) {
-      return '🟢 <b>' + escapeHtml(log.userName) + '</b> Logged in at ' + loginTimeStr + ' <span style="color:#16a34a;font-weight:700;">(Currently Active)</span>' + (sess.location?.address ? ' from ' + escapeHtml(sess.location.address) : '');
+      return '<span class="status-dot green"></span> <b>' + escapeHtml(log.userName) + '</b> Logged in at ' + loginTimeStr + ' <span style="color:#16a34a;font-weight:700;">(Currently Active)</span>' + (sess.location?.address ? ' from ' + escapeHtml(sess.location.address) : '');
     } else {
       var logoutTimeStr = sess.logoutTime ? new Date(sess.logoutTime).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : 'Session Ended';
       var methodStr = sess.logoutMethod ? ' (' + sess.logoutMethod + ')' : '';
-      return '⚪ <b>' + escapeHtml(log.userName) + '</b> Logged in at ' + loginTimeStr + ' · Logged out at ' + logoutTimeStr + methodStr;
+      return '<span class="status-dot gray"></span> <b>' + escapeHtml(log.userName) + '</b> Logged in at ' + loginTimeStr + ' · Logged out at ' + logoutTimeStr + methodStr;
     }
   }
 
@@ -590,12 +579,12 @@ function getPageViewDescription(log) {
     var att = log.attendanceSummary;
     var presentCount = (att.periods || []).filter(function (p) { return p.status === 'P'; }).length;
     var totalPeriods = (att.periods || []).length;
-    return '📅 Attendance for <b>' + escapeHtml(att.studentName || log.userName) + '</b> on ' + (att.date || '') + ': <b>' + presentCount + '/' + totalPeriods + ' Periods Present</b>';
+    return '<re-icon icon="calendar"></re-icon> Attendance for <b>' + escapeHtml(att.studentName || log.userName) + '</b> on ' + (att.date || '') + ': <b>' + presentCount + '/' + totalPeriods + ' Periods Present</b>';
   }
 
   // 3. Field Edits / Diff Log
   if (subType === 'field-edit' && log.changes) {
-    return '✏️ ' + (details || 'Modified attributes updated with before/after audit tracking');
+    return '<re-icon icon="edit"></re-icon> ' + (details || 'Modified attributes updated with before/after audit tracking');
   }
 
   // 4. Default fallback
@@ -604,39 +593,44 @@ function getPageViewDescription(log) {
 
 function formatSubTypeLabel(subType) {
   var map = {
-    'session': '🔑 Session',
-    'field-edit': '✏️ Edit',
-    'entry-create': '➕ Created',
-    'entry-delete': '🗑️ Deleted',
-    'attendance': '📅 Attendance',
-    'leave': '📝 Leave',
-    'bulk-action': '📦 Bulk',
-    'backup': '🗄️ Backup',
-    'export': '⬇️ Export',
-    'broadcast': '📢 Broadcast',
-    'danger': '⚠️ Danger',
-    'security': '🔒 Security',
-    'action': '⚡ Action',
-    'page-access': '🌐 Page View'
+    'session': '<re-icon icon="key"></re-icon> Session',
+    'field-edit': '<re-icon icon="edit"></re-icon> Edit',
+    'entry-create': '<re-icon icon="plus"></re-icon> Created',
+    'entry-delete': '<re-icon icon="trash2"></re-icon> Deleted',
+    'attendance': '<re-icon icon="calendar"></re-icon> Attendance',
+    'leave': '<re-icon icon="file-text"></re-icon> Leave',
+    'bulk-action': '<re-icon icon="package"></re-icon> Bulk',
+    'backup': '<re-icon icon="archive"></re-icon> Backup',
+    'export': '<re-icon icon="download"></re-icon> Export',
+    'broadcast': '<re-icon icon="bullhorn"></re-icon> Broadcast',
+    'danger': '<re-icon icon="alert-triangle"></re-icon> Danger',
+    'security': '<re-icon icon="lock"></re-icon> Security',
+    'action': '<re-icon icon="bolt"></re-icon> Action',
+    'page-access': '<re-icon icon="globe"></re-icon> Page View'
   };
   return map[subType] || subType;
 }
 
 function formatDateLabel(isoString) {
+  var dStr = todayIST(isoString);
+  var curToday = todayIST();
+  if (dStr === curToday) return 'Today';
+  var parts = curToday.split('-').map(Number);
+  var yest = new Date(parts[0], parts[1] - 1, parts[2] - 1);
+  var yestStr = todayIST(yest);
+  if (dStr === yestStr) return 'Yesterday';
   var d = new Date(isoString);
-  var today = new Date();
-  var yesterday = new Date();
-  yesterday.setDate(today.getDate() - 1);
-
-  if (d.toDateString() === today.toDateString()) return 'Today';
-  if (d.toDateString() === yesterday.toDateString()) return 'Yesterday';
   return d.toLocaleDateString('en-IN', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' });
 }
 
 function formatRelativeTime(isoString) {
-  var ms = Date.now() - new Date(isoString).getTime();
+  if (!isoString) return 'Just now';
+  var d = new Date(isoString);
+  var ts = d.getTime();
+  if (isNaN(ts)) return 'Just now';
+  var ms = Date.now() - ts;
   var sec = Math.floor(ms / 1000);
-  if (sec < 60) return 'Just now';
+  if (sec < 0 || sec < 60) return 'Just now';
   var min = Math.floor(sec / 60);
   if (min < 60) return min + 'm ago';
   var hr = Math.floor(min / 60);
@@ -648,7 +642,7 @@ function formatRelativeTime(isoString) {
 function copyTrackId(event, trackId) {
   event.stopPropagation();
   navigator.clipboard.writeText(trackId).then(function () {
-    showToast('📋 Copied ' + trackId, 'info');
+    showToast('Copied ' + trackId, 'info', 'clipboard-list');
   });
 }
 
@@ -658,7 +652,7 @@ function openLogDetail(idOrTrackId) {
   var body = document.getElementById('modal-body-content');
   if (!modal || !body) return;
 
-  body.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-muted);">⏳ Loading full audit metrics & joins…</div>';
+  body.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-muted);"><re-icon icon="hourglass"></re-icon> Loading full audit metrics & joins…</div>';
   modal.classList.add('open');
 
   fetch('/api/logs/detail/' + idOrTrackId, {
@@ -702,7 +696,7 @@ function renderModalDetailContent(log) {
     '<div class="kv-item"><span class="kv-lbl">IP Address</span><span class="kv-val" style="font-family:var(--font-mono);">' + (formatDisplayIp(log.ip) || '—') + '</span></div>' +
     '<div class="kv-item"><span class="kv-lbl">Severity / Module</span><span class="kv-val">' + (log.severity || 'info').toUpperCase() + ' · ' + (log.module || 'general').toUpperCase() + '</span></div>' +
     '<div class="kv-item" style="grid-column:1/-1;"><span class="kv-lbl">User Session ID</span><span class="kv-val" style="font-family:var(--font-mono);display:inline-flex;align-items:center;gap:8px;">' +
-      (modalSessId ? escapeHtml(modalSessId) + ' <button class="copy-pill-btn" onclick="copySessionId(event, \'' + escapeHtml(modalSessId) + '\')">📋 Copy</button>' : '—') +
+      (modalSessId ? escapeHtml(modalSessId) + ' <button class="copy-pill-btn" onclick="copySessionId(event, \'' + escapeHtml(modalSessId) + '\')"><re-icon icon="clipboard-list"></re-icon> Copy</button>' : '—') +
     '</span></div>' +
   '</div>';
 
@@ -714,12 +708,12 @@ function renderModalDetailContent(log) {
     var sess = log.sessionInfo || {};
     html += '<div style="background:var(--gLt);border:1px solid var(--gLr);border-radius:12px;padding:16px;">' +
       '<div style="font-weight:800;font-size:13.5px;color:var(--gD);margin-bottom:10px;display:flex;align-items:center;gap:6px;">' +
-        '<span>📍</span> Session Geolocation &amp; Security Metrics' +
+        '<span><re-icon icon="pin"></re-icon></span> Session Geolocation &amp; Security Metrics' +
       '</div>' +
       '<div class="kv-grid" style="background:#ffffff;margin-bottom:10px;">' +
         '<div class="kv-item"><span class="kv-lbl">Device &amp; OS</span><span class="kv-val">' + (sess.deviceType || 'Desktop') + ' · ' + (sess.os || 'Windows') + '</span></div>' +
         '<div class="kv-item"><span class="kv-lbl">Browser &amp; IP</span><span class="kv-val">' + (sess.browser || 'Chrome') + ' · ' + (formatDisplayIp(sess.ip || log.ip) || '127.0.0.1') + '</span></div>' +
-        '<div class="kv-item"><span class="kv-lbl">Login Status</span><span class="kv-val">' + (sess.active ? '<span style="color:#16a34a;font-weight:700;">🟢 Active Session</span>' : (sess.logoutTime ? 'Session Ended (' + (sess.logoutMethod || 'manual') + ')' : 'Captured via Gateway')) + '</span></div>' +
+        '<div class="kv-item"><span class="kv-lbl">Login Status</span><span class="kv-val">' + (sess.active ? '<span style="color:#16a34a;font-weight:700;"><span class="status-dot green"></span> Active Session</span>' : (sess.logoutTime ? 'Session Ended (' + (sess.logoutMethod || 'manual') + ')' : 'Captured via Gateway')) + '</span></div>' +
         '<div class="kv-item"><span class="kv-lbl">Session ID</span><span class="kv-val" style="font-family:var(--font-mono);font-size:11px;">' + (modalSessId ? escapeHtml(modalSessId.slice(0, 16) + '…') : '—') + '</span></div>' +
       '</div>' +
       (modalLoc.latitude ? (
@@ -735,7 +729,7 @@ function renderModalDetailContent(log) {
   // 3. Before/After Field Diff Table (If Field Edit)
   if (log.changes && (log.changes.before || log.changes.after)) {
     html += '<div>' +
-      '<div style="font-weight:800;font-size:13.5px;color:var(--text-main);margin-bottom:6px;">✏️ Modified Attribute Diffs (Before vs After)</div>' +
+      '<div style="font-weight:800;font-size:13.5px;color:var(--text-main);margin-bottom:6px;"><re-icon icon="edit"></re-icon> Modified Attribute Diffs (Before vs After)</div>' +
       renderDiffTable(log.changes.before, log.changes.after) +
     '</div>';
   }
@@ -745,7 +739,7 @@ function renderModalDetailContent(log) {
     var acd = log.attendanceClassDaily;
     html += '<div>' +
       '<div style="font-weight:800;font-size:14px;color:var(--text-main);margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">' +
-        '<div style="display:flex;align-items:center;gap:6px;"><span>📅</span> Class Daily Attendance Sheet — <b>' + escapeHtml(acd.className || acd.classId) + '</b> (' + escapeHtml(acd.date || '') + ')</div>' +
+        '<div style="display:flex;align-items:center;gap:6px;"><span><re-icon icon="calendar"></re-icon></span> Class Daily Attendance Sheet — <b>' + escapeHtml(acd.className || acd.classId) + '</b> (' + escapeHtml(acd.date || '') + ')</div>' +
         '<span style="background:var(--gLt);color:var(--gD);padding:2px 10px;border-radius:12px;font-size:11.5px;font-weight:700;">' + acd.periods.length + ' Period' + (acd.periods.length !== 1 ? 's' : '') + ' Recorded</span>' +
       '</div>' +
       '<div class="att-daily-container">' +
@@ -763,15 +757,15 @@ function renderModalDetailContent(log) {
                 '<span class="att-method-badge">' + escapeHtml(p.method || 'Manual') + '</span>' +
               '</div>' +
               '<div class="att-stats-summary">' +
-                '<span style="color:#16a34a;">✅ ' + (pStats.present || 0) + ' Present</span> · ' +
-                '<span style="color:#dc2626;">❌ ' + (pStats.absent || 0) + ' Absent</span>' +
-                (pStats.od ? ' · <span style="color:#d97706;">⚡ ' + pStats.od + ' OD</span>' : '') +
+                '<span style="color:#16a34a;"><re-icon icon="check-circle"></re-icon> ' + (pStats.present || 0) + ' Present</span> · ' +
+                '<span style="color:#dc2626;"><re-icon icon="x-circle"></re-icon> ' + (pStats.absent || 0) + ' Absent</span>' +
+                (pStats.od ? ' · <span style="color:#d97706;"><re-icon icon="bolt"></re-icon> ' + pStats.od + ' OD</span>' : '') +
               '</div>' +
             '</div>' +
             '<div class="att-meta-grid">' +
               '<div><strong>Staff:</strong> ' + escapeHtml(p.teacherName || 'Teacher') + '</div>' +
               '<div><strong>Staff Session ID:</strong> <span style="font-family:var(--font-mono);font-size:11px;">' + (p.teacherSessionId ? escapeHtml(p.teacherSessionId.slice(0, 10) + '…') : '—') + '</span> ' +
-                (p.teacherSessionId ? '<button class="copy-pill-btn" onclick="copySessionId(event, \'' + escapeHtml(p.teacherSessionId) + '\')">📋</button>' : '') + '</div>' +
+                (p.teacherSessionId ? '<button class="copy-pill-btn" onclick="copySessionId(event, \'' + escapeHtml(p.teacherSessionId) + '\')"><re-icon icon="clipboard-list"></re-icon></button>' : '') + '</div>' +
               '<div><strong>Marked At:</strong> ' + (pTime || '—') + '</div>' +
               (p.topic ? '<div><strong>Topic:</strong> ' + escapeHtml(p.topic) + '</div>' : '') +
             '</div>' +
@@ -814,7 +808,7 @@ function renderModalDetailContent(log) {
     var att = log.attendanceSummary;
     html += '<div>' +
       '<div style="font-weight:800;font-size:13.5px;color:var(--text-main);margin-bottom:8px;display:flex;align-items:center;gap:6px;">' +
-        '<span>📅</span> Student Daily Attendance Periods Sheet' +
+        '<span><re-icon icon="calendar"></re-icon></span> Student Daily Attendance Periods Sheet' +
         (att.date ? ' <span style="font-size:12px;color:var(--text-muted);font-weight:500;">(' + escapeHtml(att.date) + ')</span>' : '') +
       '</div>' +
       '<div class="periods-badge-wrap" style="display:flex;flex-wrap:wrap;gap:8px;">' +
@@ -887,7 +881,7 @@ function renderDiffTable(before, after) {
 
 // CSV EXPORT
 function exportFilteredCSV() {
-  showToast('⏳ Generating decrypted CSV audit export…', 'info');
+  showToast('<re-icon icon="hourglass"></re-icon> Generating decrypted CSV audit export…', 'info');
 
   fetch('/api/logs/export', {
     method: 'POST',
@@ -917,10 +911,10 @@ function exportFilteredCSV() {
       a.click();
       a.remove();
       window.URL.revokeObjectURL(url);
-      showToast('✅ CSV Export downloaded successfully', 'info');
+      showToast('CSV Export downloaded successfully', 'info');
     })
     .catch(function (err) {
-      showToast('❌ CSV Export error: ' + err.message, 'error');
+      showToast('CSV Export error: ' + err.message, 'error');
     });
 }
 
@@ -939,7 +933,7 @@ function confirmClearLogs() {
   var btn = document.getElementById('btn-confirm-clear-logs');
   if (btn) {
     btn.disabled = true;
-    btn.innerHTML = '⏳ Purging Logs…';
+    btn.innerHTML = '<re-icon icon="hourglass"></re-icon> Purging Logs…';
   }
 
   fetch('/api/logs/all', {
@@ -951,10 +945,10 @@ function confirmClearLogs() {
       closeClearLogsModal();
       if (btn) {
         btn.disabled = false;
-        btn.innerHTML = '🗑️ Yes, Clear All Logs';
+        btn.innerHTML = '<re-icon icon="trash2"></re-icon> Yes, Clear All Logs';
       }
       if (data.deleted) {
-        showToast('🗑️ All audit logs purged successfully', 'info');
+        showToast('<re-icon icon="trash2"></re-icon> All audit logs purged successfully', 'info');
         loadStats();
         fetchLogs(true);
       }
@@ -963,25 +957,48 @@ function confirmClearLogs() {
       closeClearLogsModal();
       if (btn) {
         btn.disabled = false;
-        btn.innerHTML = '🗑️ Yes, Clear All Logs';
+        btn.innerHTML = '<re-icon icon="trash2"></re-icon> Yes, Clear All Logs';
       }
-      showToast('❌ Clear failed: ' + err.message, 'error');
+      showToast('Clear failed: ' + err.message, 'error');
     });
 }
 
 // TOAST MESSAGE
-function showToast(msg, type) {
+function showToast(msg, type, customIcon) {
   var toast = document.getElementById('app-toast');
   var text = document.getElementById('toast-text');
   var icon = document.getElementById('toast-icon');
   if (!toast || !text) return;
 
-  text.textContent = msg;
-  icon.textContent = type === 'error' ? '❌' : (type === 'warn' ? '⚠️' : 'ℹ️');
+  var cleanMsg = msg;
+  var iconName = customIcon || '';
+
+  if (typeof msg === 'string' && msg.indexOf('<re-icon') !== -1) {
+    var match = msg.match(/icon=["']([^"']+)["']/);
+    if (match && !iconName) {
+      iconName = match[1];
+    }
+    cleanMsg = msg.replace(/<re-icon[^>]*><\/re-icon>/gi, '').trim();
+  }
+
+  if (!iconName) {
+    iconName = type === 'error' ? 'x-circle' : (type === 'warn' ? 'alert-triangle' : (type === 'success' ? 'check-circle' : 'info-circle'));
+  }
+
+  if (icon) {
+    icon.innerHTML = '<re-icon icon="' + iconName + '" size="16"></re-icon>';
+  }
+  text.textContent = cleanMsg;
+
+  toast.classList.remove('toast-info', 'toast-success', 'toast-warn', 'toast-error');
+  var typeClass = type === 'error' ? 'toast-error' : (type === 'warn' ? 'toast-warn' : (type === 'success' ? 'toast-success' : 'toast-info'));
+  toast.classList.add(typeClass);
   toast.classList.add('show');
-  setTimeout(function () {
+
+  clearTimeout(toast._tid);
+  toast._tid = setTimeout(function () {
     toast.classList.remove('show');
-  }, 3500);
+  }, 3200);
 }
 
 function copySessionId(e, sessId) {
@@ -991,10 +1008,14 @@ function copySessionId(e, sessId) {
     navigator.clipboard.writeText(sessId).then(function () {
       showToast('Session ID copied to clipboard: ' + sessId, 'success');
     }).catch(function () {
-      prompt('Copy Session ID:', sessId);
+      if (typeof showPrompt === 'function') {
+        showPrompt('Press Ctrl+C to copy Session ID:', sessId, 'Copy Session ID');
+      }
     });
   } else {
-    prompt('Copy Session ID:', sessId);
+    if (typeof showPrompt === 'function') {
+      showPrompt('Press Ctrl+C to copy Session ID:', sessId, 'Copy Session ID');
+    }
   }
 }
 

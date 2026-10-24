@@ -37,10 +37,42 @@ function normalizeIp(rawIp) {
   return ip || '127.0.0.1';
 }
 
+/**
+ * Cap and strip potentially unsafe characters (HTML tags, angle brackets, quotes, control chars)
+ * from audit log fields (e.g. deviceName, deviceId, identifier, userName).
+ *
+ * @param {*} val - Value to sanitize
+ * @param {number} [maxLen=100] - Maximum length cap
+ * @returns {string} Sanitized string
+ */
+function sanitizeLogField(val, maxLen = 100) {
+  if (val === null || val === undefined) return '';
+  const str = typeof val === 'string' ? val : String(val);
+  return str
+    .replace(/<[^>]*>/g, '')         // strip HTML tags
+    .replace(/[<>'"]/g, '')          // strip brackets and quotes
+    .replace(/[\x00-\x1f\x7f]/g, '')  // strip control characters
+    .trim()
+    .slice(0, maxLen);
+}
+
 const mongoose = require('mongoose');
 
 async function logAction(userId, userName, role, action, details, category, severity, ip, sessionId, opts = {}) {
   try {
+    if (userId && typeof userId === 'object' && !mongoose.isValidObjectId(userId)) {
+      const obj = userId;
+      userId = obj.userId || obj.user?.trackId || obj.user?._id || obj.trackId || '';
+      userName = obj.userName || obj.user?.name || '';
+      role = obj.role || obj.user?.role || '';
+      action = obj.action || '';
+      details = obj.details || '';
+      category = obj.category || 'data';
+      severity = obj.severity || 'info';
+      ip = obj.ip || obj.req?.ip || '';
+      sessionId = obj.sessionId || obj.user?.sessionId || '';
+      opts = obj.opts || obj;
+    }
     const logTrackId = await getNextLogTrackId();
     const cleanIp = normalizeIp(ip || opts.req?.ip);
     
@@ -51,13 +83,16 @@ async function logAction(userId, userName, role, action, details, category, seve
     let resolvedLocation = opts.location;
     if (!resolvedLocation && opts.req) {
       resolvedLocation = opts.req.session?.location || opts.req.user?.location || null;
-      if (!resolvedLocation && opts.req.body && (opts.req.body.latitude !== undefined || opts.req.body.longitude !== undefined)) {
-        resolvedLocation = {
-          latitude: Number(opts.req.body.latitude) || null,
-          longitude: Number(opts.req.body.longitude) || null,
-          accuracy: Number(opts.req.body.accuracy) || null,
-          address: opts.req.body.address || ''
-        };
+      if (!resolvedLocation && opts.req.body) {
+        const bodyLoc = opts.req.body.location || opts.req.body;
+        if (bodyLoc && (bodyLoc.latitude !== undefined || bodyLoc.longitude !== undefined)) {
+          resolvedLocation = {
+            latitude: Number(bodyLoc.latitude) || null,
+            longitude: Number(bodyLoc.longitude) || null,
+            accuracy: Number(bodyLoc.accuracy) || null,
+            address: bodyLoc.address || ''
+          };
+        }
       }
     }
     if (!resolvedLocation && resolvedSessionId) {
@@ -70,6 +105,16 @@ async function logAction(userId, userName, role, action, details, category, seve
       resolvedLocation = { latitude: null, longitude: null, accuracy: null, address: '' };
     }
 
+    // Resolve Device Details
+    const rawDeviceId = opts.deviceId || opts.device?.deviceId || opts.req?.body?.device?.deviceId || opts.req?.body?.deviceId || '';
+    const rawDeviceInstallId = opts.deviceInstallId || opts.device?.installId || opts.req?.body?.device?.installId || '';
+    const rawDeviceName = opts.deviceName || opts.device?.deviceName || opts.req?.body?.device?.deviceName || '';
+    const resolvedDeviceInfo = opts.deviceInfo || opts.device || opts.req?.body?.device || null;
+
+    const resolvedDeviceId = sanitizeLogField(rawDeviceId, 100);
+    const resolvedDeviceInstallId = sanitizeLogField(rawDeviceInstallId, 100);
+    const resolvedDeviceName = sanitizeLogField(rawDeviceName, 100);
+
     // Resolve User Name: First Name + Last Name (prevent generic SYSTEM unless pure system background process)
     let resolvedUserName = (userName && userName !== 'SYSTEM' && userName !== 'system') ? String(userName).trim() : '';
     if (!resolvedUserName && opts.req?.user) {
@@ -81,7 +126,7 @@ async function logAction(userId, userName, role, action, details, category, seve
         const query = mongoose.isValidObjectId(userId) ? { _id: userId } : { trackId: String(userId) };
         const foundUser = await M.User.findOne(query).lean();
         if (foundUser) {
-          const roleModel = foundUser.role === 'admin' ? M.Admin : (foundUser.role === 'teacher' ? M.Teacher : M.Student);
+          const roleModel = foundUser.role === 'student' ? M.Student : M.Teacher;
           const roleDoc = await roleModel.findOne({ username: foundUser.username }).lean();
           if (roleDoc) {
             const f = (roleDoc.firstName || '').trim();
@@ -94,6 +139,7 @@ async function logAction(userId, userName, role, action, details, category, seve
     if (!resolvedUserName) {
       resolvedUserName = (role === 'system' || userName === 'SYSTEM') ? 'System' : 'Admin';
     }
+    resolvedUserName = sanitizeLogField(resolvedUserName, 100);
 
     // Determine module fallback if not explicitly provided
     let mod = opts.module;
@@ -101,7 +147,7 @@ async function logAction(userId, userName, role, action, details, category, seve
       if (category === 'settings' || category === 'maintenance') mod = 'settings';
       else if (category === 'manage' || category === 'year') mod = 'manage';
       else if (category === 'security' || category === 'system') mod = 'system';
-      else if (role === 'admin') mod = 'admin';
+      else if (['admin', 'sudo'].includes(role) || opts.actingWithAdminRights) mod = 'admin';
       else if (role === 'teacher') mod = 'teacher';
       else if (role === 'student') mod = 'student';
       else mod = 'system';
@@ -123,14 +169,22 @@ async function logAction(userId, userName, role, action, details, category, seve
       else subType = 'action';
     }
 
-    // Ensure details is a string for M.Log schema
-    const stringDetails = typeof details === 'object' && details !== null ? JSON.stringify(details) : String(details || '');
+    // Ensure details is a string for M.Log schema, capped to prevent massive payload storage abuse
+    let stringDetails = typeof details === 'object' && details !== null ? JSON.stringify(details) : String(details || '');
+    if (stringDetails.length > 5000) {
+      stringDetails = stringDetails.slice(0, 5000);
+    }
 
     // Encrypt sensitive details / changes
     const payloadToEncrypt = {
       details: stringDetails,
       changes: opts.changes || null,
       ip: cleanIp,
+      location: resolvedLocation,
+      deviceId: resolvedDeviceId,
+      deviceName: resolvedDeviceName,
+      deviceInstallId: resolvedDeviceInstallId,
+      deviceInfo: resolvedDeviceInfo
     };
     const encryptedPayload = encryptLog(payloadToEncrypt);
 
@@ -139,7 +193,7 @@ async function logAction(userId, userName, role, action, details, category, seve
       if (role === 'system' || resolvedUserName === 'System' || resolvedUserName === 'SYSTEM') resolvedTrackId = 'TR-SYS-001';
       else if (resolvedUserName === 'START-MENU') resolvedTrackId = 'TR-SYS-CLI';
       else if (userId) resolvedTrackId = String(userId);
-      else if (role === 'admin') resolvedTrackId = 'TR-ADMIN001';
+      else if (['admin', 'sudo'].includes(role)) resolvedTrackId = 'TR-ADMIN001';
       else resolvedTrackId = 'TR-SYS-001';
     }
 
@@ -155,6 +209,10 @@ async function logAction(userId, userName, role, action, details, category, seve
       ip: cleanIp,
       sessionId: resolvedSessionId,
       location: resolvedLocation,
+      deviceId: resolvedDeviceId,
+      deviceName: resolvedDeviceName,
+      deviceInstallId: resolvedDeviceInstallId,
+      deviceInfo: resolvedDeviceInfo,
       module: mod,
       subType: subType,
       actingWithAdminRights: !!opts.actingWithAdminRights,
@@ -218,5 +276,5 @@ function parseUserAgent(userAgent = '') {
   return { deviceType, browser, os };
 }
 
-module.exports = { logAction, parseUserAgent, getNextLogTrackId, normalizeIp };
+module.exports = { logAction, parseUserAgent, getNextLogTrackId, normalizeIp, sanitizeLogField };
 

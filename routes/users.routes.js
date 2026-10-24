@@ -1,20 +1,33 @@
 const express = require('express');
 const router = express.Router();
-const bcrypt = require('bcryptjs');
+const mongoose = require('mongoose');
+const bcrypt = require('@node-rs/bcrypt');
 const M = require('../models');
 const cfg = require('../config');
-const { authMiddleware, adminOnly, requireRight, getRoleModel } = require('../middleware/auth');
+const { authMiddleware, getRoleModel, requirePage, scopeFilter, assertInScope } = require('../middleware/auth');
 const { logAction } = require('../utils/logAction');
 const escapeRegex = s => String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const { sanitizeToString } = require('../utils/sanitizeQuery');
+const { isSudo, isSudoAdmin, isSuperAdmin, isSubAdmin, isPrincipalUser, isAdminUser, hasSpecial, hasPageRight, canGrant, sanitizeTeacherPrivileges, getPrecomputedAccess, normalizePageRights } = require('../utils/access');
+const { assertNotLastSudoAdmin } = require('../utils/adminGuards');
+const { normalizeYearRange, toBatchTrackId } = require('../utils/yearFormat');
 const { validatePassword } = require('../utils/passwordValidator');
 
 // GET /api/users - List and search users with enriched profile and login status
-router.get('/', authMiddleware, adminOnly, async (req, res) => {
+router.get('/', authMiddleware, requirePage('control', 'view', { tab: 'usergrid' }), async (req, res) => {
   try {
     const filter = {};
-    if (req.query.role && req.query.role !== 'all') {
-      filter.role = sanitizeToString(req.query.role);
+    const roleQuery = req.query.role && req.query.role !== 'all' ? sanitizeToString(req.query.role) : null;
+    if (roleQuery) {
+      if (roleQuery === 'admin') {
+        // Virtual view: find teachers who hold specials.option: 'isAdmin'
+        const adminTeachers = await M.Teacher.find({ 'specials.option': 'isAdmin' }).select('trackId').lean();
+        const adminTrackIds = adminTeachers.map(t => t.trackId).filter(Boolean);
+        filter.trackId = { $in: adminTrackIds };
+        filter.role = { $in: ['teacher', 'admin'] };
+      } else {
+        filter.role = roleQuery;
+      }
     }
     if (req.query.status && req.query.status !== 'all') {
       filter.status = sanitizeToString(req.query.status);
@@ -24,24 +37,20 @@ router.get('/', authMiddleware, adminOnly, async (req, res) => {
     const users = await M.User.find(filter).sort({ role: 1, username: 1 }).lean();
 
     // Group track IDs by role for batch enrichment
-    const adminTrackIds = users.filter(u => u.role === 'admin').map(u => u.trackId).filter(Boolean);
     const teacherTrackIds = users.filter(u => u.role === 'teacher').map(u => u.trackId).filter(Boolean);
     const studentTrackIds = users.filter(u => u.role === 'student').map(u => u.trackId).filter(Boolean);
     const allTrackIds = users.map(u => u.trackId).filter(Boolean);
 
-    const [admins, teachers, students, loginHistories] = await Promise.all([
-      adminTrackIds.length ? M.Admin.find({ trackId: { $in: adminTrackIds } }).lean() : [],
+    const [teachers, students, loginHistories] = await Promise.all([
       teacherTrackIds.length ? M.Teacher.find({ trackId: { $in: teacherTrackIds } }).lean() : [],
       studentTrackIds.length ? M.Student.find({ trackId: { $in: studentTrackIds } }).lean() : [],
       allTrackIds.length ? M.LoginHistory.find({ trackId: { $in: allTrackIds } }).lean() : []
     ]);
 
-    const adminMap = new Map();
     const teacherMap = new Map();
     const studentMap = new Map();
     const loginMap = new Map();
 
-    admins.forEach(a => adminMap.set(a.trackId, a));
     teachers.forEach(t => teacherMap.set(t.trackId, t));
     students.forEach(s => studentMap.set(s.trackId, s));
     loginHistories.forEach(l => loginMap.set(l.trackId, l));
@@ -49,26 +58,15 @@ router.get('/', authMiddleware, adminOnly, async (req, res) => {
     // Combine and enrich user objects
     let enriched = users.map(u => {
       const login = loginMap.get(u.trackId) || {};
-      const isLocked = u.status === 'locked' || (login.lockedUntil && new Date(login.lockedUntil) > new Date());
+      const userLockedUntil = u.lockedUntil || login.lockedUntil;
+      const isLocked = u.status === 'locked' || (userLockedUntil && new Date(userLockedUntil) > new Date());
       const effectiveStatus = isLocked ? 'locked' : (u.status || 'active');
 
       let profile = {};
-      if (u.role === 'admin') {
-        const a = adminMap.get(u.trackId) || {};
-        profile = {
-          roleDocId: a._id || null,
-          fullName: a.fullName || a.username || u.username,
-          firstName: a.firstName || '',
-          lastName: a.lastName || '',
-          employeeNo: a.employeeNo || '',
-          department: a.department || '',
-          email: a.email || '',
-          isAdmin: a.isAdmin !== false,
-          adminRights: a.adminRights || 'all',
-          mustChangePassword: !!a.mustChangePassword,
-        };
-      } else if (u.role === 'teacher') {
+      if (u.role === 'teacher') {
         const t = teacherMap.get(u.trackId) || {};
+        const isAdm = hasSpecial(t, 'isAdmin');
+        const access = getPrecomputedAccess(t);
         profile = {
           roleDocId: t._id || null,
           fullName: t.fullName || t.username || u.username,
@@ -80,8 +78,10 @@ router.get('/', authMiddleware, adminOnly, async (req, res) => {
           deptCode: t.deptCode || '',
           designation: t.designation || 'Assistant Professor',
           email: t.email || '',
-          isAdmin: !!t.isAdmin,
-          adminRights: t.adminRights || ['none'],
+          isAdmin: isAdm,
+          isSudoAdmin: isSudoAdmin(t),
+          access: access,
+          pageRights: normalizePageRights(t.pageRights).filter(r => r && r.enabled !== false),
           defaultAttendanceStatus: t.preferences?.defaultAttendanceStatus || 'Present',
           specials: t.specials || [],
           mustChangePassword: !!t.mustChangePassword,
@@ -96,7 +96,6 @@ router.get('/', authMiddleware, adminOnly, async (req, res) => {
           registerNo: s.registerNo || '',
           class: s.class || '',
           classId: s.classId || null,
-          section: s.section || '',
           courseType: s.courseType || 'UG',
           branch: s.branch || '',
           department: s.department || '',
@@ -124,8 +123,8 @@ router.get('/', authMiddleware, adminOnly, async (req, res) => {
         lastLogin: login.lastLogin || null,
         firstLogin: login.firstLogin || null,
         totalLogins: login.totalLogins || 0,
-        failedLogins: login.failedLogins || 0,
-        lockedUntil: login.lockedUntil || null,
+        failedLogins: (u.failedLogins !== undefined && u.failedLogins !== null) ? u.failedLogins : (login.failedLogins || 0),
+        lockedUntil: u.lockedUntil || login.lockedUntil || null,
       };
     });
 
@@ -137,6 +136,12 @@ router.get('/', authMiddleware, adminOnly, async (req, res) => {
         (u.deptCode && u.deptCode.toLowerCase() === deptVal) ||
         (u.deptId && String(u.deptId) === req.query.department)
       );
+    }
+
+    // Server-side department scope filter for control panel
+    const sFilter = scopeFilter(req, 'deptId', 'control');
+    if (sFilter.deptId) {
+      enriched = enriched.filter(u => u.deptId && String(u.deptId) === String(sFilter.deptId));
     }
 
     // Class filter
@@ -210,158 +215,360 @@ router.get('/', authMiddleware, adminOnly, async (req, res) => {
   }
 });
 
+function isTargetAdminTier(targetRoleDoc, targetUser) {
+  const target = targetRoleDoc || targetUser;
+  if (!target) return false;
+  return (
+    isSudoAdmin(target) ||
+    (targetUser && isSudoAdmin(targetUser)) ||
+    isSuperAdmin(target) ||
+    (targetUser && isSuperAdmin(targetUser)) ||
+    isSubAdmin(target) ||
+    (targetUser && isSubAdmin(targetUser)) ||
+    isAdminUser(target) ||
+    (targetUser && isAdminUser(targetUser)) ||
+    isPrincipalUser(target) ||
+    (targetUser && isPrincipalUser(targetUser)) ||
+    (targetUser && ['admin', 'sudo'].includes(targetUser.role)) ||
+    target.username === 'admin' ||
+    target.trackId === 'TR-ADMIN001' ||
+    (targetUser && (targetUser.username === 'admin' || targetUser.trackId === 'TR-ADMIN001'))
+  );
+}
+
+// PUT /api/users/:id - Update user across shadow User and role document
 // PUT /api/users/:id - Update user across shadow User and role document
 router.put('/:id', authMiddleware, async (req, res) => {
   try {
-    const isSelf = String(req.user._id) === String(req.params.id);
-    const isAdmin = req.user.role === 'admin';
-    
-    const rights = req.user.adminRights;
-    const hasManageUser = rights === 'all' || (Array.isArray(rights) && (rights.includes('all') || rights.includes('managePage') || rights.includes('controlPage')));
-    const canEditOthers = isAdmin || hasManageUser;
-
-    if (!isSelf && !canEditOthers) {
-      return res.status(403).json({ error: 'Forbidden: cannot edit other users' });
+    let user = null;
+    if (mongoose.Types.ObjectId.isValid(req.params.id)) {
+      user = await M.User.findById(req.params.id);
     }
-
-    const {
-      name, fullName, firstName, lastName, username, email, status, active,
-      department, deptId, deptCode, designation, employeeNo,
-      registerNo, className, class: userClass, classId, section, courseType, branch, admissionYear, academicYear, batchTrackId, batch, isRep,
-      isAdmin: userIsAdmin, adminRights, defaultAttendanceStatus, specials, mustChangePassword,
-      password, currentPassword
-    } = req.body;
-
-    const user = await M.User.findById(req.params.id);
+    if (!user) {
+      user = await M.User.findOne({ trackId: req.params.id });
+    }
     if (!user) return res.status(404).json({ error: 'User not found' });
 
-    // Update username on shadow user if changed
-    if (username && username.trim().toLowerCase() !== user.username) {
-      const newUsername = username.trim().toLowerCase();
-      const existingUser = await M.User.findOne({ username: newUsername, _id: { $ne: user._id } });
-      if (existingUser) {
-        return res.status(400).json({ error: 'Username already taken' });
-      }
-      user.username = newUsername;
-    }
+    // Compare caller's trackId with target user's trackId to identify self-edit
+    const isSelf = Boolean(
+      req.user?.trackId &&
+      user.trackId &&
+      String(req.user.trackId).trim() === String(user.trackId).trim()
+    );
 
-    // Update shadow user status
-    if (status !== undefined) {
-      user.status = status;
-    } else if (active !== undefined) {
-      user.status = active ? 'active' : 'inactive';
-    }
-
-    await user.save();
-
-    // Update corresponding role model
     const model = getRoleModel(user.role);
+    let roleDoc = null;
     if (model && user.trackId) {
-      const roleDoc = await model.findOne({ trackId: user.trackId }).select('+password +passwordHistory');
-      if (roleDoc) {
-        if (fullName !== undefined) roleDoc.fullName = fullName.trim();
-        if (firstName !== undefined) roleDoc.firstName = firstName.trim();
-        if (lastName !== undefined) roleDoc.lastName = lastName.trim();
-        if (email !== undefined) roleDoc.email = email.trim().toLowerCase();
-        if (username && username.trim().toLowerCase() !== roleDoc.username) {
-          roleDoc.username = username.trim().toLowerCase();
-        }
-        if (department !== undefined) roleDoc.department = department.trim();
-        if (deptId !== undefined) roleDoc.deptId = deptId || null;
-        if (deptCode !== undefined) roleDoc.deptCode = deptCode.trim().toUpperCase();
-        if (mustChangePassword !== undefined) roleDoc.mustChangePassword = !!mustChangePassword;
+      roleDoc = await model.findOne({ trackId: user.trackId }).select('+password +passwordHistory');
+    }
+    if (!roleDoc) return res.status(404).json({ error: 'Role profile document not found' });
 
-        // Update role-specific fields
-        if (user.role === 'admin') {
-          if (employeeNo !== undefined) roleDoc.employeeNo = employeeNo.trim();
-          if (adminRights !== undefined && req.user.role === 'admin') roleDoc.adminRights = adminRights;
-        } else if (user.role === 'teacher') {
-          if (designation !== undefined) roleDoc.designation = designation.trim();
-          if (employeeNo !== undefined) roleDoc.employeeNo = employeeNo.trim();
-          // Only true admins can grant/revoke admin status, admin rights, or special designations
-          if (req.user.role === 'admin') {
-            if (userIsAdmin !== undefined) roleDoc.isAdmin = !!userIsAdmin;
-            if (adminRights !== undefined) roleDoc.adminRights = adminRights;
-            if (specials !== undefined && Array.isArray(specials)) {
-              roleDoc.specials = specials;
-            }
-          }
-          if (defaultAttendanceStatus !== undefined) {
-            if (!roleDoc.preferences) roleDoc.preferences = {};
-            roleDoc.preferences.defaultAttendanceStatus = defaultAttendanceStatus;
-          }
-        } else if (user.role === 'student') {
-          if (registerNo !== undefined) roleDoc.registerNo = registerNo.trim();
-          if (className !== undefined || userClass !== undefined) roleDoc.class = (className || userClass || '').trim();
-          if (classId !== undefined) roleDoc.classId = classId || null;
-          if (section !== undefined) roleDoc.section = section.trim();
-          if (courseType !== undefined) roleDoc.courseType = courseType;
-          if (branch !== undefined) roleDoc.branch = branch;
-          if (admissionYear !== undefined) roleDoc.admissionYear = admissionYear.trim();
-          if (batchTrackId !== undefined || batch !== undefined) roleDoc.batchTrackId = (batchTrackId || batch || '').trim();
-          if (isRep !== undefined) roleDoc.isRep = !!isRep;
-        }
+    let passwordChanged = false;
+    let targetStatus = user.status;
 
-        // Process password update if supplied
-        if (password && password.trim()) {
-          if (isSelf) {
-            if (!currentPassword) {
-              return res.status(400).json({ error: 'Current password is required to change password' });
-            }
-            const match = await bcrypt.compare(currentPassword, roleDoc.password);
-            if (!match) return res.status(401).json({ error: 'Current password incorrect' });
-          }
+    if (isSelf) {
+      // ── Self-edit branch ──
+      // Restrict strictly to allow-listed fields: name, email, password
+      const { name, fullName, firstName, lastName, email, password, currentPassword } = req.body;
 
-          const secSettings = await M.Settings.findOne({ key: 'security' });
-          const requireStrong = secSettings?.value?.requireStrongPassword !== false;
-          const validation = validatePassword(password, requireStrong);
-          if (!validation.isValid) {
-            return res.status(400).json({ error: validation.error });
-          }
-
-          const history = roleDoc.passwordHistory || [];
-          for (const prev of history.slice(-5)) {
-            const prevMatch = await bcrypt.compare(password, prev.hash);
-            if (prevMatch) {
-              return res.status(400).json({ error: 'Cannot reuse any of the user\'s last 5 passwords.' });
-            }
-          }
-
-          const hashed = await bcrypt.hash(password, cfg.BCRYPT_ROUNDS);
-          if (!roleDoc.passwordHistory) roleDoc.passwordHistory = [];
-          if (roleDoc.password) {
-            roleDoc.passwordHistory.push({ hash: roleDoc.password, changedAt: new Date() });
-            if (roleDoc.passwordHistory.length > 5) roleDoc.passwordHistory = roleDoc.passwordHistory.slice(-5);
-          }
-          roleDoc.password = hashed;
-          if (isSelf) roleDoc.mustChangePassword = false;
-        }
-
-        await roleDoc.save();
+      if (fullName !== undefined || name !== undefined) {
+        roleDoc.fullName = String(fullName || name).trim();
       }
+      if (firstName !== undefined) {
+        roleDoc.firstName = String(firstName).trim();
+      }
+      if (lastName !== undefined) {
+        roleDoc.lastName = lastName ? String(lastName).trim() : null;
+      }
+      if (email !== undefined) {
+        roleDoc.email = String(email).trim().toLowerCase();
+      }
+
+      // Self password change requires current password verification
+      if (password && String(password).trim()) {
+        if (!currentPassword) {
+          return res.status(400).json({ error: 'Current password is required to change password' });
+        }
+        const match = await bcrypt.compare(currentPassword, roleDoc.password);
+        if (!match) return res.status(401).json({ error: 'Current password incorrect' });
+
+        const secSettings = await M.Settings.findOne({ key: 'security' });
+        const requireStrong = secSettings?.value?.requireStrongPassword !== false;
+        const validation = validatePassword(password, requireStrong);
+        if (!validation.isValid) {
+          return res.status(400).json({ error: validation.error });
+        }
+
+        const history = roleDoc.passwordHistory || [];
+        for (const prev of history.slice(-5)) {
+          const prevMatch = await bcrypt.compare(password, prev.hash);
+          if (prevMatch) {
+            return res.status(400).json({ error: "Cannot reuse any of the user's last 5 passwords." });
+          }
+        }
+
+        const hashed = await bcrypt.hash(password, cfg.BCRYPT_ROUNDS);
+        if (!roleDoc.passwordHistory) roleDoc.passwordHistory = [];
+        if (roleDoc.password) {
+          roleDoc.passwordHistory.push({ hash: roleDoc.password, changedAt: new Date() });
+          if (roleDoc.passwordHistory.length > 5) {
+            roleDoc.passwordHistory = roleDoc.passwordHistory.slice(-5);
+          }
+        }
+        roleDoc.password = hashed;
+        roleDoc.mustChangePassword = false;
+        passwordChanged = true;
+
+        if (M.Password && user.trackId) {
+          await M.Password.updateOne(
+            { trackId: user.trackId },
+            { $set: { hash: hashed, passwordChangedAt: new Date() } }
+          ).catch(() => {});
+        }
+      }
+
+      await roleDoc.save();
+    } else {
+      // ── Administrative edit branch ──
+      // Caller must possess page permission for control/usergrid
+      const pageGuard = requirePage('control', 'edit', { tab: 'usergrid' });
+      let guardError = null;
+      await new Promise((resolve) => {
+        pageGuard(req, res, (err) => {
+          if (err) guardError = err;
+          resolve();
+        });
+      });
+      if (guardError) return res.status(500).json({ error: guardError.message });
+      if (res.headersSent) return;
+
+      // Scope check: caller must have scope over target's department
+      const targetDept = roleDoc.deptId || roleDoc.department || user.department;
+      if (!assertInScope(req, targetDept)) {
+        return res.status(403).json({ error: 'Access denied: user is outside your department scope' });
+      }
+
+      // Tier check: caller cannot edit an admin/elevated user unless canGrant passes
+      if (isTargetAdminTier(roleDoc, user)) {
+        if (!canGrant(req.user, user.trackId || user._id)) {
+          return res.status(403).json({ error: 'Access denied: cannot edit user in this tier' });
+        }
+      }
+
+      // Scope check on target department reassignment
+      const newDept = req.body.deptId || req.body.department;
+      if (newDept && !assertInScope(req, newDept)) {
+        return res.status(403).json({ error: 'Access denied: target department is outside your department scope' });
+      }
+
+      const {
+        name, fullName, firstName, lastName, username, email, status, active,
+        department, deptId, deptCode, designation, employeeNo,
+        registerNo, className, class: userClass, classId, courseType, branch, admissionYear, academicYear, batchTrackId, batch, isRep,
+        isAdmin: userIsAdmin, defaultAttendanceStatus, specials, mustChangePassword,
+        password, residency, gender
+      } = req.body;
+
+      // Update username on shadow user if changed
+      if (username && username.trim().toLowerCase() !== user.username) {
+        const newUsername = username.trim().toLowerCase();
+        const RESERVED_USERNAMES = ['admin', 'administrator', 'system', 'root', 'sudo', 'superuser'];
+        if (RESERVED_USERNAMES.includes(newUsername)) {
+          return res.status(400).json({ error: `Username '${newUsername}' is reserved by the system.` });
+        }
+        if (newUsername.startsWith('sb-') || newUsername.startsWith('tr-')) {
+          return res.status(400).json({ error: "Username prefixes 'SB-' and 'TR-' are reserved for smart board device IDs" });
+        }
+        const existingUser = await M.User.findOne({ username: newUsername, _id: { $ne: user._id } });
+        if (existingUser) {
+          return res.status(400).json({ error: 'Username already taken' });
+        }
+        user.username = newUsername;
+      }
+
+      // Update shadow user status with last-admin guard
+      targetStatus = status !== undefined ? status : (active !== undefined ? (active ? 'active' : 'inactive') : user.status);
+      if (targetStatus !== 'active' && user.status === 'active') {
+        const check = await assertNotLastSudoAdmin(user.trackId || user.username || user._id);
+        if (!check.allowed) {
+          return res.status(403).json({ error: check.error });
+        }
+      }
+      user.status = targetStatus;
+      if (targetStatus === 'active') {
+        user.failedLogins = 0;
+        user.lockedUntil = null;
+        if (user.trackId) {
+          await M.LoginHistory.updateOne(
+            { trackId: user.trackId },
+            { $set: { failedLogins: 0, lockedUntil: null } }
+          ).catch(() => {});
+        }
+      }
+
+      await user.save();
+
+      // Update corresponding role model
+      if (fullName !== undefined || name !== undefined) roleDoc.fullName = (fullName || name).trim();
+      if (firstName !== undefined) roleDoc.firstName = firstName.trim();
+      if (lastName !== undefined) roleDoc.lastName = lastName ? lastName.trim() : null;
+      if (email !== undefined) roleDoc.email = email.trim().toLowerCase();
+      if (username && username.trim().toLowerCase() !== roleDoc.username) {
+        roleDoc.username = username.trim().toLowerCase();
+      }
+      if (department !== undefined) roleDoc.department = department.trim();
+      if (deptId !== undefined) roleDoc.deptId = deptId || null;
+      if (deptCode !== undefined) roleDoc.deptCode = deptCode.trim().toUpperCase();
+      if (mustChangePassword !== undefined) roleDoc.mustChangePassword = !!mustChangePassword;
+
+      // Update role-specific fields
+      if (user.role === 'teacher') {
+        if (designation !== undefined) roleDoc.designation = designation.trim();
+        if (employeeNo !== undefined) roleDoc.employeeNo = employeeNo.trim();
+
+        // Privilege updates (userIsAdmin, specials, pageRights)
+        if (userIsAdmin !== undefined || specials !== undefined || req.body.pageRights !== undefined) {
+          let candidateSpecials = specials !== undefined && Array.isArray(specials) ? specials : (roleDoc.specials || []);
+          let candidatePageRights = req.body.pageRights !== undefined ? req.body.pageRights : (roleDoc.pageRights || []);
+
+          if (userIsAdmin !== undefined) {
+            if (userIsAdmin) {
+              if (!candidateSpecials.some(s => s && s.option === 'isAdmin')) {
+                candidateSpecials = [...candidateSpecials, { option: 'isAdmin', value: true, key: '' }];
+              }
+            } else {
+              candidateSpecials = candidateSpecials.filter(s => s && s.option !== 'isAdmin');
+            }
+          }
+
+          const sanitized = sanitizeTeacherPrivileges(req.user, roleDoc, candidateSpecials, candidatePageRights);
+
+          // Last Sudo Admin check if demoting
+          const willRemainSudo = isSudoAdmin({ specials: sanitized.specials, pageRights: sanitized.pageRights });
+          const willBeActive = user.status === 'active';
+          if (!willRemainSudo || !willBeActive) {
+            const check = await assertNotLastSudoAdmin(roleDoc.trackId || roleDoc._id);
+            if (!check.allowed) {
+              return res.status(403).json({ error: check.error });
+            }
+          }
+
+          roleDoc.specials = sanitized.specials;
+          roleDoc.pageRights = sanitized.pageRights;
+          roleDoc.accessVersion = (roleDoc.accessVersion || 0) + 1;
+        }
+        if (defaultAttendanceStatus !== undefined) {
+          if (!roleDoc.preferences) roleDoc.preferences = {};
+          roleDoc.preferences.defaultAttendanceStatus = defaultAttendanceStatus;
+        }
+      } else if (user.role === 'student') {
+        if (registerNo !== undefined) roleDoc.registerNo = registerNo.trim();
+        if (className !== undefined || userClass !== undefined) roleDoc.class = (className || userClass || '').trim();
+        if (classId !== undefined) roleDoc.classId = classId || null;
+        if (courseType !== undefined) roleDoc.courseType = courseType;
+        if (branch !== undefined) roleDoc.branch = branch;
+        if (admissionYear !== undefined) roleDoc.admissionYear = normalizeYearRange(admissionYear);
+        if (batch !== undefined) roleDoc.batch = normalizeYearRange(batch);
+        if (batchTrackId !== undefined || batch !== undefined) {
+          roleDoc.batchTrackId = toBatchTrackId(roleDoc.batch || batch || batchTrackId) || (batchTrackId || '').trim();
+        }
+        if (isRep !== undefined) roleDoc.isRep = !!isRep;
+        if (gender !== undefined) {
+          roleDoc.gender = String(gender).toLowerCase() === 'female' ? 'Female' : 'Male';
+        }
+        if (residency !== undefined) {
+          roleDoc.residency = (String(residency).toLowerCase().includes('hostel')) ? 'hostel' : 'dayscholar';
+        }
+      }
+
+      // Admin password reset
+      if (password && password.trim()) {
+        const secSettings = await M.Settings.findOne({ key: 'security' });
+        const requireStrong = secSettings?.value?.requireStrongPassword !== false;
+        const validation = validatePassword(password, requireStrong);
+        if (!validation.isValid) {
+          return res.status(400).json({ error: validation.error });
+        }
+
+        const history = roleDoc.passwordHistory || [];
+        for (const prev of history.slice(-5)) {
+          const prevMatch = await bcrypt.compare(password, prev.hash);
+          if (prevMatch) {
+            return res.status(400).json({ error: "Cannot reuse any of the user's last 5 passwords." });
+          }
+        }
+
+        const hashed = await bcrypt.hash(password, cfg.BCRYPT_ROUNDS);
+        if (!roleDoc.passwordHistory) roleDoc.passwordHistory = [];
+        if (roleDoc.password) {
+          roleDoc.passwordHistory.push({ hash: roleDoc.password, changedAt: new Date() });
+          if (roleDoc.passwordHistory.length > 5) {
+            roleDoc.passwordHistory = roleDoc.passwordHistory.slice(-5);
+          }
+        }
+        roleDoc.password = hashed;
+        roleDoc.mustChangePassword = mustChangePassword !== undefined ? !!mustChangePassword : true;
+        passwordChanged = true;
+
+        if (M.Password && user.trackId) {
+          await M.Password.updateOne(
+            { trackId: user.trackId },
+            { $set: { hash: hashed, passwordChangedAt: new Date() } }
+          ).catch(() => {});
+        }
+      }
+
+      await roleDoc.save();
+    }
+
+    // Invalidate sessions on password change or deactivation
+    if (passwordChanged || targetStatus !== 'active') {
+      const logoutReason = targetStatus !== 'active' ? 'account_deactivated' : (isSelf ? 'password_change' : 'admin_reset');
+      if (user.trackId) {
+        await Promise.all([
+          M.LoginSession.updateMany(
+            { trackId: user.trackId, active: true },
+            { $set: { active: false, logoutAt: new Date(), logoutMethod: logoutReason } }
+          ).catch(() => {}),
+          M.LoginHistory.updateOne(
+            { trackId: user.trackId },
+            {
+              $set: {
+                'history.$[elem].active': false,
+                'history.$[elem].current': 'Logged Out',
+                'history.$[elem].logoutTime': new Date(),
+                'history.$[elem].logoutMethod': logoutReason
+              }
+            },
+            { arrayFilters: [{ 'elem.active': true }] }
+          ).catch(() => {}),
+          M.User.updateOne({ trackId: user.trackId }, { $set: { online: false } }).catch(() => {})
+        ]);
+      }
+      await M.ActiveSession.deleteMany({ userId: user._id }).catch(() => {});
     }
 
     await logAction(
       req.user.trackId || req.user._id,
       req.user.name,
       req.user.role,
-      'User Updated',
-      `Updated user: ${user.username} (${user.role})`,
+      isSelf ? 'Profile Updated' : 'User Updated',
+      isSelf ? `User self-updated profile: ${user.username}` : `Updated user: ${user.username} (${user.role})`,
       'data',
       'info',
       req.ip,
       req.user.sessionId,
-      { module: 'admin', subType: 'entry-update', trackId: req.user.trackId }
+      { module: isSelf ? 'profile' : 'admin', subType: isSelf ? 'self-update' : 'entry-update', trackId: req.user.trackId }
     );
 
-    res.json({ success: true, message: 'User updated successfully' });
+    res.json({ success: true, message: isSelf ? 'Profile updated successfully' : 'User updated successfully' });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
 // POST /api/users/:id/reset-password - Admin reset user password
-router.post('/:id/reset-password', authMiddleware, adminOnly, async (req, res) => {
+router.post('/:id/reset-password', authMiddleware, requirePage('control', 'edit', { tab: 'usergrid' }), async (req, res) => {
   try {
     const { newPassword, requireChangeOnLogin } = req.body;
     if (!newPassword || newPassword.trim().length < 8) {
@@ -386,6 +593,17 @@ router.post('/:id/reset-password', authMiddleware, adminOnly, async (req, res) =
     const roleDoc = await model.findOne({ trackId: user.trackId }).select('+password +passwordHistory');
     if (!roleDoc) return res.status(404).json({ error: 'Role document not found' });
 
+    // Scope check: caller must have scope over target's department
+    const targetDept = roleDoc.deptId || roleDoc.department || user.department;
+    if (!assertInScope(req, targetDept)) {
+      return res.status(403).json({ error: 'Access denied: user is outside your department scope' });
+    }
+
+    // Tier check: caller cannot reset password of an admin/elevated user unless canGrant passes
+    if (isTargetAdminTier(roleDoc, user) && !canGrant(req.user, user.trackId || user._id)) {
+      return res.status(403).json({ error: 'Access denied: cannot reset password for user in this tier' });
+    }
+
     // Validate against last 5 passwords
     const history = roleDoc.passwordHistory || [];
     for (const prev of history.slice(-5)) {
@@ -405,17 +623,38 @@ router.post('/:id/reset-password', authMiddleware, adminOnly, async (req, res) =
     roleDoc.mustChangePassword = requireChangeOnLogin !== false;
     await roleDoc.save();
 
-    // Reset lockout state if locked
-    if (user.status === 'locked') {
-      user.status = 'active';
-      await user.save();
-    }
+    // Reset lockout state
+    user.status = 'active';
+    user.failedLogins = 0;
+    user.lockedUntil = null;
+    await user.save();
     await M.LoginHistory.updateOne(
       { trackId: user.trackId },
       { $set: { failedLogins: 0, lockedUntil: null } }
     );
 
-    // Invalidate active sessions to force re-login
+    // Invalidate all active sessions in LoginSession and LoginHistory to force re-login
+    await Promise.all([
+      M.LoginSession.updateMany(
+        { trackId: user.trackId, active: true },
+        { $set: { active: false, logoutAt: new Date(), logoutMethod: 'admin_reset' } }
+      ).catch(() => {}),
+      M.LoginHistory.updateOne(
+        { trackId: user.trackId },
+        {
+          $set: {
+            'history.$[elem].active': false,
+            'history.$[elem].current': 'Logged Out',
+            'history.$[elem].logoutTime': new Date(),
+            'history.$[elem].logoutMethod': 'admin_reset'
+          }
+        },
+        { arrayFilters: [{ 'elem.active': true }] }
+      ).catch(() => {}),
+      M.User.updateOne({ trackId: user.trackId }, { $set: { online: false } }).catch(() => {})
+    ]);
+
+    // Invalidate active sessions to force re-login (legacy ActiveSession collection)
     await M.ActiveSession.deleteMany({ userId: user._id }).catch(() => {});
 
     await logAction(
@@ -438,12 +677,14 @@ router.post('/:id/reset-password', authMiddleware, adminOnly, async (req, res) =
 });
 
 // POST /api/users/:id/unlock - Unlock locked user account
-router.post('/:id/unlock', authMiddleware, adminOnly, async (req, res) => {
+router.post('/:id/unlock', authMiddleware, requirePage('control', 'edit', { tab: 'usergrid' }), async (req, res) => {
   try {
     const user = await M.User.findById(req.params.id);
     if (!user) return res.status(404).json({ error: 'User not found' });
 
     user.status = 'active';
+    user.failedLogins = 0;
+    user.lockedUntil = null;
     await user.save();
 
     if (user.trackId) {
@@ -474,7 +715,7 @@ router.post('/:id/unlock', authMiddleware, adminOnly, async (req, res) => {
 });
 
 // POST /api/users/bulk-action - Batch action on multiple users
-router.post('/bulk-action', authMiddleware, adminOnly, async (req, res) => {
+router.post('/bulk-action', authMiddleware, requirePage('control', 'edit', { tab: 'usergrid' }), async (req, res) => {
   try {
     const { userIds, action } = req.body;
     if (!Array.isArray(userIds) || userIds.length === 0) {
@@ -489,20 +730,52 @@ router.post('/bulk-action', authMiddleware, adminOnly, async (req, res) => {
     const users = await M.User.find({ _id: { $in: userIds } });
     const trackIds = users.map(u => u.trackId).filter(Boolean);
 
+    if (action === 'deactivate' || action === 'delete') {
+      const targetIds = [
+        ...trackIds,
+        ...users.map(u => u.username).filter(Boolean),
+        ...users.map(u => String(u._id))
+      ];
+      const check = await assertNotLastSudoAdmin(targetIds);
+      if (!check.allowed) {
+        return res.status(403).json({ error: check.error });
+      }
+    }
+
     let affectedCount = 0;
 
     if (action === 'activate') {
-      await M.User.updateMany({ _id: { $in: userIds } }, { $set: { status: 'active' } });
+      await M.User.updateMany({ _id: { $in: userIds } }, { $set: { status: 'active', failedLogins: 0, lockedUntil: null } });
       if (trackIds.length) {
         await M.LoginHistory.updateMany({ trackId: { $in: trackIds } }, { $set: { failedLogins: 0, lockedUntil: null } });
       }
       affectedCount = users.length;
     } else if (action === 'deactivate') {
-      await M.User.updateMany({ _id: { $in: userIds } }, { $set: { status: 'inactive' } });
+      await M.User.updateMany({ _id: { $in: userIds } }, { $set: { status: 'inactive', online: false } });
+      if (trackIds.length) {
+        await Promise.all([
+          M.LoginSession.updateMany(
+            { trackId: { $in: trackIds }, active: true },
+            { $set: { active: false, logoutAt: new Date(), logoutMethod: 'admin_reset' } }
+          ).catch(() => {}),
+          M.LoginHistory.updateMany(
+            { trackId: { $in: trackIds } },
+            {
+              $set: {
+                'history.$[elem].active': false,
+                'history.$[elem].current': 'Logged Out',
+                'history.$[elem].logoutTime': new Date(),
+                'history.$[elem].logoutMethod': 'admin_reset'
+              }
+            },
+            { arrayFilters: [{ 'elem.active': true }] }
+          ).catch(() => {})
+        ]);
+      }
       await M.ActiveSession.deleteMany({ userId: { $in: userIds } }).catch(() => {});
       affectedCount = users.length;
     } else if (action === 'unlock') {
-      await M.User.updateMany({ _id: { $in: userIds } }, { $set: { status: 'active' } });
+      await M.User.updateMany({ _id: { $in: userIds } }, { $set: { status: 'active', failedLogins: 0, lockedUntil: null } });
       if (trackIds.length) {
         await M.LoginHistory.updateMany({ trackId: { $in: trackIds } }, { $set: { failedLogins: 0, lockedUntil: null } });
       }
@@ -523,7 +796,27 @@ router.post('/bulk-action', authMiddleware, adminOnly, async (req, res) => {
         }).catch(() => {});
       }
 
-      await M.User.updateMany({ _id: { $in: userIds } }, { $set: { status: 'inactive' } });
+      await M.User.updateMany({ _id: { $in: userIds } }, { $set: { status: 'inactive', online: false } });
+      if (trackIds.length) {
+        await Promise.all([
+          M.LoginSession.updateMany(
+            { trackId: { $in: trackIds }, active: true },
+            { $set: { active: false, logoutAt: new Date(), logoutMethod: 'admin_reset' } }
+          ).catch(() => {}),
+          M.LoginHistory.updateMany(
+            { trackId: { $in: trackIds } },
+            {
+              $set: {
+                'history.$[elem].active': false,
+                'history.$[elem].current': 'Logged Out',
+                'history.$[elem].logoutTime': new Date(),
+                'history.$[elem].logoutMethod': 'admin_reset'
+              }
+            },
+            { arrayFilters: [{ 'elem.active': true }] }
+          ).catch(() => {})
+        ]);
+      }
       await M.ActiveSession.deleteMany({ userId: { $in: userIds } }).catch(() => {});
       affectedCount = users.length;
     }
@@ -548,10 +841,15 @@ router.post('/bulk-action', authMiddleware, adminOnly, async (req, res) => {
 });
 
 // DELETE /api/users/:id - Safe deactivate or delete user with undo log
-router.delete('/:id', authMiddleware, adminOnly, requireRight('deletings'), async (req, res) => {
+router.delete('/:id', authMiddleware, requirePage('control', 'delete', { tab: 'usergrid' }), async (req, res) => {
   try {
     const user = await M.User.findById(req.params.id);
     if (!user) return res.status(404).json({ error: 'User not found' });
+
+    const check = await assertNotLastSudoAdmin(user.trackId || user.username || user._id);
+    if (!check.allowed) {
+      return res.status(403).json({ error: check.error });
+    }
 
     const model = getRoleModel(user.role);
     const roleDoc = (model && user.trackId) ? await model.findOne({ trackId: user.trackId }).lean() : null;
@@ -567,7 +865,29 @@ router.delete('/:id', authMiddleware, adminOnly, requireRight('deletings'), asyn
     }).catch(() => {});
 
     user.status = 'inactive';
+    user.online = false;
     await user.save();
+
+    if (user.trackId) {
+      await Promise.all([
+        M.LoginSession.updateMany(
+          { trackId: user.trackId, active: true },
+          { $set: { active: false, logoutAt: new Date(), logoutMethod: 'admin_reset' } }
+        ).catch(() => {}),
+        M.LoginHistory.updateOne(
+          { trackId: user.trackId },
+          {
+            $set: {
+              'history.$[elem].active': false,
+              'history.$[elem].current': 'Logged Out',
+              'history.$[elem].logoutTime': new Date(),
+              'history.$[elem].logoutMethod': 'admin_reset'
+            }
+          },
+          { arrayFilters: [{ 'elem.active': true }] }
+        ).catch(() => {})
+      ]);
+    }
 
     await M.ActiveSession.deleteMany({ userId: user._id }).catch(() => {});
 
@@ -585,239 +905,6 @@ router.delete('/:id', authMiddleware, adminOnly, requireRight('deletings'), asyn
     );
 
     res.json({ success: true, deleted: true, message: `User ${user.username} deactivated successfully.` });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// Executive roles management endpoints
-router.get('/executive/roles', authMiddleware, adminOnly, async (req, res) => {
-  try {
-    const [principals, depts, teachers, subadminAdmins] = await Promise.all([
-      M.Admin.find({ adminFlag: 'principal' }).select('-password -passwordHistory').lean(),
-      M.Department.find({}).lean(),
-      M.Teacher.find({}).select('-password -passwordHistory').sort({ fullName: 1 }).lean(),
-      M.Admin.find({ adminFlag: 'subadmin' }).select('-password -passwordHistory').lean()
-    ]);
-
-    const teacherMap = new Map();
-    teachers.forEach(t => teacherMap.set(String(t._id), t));
-    teachers.forEach(t => teacherMap.set(t.trackId, t));
-
-    // Format HODs
-    const hods = depts.map(d => {
-      let hodTeacher = null;
-      if (d.hodId) hodTeacher = teacherMap.get(String(d.hodId));
-      if (!hodTeacher && d.hodName) {
-        hodTeacher = teachers.find(t => t.fullName === d.hodName || (t.specials || []).some(s => s.option === 'isHod' && (s.key === d.name || s.value === d.trackId)));
-      }
-      return {
-        deptId: d._id,
-        deptName: d.name,
-        deptCode: d.code || d.threeLetterCode || '',
-        deptNumber: d.number || '',
-        hodId: hodTeacher?._id || d.hodId || null,
-        hodName: hodTeacher?.fullName || d.hodName || 'Not Assigned',
-        hodTrackId: hodTeacher?.trackId || '',
-        hodEmail: hodTeacher?.email || '—',
-        hodEmpNo: hodTeacher?.employeeNo || '—'
-      };
-    });
-
-    // Format sub-admin accounts combining faculty and administrative users
-    const teacherSubAdmins = teachers
-      .filter(t => t.isAdmin === true || (Array.isArray(t.adminRights) && t.adminRights.length && !t.adminRights.every(r => r === 'none')))
-      .map(t => ({
-        _id: t._id,
-        trackId: t.trackId,
-        fullName: t.fullName,
-        username: t.username,
-        department: t.department || '',
-        type: 'Teacher (Faculty Sub-Admin)',
-        adminRights: t.adminRights || []
-      }));
-
-    const customSubAdmins = subadminAdmins.map(a => ({
-      _id: a._id,
-      trackId: a.trackId,
-      fullName: a.fullName,
-      username: a.username,
-      department: a.department || 'Administration',
-      type: 'Admin Account (Sub-Admin)',
-      adminRights: a.adminRights || []
-    }));
-
-    res.json({
-      principal: principals[0] || null,
-      allPrincipals: principals,
-      hods,
-      subadmins: [...teacherSubAdmins, ...customSubAdmins],
-      departments: depts.map(d => ({ _id: d._id, name: d.name, code: d.code || d.threeLetterCode || '' })),
-      teachers: teachers.map(t => ({ _id: t._id, trackId: t.trackId, fullName: t.fullName, department: t.department || '' }))
-    });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// POST /api/users/executive/assign-principal - Create or update Principal account
-router.post('/executive/assign-principal', authMiddleware, adminOnly, async (req, res) => {
-  try {
-    const { fullName, username, password, email, employeeNo } = req.body;
-    if (!fullName || !username) {
-      return res.status(400).json({ error: 'Full name and username required' });
-    }
-
-    const cleanUsername = username.toLowerCase().trim();
-    if (cleanUsername === 'admin') {
-      return res.status(400).json({ error: 'Username "admin" is reserved strictly for Super Administrator' });
-    }
-
-    let adminDoc = await M.Admin.findOne({ username: cleanUsername });
-
-    if (adminDoc) {
-      // Update existing principal admin record
-      adminDoc.adminFlag = 'principal';
-      adminDoc.fullName = fullName.trim();
-      if (email) adminDoc.email = email.trim();
-      if (employeeNo) adminDoc.employeeNo = employeeNo.trim();
-      if (password && password.trim()) {
-        adminDoc.password = await bcrypt.hash(password, cfg.BCRYPT_ROUNDS);
-      }
-      await adminDoc.save();
-    } else {
-      // Create new principal admin record
-      if (!password || !password.trim()) {
-        return res.status(400).json({ error: 'Password is required when creating a new Principal account' });
-      }
-      const hash = await bcrypt.hash(password, cfg.BCRYPT_ROUNDS);
-      const trackId = `TR-PRIN${Date.now().toString().slice(-4)}`;
-
-      adminDoc = await M.Admin.create({
-        fullName: fullName.trim(),
-        username: cleanUsername,
-        password: hash,
-        email: email || '',
-        employeeNo: employeeNo || 'PRIN001',
-        department: 'Office of the Principal',
-        trackId: trackId,
-        isAdmin: true,
-        adminFlag: 'principal',
-        adminRights: 'all',
-        mustChangePassword: true
-      });
-
-      await M.User.create({
-        username: cleanUsername,
-        trackId: trackId,
-        role: 'admin',
-        status: 'active'
-      });
-    }
-
-    await logAction(
-      req.user.trackId || req.user._id,
-      req.user.name,
-      req.user.role,
-      'Principal Assigned',
-      `Assigned Principal role to ${fullName} (@${cleanUsername})`,
-      'data',
-      'info',
-      req.ip,
-      req.user.sessionId,
-      { module: 'admin', subType: 'role-assign' }
-    );
-
-    res.json({ success: true, message: `Principal ${fullName} assigned successfully.` });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// POST /api/users/executive/assign-hod - Designate Department HOD
-router.post('/executive/assign-hod', authMiddleware, adminOnly, async (req, res) => {
-  try {
-    const { deptId, teacherId } = req.body;
-    if (!deptId || !teacherId) {
-      return res.status(400).json({ error: 'Department and Teacher selections are required' });
-    }
-
-    const dept = await M.Department.findById(deptId);
-    if (!dept) return res.status(404).json({ error: 'Department not found' });
-
-    const newHodTeacher = await M.Teacher.findById(teacherId);
-    if (!newHodTeacher) return res.status(404).json({ error: 'Faculty member not found' });
-
-    // Remove previous HOD designation for this department
-    if (dept.hodId) {
-      const prevTeacher = await M.Teacher.findById(dept.hodId);
-      if (prevTeacher) {
-        prevTeacher.specials = (prevTeacher.specials || []).filter(s => !(s.option === 'isHod' && (s.key === dept.name || s.value === dept.trackId)));
-        await prevTeacher.save();
-      }
-    }
-
-    // Update department record with new HOD reference
-    dept.hodId = newHodTeacher._id;
-    dept.hodName = newHodTeacher.fullName;
-    await dept.save();
-
-    // Assign HOD special privileges to new teacher
-    const specials = (newHodTeacher.specials || []).filter(s => s.option !== 'isHod' && s.option !== 'HodDeptTrackId');
-    specials.push({ option: 'isHod', value: true, key: dept.name });
-    if (dept.trackId) {
-      specials.push({ option: 'HodDeptTrackId', value: dept.trackId, key: dept.name });
-    }
-    newHodTeacher.specials = specials;
-    await newHodTeacher.save();
-
-    await logAction(
-      req.user.trackId || req.user._id,
-      req.user.name,
-      req.user.role,
-      'HOD Assigned',
-      `Assigned ${newHodTeacher.fullName} as HOD of ${dept.name}`,
-      'data',
-      'info',
-      req.ip,
-      req.user.sessionId,
-      { module: 'admin', subType: 'role-assign' }
-    );
-
-    res.json({ success: true, message: `Assigned ${newHodTeacher.fullName} as HOD of ${dept.name}.` });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// POST /api/users/executive/grant-subadmin - Grant or update Sub-Admin privileges
-router.post('/executive/grant-subadmin', authMiddleware, adminOnly, async (req, res) => {
-  try {
-    const { teacherId, adminRights } = req.body;
-    if (!teacherId) return res.status(400).json({ error: 'Faculty selection required' });
-
-    const teacher = await M.Teacher.findById(teacherId);
-    if (!teacher) return res.status(404).json({ error: 'Faculty member not found' });
-
-    const rightsArray = Array.isArray(adminRights) && adminRights.length ? adminRights : ['controlPage'];
-    teacher.isAdmin = true;
-    teacher.adminRights = rightsArray;
-    await teacher.save();
-
-    await logAction(
-      req.user.trackId || req.user._id,
-      req.user.name,
-      req.user.role,
-      'Sub-Admin Privileges Granted',
-      `Granted sub-admin rights (${rightsArray.join(', ')}) to ${teacher.fullName}`,
-      'data',
-      'info',
-      req.ip,
-      req.user.sessionId,
-      { module: 'admin', subType: 'role-assign' }
-    );
-
-    res.json({ success: true, message: `Sub-admin rights updated for ${teacher.fullName}.` });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

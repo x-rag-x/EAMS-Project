@@ -1,0 +1,53 @@
+{
+  "type": "dept",
+  "totalRows": 3,
+  "eligibleCount": 0,
+  "skippedCount": 3,
+  "eligibleRows": [],
+  "skippedRows": [
+    {
+      "rowNumber": 2,
+      "name": "Computer Science & Engineering",
+      "issues": [
+        "Department code \"CSE\" already exists",
+        "Department name \"Computer Science & Engineering\" already exists"
+      ],
+      "data": {
+        "name": "Computer Science & Engineering",
+        "code": "CSE",
+        "number": "101",
+        "courseType": "UG",
+        "branch": "B.E"
+      }
+    },
+    {
+      "rowNumber": 3,
+      "name": "Mechanical Engineering",
+      "issues": [
+        "Code missing",
+        "CourseType missing"
+      ],
+      "data": {
+        "name": "Mechanical Engineering",
+        "code": "",
+        "number": "102",
+        "courseType": "",
+        "branch": "B.E"
+      }
+    },
+    {
+      "rowNumber": 4,
+      "name": "(blank)",
+      "issues": [
+        "DeptName missing"
+      ],
+      "data": {
+        "name": "",
+        "code": "ECE",
+        "number": "103",
+        "courseType": "UG",
+        "branch": "B.E"
+      }
+    }
+  ]
+}

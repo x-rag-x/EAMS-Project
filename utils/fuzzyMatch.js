@@ -102,8 +102,8 @@ function cleanFacultyName(raw) {
   if (!raw) return '';
   let str = String(raw).trim();
 
-  // 1. Remove designations and department annotations e.g. "/ AP / CSE", "(AP/CSE)", "/ HOD", "/ Math"
-  str = str.replace(/[\/\(\[\-]\s*(?:AP|ASP|PROF|PROFESSOR|HOD|DEAN|DIR|DIRECTOR|CSE|IT|ECE|EEE|MECH|CIVIL|AIDS|AIML|MATH|MATHEMATICS|PHY|PHYSICS|CHEM|CHEMISTRY|ENG|ENGLISH)[^\)\]]*[\)\]]?/gi, ' ');
+  // 1. Remove designations and department annotations e.g. "/ AP / CSE", "(AP/CSE)", "/ HOD", "/ Math", "/ MAT"
+  str = str.replace(/[\/\(\[\-]\s*(?:AP|ASP|PROF|PROFESSOR|HOD|DEAN|DIR|DIRECTOR|CSE|IT|ECE|EEE|MECH|CIVIL|AIDS|AIML|MAT|MATH|MATHEMATICS|PHY|PHYSICS|CHEM|CHEMISTRY|ENG|ENGLISH)[^\)\]]*[\)\]]?/gi, ' ');
   str = str.replace(/\s*[\/\\].*$/, ' '); // strip everything after a slash
 
   // 2. Remove salutations

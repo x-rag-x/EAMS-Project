@@ -13,6 +13,16 @@ function getSessionLocation(sessionId) {
   return sessionLocationMap.get(sessionId) || null;
 }
 
+const {
+  isAdminUser,
+  isSudo,
+  isSudoAdmin,
+  hasInstitutionReach,
+  resolveAccess,
+  hasSpecial,
+  getPrecomputedAccess
+} = require('../utils/access');
+
 // Periodic cleanup to avoid memory growth for stale sessions
 setInterval(() => {
   const now = Date.now();
@@ -25,7 +35,6 @@ setInterval(() => {
 
 function getRoleModel(role) {
   switch (role) {
-    case 'admin':   return M.Admin;
     case 'teacher': return M.Teacher;
     case 'student': return M.Student;
     default:        return null;
@@ -51,38 +60,114 @@ async function authMiddleware(req, res, next) {
   try {
     const decoded = jwt.verify(token, cfg.JWT_SECRET);
 
+    // Reject board tokens (aud: 'board') from user authentication
+    if (decoded.aud === 'board') {
+      return res.status(401).json({ error: 'Invalid token type for user session' });
+    }
+
     const model = getRoleModel(decoded.role);
+    if (!model) {
+      return res.status(401).json({ error: 'Invalid role or stale role token. Please log in again.' });
+    }
     const user = await model.findOne({ trackId: decoded.trackId }).select('+mustChangePassword');
     if (!user) { return res.status(401).json({ error: 'User not found' }); }
 
-    const loginHistory = await M.LoginHistory.findOne({ trackId: decoded.trackId });
-    if (!loginHistory) { return res.status(401).json({ error: 'User not found' }); }
+    let session = await M.LoginSession.findOne({ sessionId: decoded.sessionId }).lean();
+    if (!session) {
+      // Graceful fallback for legacy sessions created before migration
+      const loginHistory = await M.LoginHistory.findOne(
+        { trackId: decoded.trackId, 'history.sessionId': decoded.sessionId },
+        { 'history.$': 1 }
+      ).lean();
+      if (loginHistory && loginHistory.history && loginHistory.history[0]) {
+        session = loginHistory.history[0];
+      }
+    }
+    if (!session) {
+      return res.status(401).json({ error: 'Session not found' });
+    }
 
-    const session = loginHistory.history.find(h => h.sessionId === decoded.sessionId);
-    if (!session) { return res.status(401).json({ error: 'Session not found' }); }
     if (!session.active) { return res.status(401).json({ error: 'Session expired' }); }
-    if (session.current === 'Logged Out') { return res.status(401).json({ error: 'Logged out' }); }
+    if (session.logoutAt || session.current === 'Logged Out') { return res.status(401).json({ error: 'Logged out' }); }
 
-    // Enforce absolute maximum session lifetime of 1 hours
-    const MAX_SESSION_LIFETIME = 1 * 60 * 60 * 1000;
-    const sessionAge = Date.now() - new Date(session.createdAt || session.loginTime || session.time).getTime();
-    if (sessionAge > MAX_SESSION_LIFETIME) {
-      session.active = false;
-      session.current = 'Logged Out';
-      session.logoutTime = new Date();
-      loginHistory.save().catch(() => {});
-      await M.User.updateOne({ trackId: decoded.trackId }, { $set: { online: false } });
-      return res.status(401).json({ error: 'Session maximum lifetime exceeded. Please login again due to security reasons.' });
+    // Enforce session timeout & inactivity rules (§3.9, F17)
+    const secSettings = (await getSettings(['security'])).security || {};
+    const isStudentDevice = session.sessionClass === 'student-device';
+    const isSessionTimeoutEnabled = secSettings.sessionTimeout !== false;
+    const timeoutMins = secSettings.sessionTimeoutMins !== undefined ? Number(secSettings.sessionTimeoutMins) : 7;
+    const IDLE_TIMEOUT_MS = timeoutMins * 60 * 1000;
+
+    // Inactivity timeout check (when sessionTimeout is true)
+    if (isSessionTimeoutEnabled && !isStudentDevice) {
+      const lastAct = session.lastActivity ? new Date(session.lastActivity).getTime() : new Date(session.createdAt || session.loginTime || session.time || Date.now()).getTime();
+      const idleElapsed = Date.now() - lastAct;
+      if (idleElapsed > IDLE_TIMEOUT_MS) {
+        M.LoginSession.updateOne(
+          { sessionId: decoded.sessionId },
+          { $set: { active: false, logoutAt: new Date(), logoutMethod: 'auto' } }
+        ).catch(() => {});
+        M.LoginHistory.updateOne(
+          { trackId: decoded.trackId, 'history.sessionId': decoded.sessionId },
+          { $set: { 'history.$.active': false, 'history.$.current': 'Logged Out', 'history.$.logoutTime': new Date(), 'history.$.logoutMethod': 'auto' } }
+        ).catch(() => {});
+        M.User.updateOne({ trackId: decoded.trackId }, { $set: { online: false } }).catch(() => {});
+        return res.status(401).json({ error: 'Session expired due to inactivity. Please log in again.' });
+      }
     }
 
-    if (session.expiresAt - Date.now() <= 5 * 60 * 1000) {
-      session.expiresAt = new Date(session.expiresAt.getTime() + 10 * 60 * 1000);
+    // Absolute maximum lifetime check
+    if (isSessionTimeoutEnabled) {
+      const studentDays = secSettings.studentDeviceSessionLifetimeDays !== undefined
+        ? Number(secSettings.studentDeviceSessionLifetimeDays)
+        : 15;
+      const maxSessionHours = isStudentDevice
+        ? (studentDays * 24)
+        : (secSettings.maxSessionLifetimeHours !== undefined ? Number(secSettings.maxSessionLifetimeHours) : 24);
+      const MAX_SESSION_LIFETIME = maxSessionHours * 60 * 60 * 1000;
+      const sessionAge = Date.now() - new Date(session.createdAt || session.loginTime || session.time).getTime();
+      if (sessionAge > MAX_SESSION_LIFETIME) {
+        M.LoginSession.updateOne(
+          { sessionId: decoded.sessionId },
+          { $set: { active: false, logoutAt: new Date(), logoutMethod: 'forced' } }
+        ).catch(() => {});
+        M.LoginHistory.updateOne(
+          { trackId: decoded.trackId, 'history.sessionId': decoded.sessionId },
+          { $set: { 'history.$.active': false, 'history.$.current': 'Logged Out', 'history.$.logoutTime': new Date(), 'history.$.logoutMethod': 'forced' } }
+        ).catch(() => {});
+        M.User.updateOne({ trackId: decoded.trackId }, { $set: { online: false } }).catch(() => {});
+        return res.status(401).json({ error: 'Session maximum lifetime exceeded. Please login again due to security reasons.' });
+      }
     }
-    if (session.expiresAt < new Date()) { return res.status(401).json({ error: 'Session expired' }); }
+
+    // Device revocation hook (§6, T3.4): revoking the device kills the session at next call
+    if (isStudentDevice && session.deviceTrackId) {
+      const devDoc = await M.StudentDevice.findOne({ deviceTrackId: session.deviceTrackId }).select('status').lean();
+      if (!devDoc || devDoc.status !== 'TRUSTED') {
+        M.LoginSession.updateOne(
+          { sessionId: decoded.sessionId },
+          { $set: { active: false, logoutAt: new Date(), logoutMethod: 'forced' } }
+        ).catch(() => {});
+        return res.status(401).json({ error: 'Device has been revoked or replaced. Please sign in again.', code: 'DEVICE_REVOKED' });
+      }
+    }
+
+    // For each API call: extend logout time and update lastActivity
+    const newExpiresAt = isSessionTimeoutEnabled
+      ? new Date(Date.now() + IDLE_TIMEOUT_MS)
+      : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+    M.LoginSession.updateOne(
+      { sessionId: decoded.sessionId },
+      { $set: { expiresAt: newExpiresAt, lastActivity: new Date() } }
+    ).catch(() => {});
+    M.LoginHistory.updateOne(
+      { trackId: decoded.trackId, 'history.sessionId': decoded.sessionId },
+      { $set: { 'history.$.expiresAt': newExpiresAt, 'history.$.lastActivity': new Date() } }
+    ).catch(() => {});
 
     const userObj = user.toObject();
     const specials = Array.isArray(userObj.specials) ? userObj.specials : [];
-    const isTeacherAdmin = !!userObj.isAdmin || (Array.isArray(userObj.adminRights) && userObj.adminRights.length > 0 && !userObj.adminRights.every(r => r === 'none'));
+    const access = resolveAccess(userObj, { env: cfg.NODE_ENV });
+    req.access = access;
 
     const fName = (userObj.firstName || '').trim();
     const lName = (userObj.lastName || '').trim();
@@ -93,6 +178,8 @@ async function authMiddleware(req, res, next) {
       sessionLocationMap.set(session.sessionId, session.location);
     }
 
+    const isPrincipal = Boolean(access.isPrincipal || specials.some(s => s.option === 'isPrincipal') || userObj.isPrincipal === true);
+
     req.user = {
       ...userObj,
       name:      resolvedName,
@@ -102,8 +189,20 @@ async function authMiddleware(req, res, next) {
       role:      decoded.role,
       sessionId: decoded.sessionId,
       location:  session.location || null,
-      isAdmin:   decoded.role === 'admin' || isTeacherAdmin,
-      isTimeTableCoordinator: specials.some(s => s.option === 'isTimeTableCoordinator'),
+      isAdmin:   access.isAdmin,
+      isSudoAdmin: access.isSudoAdmin,
+      isSuperAdmin: access.isSuperAdmin,
+      isSubAdmin: access.isSubAdmin,
+      accessRole: access.tier,
+      landing: access.landing,
+      redirectTo: access.landing,
+      hasInstitutionReach: access.hasInstitutionReach,
+      pageRights: access.pageRights,
+      rawPageRights: userObj.pageRights,
+      adminFlag: access.adminFlag,
+      access: access.access,
+      pages: access.pages,
+      isTimeTableCoordinator: specials.some(s => s.option === 'isTimeTableCoordinator' && s.value !== false && s.value !== 'false') || userObj.isTimeTableCoordinator === true || access.isTimeTableCoordinator === true,
       TTdeptName: (() => {
         const s = specials.find(x => x.option === 'isTimeTableCoordinator');
         if (!s) return '';
@@ -111,30 +210,49 @@ async function authMiddleware(req, res, next) {
         if (typeof s.key === 'string' && s.key.trim() && !s.key.startsWith('isTimeTableCoordinator') && s.key !== 'true') return s.key.trim();
         return (userObj.department || userObj.deptName || '').trim();
       })(),
+      isPrincipal:         isPrincipal,
       isHod:               specials.some(s => s.option === 'isHod'),
       isClassAdvisor:      specials.some(s => s.option === 'isClassAdvisor'),
       isWarden:            specials.some(s => s.option === 'isWarden'),
       isExamCoordinator:   specials.some(s => s.option === 'isExamCoordinator'),
       isPlacementCoordinator: specials.some(s => s.option === 'isPlacementCoordinator'),
-      actingWithAdminRights: specials.some(s => ['isHod', 'isClassAdvisor', 'isWarden', 'isExamCoordinator', 'isPlacementCoordinator', 'isTimeTableCoordinator'].includes(s.option)) || isTeacherAdmin,
+      actingWithAdminRights: specials.some(s => ['isPrincipal', 'isHod', 'isClassAdvisor', 'isWarden', 'isExamCoordinator', 'isPlacementCoordinator', 'isTimeTableCoordinator'].includes(s.option)) || access.isAdmin,
+      bootstrapPending: Boolean(userObj.bootstrapPending),
     };
     req.session = session;
 
+    // Check bootstrap pending gate (§9, R3.1)
+    if (req.user.bootstrapPending) {
+      const origUrl = req.originalUrl || req.url || '';
+      const isAllowedBootstrapEndpoint =
+        origUrl.startsWith('/api/auth') ||
+        origUrl.startsWith('/api/bootstrap') ||
+        origUrl === '/api/settings/public';
+
+      if (!isAllowedBootstrapEndpoint) {
+        return res.status(403).json({
+          error: 'Bootstrap required: Please complete the initial setup wizard.',
+          code: 'BOOTSTRAP_REQUIRED',
+          bootstrapPending: true
+        });
+      }
+    }
+
     // Check system maintenance and portal access permissions
     const isLogout = req.path === '/logout' || req.originalUrl?.includes('/auth/logout');
-    if (!isLogout && decoded.role !== 'admin') {
+    if (!isLogout && !access.exempt?.maintenance) {
       const settings = await getSettings(['pages', 'maintenance']);
       const pages = settings.pages || {};
       const maint = settings.maintenance || {};
 
-      // Verify maintenance mode status
+      // Verify maintenance mode status (Sudo Admin + Super Admin are exempt per §3.6)
       if (maint.active) {
         const affected = maint.affectedRoles?.length ? maint.affectedRoles : ['teacher', 'student'];
-        if (affected.includes(decoded.role) && !isTeacherAdmin) {
+        if (affected.includes(decoded.role) && !access.exempt?.maintenance) {
           return res.status(503).json({
             error: maint.message || 'System is under maintenance.',
             maintenance: true,
-            message: maint.message || 'System is under maintenance.',
+            message: maint.message || 'System under maintenance.',
             affectedRoles: affected,
             endTime: maint.endTime || null,
             startedAt: maint.startedAt || null,
@@ -147,15 +265,17 @@ async function authMiddleware(req, res, next) {
         const pageStudents = pages.pageStudents !== undefined ? pages.pageStudents : 'enabled';
         if (pageStudents === 'disabled' || pageStudents === 'hidden' || pageStudents === false) {
           return res.status(403).json({
-            error: 'Student Portal is currently disabled by administrator.',
+            error: 'Students Login are paused temporary.',
+            code: 'STUDENTS_LOGIN_PAUSED',
             portalDisabled: true,
             portal: 'student'
           });
         }
       }
 
-      // Verify teacher portal access permissions
-      if (decoded.role === 'teacher' && !isTeacherAdmin) {
+      // Verify teacher portal access permissions: anyone holding admin grants is exempt (§3.6)
+      const hasAdminGrants = access.isAdmin || access.flags?.isSudo || access.flags?.isSuper || access.flags?.isSub;
+      if (decoded.role === 'teacher' && !hasAdminGrants) {
         const pageTeachers = pages.pageTeachers !== undefined ? pages.pageTeachers : 'enabled';
         if (pageTeachers === 'disabled' || pageTeachers === 'hidden' || pageTeachers === false) {
           return res.status(403).json({
@@ -177,6 +297,10 @@ async function authMiddleware(req, res, next) {
 
     if (now - lastDbWrite >= ACTIVITY_DB_WRITE_INTERVAL_MS) {
       sessionActivityWriteMap.set(sessionKey, now);
+      M.LoginSession.updateOne(
+        { sessionId: decoded.sessionId },
+        { $set: { lastActivity: new Date() } }
+      ).catch(() => {});
       M.LoginHistory.updateOne(
         { trackId: decoded.trackId, "history.sessionId": decoded.sessionId },
         { $set: { "history.$.lastActivity": new Date() } }
@@ -201,16 +325,15 @@ async function authMiddleware(req, res, next) {
 
 function adminOnly(req, res, next) {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
-  if (req.user.role === 'admin') return next();
-  if (req.user.role === 'teacher' && req.user.isAdmin === true) return next();
+  if (hasInstitutionReach(req.user)) return next();
   return res.status(403).json({ error: 'Admin access required' });
 }
 
 async function logsAdminOnly(req, res, next) {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
-  if (req.user.role === 'admin') return next();
+  if (isSudoAdmin(req.user)) return next();
 
-  if (req.user.role === 'teacher' && req.user.isAdmin === true) {
+  if (isAdminUser(req.user)) {
     const secSettings = await M.Settings.findOne({ key: 'security' }).lean();
     if (secSettings?.value?.allowSubAdminLogs === true) {
       return next();
@@ -219,31 +342,27 @@ async function logsAdminOnly(req, res, next) {
   return res.status(403).json({ error: 'Access denied. Logs are strictly restricted to system administrators.' });
 }
 
-function requireRight(...rights) {
-  return function (req, res, next) {
-    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
-    if (req.user.role === 'admin') return next();
-
-    if (req.user.role === 'teacher' && req.user.isAdmin === true) {
-      const userRights = req.user.adminRights;
-      if (userRights === 'all' || (Array.isArray(userRights) && userRights.includes('all'))) {
-        return next();
-      }
-      if (Array.isArray(userRights) && rights.some(r => userRights.includes(r))) {
-        return next();
-      }
-    }
-    return res.status(403).json({ error: `Forbidden. Requires permission: ${rights.join(' or ')}` });
-  };
-}
-
 function requireRole(...roles) {
   return function (req, res, next) {
     if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
     if (roles.includes(req.user.role)) return next();
+    if (roles.includes('admin') && isAdminUser(req.user)) return next();
     return res.status(403).json({ error: `Access denied. Required role: ${roles.join(' or ')}` });
   };
 }
 
-module.exports = { authMiddleware, adminOnly, logsAdminOnly, requireRight, requireRole, getRoleModel, getSessionLocation };
+const { requirePage, scopeFilter, assertInScope } = require('./pageAccess');
+
+module.exports = {
+  authMiddleware,
+  adminOnly,
+  logsAdminOnly,
+  requireRole,
+  getRoleModel,
+  getSessionLocation,
+  isSudo,
+  requirePage,
+  scopeFilter,
+  assertInScope
+};
 

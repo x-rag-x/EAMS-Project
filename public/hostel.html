@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>EAMS · Hostel Management Portal</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&family=Playfair+Display:wght@700&family=DM+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <script src="js/core/escape.js"></script>
+  <script src="js/core/icons.js"></script>
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/hostel.css">
+  <!-- QRCode Generator Script -->
+  <script src="https://unpkg.com/qrcode-generator@1.4.4/qrcode.js"></script>
+  <script>
+    (function() {
+      try {
+        var token = sessionStorage.getItem('token') || sessionStorage.getItem('eams_token');
+        var user = null;
+        try { user = JSON.parse(sessionStorage.getItem('user') || sessionStorage.getItem('eams_user')); } catch (e) {}
+        var isWarden = user && (
+          user.isSudoAdmin === true ||
+          ['admin', 'sudo'].includes(user.role) ||
+          (user.access && (user.access.level === 'sudo' || (Array.isArray(user.access.pages) && user.access.pages.includes('hostel')))) ||
+          user.isAdmin === true ||
+          (Array.isArray(user.specials) && user.specials.some(function(s) { return s && (s.option === 'isWarden' || s.option === 'isAdmin'); })) ||
+          (typeof user.designation === 'string' && /warden/i.test(user.designation))
+        );
+        if (!token || !isWarden) {
+          var ret = encodeURIComponent('hostel.html');
+          window.location.replace('index.html?returnUrl=' + ret);
+        }
+      } catch (e) {}
+    })();
+  </script>
+</head>
+<body>
+
+  <!-- EAMS PAGE LOADER -->
+  <div id="page-loader">
+    <div class="loader-brand"><re-icon icon="building"></re-icon> EAMS Hostel Portal</div>
+    <div class="loader-msg">Loading Night Roll-Call Roster…</div>
+  </div>
+
+  <div class="hostel-container">
+
+    <!-- HEADER BANNER -->
+    <header class="hostel-header">
+      <div class="hostel-title-wrap">
+        <div class="hostel-badge">
+          <span><re-icon icon="building"></re-icon></span> <span id="hostel-block-badge">Block Roll Call</span>
+        </div>
+        <h1 class="hostel-title">
+          <span id="block-name-display">Hostel Block</span>
+          <span class="hostel-status-pill scheduled" id="rollcall-status-pill">Scheduled</span>
+        </h1>
+      </div>
+
+      <div class="hostel-actions">
+        <button type="button" class="btn-out" id="corridor-mode-toggle" title="Toggle High Contrast for Dim Corridors"><re-icon icon="history" size="14"></re-icon> Corridor Mode</button>
+        <button type="button" class="btn-pri" id="open-rollcall-btn"><re-icon icon="rocket" size="14"></re-icon> Open Roll Call</button>
+        <button type="button" class="btn-pri" id="show-lobby-qr-btn" style="display:none;background:#16a34a;border-color:#16a34a;"><re-icon icon="monitor" size="14"></re-icon> Lobby QR Screen</button>
+        <button type="button" class="btn-out" id="close-rollcall-btn" style="display:none;color:#dc2626;border-color:#dc2626;"><re-icon icon="pause" size="14"></re-icon> Close & Spot Check</button>
+        <button type="button" class="btn-pri" id="verify-rollcall-btn" style="display:none;background:#0d9488;border-color:#0d9488;"><re-icon icon="check-circle" size="14"></re-icon> Finalize Verification</button>
+        <a href="admin.html" class="btn-out" style="text-decoration:none;">Dashboard</a>
+      </div>
+    </header>
+
+    <!-- SUMMARY STATS -->
+    <section class="hostel-stats-grid">
+      <div class="hostel-stat-card">
+        <span class="stat-label">Total Residents</span>
+        <span class="stat-val" id="stat-total">0</span>
+      </div>
+      <div class="hostel-stat-card stat-card-present">
+        <span class="stat-label">Present (Inside)</span>
+        <span class="stat-val" id="stat-present">0</span>
+      </div>
+      <div class="hostel-stat-card stat-card-late">
+        <span class="stat-label">Late Return</span>
+        <span class="stat-val" id="stat-late">0</span>
+      </div>
+      <div class="hostel-stat-card stat-card-leave">
+        <span class="stat-label">On Leave</span>
+        <span class="stat-val" id="stat-leave">0</span>
+      </div>
+      <div class="hostel-stat-card stat-card-medical">
+        <span class="stat-label">Medical / Sick</span>
+        <span class="stat-val" id="stat-medical">0</span>
+      </div>
+      <div class="hostel-stat-card stat-card-excused">
+        <span class="stat-label">Excused (OD)</span>
+        <span class="stat-val" id="stat-excused">0</span>
+      </div>
+      <div class="hostel-stat-card stat-card-absent">
+        <span class="stat-label">Absent / Unmarked</span>
+        <span class="stat-val" id="stat-absent">0</span>
+      </div>
+    </section>
+
+    <!-- NAVIGATION TABS -->
+    <nav class="hostel-tabs">
+      <button type="button" class="hostel-tab-btn active" data-tab="tonight">Tonight's Roll Call</button>
+      <button type="button" class="hostel-tab-btn" data-tab="leaves">Passes & Outings (<span id="pending-leaves-badge">0</span>)</button>
+      <button type="button" class="hostel-tab-btn" data-tab="rooms">Rooms & Allocations</button>
+      <button type="button" class="hostel-tab-btn" data-tab="history">Reports & History</button>
+    </nav>
+
+    <!-- TAB 1: TONIGHT'S ROSTER -->
+    <main id="tab-tonight" class="hostel-tab-pane">
+      <div class="roster-controls">
+        <input type="text" class="roster-search-input" id="roster-search" placeholder="Search resident by name, room no, or register no…">
+        <div style="display:flex;gap:6px;flex-wrap:wrap;">
+          <select id="roster-filter-status" class="filter-select" style="height:42px;padding:0 34px 0 14px;border-radius:10px;border:1.5px solid var(--hostel-border);background:var(--hostel-card-bg);color:var(--hostel-text);font-weight:600;">
+            <option value="all">All Residents</option>
+            <option value="unmarked">Unmarked / Absent Only</option>
+            <option value="Present">Present Only</option>
+            <option value="Late">Late Only</option>
+            <option value="On leave">On Leave</option>
+            <option value="spot-check">Spot-Checks Only</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="roster-grid" id="roster-cards-container">
+        <!-- Injected via JavaScript -->
+      </div>
+    </main>
+
+    <!-- TAB 2: PASSES & OUTINGS -->
+    <section id="tab-leaves" class="hostel-tab-pane" style="display:none;">
+      <div style="margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;">
+        <h2 style="font-size:17px;font-weight:700;color:var(--hostel-text);">Pass & Outing Approval Queue</h2>
+        <span style="font-size:12px;color:var(--hostel-muted);">Local outings within limit are auto-approved; home leaves require parent call.</span>
+      </div>
+      <div id="leaves-container">
+        <!-- Injected via JavaScript -->
+      </div>
+    </section>
+
+    <!-- TAB 3: ROOMS & ALLOCATIONS -->
+    <section id="tab-rooms" class="hostel-tab-pane" style="display:none;">
+      <div style="margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
+        <div>
+          <h2 style="font-size:17px;font-weight:700;color:var(--hostel-text);">Block Room Occupancy & Bed Allocations</h2>
+          <div style="font-size:12px;color:var(--hostel-muted);">Review pending resident bed requests and room occupancy matrix.</div>
+        </div>
+      </div>
+      <div id="pending-allocations-wrap" style="margin-bottom:20px;">
+        <h3 style="font-size:14px;font-weight:700;margin-bottom:10px;">Pending Bed Requests</h3>
+        <div id="pending-allocations-container"></div>
+      </div>
+      <div id="rooms-grid-container" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px;"></div>
+    </section>
+
+    <!-- TAB 4: REPORTS & HISTORY -->
+    <section id="tab-history" class="hostel-tab-pane" style="display:none;">
+      <div style="margin-bottom:14px;display:flex;gap:12px;align-items:center;">
+        <input type="date" id="history-date-picker" style="height:40px;padding:0 12px;border-radius:10px;border:1.5px solid var(--hostel-border);background:var(--hostel-card-bg);color:var(--hostel-text);font-weight:600;">
+        <button type="button" class="btn-pri" id="load-history-btn">View Night Report</button>
+      </div>
+      <div id="history-report-container"></div>
+    </section>
+
+  </div>
+
+  <!-- ── MODAL 1: ROTATING LOBBY QR SCREEN ── -->
+  <div class="modal-bg" id="qr-modal" style="display:none;">
+    <div class="modal" style="max-width:440px;text-align:center;">
+      <div class="modal-hd">
+        <div>
+          <span class="modal-eyebrow">BLOCK LOBBY CHECK-IN</span>
+          <h2 class="modal-title">Scan to Check In</h2>
+          <div class="modal-sub">Place this screen in the block lobby. QR rotates every 15s.</div>
+        </div>
+        <button type="button" class="modal-close" onclick="closeQRModal()" aria-label="Close dialog"><re-icon icon="x" size="18"></re-icon></button>
+      </div>
+      <div class="qr-modal-body">
+        <div class="qr-canvas-wrap">
+          <div id="qr-code-target"></div>
+        </div>
+        <div class="qr-timer-bar">
+          <div class="qr-timer-progress" id="qr-timer-progress"></div>
+        </div>
+        <div style="font-size:12px;color:var(--hostel-muted);margin-bottom:12px;">
+          Next code in <b id="qr-seconds-left" style="color:var(--hostel-green);">15</b>s · Screen Kept Awake
+        </div>
+        <div style="background:var(--hostel-bg);padding:10px 16px;border-radius:10px;border:1px solid var(--hostel-border);width:100%;">
+          <div style="font-size:12px;font-weight:700;color:var(--hostel-muted);">Scans Tonight</div>
+          <div style="font-size:26px;font-weight:800;color:var(--hostel-green);font-family:'DM Mono',monospace;" id="qr-live-scans">0</div>
+        </div>
+      </div>
+      <div class="modal-ft" style="justify-content:center;">
+        <button type="button" class="btn-out" onclick="closeQRModal()">Close Lobby Screen</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── MODAL 2: LOG PARENT CALL ── -->
+  <div class="modal-bg" id="parent-call-modal" style="display:none;">
+    <div class="modal" style="max-width:460px;">
+      <div class="modal-hd">
+        <div>
+          <span class="modal-eyebrow">GUARDIAN CONTACT</span>
+          <h2 class="modal-title">Log Parent Phone Call</h2>
+          <div class="modal-sub" id="call-modal-resident-name">Resident: John Doe</div>
+        </div>
+        <button type="button" class="modal-close" onclick="closeCallModal()" aria-label="Close dialog"><re-icon icon="x" size="18"></re-icon></button>
+      </div>
+      <div class="modal-body form-grid" style="grid-template-columns:1fr;">
+        <label>
+          Guardian Phone Number
+          <div style="display:flex;gap:8px;">
+            <input type="text" id="parent-phone-number" readonly style="font-family:'DM Mono',monospace;font-weight:700;">
+            <a id="tap-to-call-link" href="#" class="btn-pri" style="text-decoration:none;display:inline-flex;align-items:center;gap:4px;"><re-icon icon="monitor"></re-icon> Dial</a>
+          </div>
+        </label>
+        <label>
+          Call Outcome *
+          <select id="call-outcome-select">
+            <option value="consent">Consent Granted (Parent verified)</option>
+            <option value="refused">Refused (Parent did not grant permission)</option>
+            <option value="unreachable">Unreachable (Ringing, switched off, no answer)</option>
+          </select>
+        </label>
+        <label>
+          Warden Call Remarks / Notes
+          <input type="text" id="call-notes-input" placeholder="e.g. Spoke with mother, confirmed student reached home safely">
+        </label>
+      </div>
+      <div class="modal-ft">
+        <button type="button" class="btn-out" onclick="closeCallModal()">Cancel</button>
+        <button type="button" class="btn-pri" id="save-parent-call-btn">Save Call Log</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Shared EAMS core scripts -->
+  <script src="js/core/session.js"></script>
+  <script src="js/core/api.js"></script>
+  <script src="js/core/toast.js"></script>
+  <script src="js/core/modal.js"></script>
+  <script src="js/core/popup.js"></script>
+  <script src="js/pages/hostel.page.js"></script>
+</body>
+</html>

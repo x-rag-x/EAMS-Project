@@ -1,0 +1,80 @@
+{
+  "type": "student",
+  "totalRows": 3,
+  "eligibleCount": 1,
+  "skippedCount": 2,
+  "eligibleRows": [
+    {
+      "rowNumber": 2,
+      "data": {
+        "fullName": "Joseph Stalin",
+        "firstName": "Joseph",
+        "lastName": "Stalin",
+        "registerNo": "REG2025001",
+        "trackId": "TR25CS001",
+        "gender": "Male",
+        "batch": "2025-2029",
+        "academicYear": "2025-2026",
+        "courseType": "UG",
+        "branch": "B.E",
+        "department": "Computer Science & Engineering",
+        "deptId": "60d5ec49f1b2c8b1f8e4e1a1",
+        "class": "25-29 CSE",
+        "classId": "60d5ec49f1b2c8b1f8e4e1a2",
+        "residency": "dayscholar",
+        "email": "joseph.stalin@student.college.edu",
+        "username": "jstalin",
+        "password": "[REDACTED]"
+      },
+      "isVerified": false,
+      "emailSent": false
+    }
+  ],
+  "skippedRows": [
+    {
+      "rowNumber": 3,
+      "name": "Jane Doe",
+      "issues": [
+        "Invalid email format"
+      ],
+      "data": {
+        "fullName": "Jane Doe",
+        "registerNo": "REG2025002",
+        "gender": "Female",
+        "academicYear": "2025-2026",
+        "batch": "2025-2029",
+        "courseType": "UG",
+        "branch": "B.E",
+        "department": "Computer Science & Engineering",
+        "class": "25-29 CSE",
+        "email": "notanemail",
+        "username": "jdoe",
+        "password": "Student@123",
+        "residency": "hosteller"
+      }
+    },
+    {
+      "rowNumber": 4,
+      "name": "Bob Smith",
+      "issues": [
+        "RegisterNo missing",
+        "CourseType \"INVALID_COURSE\" unknown"
+      ],
+      "data": {
+        "fullName": "Bob Smith",
+        "registerNo": "",
+        "gender": "Male",
+        "academicYear": "2025-2026",
+        "batch": "2025-2029",
+        "courseType": "INVALID_COURSE",
+        "branch": "B.E",
+        "department": "Computer Science & Engineering",
+        "class": "25-29 CSE",
+        "email": "bob.smith@student.college.edu",
+        "username": "bsmith",
+        "password": "Student@123",
+        "residency": "dayscholar"
+      }
+    }
+  ]
+}

@@ -3,9 +3,11 @@ const router = express.Router();
 const QRCode = require('qrcode');
 const M = require('../models');
 const { authMiddleware } = require('../middleware/auth');
-const { qrAttendanceLimiter } = require('../utils/rateLimiters');
+const { isSudoAdmin } = require('../utils/access');
+const { qrAttendanceLimiter, qrAttendanceIpLimiter } = require('../utils/rateLimiters');
 const { checkLiveSessionGuard } = require('../middleware/portalGuard');
 const { logAction } = require('../utils/logAction');
+const { evaluateDeviceTrust } = require('../utils/deviceTrust');
 const {
   encryptQrPayload,
   decryptQrPayload,
@@ -89,7 +91,7 @@ router.get('/qr-data/:sessionId', authMiddleware, async (req, res) => {
     const session = await M.LiveSession.findOne({
       $and: [
         { $or: idQueries },
-        req.user.role === 'admin' ? {} : { $or: [{ teacherId: req.user._id }, { teacherTrackId }] }
+        isSudoAdmin(req.user) ? {} : { $or: [{ teacherId: req.user._id }, { teacherTrackId }] }
       ]
     });
 
@@ -286,7 +288,7 @@ router.post('/decrypt-params', authMiddleware, async (req, res) => {
  * Student single attendance submission endpoint:
  * Creates draft (pending) record, executes server validations, updates to completed if valid.
  */
-router.post('/submit', qrAttendanceLimiter, authMiddleware, checkLiveSessionGuard, async (req, res) => {
+router.post('/submit', authMiddleware, qrAttendanceIpLimiter, qrAttendanceLimiter, checkLiveSessionGuard, async (req, res) => {
   try {
     if (req.user.role !== 'student') {
       return res.status(403).json({ error: 'Students only' });
@@ -300,7 +302,8 @@ router.post('/submit', qrAttendanceLimiter, authMiddleware, checkLiveSessionGuar
       accuracy,
       deviceId,
       loginTime: rawLoginTime,
-      t: rawT
+      t: rawT,
+      deviceProof
     } = req.body;
 
     if (!rawSessionTrackId || !rawQrTrackId) {
@@ -484,32 +487,98 @@ router.post('/submit', qrAttendanceLimiter, authMiddleware, checkLiveSessionGuar
       }
     }
 
-    // 3. Cross-device and One-device Restriction check
+    // 3. Cross-device and One-device Restriction check (A5, §7.1)
+    const effectiveDeviceId = (deviceId || deviceProof?.installId || '').trim();
     if (verification.sessionOk && verification.qrOk) {
-      if (deviceId && String(deviceId).trim()) {
-        // Prevent another student from marking attendance on the same physical device in the same live session
-        const proxyCheck = await M.LiveSessionsAtt.findOne({
+      if (effectiveDeviceId) {
+        const proxyQuery = {
           sessionTrackId,
-          deviceId: String(deviceId).trim(),
           studentId: { $ne: student._id },
-          status: 'completed'
-        });
+          status: 'completed',
+          $or: [
+            { deviceId: effectiveDeviceId }
+          ]
+        };
+        if (deviceProof?.installId) {
+          proxyQuery.$or.push({ 'security.deviceTrackId': deviceProof.installId });
+        }
+        const proxyCheck = await M.LiveSessionsAtt.findOne(proxyQuery);
 
         if (proxyCheck) {
           verification.deviceOk = false;
           verification.failReason = 'This physical device was already used by another student for this session';
+          try {
+            const studentA = student;
+            const studentB = await M.Student.findOne({ trackId: proxyCheck.studentTrackId }).lean();
+            if (studentA && studentB) {
+              const existingCase = await M.DeviceShareCase.findOne({
+                'students.studentId': { $all: [studentA._id, studentB._id] },
+                status: 'OPEN'
+              });
+              if (!existingCase) {
+                await M.DeviceShareCase.create({
+                  students: [
+                    { studentId: studentA._id, studentTrackId: studentA.trackId, studentName: studentA.fullName || studentA.name, regNo: studentA.registerNo, deptId: studentA.deptId, classId: studentA.classId },
+                    { studentId: studentB._id, studentTrackId: studentB.trackId, studentName: studentB.fullName || studentB.name, regNo: studentB.registerNo, deptId: studentB.deptId, classId: studentB.classId }
+                  ],
+                  deptId: studentA.deptId || studentB.deptId,
+                  detectionSource: 'ATTENDANCE',
+                  signals: {
+                    installId: effectiveDeviceId,
+                    sessionTrackId: sessionTrackId,
+                    ip: req.ip,
+                    details: 'Multiple students marked attendance in same live session from same device'
+                  },
+                  status: 'OPEN'
+                });
+              }
+            }
+          } catch (caseErr) {
+            console.warn('[DeviceShareCase Attendance Warning]:', caseErr.message);
+          }
         } else {
           verification.deviceOk = true;
         }
       } else {
-        // deviceId is mandatory to prevent proxy attendance
         verification.deviceOk = false;
         verification.failReason = 'Device identification is required for QR attendance verification';
       }
     }
 
-    // 4. Determine final status
-    const allPassed =
+    // 4. Evaluate Device Trust & Risk Gate (§7, §9, T2.1-T2.5)
+    const trustEval = await evaluateDeviceTrust({
+      student,
+      deviceProof,
+      payload: { sessionTrackId, qrTrackId },
+      location: {
+        latitude: latitude !== undefined ? Number(latitude) : undefined,
+        longitude: longitude !== undefined ? Number(longitude) : undefined,
+        accuracy: accuracy !== undefined ? Number(accuracy) : undefined,
+        isClassroomRadiusOk: verification.locationOk,
+        locationOk: verification.locationOk
+      },
+      ip: req.ip,
+      deviceId: effectiveDeviceId
+    });
+
+    if (!trustEval.allowed) {
+      if (existingRecord && existingRecord.isNew) {
+        await M.LiveSessionsAtt.deleteOne({ _id: existingRecord._id }).catch(() => {});
+      }
+      return res.status(403).json({
+        error: trustEval.error,
+        code: trustEval.code,
+        trustScore: trustEval.trustScore,
+        isLocked: trustEval.isLocked
+      });
+    }
+
+    verification.deviceRegisteredOk = trustEval.deviceRegisteredOk;
+    verification.trustOk = trustEval.trustOk;
+    verification.riskOk = trustEval.riskOk;
+
+    // 5. Determine final status
+    const allQrPassed =
       verification.authOk &&
       verification.sessionOk &&
       verification.qrOk &&
@@ -528,8 +597,9 @@ router.post('/submit', qrAttendanceLimiter, authMiddleware, checkLiveSessionGuar
       inGracePeriod: !!qrVerification.inGracePeriod,
     };
     existingRecord.verificationDetails = verification;
+    existingRecord.security = trustEval.security;
 
-    if (allPassed) {
+    if (allQrPassed && !trustEval.requiresTeacherVerification) {
       existingRecord.status = 'completed';
       existingRecord.verificationCompletedAt = new Date();
       await existingRecord.save();
@@ -544,8 +614,10 @@ router.post('/submit', qrAttendanceLimiter, authMiddleware, checkLiveSessionGuar
               regNo: regNo,
               time: new Date(),
               ip: req.ip,
-              deviceId: deviceId ? String(deviceId) : '',
-              source: 'qr'
+              deviceId: effectiveDeviceId,
+              source: 'qr',
+              status: 'completed',
+              security: trustEval.security
             }
           }
         }
@@ -566,8 +638,9 @@ router.post('/submit', qrAttendanceLimiter, authMiddleware, checkLiveSessionGuar
                 status: 'completed',
                 markedAt: new Date(),
                 ipAddress: req.ip,
-                deviceId: deviceId ? String(deviceId) : '',
-                verificationCompletedAt: new Date()
+                deviceId: effectiveDeviceId,
+                verificationCompletedAt: new Date(),
+                security: trustEval.security
               }
             }
           }
@@ -580,6 +653,7 @@ router.post('/submit', qrAttendanceLimiter, authMiddleware, checkLiveSessionGuar
         success: true,
         status: 'completed',
         message: 'Attendance participation recorded successfully.',
+        security: trustEval.security,
         verification: {
           status: 'completed',
           windowType: qrVerification.type,
@@ -588,16 +662,71 @@ router.post('/submit', qrAttendanceLimiter, authMiddleware, checkLiveSessionGuar
       });
     } else {
       existingRecord.status = 'pending';
+      const failReason = !allQrPassed
+        ? verification.failReason
+        : (trustEval.security.riskReasons.join('; ') || 'Requires teacher verification');
+      existingRecord.verificationDetails.failReason = failReason;
       await existingRecord.save();
+
+      // If all QR checks passed but device/trust requires teacher verification, mirror to sessions as pending
+      if (allQrPassed && trustEval.requiresTeacherVerification) {
+        await M.LiveSession.updateOne(
+          { trackId: sessionTrackId, "markedStudents.studentId": { $ne: student._id } },
+          {
+            $push: {
+              markedStudents: {
+                studentId: student._id,
+                regNo: regNo,
+                time: new Date(),
+                ip: req.ip,
+                deviceId: effectiveDeviceId,
+                source: 'qr',
+                status: 'pending',
+                security: trustEval.security
+              }
+            }
+          }
+        ).catch(() => {});
+
+        try {
+          await M.ScanLiveSession.updateOne(
+            { sessionTrackId: sessionTrackId, "records.studentId": { $ne: student._id } },
+            {
+              $push: {
+                records: {
+                  studentId: student._id,
+                  studentTrackId: studentTrackId,
+                  studentName: studentName,
+                  regNo: regNo,
+                  qrTrackId: qrTrackId,
+                  status: 'pending',
+                  markedAt: new Date(),
+                  ipAddress: req.ip,
+                  deviceId: effectiveDeviceId,
+                  security: trustEval.security
+                }
+              }
+            }
+          );
+        } catch (scanUpdErr) {
+          console.warn('ScanLiveSession pending update warning:', scanUpdErr.message);
+        }
+      }
 
       return res.json({
         success: true,
         status: 'pending',
+        pendingVerification: true,
+        requiresTeacherVerification: trustEval.requiresTeacherVerification,
+        riskLevel: trustEval.security.riskLevelAtMark,
         message: 'Attendance participation recorded and pending teacher verification.',
-        failReason: verification.failReason,
+        failReason: failReason,
+        security: trustEval.security,
         verification: {
           status: 'pending',
-          failReason: verification.failReason
+          failReason: failReason,
+          windowType: qrVerification.type,
+          inGracePeriod: qrVerification.inGracePeriod
         }
       });
     }
@@ -620,7 +749,7 @@ router.get('/participation/:sessionTrackId', authMiddleware, async (req, res) =>
     const sessionTrackId = req.params.sessionTrackId;
 
     // Verify session ownership (A15)
-    if (req.user.role !== 'admin') {
+    if (!isSudoAdmin(req.user)) {
       const session = await M.LiveSession.findOne({ trackId: sessionTrackId }).lean() ||
                       await M.ScanLiveSession.findOne({ sessionTrackId }).lean();
       if (session) {

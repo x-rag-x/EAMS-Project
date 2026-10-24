@@ -1,8 +1,9 @@
 const { getSetting } = require('../utils/settingsCache');
+const { isSudoAdmin, isSuperAdmin } = require('../utils/access');
 
 // Check active maintenance mode and restrict access for affected user roles
 async function checkMaintenance(req, res, next) {
-  if (req.user?.role === 'admin' || (req.user?.role === 'teacher' && req.user?.isAdmin)) {
+  if (req.access?.exempt?.maintenance || isSudoAdmin(req.user) || isSuperAdmin(req.user)) {
     return next();
   }
   const v = await getSetting('maintenance');

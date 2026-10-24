@@ -11,29 +11,35 @@
 (function () {
   'use strict';
 
-  // ── Security Gate: Main Signin -> Board Credentials -> board.html ──
-  const token = sessionStorage.getItem('eams_token') ||
-                localStorage.getItem('eams_token') ||
-                sessionStorage.getItem('token') ||
-                localStorage.getItem('token');
-  if (!token) {
-    console.warn('[EAMS Smart Board Security]: Unauthenticated access. Redirecting to main login.');
-    window.location.replace('index.html?redirect=board.html');
-    return;
+  // ── Global State & Credentials (§3.2, Fix F15) ──
+  const params = new URLSearchParams(window.location.search);
+  const queryDevice = params.get('device') || params.get('deviceId');
+  const queryKey = params.get('key') || params.get('apiKey');
+
+  // Migrate any legacy URL parameters to localStorage and scrub URL immediately (Fix F15)
+  if (queryDevice) localStorage.setItem('eams_board_deviceId', queryDevice.trim().toUpperCase());
+  localStorage.removeItem('eams_board_key'); // Scrub any plain text password from localStorage
+  if (window.location.search) {
+    try {
+      window.history.replaceState({}, document.title, window.location.pathname);
+    } catch (e) { /* ignore */ }
   }
 
-  // ── Global State & Config ──
-  const params = new URLSearchParams(window.location.search);
-  const deviceId = params.get('device') || params.get('deviceId') || localStorage.getItem('eams_board_deviceId') || 'SB-DEMO-01';
-  const apiKey = params.get('key') || localStorage.getItem('eams_board_key') || '';
+  let deviceId = localStorage.getItem('eams_board_deviceId') || queryDevice || 'SB-DEMO-01';
+  let boardApiKey = localStorage.getItem('eams_board_key') || queryKey || '';
+  let boardToken = sessionStorage.getItem('eams_board_token') || localStorage.getItem('eams_board_token') || '';
 
-  // Persist device configuration locally for kiosk reboots
-  if (params.get('device')) localStorage.setItem('eams_board_deviceId', deviceId);
-  if (params.get('key')) localStorage.setItem('eams_board_key', apiKey);
+  if (!boardApiKey && !boardToken) {
+    console.warn('[EAMS Smart Board Security]: No board credentials. Opening setup modal.');
+    setTimeout(() => {
+      if (window.openSetupModal) window.openSetupModal();
+    }, 500);
+  }
 
   let ws = null;
   let reconnectTimer = null;
   let heartbeatTimer = null;
+  let contextRefreshTimer = null;
   let heartbeatCount = 0;
   let lastPingTimestamp = null;
   let latencyMs = 0;
@@ -171,15 +177,58 @@
   }
 
   // ── WebSocket Connection Management ──
-  function connectWebSocket() {
+  async function connectWebSocket() {
     if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
       return;
     }
 
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.host}/ws/board?device=${encodeURIComponent(deviceId)}&key=${encodeURIComponent(apiKey)}`;
+    deviceId = localStorage.getItem('eams_board_deviceId') || deviceId;
+    boardApiKey = localStorage.getItem('eams_board_key') || boardApiKey;
+    boardToken = sessionStorage.getItem('eams_board_token') || localStorage.getItem('eams_board_token') || boardToken;
 
-    logDiag(`Connecting to WebSocket: ${wsUrl}...`);
+    if (!deviceId || (!boardApiKey && !boardToken)) {
+      logDiag('No board credentials available for WebSocket connection', 'ERROR');
+      if (window.openSetupModal) window.openSetupModal();
+      return;
+    }
+
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    let wsUrl = null;
+
+    // S5.3: Authenticate with single-use WebSocket ticket (valid 30s)
+    if (boardApiKey) {
+      try {
+        logDiag('Requesting one-time WebSocket ticket...');
+        const ticketRes = await fetch('/api/timetable/boards/ws-ticket', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ deviceId, boardApiKey })
+        });
+        const ticketData = await ticketRes.json();
+        if (ticketRes.ok && ticketData.ticket) {
+          wsUrl = `${protocol}//${window.location.host}/ws/board?ticket=${encodeURIComponent(ticketData.ticket)}`;
+          logDiag('Obtained one-time WS ticket.');
+        } else {
+          logDiag(`Failed to obtain WS ticket: ${ticketData.error || 'Unauthorized'}`, 'WARN');
+        }
+      } catch (ticketErr) {
+        logDiag(`Ticket request error: ${ticketErr.message}`, 'WARN');
+      }
+    }
+
+    // Fallback: connect using boardToken if ticket wasn't obtained but boardToken is present
+    if (!wsUrl && boardToken) {
+      wsUrl = `${protocol}//${window.location.host}/ws/board?device=${encodeURIComponent(deviceId)}&token=${encodeURIComponent(boardToken)}`;
+    }
+
+    if (!wsUrl) {
+      logDiag('Authentication failed. Opening pairing modal...', 'ERROR');
+      setConnectionStatus('disconnected');
+      if (window.openSetupModal) window.openSetupModal();
+      return;
+    }
+
+    logDiag(`Connecting to WebSocket: ${wsUrl.replace(/ticket=[^&]+/, 'ticket=[REDACTED]')}...`);
     setConnectionStatus('connecting');
 
     try {
@@ -190,14 +239,18 @@
       return;
     }
 
-    ws.onopen = function () {
+ws.onopen = function () {
       logDiag('WebSocket connection established. Sending handshake/registration...');
       setConnectionStatus('connected');
-      
+
       // Start heartbeat loop (every 20s)
       sendHeartbeat();
       if (heartbeatTimer) clearInterval(heartbeatTimer);
       heartbeatTimer = setInterval(sendHeartbeat, 20000);
+
+      // Safety refresh: fetch context via REST every 60s in case WS push missed
+      if (contextRefreshTimer) clearInterval(contextRefreshTimer);
+      contextRefreshTimer = setInterval(fetchTimetableContext, 60000);
     };
 
     ws.onmessage = function (event) {
@@ -213,6 +266,7 @@
       logDiag(`WebSocket closed (code: ${event.code}, reason: ${event.reason || 'None'})`, 'WARN');
       setConnectionStatus('disconnected');
       if (heartbeatTimer) clearInterval(heartbeatTimer);
+      if (contextRefreshTimer) clearInterval(contextRefreshTimer);
       scheduleReconnect();
     };
 
@@ -335,6 +389,10 @@
       case 'ping':
         playAlertChime();
         logDiag('Ping command acknowledged from admin console', 'CMD');
+        // Respond with pong for latency measurement
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'pong', clientTime: Date.now(), serverTime: msg.payload?.dispatchedAt }));
+        }
         break;
 
       default:
@@ -345,9 +403,17 @@
   // ── HTTP Context Fetcher (Fallback / Direct Sync) ──
   async function fetchTimetableContext() {
     try {
-      const res = await fetch(`/api/timetable/boards/${encodeURIComponent(deviceId)}/context`);
+      const boardToken = sessionStorage.getItem('eams_board_token') ||
+                         localStorage.getItem('eams_board_token');
+      if (!boardToken) {
+        logDiag('No board token for context fetch', 'WARN');
+        return;
+      }
+      const res = await fetch(`/api/timetable/boards/${encodeURIComponent(deviceId)}/context`, {
+        headers: { 'Authorization': `Bearer ${boardToken}` }
+      });
       const data = await res.json();
-      if (data.success && data.context) {
+      if (data.ok && data.context) {
         renderContext(data.context);
       }
     } catch (err) {
@@ -355,43 +421,56 @@
     }
   }
 
-  // ── Context Renderer ──
+  // ── Context Renderer (Frozen Contract) ──
+  // Expected ctx shape:
+  // { state: 'pre_class'|'in_class'|'break'|'free'|'holiday'|'day_ended'|'unassigned',
+  //   room: {id, hallNo, name, buildingName, floor, capacity},
+  //   period: {periodNumber, label, start, end, time12, isBreak} | null,
+  //   slot: {classId, className, subjectId, subjectName, teacherTrackId, teacherName, isSubstitute, originalTeacherName} | null,
+  //   next: {period, time12, subject, teacher, section, type} | null,
+  //   session: null,
+  //   serverTime }
   function renderContext(ctx) {
     activeContext = ctx;
     if (!ctx) return;
 
+    const state = ctx.state || ctx.scheduleStatus || 'free';
+
     // Room info
     if (ctx.room) {
-      if (el.roomName) el.roomName.textContent = `${ctx.room.name || 'Room'} · ${ctx.room.roomNumber || ''}`;
-      if (el.buildingName) el.buildingName.textContent = ctx.room.buildingName ? `${ctx.room.buildingName} (Floor ${ctx.room.floor ?? 1})` : 'Campus Building';
+      if (el.roomName) el.roomName.textContent = `${ctx.room.name || ctx.room.hallNo || 'Room'} · ${ctx.room.hallNo || ''}`;
+      if (el.buildingName) el.buildingName.textContent = ctx.room.buildingName ? `${ctx.room.buildingName} (Floor ${ctx.room.floor ?? 0})` : 'Campus Building';
     }
 
-    const state = ctx.state || 'free';
-    el.heroCard.classList.remove('state-break', 'state-free', 'state-ended');
+    // Reset state classes
+    el.heroCard.classList.remove('state-break', 'state-free', 'state-ended', 'state-pre_class');
 
-    if (state === 'class' && ctx.currentPeriod) {
-      const p = ctx.currentPeriod;
-      el.periodBadge.textContent = p.periodName || 'Active Period';
-      el.periodTiming.textContent = `${p.startTime || ''} - ${p.endTime || ''}`;
-      el.classTag.textContent = `${ctx.department || ''} ${ctx.section ? '· Sec ' + ctx.section : ''} (Sem ${ctx.semester || '-'})`;
-      
-      el.subjectKicker.textContent = `Academic Session · ${ctx.day || ''}`;
-      el.subjectTitle.textContent = p.subject?.name || p.subjectName || 'Academic Subject';
-      el.subjectType.textContent = `${p.subject?.code ? p.subject.code + ' · ' : ''}${p.subject?.type || 'Lecture Course'}`;
+    // Current period info from contract
+    const period = ctx.period || ctx.currentPeriod;
+    const slot = ctx.slot || ctx.currentSlot;
+    const next = ctx.next || ctx.nextSlot;
+
+    if (state === 'in_class' && period && slot) {
+      el.periodBadge.textContent = period.label || `Period ${period.periodNumber}`;
+      el.periodTiming.textContent = period.time12 || `${period.start} – ${period.end}`;
+      el.classTag.textContent = slot.className || slot.section || '';
+
+      el.subjectKicker.textContent = `Academic Session · ${ctx.today || ''}`;
+      el.subjectTitle.textContent = slot.subjectName || slot.subject || 'Academic Subject';
+      el.subjectType.textContent = slot.type || 'Theory';
 
       // Faculty details
       if (el.facultyRow) el.facultyRow.style.display = 'flex';
-      const faculty = p.faculty || {};
-      const fName = faculty.name || p.facultyName || 'Faculty Instructor';
+      const fName = slot.teacherName || slot.teacher || 'Faculty Instructor';
       el.facultyName.textContent = fName;
-      el.facultyTitle.textContent = faculty.department ? `Dept. of ${faculty.department}` : 'Class Instructor';
-      
+      el.facultyTitle.textContent = 'Class Instructor';
+
       // Initials avatar
       const initials = fName.split(' ').map(n => n[0]).filter(Boolean).slice(0, 2).join('').toUpperCase();
       el.facultyAvatar.textContent = initials || 'FAC';
 
       // Check substitution
-      if (p.isSubstitution || ctx.substitution) {
+      if (slot.isSubstitute || slot.originalTeacherName) {
         el.substituteBadge.style.display = 'flex';
       } else {
         el.substituteBadge.style.display = 'none';
@@ -399,10 +478,10 @@
 
       el.attStatusHeadline.textContent = 'Awaiting Teacher Verification';
       el.attStatusSub.textContent = 'Faculty will initiate attendance verification from the Faculty Portal. The live QR & PIN token will appear here.';
-    } else if (state === 'break') {
+    } else if (state === 'break' && period) {
       el.heroCard.classList.add('state-break');
-      el.periodBadge.textContent = ctx.breakName || 'Recess / Interval';
-      el.periodTiming.textContent = ctx.breakTiming || 'Break Period';
+      el.periodBadge.textContent = period.label || 'Break';
+      el.periodTiming.textContent = period.time12 || `${period.start} – ${period.end}`;
       el.classTag.textContent = 'Intermission';
       el.subjectKicker.textContent = 'Classroom Idle';
       el.subjectTitle.textContent = 'Academic Recess / Lunch';
@@ -410,7 +489,7 @@
       if (el.facultyRow) el.facultyRow.style.display = 'none';
       el.attStatusHeadline.textContent = 'Classroom in Recess';
       el.attStatusSub.textContent = 'Attendance verification is suspended during break intervals.';
-    } else if (state === 'ended') {
+    } else if (state === 'day_ended') {
       el.heroCard.classList.add('state-ended');
       el.periodBadge.textContent = 'Day Concluded';
       el.periodTiming.textContent = 'After Hours';
@@ -421,11 +500,33 @@
       if (el.facultyRow) el.facultyRow.style.display = 'none';
       el.attStatusHeadline.textContent = 'Standby Mode';
       el.attStatusSub.textContent = 'All academic periods for today have finished.';
-    } else {
-      // Free slot / no timetable
+    } else if (state === 'pre_class') {
+      el.heroCard.classList.add('state-pre_class');
+      el.periodBadge.textContent = period ? (period.label || `Period ${period.periodNumber}`) : 'Upcoming';
+      el.periodTiming.textContent = period ? (period.time12 || `${period.start} – ${period.end}`) : 'Before First Period';
+      el.classTag.textContent = 'Preparing';
+      el.subjectKicker.textContent = 'Classroom Ready';
+      el.subjectTitle.textContent = 'Waiting for First Period';
+      el.subjectType.textContent = 'No Class in Session';
+      if (el.facultyRow) el.facultyRow.style.display = 'none';
+      el.attStatusHeadline.textContent = 'Pre-Class';
+      el.attStatusSub.textContent = 'The first period has not started yet.';
+    } else if (state === 'holiday') {
       el.heroCard.classList.add('state-free');
-      el.periodBadge.textContent = 'Free Slot';
-      el.periodTiming.textContent = ctx.currentTiming || 'Available';
+      el.periodBadge.textContent = 'Holiday';
+      el.periodTiming.textContent = 'No Classes Today';
+      el.classTag.textContent = 'Closed';
+      el.subjectKicker.textContent = 'Institutional Holiday';
+      el.subjectTitle.textContent = 'Academic Activities Suspended';
+      el.subjectType.textContent = 'Holiday Schedule';
+      if (el.facultyRow) el.facultyRow.style.display = 'none';
+      el.attStatusHeadline.textContent = 'Holiday';
+      el.attStatusSub.textContent = 'No classes scheduled for today.';
+    } else {
+      // 'free' or 'unassigned'
+      el.heroCard.classList.add('state-free');
+      el.periodBadge.textContent = period ? (period.label || 'Free Slot') : 'Free Slot';
+      el.periodTiming.textContent = period ? (period.time12 || `${period.start} – ${period.end}`) : 'Available';
       el.classTag.textContent = 'Room Open';
       el.subjectKicker.textContent = 'Timetable Status';
       el.subjectTitle.textContent = 'No Scheduled Class';
@@ -435,15 +536,14 @@
       el.attStatusSub.textContent = 'No active attendance requirement for this period slot.';
     }
 
-    // Upcoming period
-    if (ctx.nextPeriod) {
-      const np = ctx.nextPeriod;
-      el.nextPeriodLabel.textContent = `${np.periodName || 'Next'} · ${np.startTime || ''} - ${np.endTime || ''}`;
-      el.nextSubjectTitle.textContent = np.subject?.name || np.subjectName || 'Upcoming Subject';
-      el.nextFacultyName.textContent = np.faculty?.name || np.facultyName || 'Scheduled Faculty';
+    // Upcoming period (next)
+    if (next) {
+      el.nextPeriodLabel.textContent = `Period ${next.period} · ${next.time12 || ''}`;
+      el.nextSubjectTitle.textContent = next.subject || 'Upcoming Subject';
+      el.nextFacultyName.textContent = next.teacher || 'Scheduled Faculty';
     } else {
-      el.nextPeriodLabel.textContent = 'Following Slot';
-      el.nextSubjectTitle.textContent = state === 'ended' ? 'First Period Tomorrow' : 'No Subsequent Class Scheduled';
+      el.nextPeriodLabel.textContent = state === 'day_ended' ? 'First Period Tomorrow' : 'Following Slot';
+      el.nextSubjectTitle.textContent = state === 'day_ended' ? 'First Period Tomorrow' : 'No Subsequent Class Scheduled';
       el.nextFacultyName.textContent = '--';
     }
   }
@@ -486,8 +586,8 @@
     const errBox = document.getElementById('setupErr');
     if (!modal) return;
     if (errBox) errBox.style.display = 'none';
-    if (inpId) inpId.value = deviceId || '';
-    if (inpKey) inpKey.value = apiKey || '';
+    if (inpId) inpId.value = deviceId || localStorage.getItem('eams_board_deviceId') || '';
+    if (inpKey) inpKey.value = '';
     modal.classList.add('open');
   };
 
@@ -529,19 +629,33 @@
         throw new Error(data.error || 'Invalid credentials. Device not recognized.');
       }
 
-      // Success: Save and reload with new params
+      // Success: Save device ID, key, and board token locally (Fix F15: never in URL)
       localStorage.setItem('eams_board_deviceId', inpId);
-      localStorage.setItem('eams_board_key', inpKey);
+      localStorage.removeItem('eams_board_key'); // Scrub plain text key; use device token instead
       if (data.token) {
-        localStorage.setItem('eams_token', data.token);
-        sessionStorage.setItem('eams_token', data.token);
+        localStorage.setItem('eams_board_token', data.token);
+        sessionStorage.setItem('eams_board_token', data.token);
       }
 
-      window.location.search = `?device=${encodeURIComponent(inpId)}&key=${encodeURIComponent(inpKey)}`;
+      deviceId = inpId;
+      boardApiKey = inpKey;
+      if (data.token) boardToken = data.token;
+
+      // Scrub URL query parameters
+      try {
+        window.history.replaceState({}, document.title, window.location.pathname);
+      } catch (e) { /* ignore */ }
+
+      if (el.deviceTag) el.deviceTag.textContent = `DEV: ${deviceId}`;
+      if (el.diagDeviceId) el.diagDeviceId.textContent = deviceId;
+
+      window.closeSetupModal();
+      logDiag(`Board paired successfully as ${deviceId}. Connecting...`);
+      connectWebSocket();
     } catch (err) {
       if (errBox) { errBox.textContent = err.message; errBox.style.display = 'block'; }
     } finally {
-      if (btn) { btn.disabled = false; btn.innerHTML = '<span>⚡ Connect &amp; Initialize Classroom Display</span>'; }
+      if (btn) { btn.disabled = false; btn.innerHTML = '<span><re-icon icon="bolt"></re-icon> Connect &amp; Initialize Classroom Display</span>'; }
     }
   };
 
@@ -651,7 +765,7 @@
   logDiag(`EAMS Smart Board initialized for device: ${deviceId}`);
 
   // If unprovisioned device, open setup modal automatically
-  if (!params.get('device') && !localStorage.getItem('eams_board_deviceId')) {
+  if (!deviceId || (!boardApiKey && !boardToken)) {
     setTimeout(window.openSetupModal, 600);
   }
 

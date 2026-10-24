@@ -1,3 +1,5 @@
+'use strict';
+
 /**
  * EAMS Smart Board WebSocket & Infrastructure Service (Plan 2: Board Integration)
  * - Mounts /ws/board for classroom Smart Board kiosks & ESP32 devices
@@ -14,30 +16,60 @@ const jwt = require('jsonwebtoken');
 const cfg = require('../config');
 const M = require('../models');
 const { logAction } = require('../utils/logAction');
+const { resolveRoomCurrentContext } = require('../utils/timetableResolver');
 
 // Active socket collections
 const activeBoardSockets = new Map(); // deviceId -> { ws, boardId, deviceId, roomId, ip, connectedAt, lastHeartbeat, telemetry }
 const activeMonitors = new Set();      // Set<WebSocket>
 
+// Rate limiting & connection capping maps
+const ipConnections = new Map();       // ip -> count
+const MAX_CONCURRENT_PER_IP = 10;
+const deviceAttempts = new Map();      // deviceId -> [timestamps]
+const MAX_DEVICE_ATTEMPTS_PER_MIN = 20;
+
+function checkDeviceRateLimit(deviceId) {
+  if (!deviceId) return true;
+  const now = Date.now();
+  const windowStart = now - 60000;
+  let timestamps = deviceAttempts.get(deviceId) || [];
+  timestamps = timestamps.filter(t => t > windowStart);
+  if (timestamps.length >= MAX_DEVICE_ATTEMPTS_PER_MIN) {
+    deviceAttempts.set(deviceId, timestamps);
+    return false;
+  }
+  timestamps.push(now);
+  deviceAttempts.set(deviceId, timestamps);
+  return true;
+}
+
+// In-memory single-use tickets for WebSocket connection (30s lifetime)
+const boardWsTickets = new Map(); // ticketString -> { deviceId, boardId, expiresAt }
+
+function issueWsTicket(deviceId, boardId) {
+  const ticket = crypto.randomBytes(24).toString('hex');
+  boardWsTickets.set(ticket, {
+    deviceId: String(deviceId).toUpperCase(),
+    boardId: String(boardId),
+    expiresAt: Date.now() + 30000 // 30 seconds
+  });
+  return { ticket, expiresIn: 30 };
+}
+
+function consumeWsTicket(ticket) {
+  if (!ticket || typeof ticket !== 'string') return null;
+  const record = boardWsTickets.get(ticket);
+  if (!record) return null;
+  boardWsTickets.delete(ticket); // Single use!
+  if (Date.now() > record.expiresAt) {
+    return null; // Expired
+  }
+  return record;
+}
+
 let wssBoard = null;
 let wssMonitor = null;
 let staleSweeperInterval = null;
-
-// Standard Bell Timings (fallback if TimingSet not configured)
-const DEFAULT_BELL_PERIODS = [
-  { periodNumber: 1, start: '08:30', end: '09:15', label: 'Period 1', isBreak: false },
-  { periodNumber: 2, start: '09:15', end: '10:00', label: 'Period 2', isBreak: false },
-  { periodNumber: 0, start: '10:00', end: '10:15', label: 'Morning Break', isBreak: true, breakType: 'Interval' },
-  { periodNumber: 3, start: '10:15', end: '11:00', label: 'Period 3', isBreak: false },
-  { periodNumber: 4, start: '11:00', end: '11:45', label: 'Period 4', isBreak: false },
-  { periodNumber: 5, start: '11:45', end: '12:30', label: 'Period 5', isBreak: false },
-  { periodNumber: 6, start: '12:30', end: '13:15', label: 'Period 6', isBreak: false },
-  { periodNumber: 0, start: '13:15', end: '14:00', label: 'Lunch Break', isBreak: true, breakType: 'Lunch' },
-  { periodNumber: 7, start: '14:00', end: '14:45', label: 'Period 7', isBreak: false },
-  { periodNumber: 8, start: '14:45', end: '15:30', label: 'Period 8', isBreak: false },
-  { periodNumber: 0, start: '15:30', end: '15:45', label: 'Tea Break', isBreak: true, breakType: 'Tea' },
-  { periodNumber: 9, start: '15:45', end: '16:30', label: 'Period 9', isBreak: false }
-];
 
 /**
  * Clean & normalize IP address from HTTP request / WebSocket
@@ -57,20 +89,6 @@ function cleanIp(req) {
 function detectIpType(ip) {
   if (!ip) return 'IPv4';
   return ip.includes(':') ? 'IPv6' : 'IPv4';
-}
-
-/**
- * Format 24-hour time to 12-hour AM/PM string
- */
-function to12h(timeStr) {
-  if (!timeStr) return '';
-  const parts = String(timeStr).split(':');
-  let h = parseInt(parts[0], 10);
-  if (isNaN(h)) return timeStr;
-  const m = (parts[1] || '00').slice(0, 2);
-  const ampm = h >= 12 ? 'PM' : 'AM';
-  h = h % 12 || 12;
-  return `${h}:${m} ${ampm}`;
 }
 
 /**
@@ -103,203 +121,8 @@ function generateBoardApiKey() {
  * Resolve active timetable slot, room metadata, and bell status for a room
  */
 async function resolveRoomTimetableContext(roomId, customTime = null) {
-  if (!roomId) return null;
-  const room = await M.Room.findById(roomId).populate('buildingId').lean();
-  if (!room) return null;
-
-  const now = customTime ? new Date(customTime) : new Date();
-  const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-  const todayDay = dayNames[now.getDay()];
-
-  const hours = String(now.getHours()).padStart(2, '0');
-  const minutes = String(now.getMinutes()).padStart(2, '0');
-  const currentTime24 = `${hours}:${minutes}`;
-
-  // Get Bell Timings
-  let timingPeriods = DEFAULT_BELL_PERIODS;
-  try {
-    const timingSet = await M.TimingSet.findOne({ isDefault: true }).lean();
-    if (timingSet && Array.isArray(timingSet.periods) && timingSet.periods.length) {
-      timingPeriods = timingSet.periods;
-    }
-  } catch (err) {
-    // fallback
-  }
-
-  // Determine current period slot
-  let currentPeriod = null;
-  let nextPeriod = null;
-  let scheduleStatus = 'free'; // 'in_class' | 'break' | 'free' | 'pre_class' | 'day_ended'
-
-  const firstSlot = timingPeriods.find(p => !p.isBreak && p.start);
-  const lastSlot = [...timingPeriods].reverse().find(p => !p.isBreak && p.end);
-
-  if (firstSlot && currentTime24 < firstSlot.start) {
-    scheduleStatus = 'pre_class';
-    nextPeriod = firstSlot;
-  } else if (lastSlot && currentTime24 > lastSlot.end) {
-    scheduleStatus = 'day_ended';
-  } else {
-    for (let i = 0; i < timingPeriods.length; i++) {
-      const p = timingPeriods[i];
-      if (currentTime24 >= p.start && currentTime24 <= p.end) {
-        currentPeriod = p;
-        if (p.isBreak) {
-          scheduleStatus = 'break';
-        } else {
-          scheduleStatus = 'in_class';
-        }
-        // Find next non-break period
-        for (let j = i + 1; j < timingPeriods.length; j++) {
-          if (!timingPeriods[j].isBreak) {
-            nextPeriod = timingPeriods[j];
-            break;
-          }
-        }
-        break;
-      }
-    }
-  }
-
-  // Resolve scheduled slot in published timetable
-  let currentSlot = null;
-  let nextSlot = null;
-
-  if (currentPeriod && !currentPeriod.isBreak) {
-    const periodNum = currentPeriod.periodNumber || currentPeriod.number;
-    try {
-      const template = await M.SemesterTemplate.findOne({
-        status: 'published',
-        'grid.day': todayDay,
-        'grid.period': periodNum,
-        $or: [
-          { 'grid.roomId': room._id },
-          { 'grid.room': room.hallNo }
-        ]
-      }).populate('classId').lean();
-
-      if (template) {
-        const slot = template.grid.find(g =>
-          g.day === todayDay &&
-          g.period === periodNum &&
-          (String(g.roomId) === String(room._id) || g.room === room.hallNo)
-        );
-
-        if (slot) {
-          currentSlot = {
-            period: periodNum,
-            time12: `${to12h(currentPeriod.start)} – ${to12h(currentPeriod.end)}`,
-            subject: slot.subject,
-            teacher: slot.teacher,
-            section: slot.section || (template.classId?.name) || '',
-            type: slot.type || 'Theory',
-            isSubstitute: false,
-            originalTeacher: null
-          };
-
-          // Check for active override (substitute, cancellation)
-          const startOfDay = new Date(now);
-          startOfDay.setHours(0, 0, 0, 0);
-          const endOfDay = new Date(now);
-          endOfDay.setHours(23, 59, 59, 999);
-
-          const override = await M.Override.findOne({
-            date: { $gte: startOfDay, $lte: endOfDay },
-            period: periodNum,
-            $or: [
-              { 'newSlot.roomId': room._id },
-              { 'originalSlot.roomId': room._id },
-              { 'newSlot.room': room.hallNo },
-              { 'originalSlot.room': room.hallNo }
-            ]
-          }).lean();
-
-          if (override) {
-            if (override.type === 'cancelled') {
-              currentSlot = null;
-              scheduleStatus = 'free';
-            } else if (override.type === 'substitute' && override.newSlot) {
-              currentSlot.isSubstitute = true;
-              currentSlot.originalTeacher = currentSlot.teacher;
-              currentSlot.teacher = override.newSlot.teacher || override.newSlot.substituteTeacher || currentSlot.teacher;
-            }
-          }
-        }
-      }
-    } catch (err) {
-      console.error('Error resolving active timetable slot:', err);
-    }
-  }
-
-  // Resolve next slot
-  if (nextPeriod) {
-    const nextPeriodNum = nextPeriod.periodNumber || nextPeriod.number;
-    try {
-      const nextTemplate = await M.SemesterTemplate.findOne({
-        status: 'published',
-        'grid.day': todayDay,
-        'grid.period': nextPeriodNum,
-        $or: [
-          { 'grid.roomId': room._id },
-          { 'grid.room': room.hallNo }
-        ]
-      }).populate('classId').lean();
-
-      if (nextTemplate) {
-        const slot = nextTemplate.grid.find(g =>
-          g.day === todayDay &&
-          g.period === nextPeriodNum &&
-          (String(g.roomId) === String(room._id) || g.room === room.hallNo)
-        );
-        if (slot) {
-          nextSlot = {
-            period: nextPeriodNum,
-            time12: `${to12h(nextPeriod.start)} – ${to12h(nextPeriod.end)}`,
-            subject: slot.subject,
-            teacher: slot.teacher,
-            section: slot.section || (nextTemplate.classId?.name) || '',
-            type: slot.type || 'Theory'
-          };
-        }
-      }
-    } catch (err) {
-      // ignore
-    }
-  }
-
-  return {
-    room: {
-      id: room._id,
-      hallNo: room.hallNo,
-      name: room.name,
-      type: room.type,
-      capacity: room.capacity,
-      floor: room.floor,
-      buildingName: room.buildingName || room.buildingId?.name || '',
-      buildingCode: room.buildingId?.code || '',
-      campus: room.buildingId?.campus || 'Main',
-      coordinates: {
-        latitude: room.latitude,
-        longitude: room.longitude,
-        geofenceRadius: room.geofenceRadius || 50
-      }
-    },
-    today: todayDay,
-    currentTime: currentTime24,
-    currentTime12: to12h(currentTime24),
-    scheduleStatus: currentSlot ? 'in_class' : scheduleStatus,
-    currentPeriod: currentPeriod ? {
-      periodNumber: currentPeriod.periodNumber || currentPeriod.number,
-      label: currentPeriod.label,
-      start: currentPeriod.start,
-      end: currentPeriod.end,
-      time12: `${to12h(currentPeriod.start)} – ${to12h(currentPeriod.end)}`,
-      isBreak: currentPeriod.isBreak || false
-    } : null,
-    currentSlot,
-    nextSlot,
-    resolvedAt: now.toISOString()
-  };
+  // Use the new shared resolver (handles calendar holidays, overrides, week instances, published templates)
+  return resolveRoomCurrentContext(roomId, customTime);
 }
 
 /**
@@ -312,51 +135,166 @@ async function handleBoardConnection(ws, req) {
   const ipType = detectIpType(ip);
   const userAgent = req.headers['user-agent'] || 'EAMS-SmartBoard-Client';
 
-  let authenticatedBoard = null;
-  let deviceId = query.device || query.deviceId || '';
-  const token = query.token || '';
-  const apiKey = query.apiKey || query.key || '';
+  // Fix F15: Reject raw board API keys passed in URL query parameters
+  if (query.apiKey || query.key) {
+    ws.send(JSON.stringify({
+      type: 'error',
+      code: 'INSECURE_AUTH_METHOD',
+      message: 'Passing board API keys in URLs is prohibited. Use one-time WebSocket ticket auth.'
+    }));
+    try {
+      await logAction(
+        'SYSTEM', 'Smart Board Gateway', 'system',
+        'Board Connection Rejected - Insecure Key In URL',
+        `Rejected connection from IP ${ip} because board API key was passed in URL query parameters`,
+        'security', 'warn', ip, 'WS_BOARD',
+        { ip, userAgent }
+      );
+    } catch (e) { /* ignore */ }
+    ws.close(4003, 'API key in URL prohibited');
+    return;
+  }
 
-  // 1. Try JWT verification if token provided
+  const ticket = (query.ticket || '').trim();
+  let ticketRecord = null;
+  if (ticket) {
+    ticketRecord = consumeWsTicket(ticket);
+    if (!ticketRecord) {
+      ws.send(JSON.stringify({
+        type: 'error',
+        code: 'INVALID_OR_EXPIRED_TICKET',
+        message: 'WebSocket authentication ticket is invalid or expired.'
+      }));
+      try {
+        await logAction(
+          'SYSTEM', 'Smart Board Gateway', 'system',
+          'Board Connection Rejected - Invalid Ticket',
+          `Rejected connection from IP ${ip} (invalid or expired ticket)`,
+          'security', 'warn', ip, 'WS_BOARD',
+          { ip, userAgent }
+        );
+      } catch (e) { /* ignore */ }
+      ws.close(4001, 'Invalid or expired ticket');
+      return;
+    }
+  }
+
+  let authenticatedBoard = null;
+  const rawDeviceId = (ticketRecord ? ticketRecord.deviceId : (query.device || query.deviceId || '')).trim().toUpperCase();
+  const token = (query.token || '').trim();
+
+  // 1. Require deviceId parameter
+  if (!rawDeviceId) {
+    ws.send(JSON.stringify({
+      type: 'error',
+      code: 'DEVICE_ID_REQUIRED',
+      message: 'Device ID is required for board connection.'
+    }));
+    try {
+      await logAction(
+        'SYSTEM', 'Smart Board Gateway', 'system',
+        'Board Connection Rejected - Missing Device ID',
+        `Rejected connection from IP ${ip} (no deviceId provided)`,
+        'security', 'warn', ip, 'WS_BOARD',
+        { ip, userAgent }
+      );
+    } catch (e) { /* ignore */ }
+    ws.close(4003, 'Device ID required');
+    return;
+  }
+
+  // Rate-limit device connection attempts
+  if (!checkDeviceRateLimit(rawDeviceId)) {
+    ws.send(JSON.stringify({
+      type: 'error',
+      code: 'RATE_LIMIT_EXCEEDED',
+      message: 'Too many connection attempts for this device. Please wait.'
+    }));
+    ws.close(4029, 'Rate limit exceeded');
+    return;
+  }
+
+  // 2. Try JWT verification if token provided (board token flow)
+  let tokenValid = false;
   if (token) {
     try {
-      const decoded = jwt.verify(token, cfg.JWT_SECRET);
-      if (decoded && decoded.deviceId) {
-        deviceId = decoded.deviceId;
+      const decoded = jwt.verify(token, cfg.BOARD_JWT_SECRET);
+      if (decoded && decoded.deviceId === rawDeviceId && decoded.aud === 'board') {
+        tokenValid = true;
       }
     } catch (err) {
       // token expired or invalid
     }
   }
 
-  // 2. Lookup board in DB by deviceId or apiKey
-  if (deviceId) {
-    authenticatedBoard = await M.SmartBoard.findOne({ deviceId });
-  } else if (apiKey) {
-    authenticatedBoard = await M.SmartBoard.findOne({ boardApiKey: apiKey });
-  }
+  // 3. Lookup board in DB by deviceId
+  authenticatedBoard = await M.SmartBoard.findOne({ deviceId: rawDeviceId });
 
-  // 3. Security Guard: Reject unregistered or unauthorized boards
+  // 4. Reject unregistered or unauthorized boards
   if (!authenticatedBoard) {
     ws.send(JSON.stringify({
       type: 'error',
-      code: 'UNAUTHORIZED_DEVICE',
-      message: 'Unregistered or unauthorized smart board device identity.'
+      code: 'UNREGISTERED_DEVICE',
+      message: 'Unregistered smart board device.'
     }));
     try {
       await logAction(
         'SYSTEM', 'Smart Board Gateway', 'system',
         'Unauthorized Board Connection Attempt',
-        `Rejected connection from IP ${ip} (Device ID: "${deviceId || 'unknown'}")`,
+        `Rejected connection from IP ${ip} (Device ID: "${rawDeviceId}")`,
         'security', 'warn', ip, 'WS_BOARD',
-        { deviceId, ip, userAgent }
+        { deviceId: rawDeviceId, ip, userAgent }
       );
     } catch (e) { /* ignore */ }
-    ws.close(4001, 'Unauthorized device');
+    ws.close(4003, 'Unregistered device');
     return;
   }
 
-  deviceId = authenticatedBoard.deviceId;
+  // 5. Check board status
+  if (authenticatedBoard.status !== 'Active') {
+    ws.send(JSON.stringify({
+      type: 'error',
+      code: 'BOARD_INACTIVE',
+      message: `Smart board is currently ${authenticatedBoard.status}. Contact administrator.`
+    }));
+    try {
+      await logAction(
+        'SYSTEM', 'Smart Board Gateway', 'system',
+        'Board Connection Rejected - Inactive Status',
+        `Board "${authenticatedBoard.boardName}" (${rawDeviceId}) rejected: status ${authenticatedBoard.status}`,
+        'security', 'warn', ip, 'WS_BOARD',
+        { deviceId: rawDeviceId, status: authenticatedBoard.status, ip }
+      );
+    } catch (e) { /* ignore */ }
+    ws.close(4003, `Board status: ${authenticatedBoard.status}`);
+    return;
+  }
+
+  // 6. Require valid authentication: either ticketRecord OR valid board token
+  if (!ticketRecord && !tokenValid) {
+    ws.send(JSON.stringify({
+      type: 'error',
+      code: 'INVALID_CREDENTIALS',
+      message: 'Authentication required via one-time ticket or valid board token.'
+    }));
+    try {
+      await logAction(
+        'SYSTEM', 'Smart Board Gateway', 'system',
+        'Board Connection Rejected - Invalid Credentials',
+        `Board "${authenticatedBoard.boardName}" (${rawDeviceId}) rejected: unauthenticated`,
+        'security', 'warn', ip, 'WS_BOARD',
+        { deviceId: rawDeviceId, ip }
+      );
+    } catch (e) { /* ignore */ }
+    ws.close(4001, 'Authentication required');
+    return;
+  }
+
+  const deviceId = authenticatedBoard?.deviceId;
+  if (!deviceId) {
+    ws.close(4001, 'Board deviceId is missing');
+    return;
+  }
 
   // Check if board already has an active socket; disconnect previous if replacing
   if (activeBoardSockets.has(deviceId)) {
@@ -532,7 +470,26 @@ async function handleBoardConnection(ws, req) {
 /**
  * Handle incoming connection from an Admin Monitor dashboard
  */
-function handleMonitorConnection(ws, req) {
+async function handleMonitorConnection(ws, req) {
+  const parsedUrl = url.parse(req.url, true);
+  const ticket = parsedUrl.query.ticket;
+
+  if (!ticket) {
+    ws.close(4001, 'Monitor ticket required');
+    return;
+  }
+
+  try {
+    const decoded = jwt.verify(ticket, cfg.JWT_SECRET);
+    if (decoded.type !== 'monitor') {
+      ws.close(4001, 'Invalid ticket type');
+      return;
+    }
+  } catch (err) {
+    ws.close(4001, 'Invalid or expired monitor ticket');
+    return;
+  }
+
   const ip = cleanIp(req);
   activeMonitors.add(ws);
 
@@ -577,6 +534,11 @@ function startStaleSweeper() {
     const now = Date.now();
     const timeoutMs = 45000; // 45s without heartbeat = disconnected
 
+    // Clean expired WebSocket tickets (30s lifetime)
+    for (const [t, data] of boardWsTickets.entries()) {
+      if (now > data.expiresAt) boardWsTickets.delete(t);
+    }
+
     for (const [deviceId, session] of activeBoardSockets.entries()) {
       if (now - session.lastHeartbeat > timeoutMs) {
         console.log(`Smart board ${deviceId} heartbeat timed out (>45s). Marking Disconnected.`);
@@ -604,6 +566,7 @@ function startStaleSweeper() {
 
 /**
  * Dispatch remote command to a connected board
+ * For 'ping' command, waits for pong response up to 5s to measure latency
  */
 async function sendCommandToBoard(deviceId, command, payload = {}) {
   const session = activeBoardSockets.get(deviceId);
@@ -611,16 +574,50 @@ async function sendCommandToBoard(deviceId, command, payload = {}) {
     return { success: false, reason: 'Board is currently offline or unreachable.' };
   }
 
+  // For ping command, wait for pong response
+  if (command === 'ping') {
+    return new Promise((resolve) => {
+      const timeout = setTimeout(() => {
+        session.ws.removeListener('message', pongHandler);
+        resolve({ success: false, reason: 'Board did not respond to ping within 5 seconds.', latencyMs: null });
+      }, 5000);
+
+      const startTime = Date.now();
+
+      function pongHandler(data) {
+        try {
+          const msg = JSON.parse(data.toString());
+          if (msg.type === 'pong') {
+            clearTimeout(timeout);
+            session.ws.removeListener('message', pongHandler);
+            const latencyMs = Date.now() - startTime;
+            resolve({ success: true, command: 'ping', deviceId, latencyMs });
+          }
+        } catch (e) { /* ignore */ }
+      }
+
+      session.ws.on('message', pongHandler);
+
+      const message = JSON.stringify({
+        type: 'command',
+        command,
+        payload,
+        dispatchedAt: new Date().toISOString()
+      });
+      session.ws.send(message);
+    });
+  }
+
+  // For other commands, send and return immediately
   const message = JSON.stringify({
     type: 'command',
-    command, // 'reload' | 'identify' | 'resync' | 'ping'
+    command,
     payload,
     dispatchedAt: new Date().toISOString()
   });
 
   session.ws.send(message);
 
-  // Broadcast command event to monitoring channel
   broadcastToMonitors('board:command_dispatched', {
     deviceId,
     command,
@@ -650,12 +647,33 @@ async function pushContextToRoomBoards(roomId) {
  * Initialize WebSocket service attaching to Node HTTP Server
  */
 function initBoardSocket(httpServer) {
-  wssBoard = new WebSocketServer({ noServer: true });
-  wssMonitor = new WebSocketServer({ noServer: true });
+  const MAX_PAYLOAD_BYTES = 64 * 1024; // 64 KiB ceiling to prevent memory exhaustion DoS
+  wssBoard = new WebSocketServer({ noServer: true, maxPayload: MAX_PAYLOAD_BYTES });
+  wssMonitor = new WebSocketServer({ noServer: true, maxPayload: MAX_PAYLOAD_BYTES });
 
   // Route incoming HTTP Upgrade requests based on URL pathname
   httpServer.on('upgrade', (req, socket, head) => {
     const pathname = url.parse(req.url).pathname;
+
+    if (pathname !== '/ws/board' && pathname !== '/ws/monitor') {
+      return;
+    }
+
+    // Enforce IP-level connection ceiling to prevent socket exhaustion DoS
+    const clientIp = cleanIp(req);
+    const activeIpCount = ipConnections.get(clientIp) || 0;
+    if (activeIpCount >= MAX_CONCURRENT_PER_IP) {
+      socket.write('HTTP/1.1 429 Too Many Requests\r\nConnection: close\r\n\r\n');
+      socket.destroy();
+      return;
+    }
+
+    ipConnections.set(clientIp, activeIpCount + 1);
+    socket.on('close', () => {
+      const cur = ipConnections.get(clientIp) || 1;
+      if (cur <= 1) ipConnections.delete(clientIp);
+      else ipConnections.set(clientIp, cur - 1);
+    });
 
     if (pathname === '/ws/board') {
       wssBoard.handleUpgrade(req, socket, head, (ws) => {
@@ -672,12 +690,14 @@ function initBoardSocket(httpServer) {
   wssMonitor.on('connection', (ws, req) => handleMonitorConnection(ws, req));
 
   startStaleSweeper();
-  console.log('   ✓ WebSocket Engine: /ws/board and /ws/monitor active');
+  console.log('   ✓ WebSocket Engine: /ws/board and /ws/monitor active (maxPayload: 64 KiB)');
 }
 
 module.exports = {
   initBoardSocket,
   generateBoardApiKey,
+  issueWsTicket,
+  consumeWsTicket,
   resolveRoomTimetableContext,
   sendCommandToBoard,
   pushContextToRoomBoards,

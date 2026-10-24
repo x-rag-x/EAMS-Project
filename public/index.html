@@ -18,97 +18,216 @@
       <img src="assets/logo.png" alt="Logo" height=60 class="center-img">
       <span class="lb" id="login-inst-name">EAMS</span>
     </div>
-    <div class="lh" id="login-heading">EAMS Login</div>
+    <div class="lh" id="login-heading">Sign In</div>
 
-    <!-- ROLE SELECTOR — tabs hidden dynamically if blocked by maintenance -->
-    <div class="rtabs" style="gap:6px;flex-wrap:wrap;" id="rtabs-wrap">
-      <div class="rtab" id="tab-student" onclick="pickRole('student')" style="padding:7px 14px;">
-        Student
-      </div>
-      <div class="rtab" id="tab-teacher" onclick="pickRole('teacher')" style="padding:7px 14px;">
-        Teacher
-      </div>
-      <div class="rtab sel" id="tab-admin" onclick="pickRole('admin')" style="padding:7px 14px;">
-        Admin
-      </div>
-    </div>
-
-    <!-- ADMIN SUB-MODE SELECTOR (Nested under Admin role) -->
-    <div id="admin-sub-toggle" class="admin-sub-wrap">
-      <button type="button" class="admin-sub-btn sel" id="sub-mode-admin" onclick="switchAdminLoginMode('admin')">
-        <span>👤</span> Administrator
-      </button>
-      <button type="button" class="admin-sub-btn" id="sub-mode-board" onclick="switchAdminLoginMode('board')">
-        <span>📺</span> Smart Board Kiosk
-      </button>
-    </div>
-
-    <!-- Shown when some roles are blocked by maintenance -->
+    <!-- Maintenance notice (if active) -->
     <div id="maint-notice"
       style="display:none;background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.35);border-radius:10px;padding:10px 14px;font-size:12px;color:#92400e;margin-bottom:14px;position:relative;z-index:1;line-height:1.5;">
-      🔧 <b>Maintenance in progress</b> — some logins are restricted. Only available roles are shown above.
+      <re-icon icon="sledgehammer"></re-icon> <b>Maintenance in progress</b> — system access is temporarily restricted.
     </div>
 
     <div class="le" id="lerr">Invalid credentials. Please try again.</div>
 
-    <div class="lf2"><label id="lbl-u">Username</label><input type="text" id="lu" placeholder="Enter username"
-        autocomplete="username" autofocus></div>
-    <div class="lf2"><label id="lbl-p">Password</label>
-      <div class="pw-wrap"><input type="password" id="lp" placeholder="Enter password"
-          autocomplete="current-password"><button type="button" class="pw-eye" onclick="togglePw('lp',this)"
-          tabindex="-1" title="Show password">👁</button></div>
-    </div>
-
-    <button class="lbn" id="lbn" onclick="doSignIn()"><span id="lbn-txt">Sign In</span></button>
-  </div>
-
-  <!-- LOCATION PERMISSION GUIDANCE MODAL -->
-  <div id="m-loc-guide" class="loc-modal-overlay" onclick="if(event.target===this)closeLocationModal()">
-    <div class="loc-modal-card">
-      <div class="loc-modal-header">
-        <div class="loc-icon-circle">📍</div>
-        <div class="loc-modal-title">Location Permission Required</div>
-        <div class="loc-modal-sub">Mandatory verification for attendance integrity &amp; audit security</div>
+    <form id="login-form" onsubmit="event.preventDefault(); doSignIn();" novalidate>
+      <div class="lf2">
+        <label id="lbl-u" for="lu">Username</label>
+        <input type="text" id="lu" name="username" placeholder="Enter username"
+          autocomplete="username" autofocus required>
       </div>
 
-      <div class="loc-modal-body">
-        <div class="loc-step-item">
-          <div class="loc-step-num">1</div>
-          <div class="loc-step-txt">
-            <b>Click the button below</b> to trigger the browser's location permission prompt.
-          </div>
-        </div>
-
-        <div class="loc-step-item">
-          <div class="loc-step-num">2</div>
-          <div class="loc-step-txt">
-            When your browser prompts <i>"Know your location"</i>, select:
-            <div class="loc-select-box">
-              👉 <b>"Allow while visiting the site"</b> (or <b>"Allow"</b>)
-            </div>
-          </div>
-        </div>
-
-        <div class="loc-step-item warning-box">
-          <div class="loc-step-num warn">⚠️</div>
-          <div class="loc-step-txt" style="color:#991b1b;">
-            <b>Strict Security Policy:</b> If permission is denied or dismissed, accounts will be <b>locked for 1 hour</b> immediately (Admin is exempt from lockout).
-          </div>
+      <div class="lf2">
+        <label id="lbl-p" for="lp">Password</label>
+        <div class="pw-wrap">
+          <input type="password" id="lp" name="password" placeholder="Enter password"
+            autocomplete="current-password" required>
+          <button type="button" class="pw-eye" onclick="togglePw('lp',this)"
+            tabindex="-1" title="Show password" aria-label="Toggle password visibility"><re-icon icon="eye"></re-icon></button>
         </div>
       </div>
 
-      <div class="loc-modal-actions">
-        <button type="button" class="btn-loc-proceed" id="btn-loc-proceed" onclick="confirmAndRequestLocation()">📍 Allow Location &amp; Sign In</button>
+      <!-- GEOLOCATION STATUS CHIP (§3.1, §3.7) -->
+      <div class="loc-chip-wrap">
+        <div id="loc-chip" class="loc-chip" data-state="idle" aria-live="polite">
+          <span class="loc-chip-dot"></span>
+          <span id="loc-chip-icon" class="loc-chip-icon"><re-icon icon="map-pin"></re-icon></span>
+          <span id="loc-chip-text" class="loc-chip-text">Location required for security</span>
+          <button type="button" id="loc-chip-btn" class="loc-chip-action" style="display:none;"></button>
+        </div>
       </div>
-    </div>
+
+      <!-- INLINE BROWSER LOCATION HELP DRAWER -->
+      <div id="loc-help-drawer" class="loc-help-drawer" style="display:none;">
+        <div class="loc-help-header">
+          <strong><re-icon icon="alert-triangle"></re-icon> How to allow location access:</strong>
+          <button type="button" class="loc-help-close" onclick="toggleLocHelp(false)" aria-label="Close help"><re-icon icon="x" size="14"></re-icon></button>
+        </div>
+        <ol class="loc-help-steps">
+          <li>Click the <b>lock or tune icon</b> on the left of the address bar.</li>
+          <li>Set <b>Location</b> to <b>Allow</b>.</li>
+          <li>Click <b>Retry</b> below or reload the page.</li>
+        </ol>
+      </div>
+
+      <button type="submit" class="lbn" id="lbn"><span id="lbn-txt">Sign In</span></button>
+    </form>
   </div>
 
   <div id="msg-toast">
     <div id="msg-toast-bar"></div>
     <div id="msg-toast-text"></div>
-    <button id="msg-toast-close" onclick="hideMsgToast()">✕</button>
+    <button id="msg-toast-close" onclick="hideMsgToast()"><re-icon icon="x"></re-icon></button>
   </div>
 
+  <!-- ══ MODAL: SUDO ADMIN INITIAL BOOTSTRAP WIZARD (NON-DISMISSIBLE) ══ -->
+  <div class="modal-bg" id="m-bootstrap-wizard" style="display:none;z-index:99999;background:rgba(15,23,42,0.88);backdrop-filter:blur(8px);">
+    <div class="modal modal-lg" style="max-width:560px;border:1px solid rgba(255,255,255,0.15);box-shadow:0 25px 50px -12px rgba(0,0,0,0.5);">
+      <div class="modal-hd" style="border-bottom:1px solid var(--br, #e2e8f0);padding-bottom:12px;">
+        <div>
+          <div class="modal-title" style="font-size:18px;font-weight:700;display:flex;align-items:center;gap:8px;">
+            <re-icon icon="sparkles" size="20" style="color:var(--gK, #2e7d32);"></re-icon> EAMS Initial Setup Wizard
+          </div>
+          <div style="font-size:12px;color:var(--tmu, #5a7a5a);margin-top:4px;">
+            Complete the initial configuration before accessing the administration console.
+          </div>
+        </div>
+      </div>
+
+      <!-- Wizard Step Indicator -->
+      <div style="display:flex;justify-content:space-between;align-items:center;margin:16px 0 20px 0;padding:0 8px;">
+        <div id="bw-step-ind-1" class="bw-step-badge" style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:var(--gK, #2e7d32);">
+          <span id="bw-step-num-1" style="width:22px;height:22px;border-radius:50%;background:var(--gK, #2e7d32);color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:11px;">1</span> Password
+        </div>
+        <div style="flex:1;height:2px;background:var(--br, #e2e8f0);margin:0 8px;"></div>
+        <div id="bw-step-ind-2" class="bw-step-badge" style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:500;color:var(--tmu, #5a7a5a);">
+          <span id="bw-step-num-2" style="width:22px;height:22px;border-radius:50%;background:var(--gLt, #e8f5e9);color:var(--tmu, #5a7a5a);display:inline-flex;align-items:center;justify-content:center;font-size:11px;">2</span> Department
+        </div>
+        <div style="flex:1;height:2px;background:var(--br, #e2e8f0);margin:0 8px;"></div>
+        <div id="bw-step-ind-3" class="bw-step-badge" style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:500;color:var(--tmu, #5a7a5a);">
+          <span id="bw-step-num-3" style="width:22px;height:22px;border-radius:50%;background:var(--gLt, #e8f5e9);color:var(--tmu, #5a7a5a);display:inline-flex;align-items:center;justify-content:center;font-size:11px;">3</span> Staff Profile
+        </div>
+        <div style="flex:1;height:2px;background:var(--br, #e2e8f0);margin:0 8px;"></div>
+        <div id="bw-step-ind-4" class="bw-step-badge" style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:500;color:var(--tmu, #5a7a5a);">
+          <span id="bw-step-num-4" style="width:22px;height:22px;border-radius:50%;background:var(--gLt, #e8f5e9);color:var(--tmu, #5a7a5a);display:inline-flex;align-items:center;justify-content:center;font-size:11px;">4</span> Complete
+        </div>
+      </div>
+
+      <div id="bw-err-msg" class="err-msg" style="display:none;margin-bottom:14px;padding:8px 12px;background:rgba(239,68,68,0.12);color:#ef4444;border-radius:6px;font-size:12px;"></div>
+
+      <div class="modal-body" style="padding:0;">
+        <!-- STEP 1: CHANGE PASSWORD -->
+        <div id="bw-step-1" class="bw-step-panel">
+          <div style="font-size:13px;font-weight:600;margin-bottom:12px;">Step 1: Change Default Sudo Admin Password</div>
+          <div class="fg" style="margin-bottom:12px;">
+            <label class="fl">Current Password *</label>
+            <input type="password" id="bw-cur-pw" class="fc" placeholder="Current default password (e.g. EAMS-admin@123)">
+          </div>
+          <div class="fg" style="margin-bottom:12px;">
+            <label class="fl">New Password *</label>
+            <input type="password" id="bw-new-pw" class="fc" placeholder="Min. 8 characters with letters and numbers">
+          </div>
+          <div class="fg" style="margin-bottom:16px;">
+            <label class="fl">Confirm New Password *</label>
+            <input type="password" id="bw-confirm-pw" class="fc" placeholder="Confirm your new password">
+          </div>
+          <div class="form-actions" style="margin-top:16px;display:flex;justify-content:flex-end;">
+            <button type="button" class="btn-form-pri" id="bw-btn-step1" onclick="submitBootstrapStep1()">
+              Next: Department Setup &rarr;
+            </button>
+          </div>
+        </div>
+
+        <!-- STEP 2: CREATE DEPARTMENT -->
+        <div id="bw-step-2" class="bw-step-panel" style="display:none;">
+          <div style="font-size:13px;font-weight:600;margin-bottom:12px;">Step 2: Create Primary Department</div>
+          <div class="fg" style="margin-bottom:12px;">
+            <label class="fl">Department Name *</label>
+            <input type="text" id="bw-dept-name" class="fc" placeholder="e.g. Computer Science and Engineering">
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+            <div class="fg">
+              <label class="fl">Department Code *</label>
+              <input type="text" id="bw-dept-code" class="fc" placeholder="e.g. CSE" style="text-transform:uppercase;">
+            </div>
+            <div class="fg">
+              <label class="fl">Department Number</label>
+              <input type="text" id="bw-dept-num" class="fc" placeholder="e.g. 104">
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
+            <div class="fg">
+              <label class="fl">Course Type</label>
+              <select id="bw-dept-course" class="fc">
+                <option value="UG" selected>UG (Undergraduate)</option>
+                <option value="PG">PG (Postgraduate)</option>
+              </select>
+            </div>
+            <div class="fg">
+              <label class="fl">Branch Degree</label>
+              <select id="bw-dept-branch" class="fc">
+                <option value="B.E" selected>B.E</option>
+                <option value="B.TECH">B.TECH</option>
+                <option value="M.E">M.E</option>
+                <option value="M.TECH">M.TECH</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-actions" style="margin-top:16px;display:flex;justify-content:flex-end;">
+            <button type="button" class="btn-form-pri" id="bw-btn-step2" onclick="submitBootstrapStep2()">
+              Next: Staff Profile &rarr;
+            </button>
+          </div>
+        </div>
+
+        <!-- STEP 3: STAFF PROFILE -->
+        <div id="bw-step-3" class="bw-step-panel" style="display:none;">
+          <div style="font-size:13px;font-weight:600;margin-bottom:12px;">Step 3: Setup Sudo Administrator Profile</div>
+          <div class="fg" style="margin-bottom:12px;">
+            <label class="fl">Full Name *</label>
+            <input type="text" id="bw-prof-name" class="fc" placeholder="e.g. Dr. Administrator">
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+            <div class="fg">
+              <label class="fl">Employee ID / No</label>
+              <input type="text" id="bw-prof-emp" class="fc" placeholder="e.g. ADM001">
+            </div>
+            <div class="fg">
+              <label class="fl">Designation</label>
+              <input type="text" id="bw-prof-desig" class="fc" placeholder="e.g. System Administrator" value="System Administrator">
+            </div>
+          </div>
+          <div class="fg" style="margin-bottom:16px;">
+            <label class="fl">Email Address</label>
+            <input type="email" id="bw-prof-email" class="fc" placeholder="e.g. admin@college.edu">
+          </div>
+          <div class="form-actions" style="margin-top:16px;display:flex;justify-content:flex-end;">
+            <button type="button" class="btn-form-pri" id="bw-btn-step3" onclick="submitBootstrapStep3()">
+              Complete Bootstrap Setup &rarr;
+            </button>
+          </div>
+        </div>
+
+        <!-- STEP 4: FINISHED -->
+        <div id="bw-step-4" class="bw-step-panel" style="display:none;text-align:center;padding:16px 0;">
+          <div style="width:56px;height:56px;border-radius:50%;background:rgba(34,197,94,0.15);color:#22c55e;display:inline-flex;align-items:center;justify-content:center;margin-bottom:14px;">
+            <re-icon icon="check" size="28"></re-icon>
+          </div>
+          <div style="font-size:16px;font-weight:700;margin-bottom:6px;">Bootstrap Configuration Complete!</div>
+          <div style="font-size:13px;color:var(--tmu, #5a7a5a);max-width:420px;margin:0 auto 20px auto;line-height:1.5;">
+            Your department and administrator profile are now established. Please sign in with your new password to access the portal selector.
+          </div>
+          <div>
+            <button type="button" class="btn-form-pri" style="padding:10px 24px;font-size:14px;" onclick="finishBootstrapAndLogout()">
+              Finish &amp; Sign In
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/core/escape.js"></script>
+  <script src="js/core/icons.js"></script>
+  <script src="js/core/deviceKey.js"></script>
   <script src="js/pages/login.page.js"></script>
 </body>
 </html>

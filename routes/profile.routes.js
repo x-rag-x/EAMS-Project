@@ -1,12 +1,16 @@
 const express = require('express');
 const router = express.Router();
-const bcrypt = require('bcryptjs');
+const bcrypt = require('@node-rs/bcrypt');
 const M = require('../models');
 const { authMiddleware, getRoleModel } = require('../middleware/auth');
 const cfg = require('../config');
 const { logAction } = require('../utils/logAction');
 const escapeRegex = s => String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const { isSudo, isSudoAdmin, hasSpecial, hasPageRight, getPrecomputedAccess } = require('../utils/access');
 const { sanitizeToString } = require('../utils/sanitizeQuery');
+
+
+const isDev = cfg.NODE_ENV === 'development' || process.env.NODE_ENV === 'development';
 
 router.get('/me', authMiddleware, async (req, res) => {
   try {
@@ -24,23 +28,12 @@ router.get('/me', authMiddleware, async (req, res) => {
       loginCount: userDoc.loginCount || 0,
       lastLogin: userDoc.lastLogin || null,
       firstLogin: userDoc.firstLogin || null,
-      mustChangePassword: userDoc.mustChangePassword || false,
+      mustChangePassword: isDev ? false : (userDoc.mustChangePassword || false),
       createdAt: userDoc.createdAt,
       updatedAt: userDoc.updatedAt,
     };
 
-    if (req.user.role === 'admin') {
-      Object.assign(base, {
-        fullName: userDoc.fullName,
-        firstName: userDoc.firstName || '',
-        lastName: userDoc.lastName || '',
-        employeeNo: userDoc.employeeNo || '',
-        department: userDoc.department || '',
-        isAdmin: userDoc.isAdmin !== false ? true : false,
-        adminRights: userDoc.adminRights || 'all',
-        adminFlag: userDoc.adminFlag || 'superadmin',
-      });
-    } else if (req.user.role === 'teacher') {
+    if (req.user.role === 'teacher') {
       const specials = Array.isArray(userDoc.specials) ? userDoc.specials : [];
       Object.assign(base, {
         fullName: userDoc.fullName,
@@ -48,6 +41,8 @@ router.get('/me', authMiddleware, async (req, res) => {
         lastName: userDoc.lastName || '',
         employeeNo: userDoc.employeeNo || '',
         department: userDoc.department || '',
+        deptId: userDoc.deptId || null,
+        deptCode: userDoc.deptCode || '',
         designation: userDoc.designation || 'Assistant Professor',
         isHod: specials.some(s => s.option === 'isHod'),
         HoddeptName: (() => {
@@ -71,8 +66,11 @@ router.get('/me', authMiddleware, async (req, res) => {
         isWarden: specials.some(s => s.option === 'isWarden'),
         isExamCoordinator: specials.some(s => s.option === 'isExamCoordinator'),
         isPlacementCoordinator: specials.some(s => s.option === 'isPlacementCoordinator'),
-        isAdmin: !!userDoc.isAdmin,
-        adminRights: userDoc.adminRights || [],
+        isAdmin: hasSpecial(userDoc, 'isAdmin'),
+        isSudoAdmin: isSudoAdmin(userDoc),
+        pageRights: (userDoc.pageRights || []).filter(r => r && r.enabled !== false),
+        access: getPrecomputedAccess(userDoc),
+        adminFlag: isSudoAdmin(userDoc) ? 'superadmin' : (hasSpecial(userDoc, 'isPrincipal') ? 'principal' : (hasSpecial(userDoc, 'isAdmin') ? 'subadmin' : 'none')),
         specials: specials,
         preferences: Object.assign({
           defaultAttendanceStatus: 'Present',
@@ -89,7 +87,6 @@ router.get('/me', authMiddleware, async (req, res) => {
         class: userDoc.class || '',
         classId: userDoc.classId || '',
         className: userDoc.class || '',
-        section: userDoc.section || '',
         branch: userDoc.branch || '',
         course: userDoc.courseType || '',
         department: userDoc.department || '',
@@ -108,13 +105,16 @@ router.get('/me', authMiddleware, async (req, res) => {
 // ── PUT /api/profile/me — update own editable fields ──
 router.put('/me', authMiddleware, async (req, res) => {
   try {
+    if (req.user.role === 'student') {
+      return res.status(403).json({ error: 'Students cannot edit profile information' });
+    }
     const targetModel = getRoleModel(req.user.role);
     if (!targetModel) return res.status(400).json({ error: 'Invalid role' });
     const user = await targetModel.findOne({ username: req.user.username });
     if (!user) return res.status(404).json({ error: 'Profile not found' });
 
     const ALWAYS_PROTECTED = [
-      'role', 'isAdmin', 'adminRights',
+      'role', 'isAdmin', 'specials', 'pageRights',
       'isHOD', 'HoddeptName', 'isClassAdvisor', 'advisorClassName', 'advisorClassId',
       'isTimeTableCoordinator', 'TTdeptName',
       'isWarden', 'isExamCoordinator', 'isPlacementCoord',
@@ -132,7 +132,7 @@ router.put('/me', authMiddleware, async (req, res) => {
     if (updates.lastName) user.lastName = updates.lastName;
     if (updates.email !== undefined && req.user.role !== 'student') user.email = updates.email;
 
-    if (req.user.role === 'admin' || req.user.role === 'teacher') {
+    if (req.user.role === 'teacher' || isSudo(req)) {
       if (updates.employeeNo !== undefined) user.employeeNo = updates.employeeNo;
       if (updates.empId !== undefined) user.employeeNo = updates.empId;
       if (updates.department !== undefined) user.department = updates.department;
@@ -189,7 +189,7 @@ router.put('/me', authMiddleware, async (req, res) => {
       req.ip,
       req.user.sessionId,
       {
-        module: req.user.role === 'admin' ? 'admin' : (req.user.role === 'teacher' ? 'teacher' : 'student'),
+        module: isSudo(req) ? 'admin' : (req.user.role === 'teacher' ? 'teacher' : 'student'),
         subType: 'field-edit',
         trackId: user.trackId || req.user.trackId,
         actingWithAdminRights: req.user.actingWithAdminRights,
@@ -204,12 +204,7 @@ router.put('/me', authMiddleware, async (req, res) => {
 // ── GET /api/profile/users — admin or Manage User right: list all users ──
 router.get('/users', authMiddleware, async (req, res) => {
   try {
-    const reqUser = await M.User.findById(req.user._id).lean();
-    const rights = reqUser?.adminRights;
-    const canManage = req.user.role === 'admin'
-      || rights === 'all'
-      || (Array.isArray(rights) && rights.includes('managePage'));
-
+    const canManage = isSudoAdmin(req.user) || hasPageRight(req.user, 'manage', 'view');
     if (!canManage) return res.status(403).json({ error: 'Manage User right required' });
 
     const filter = {};
@@ -235,64 +230,9 @@ router.get('/users', authMiddleware, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// ── PUT /api/profile/users/:id — Manage User: edit any user ──
-router.put('/users/:id', authMiddleware, async (req, res) => {
-  try {
-    const reqUser = await M.User.findById(req.user._id).lean();
-    const rights = reqUser?.adminRights;
-    const canManage = req.user.role === 'admin'
-      || rights === 'all'
-      || (Array.isArray(rights) && rights.includes('managePage'));
-
-    if (!canManage) return res.status(403).json({ error: 'Manage User right required' });
-
-    const { password, name, status, active, ...data } = req.body;
-
-    const user = await M.User.findById(req.params.id);
-    if (!user) return res.status(404).json({ error: 'User not found' });
-
-    // Update role-specific model for name/password
-    const model = getRoleModel(user.role);
-    if (model) {
-      const roleDoc = await model.findOne({ trackId: user.trackId });
-      if (roleDoc) {
-        if (password) roleDoc.password = await bcrypt.hash(password, cfg.BCRYPT_ROUNDS);
-        if (name || data.fullName) roleDoc.fullName = name || data.fullName;
-        if (data.firstName) roleDoc.firstName = data.firstName;
-        if (data.lastName) roleDoc.lastName = data.lastName;
-        if (data.email !== undefined) roleDoc.email = data.email;
-        if (data.employeeNo !== undefined) roleDoc.employeeNo = data.employeeNo;
-        if (data.department !== undefined) roleDoc.department = data.department;
-        if (data.designation !== undefined) roleDoc.designation = data.designation;
-        await roleDoc.save();
-      }
-    }
-
-    // Update shadow user status
-    if (status) {
-      user.status = status;
-      if (status === 'active') {
-        await M.LoginHistory.updateOne(
-          { trackId: user.trackId },
-          { $set: { failedLogins: 0, lockedUntil: null } }
-        );
-      }
-    }
-    if (active !== undefined) {
-      user.status = active ? 'active' : 'inactive';
-      if (active) {
-        await M.LoginHistory.updateOne(
-          { trackId: user.trackId },
-          { $set: { failedLogins: 0, lockedUntil: null } }
-        );
-      }
-    }
-    await user.save();
-
-    await logAction(req.user._id, req.user.name, req.user.role, 'User Updated (Manage User)',
-      `${user.username}`, 'data', 'info', req.ip);
-    res.json({ ...user.toObject(), name: name || user.username });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+// ── PUT /api/profile/users/:id — redirect legacy callers to canonical /api/users/:id ──
+router.put('/users/:id', authMiddleware, (req, res) => {
+  res.redirect(307, `/api/users/${req.params.id}`);
 });
 
 module.exports = router;

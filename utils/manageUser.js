@@ -1,12 +1,12 @@
 
-const bcrypt = require('bcryptjs');
+const bcrypt = require('@node-rs/bcrypt');
 const M = require('../models');
 const cfg = require('../config');
+const { normalizeYearRange, toBatchTrackId } = require('./yearFormat');
 
 const ROLE_MODELS = {
   teacher: () => M.Teacher,
   student: () => M.Student,
-  admin:   () => M.Admin,
 };
 
 function modelFor(role) {
@@ -23,8 +23,17 @@ async function createUser(role, fields) {
   }
 
   const username = String(fields.username).toLowerCase().trim();
+  if (username.startsWith('sb-') || username.startsWith('tr-')) {
+    throw new Error("Username prefixes 'SB-' and 'TR-' are reserved for smart board device IDs");
+  }
   const trackId  = fields.trackId;
   const hash     = await bcrypt.hash(fields.password, cfg.BCRYPT_ROUNDS);
+
+  if (fields.admissionYear) fields.admissionYear = normalizeYearRange(fields.admissionYear);
+  if (fields.batch) {
+    fields.batch = normalizeYearRange(fields.batch);
+    if (!fields.batchTrackId) fields.batchTrackId = toBatchTrackId(fields.batch);
+  }
 
   const roleDoc = await Model.create(Object.assign({}, fields, {
     username,
@@ -41,16 +50,39 @@ async function createUser(role, fields) {
 async function updateUser(role, id, fields) {
   const Model = modelFor(role);
 
+  let newUsername = null;
+  if (fields.username) {
+    newUsername = String(fields.username).toLowerCase().trim();
+    if (newUsername.startsWith('sb-') || newUsername.startsWith('tr-')) {
+      throw new Error("Username prefixes 'SB-' and 'TR-' are reserved for smart board device IDs");
+    }
+  }
+
+  if (fields.admissionYear) fields.admissionYear = normalizeYearRange(fields.admissionYear);
+  if (fields.batch) {
+    fields.batch = normalizeYearRange(fields.batch);
+    if (!fields.batchTrackId) fields.batchTrackId = toBatchTrackId(fields.batch);
+  }
+
   const roleDoc = await Model.findById(id);
   if (!roleDoc) return null;
 
   const oldUsername = roleDoc.username;
 
-  Object.keys(fields).forEach((key) => {
-    if (['password', 'username', 'status', 'active', 'trackId'].includes(key)) return;
+  const ALLOWED_FIELDS = [
+    'fullName', 'firstName', 'lastName', 'email', 'phone', 'employeeNo',
+    'department', 'deptId', 'deptCode', 'designation',
+    'registerNo', 'class', 'classId', 'section', 'courseType', 'branch',
+    'admissionYear', 'batch', 'batchTrackId', 'gender', 'residency',
+    'hostelId', 'blockId', 'preferences', 'mustChangePassword'
+  ];
+
+  ALLOWED_FIELDS.forEach((key) => {
     if (fields[key] !== undefined) roleDoc[key] = fields[key];
   });
-  if (fields.username) roleDoc.username = String(fields.username).toLowerCase().trim();
+  if (newUsername) {
+    roleDoc.username = newUsername;
+  }
   if (fields.password) roleDoc.password = await bcrypt.hash(fields.password, cfg.BCRYPT_ROUNDS);
 
   await roleDoc.save();

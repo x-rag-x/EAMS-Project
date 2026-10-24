@@ -51,11 +51,11 @@ function esc(str) {
 
 function getToken() {
   if (typeof SESSION !== 'undefined' && SESSION && SESSION.token) return SESSION.token;
-  return sessionStorage.getItem('eams_token') ||
-         localStorage.getItem('eams_token') ||
-         sessionStorage.getItem('token') ||
-         localStorage.getItem('token') ||
-         '';
+  return sessionStorage.getItem('eams_token') || sessionStorage.getItem('token') || '';
+
+
+
+
 }
 
 function ah() {
@@ -96,7 +96,10 @@ function customConfirm(message, title = 'Confirm Action', onConfirm) {
   const titleEl = document.getElementById('confirm-modal-title');
   const msgEl = document.getElementById('confirm-modal-msg');
   if (titleEl) titleEl.textContent = title;
-  if (msgEl) msgEl.textContent = message;
+  if (msgEl) {
+    if (typeof message === 'string' && message.includes('<')) msgEl.innerHTML = message;
+    else msgEl.textContent = message;
+  }
   pendingConfirmCallback = onConfirm;
   if (modal) modal.classList.add('open');
 }
@@ -384,41 +387,41 @@ function renderSearchResults(query) {
   let html = '';
 
   if (matchedBlocks.length > 0) {
-    html += '<div class="srp-section-title">🏢 Campus Blocks</div>';
+    html += '<div class="srp-section-title"><re-icon icon="building"></re-icon> Campus Blocks</div>';
     matchedBlocks.forEach(b => {
       html += `
         <div class="srp-item" onclick="selectSearchResult('block', '${b._id}')">
           <div>
-            <div class="srp-title">🏢 ${esc(b.name)} <span style="font-size:11px;color:var(--tmu);">(${esc(b.code)})</span></div>
+            <div class="srp-title"><re-icon icon="building"></re-icon> ${esc(b.name)} <span style="font-size:11px;color:var(--tmu);">(${esc(b.code)})</span></div>
             <div class="srp-sub">${esc(b.subName || b.type + ' Block')} &bull; ${b.floors || 1} Floors</div>
           </div>
-          <span class="srp-badge">Explore →</span>
+          <span class="srp-badge">Explore <re-icon icon="arrow-right"></re-icon></span>
         </div>`;
     });
   }
 
   if (limitedFloors.length > 0) {
-    html += '<div class="srp-section-title">📶 Campus Floors</div>';
+    html += '<div class="srp-section-title"><re-icon icon="wifi"></re-icon> Campus Floors</div>';
     limitedFloors.forEach(f => {
       html += `
         <div class="srp-item" onclick="selectSearchResult('floor', '${f.block._id}', ${f.floorNum})">
           <div>
-            <div class="srp-title">📶 ${esc(f.label)}</div>
+            <div class="srp-title"><re-icon icon="wifi"></re-icon> ${esc(f.label)}</div>
             <div class="srp-sub">In ${esc(f.block.name)} (${esc(f.block.code)})</div>
           </div>
-          <span class="srp-badge">Open Floor →</span>
+          <span class="srp-badge">Open Floor <re-icon icon="arrow-right"></re-icon></span>
         </div>`;
     });
   }
 
   if (matchedUnits.length > 0) {
-    html += '<div class="srp-section-title">🚪 Rooms, Halls &amp; Labs</div>';
+    html += '<div class="srp-section-title"><re-icon icon="arrow-door-in"></re-icon> Rooms, Halls &amp; Labs</div>';
     matchedUnits.forEach(u => {
       const bldg = ALL_BLOCKS.find(b => String(b._id) === String(u.buildingId?._id || u.buildingId));
       const bldgName = bldg ? bldg.name : (u.buildingName || 'Building');
       const bldgId = bldg ? bldg._id : (u.buildingId?._id || u.buildingId);
       const floorStr = u.floor === 0 ? 'Ground Floor' : `Floor ${u.floor}`;
-      const icon = u.category === 'Lab' ? '🔬' : u.category === 'Hall' ? '🎭' : '🏛️';
+      const icon = u.category === 'Lab' ? '<re-icon icon="microscope"></re-icon>' : u.category === 'Hall' ? '<re-icon icon="layout"></re-icon>' : '<re-icon icon="building2"></re-icon>';
 
       html += `
         <div class="srp-item" onclick="selectSearchResult('unit', '${bldgId}', ${u.floor || 0}, '${u._id}')">
@@ -616,7 +619,7 @@ function navExplorer(level, blockId = null, floorNumber = null, unitId = null) {
     if (uCrumb) {
       uCrumb.style.display = 'inline-flex';
       document.getElementById('eb-label-unit').textContent = u ? (u.name || u.hallNo) : 'Unit Details';
-      document.getElementById('eb-icon-unit').textContent = u?.category === 'Lab' ? '🔬' : u?.category === 'Hall' ? '🎭' : '🚪';
+      document.getElementById('eb-icon-unit').innerHTML = u?.category === 'Lab' ? '<re-icon icon="microscope"></re-icon>' : u?.category === 'Hall' ? '<re-icon icon="layout"></re-icon>' : '<re-icon icon="arrow-door-in"></re-icon>';
     }
   }
 
@@ -694,7 +697,7 @@ function renderBlocksGrid() {
   if (blocks.length === 0) {
     container.innerHTML = `
       <div class="empty-state" style="grid-column: 1 / -1; padding: 40px; text-align: center; color: var(--tmu);">
-        <div style="font-size: 32px; margin-bottom: 8px;">🏢</div>
+        <div style="font-size: 32px; margin-bottom: 8px;"><re-icon icon="building"></re-icon></div>
         <div style="font-size: 15px; font-weight: 600;">No campus blocks match your criteria</div>
         <button class="btn-pri btn-sm" style="margin-top: 12px;" onclick="openAddBlockModal()">+ Add New Block</button>
       </div>`;
@@ -745,7 +748,7 @@ function renderBlocksGrid() {
           <div class="bc-actions">
             <button class="btn-out btn-xs" onclick="event.stopPropagation(); openEditBlockModal('${b._id}')">Edit</button>
             <button class="btn-out btn-xs text-danger" onclick="event.stopPropagation(); confirmDeleteBlock('${b._id}')">Delete</button>
-            <button class="btn-pri btn-xs" onclick="event.stopPropagation(); exploreBlock('${b._id}')">Explore →</button>
+            <button class="btn-pri btn-xs" onclick="event.stopPropagation(); exploreBlock('${b._id}')">Explore <re-icon icon="arrow-right"></re-icon></button>
           </div>
         </div>
       </div>`;
@@ -791,7 +794,7 @@ function renderFloorsGrid(blockId) {
     floorsHtml.push(`
       <div class="floor-card" onclick="exploreFloor(${f})" style="cursor:pointer;">
         <div class="fc-hd">
-          <div class="fc-title">📶 ${floorTitle}</div>
+          <div class="fc-title"><re-icon icon="wifi"></re-icon> ${floorTitle}</div>
           <span class="fc-capacity-badge">${fCapacity} Seats</span>
         </div>
         <div class="fc-counts">
@@ -803,7 +806,7 @@ function renderFloorsGrid(blockId) {
           <div class="fc-actions">
             <button class="btn-out btn-xs text-danger" onclick="event.stopPropagation(); confirmDeleteFloor('${block._id}', ${f})">Delete</button>
           </div>
-          <button class="btn-pri btn-xs" onclick="event.stopPropagation(); exploreFloor(${f})">Explore Floor →</button>
+          <button class="btn-pri btn-xs" onclick="event.stopPropagation(); exploreFloor(${f})">Explore Floor <re-icon icon="arrow-right"></re-icon></button>
         </div>
       </div>`);
   }
@@ -826,7 +829,7 @@ function confirmDeleteFloor(blockId, floorNum) {
 
   const floorLabel = floorNum === 0 ? 'Ground Floor' : `Floor ${floorNum}`;
   const roomMsg = fRooms.length > 0
-    ? `\n\n⚠️ Caution: ${fRooms.length} room(s)/lab(s) exist on this floor and will be permanently deleted:\n${fRooms.map(r => '• ' + r.hallNo).slice(0, 5).join('\n')}${fRooms.length > 5 ? '\n...and more' : ''}`
+    ? `\n\n<re-icon icon="alert-triangle"></re-icon> Caution: ${fRooms.length} room(s)/lab(s) exist on this floor and will be permanently deleted:\n${fRooms.map(r => '• ' + r.hallNo).slice(0, 5).join('\n')}${fRooms.length > 5 ? '\n...and more' : ''}`
     : '\n\nThere are currently no rooms on this floor.';
 
   customConfirm(
@@ -896,7 +899,7 @@ function renderUnitsGrid(blockId, floorNumber) {
   if (filteredRooms.length === 0) {
     container.innerHTML = `
       <div class="empty-state" style="grid-column: 1 / -1; padding: 40px; text-align: center; color: var(--tmu);">
-        <div style="font-size: 32px; margin-bottom: 8px;">🚪</div>
+        <div style="font-size: 32px; margin-bottom: 8px;"><re-icon icon="arrow-door-in"></re-icon></div>
         <div style="font-size: 15px; font-weight: 600;">No units registered on this floor</div>
         <button class="btn-pri btn-sm" style="margin-top: 12px;" onclick="openAddUnitModal()">+ Add Classroom / Hall / Lab</button>
       </div>`;
@@ -908,7 +911,7 @@ function renderUnitsGrid(blockId, floorNumber) {
     const isHall = r.category === 'Hall' || r.type === 'Seminar';
     const catClass = isLab ? 'uc-cat-lab' : isHall ? 'uc-cat-hall' : 'uc-cat-room';
     const catLabel = isLab ? 'Laboratory' : isHall ? 'Special Hall' : 'Class Room';
-    const catIcon = isLab ? '🔬' : isHall ? '🎭' : '🏛️';
+    const catIcon = isLab ? '<re-icon icon="microscope"></re-icon>' : isHall ? '<re-icon icon="layout"></re-icon>' : '<re-icon icon="building2"></re-icon>';
 
     // Board connection indicator (hidden for labs)
     const hasBoard = ALL_BOARDS.find(b => String(b.roomId?._id || b.roomId) === String(r._id) && b.status !== 'Inactive');
@@ -924,16 +927,16 @@ function renderUnitsGrid(blockId, floorNumber) {
         </div>
 
         <div class="uc-body">
-          <div>💺 <b>${r.capacity}</b> Seats &bull; 🌐 ${esc(r.ipAddress || '192.168.10.' + (r.floor * 10 + 1))}</div>
-          <div>📶 Wi-Fi: <b>${esc(r.wifiSpeed || '150 Mbps')}</b> &bull; 📱 <b>${esc(r.mobileSpeed || '5G')}</b></div>
-          ${!isLab ? `<div style="margin-top:4px;">📺 Smart Board: ${hasBoard ? '<span style="color:var(--gD);font-weight:700;">🟢 Linked (' + esc(hasBoard.deviceId) + ')</span>' : '<span style="color:var(--tmu);">⚪ Unlinked</span>'}</div>` : ''}
-          ${isHall && r.incharge?.name ? `<div style="margin-top:2px;">👨‍🏫 Incharge: <b>${esc(r.incharge.name)}</b></div>` : ''}
-          ${isLab ? `<div style="margin-top:2px;">🖥️ Workstations: <b>${r.workstationsCount || r.capacity}</b> &bull; Status: <b>${esc(r.labStatus || 'Available')}</b></div>` : ''}
+          <div><re-icon icon="armchair"></re-icon> <b>${r.capacity}</b> Seats &bull; <re-icon icon="globe"></re-icon> ${esc(r.ipAddress || '192.168.10.' + (r.floor * 10 + 1))}</div>
+          <div><re-icon icon="wifi"></re-icon> Wi-Fi: <b>${esc(r.wifiSpeed || '150 Mbps')}</b> &bull; <re-icon icon="monitor"></re-icon> <b>${esc(r.mobileSpeed || '5G')}</b></div>
+          ${!isLab ? `<div style="margin-top:4px;"><re-icon icon="tv"></re-icon> Smart Board: ${hasBoard ? '<span style="color:var(--gD);font-weight:700;"><span class="status-dot green"></span> Linked (' + esc(hasBoard.deviceId) + ')</span>' : '<span style="color:var(--tmu);"><span class="status-dot gray"></span> Unlinked</span>'}</div>` : ''}
+          ${isHall && r.incharge?.name ? `<div style="margin-top:2px;"><re-icon icon="teacher"></re-icon> Incharge: <b>${esc(r.incharge.name)}</b></div>` : ''}
+          ${isLab ? `<div style="margin-top:2px;"><re-icon icon="monitor"></re-icon> Workstations: <b>${r.workstationsCount || r.capacity}</b> &bull; Status: <b>${esc(r.labStatus || 'Available')}</b></div>` : ''}
         </div>
 
         <div class="uc-ft">
           <span style="font-size:11px;color:${r.status === 'Available' ? 'var(--gD)' : 'var(--warn)'};font-weight:600;">● ${esc(r.status)}</span>
-          <button class="btn-pri btn-xs" onclick="event.stopPropagation(); exploreUnit('${r._id}')">View Details →</button>
+          <button class="btn-pri btn-xs" onclick="event.stopPropagation(); exploreUnit('${r._id}')">View Details <re-icon icon="arrow-right"></re-icon></button>
         </div>
       </div>`;
   }).join('');
@@ -957,7 +960,7 @@ function renderUnitDetail(unitId) {
   const isLab = room.category === 'Lab' || room.type === 'Lab';
   const isHall = room.category === 'Hall' || room.type === 'Seminar';
   const catLabel = isLab ? 'Laboratory' : isHall ? 'Special Hall' : 'Class Room';
-  const catIcon = isLab ? '🔬' : isHall ? '🎭' : '🏛️';
+  const catIcon = isLab ? '<re-icon icon="microscope"></re-icon>' : isHall ? '<re-icon icon="layout"></re-icon>' : '<re-icon icon="building2"></re-icon>';
 
   const assignedBoard = ALL_BOARDS.find(b => String(b.roomId?._id || b.roomId) === String(room._id) && b.status !== 'Inactive');
   const bldg = ALL_BLOCKS.find(b => String(b._id) === String(room.buildingId?._id || room.buildingId));
@@ -971,14 +974,14 @@ function renderUnitDetail(unitId) {
         </div>
       </div>
       <div style="display:flex;gap:8px;">
-        <button class="btn-out btn-sm" onclick="openEditUnitModal('${room._id}')">✏️ Edit Unit</button>
-        <button class="btn-out btn-sm text-danger" onclick="confirmDeleteUnit('${room._id}')">🗑️ Delete</button>
+        <button class="btn-out btn-sm" onclick="openEditUnitModal('${room._id}')"><re-icon icon="edit"></re-icon> Edit Unit</button>
+        <button class="btn-out btn-sm text-danger" onclick="confirmDeleteUnit('${room._id}')"><re-icon icon="trash2"></re-icon> Delete</button>
       </div>
     </div>
 
     <!-- SECTION 1: TELEMETRY & NETWORK -->
     <div class="uis-section">
-      <div class="uis-sec-hd">🌐 Network &amp; Physical Infrastructure Telemetry</div>
+      <div class="uis-sec-hd"><re-icon icon="globe"></re-icon> Network &amp; Physical Infrastructure Telemetry</div>
       <div class="uis-grid">
         <div class="uis-item">
           <div class="uis-item-label">IP Address</div>
@@ -986,11 +989,11 @@ function renderUnitDetail(unitId) {
         </div>
         <div class="uis-item">
           <div class="uis-item-label">Wi-Fi Speed Level</div>
-          <div class="uis-item-val">📶 ${esc(room.wifiSpeed || '150 Mbps')}</div>
+          <div class="uis-item-val"><re-icon icon="wifi"></re-icon> ${esc(room.wifiSpeed || '150 Mbps')}</div>
         </div>
         <div class="uis-item">
           <div class="uis-item-label">Mobile Network Speed</div>
-          <div class="uis-item-val">📱 ${esc(room.mobileSpeed || '5G')}</div>
+          <div class="uis-item-val"><re-icon icon="monitor"></re-icon> ${esc(room.mobileSpeed || '5G')}</div>
         </div>
         <div class="uis-item">
           <div class="uis-item-label">Department</div>
@@ -1002,12 +1005,12 @@ function renderUnitDetail(unitId) {
     <!-- SECTION 2: SMART BOARD HARDWARE (NOT APPLICABLE FOR LABS) -->
     ${!isLab ? `
     <div class="uis-section">
-      <div class="uis-sec-hd">📺 Smart Board Autonomous Hardware Integration</div>
+      <div class="uis-sec-hd"><re-icon icon="tv"></re-icon> Smart Board Autonomous Hardware Integration</div>
       <div class="uis-grid">
         <div class="uis-item">
           <div class="uis-item-label">Connection Status</div>
           <div class="uis-item-val">
-            ${assignedBoard ? '<span style="color:var(--gD);font-weight:700;">🟢 Connected</span>' : '<span style="color:var(--tmu);">⚪ Not Linked</span>'}
+            ${assignedBoard ? '<span style="color:var(--gD);font-weight:700;"><span class="status-dot green"></span> Connected</span>' : '<span style="color:var(--tmu);"><span class="status-dot gray"></span> Not Linked</span>'}
           </div>
         </div>
         <div class="uis-item">
@@ -1022,6 +1025,52 @@ function renderUnitDetail(unitId) {
           </div>
         </div>
       </div>
+      ${assignedBoard ? `
+      <div class="board-cred-box">
+        <div class="board-cred-header">
+          <div class="board-cred-title">
+            <re-icon icon="key" size="14"></re-icon> Board Kiosk Login Credentials
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span class="board-cred-badge">Autonomous Display Sign-In</span>
+            <button type="button" class="btn-out btn-xs" style="padding:3px 9px;font-size:11px;font-weight:700;display:inline-flex;align-items:center;gap:5px;border-radius:6px;border-color:rgba(46,125,50,0.35);color:var(--gD);background:#fff;" onclick="openChangeBoardPasswordModal('${assignedBoard._id}', '${esc(assignedBoard.deviceId)}', '${esc(assignedBoard.boardName)}')">
+              <re-icon icon="key" size="13"></re-icon> Change Password
+            </button>
+          </div>
+        </div>
+        <div class="board-cred-row">
+          <div class="board-cred-field">
+            <div class="board-cred-lbl">Login Username / Device ID</div>
+            <div class="board-cred-val-wrap">
+              <span class="board-cred-val" id="b-cred-user-${assignedBoard._id}">${esc(assignedBoard.deviceId)}</span>
+              <button type="button" class="board-cred-btn" title="Copy Username" onclick="copyBoardCredText('${esc(assignedBoard.deviceId)}', 'Username')">
+                <re-icon icon="copy" size="14"></re-icon>
+              </button>
+            </div>
+          </div>
+          <div class="board-cred-field">
+            <div class="board-cred-lbl">Login Password / Device Key</div>
+            <div class="board-cred-val-wrap">
+              <span class="board-cred-val" id="b-cred-pwd-${assignedBoard._id}">••••••••••••</span>
+              <div style="display:flex;gap:4px;align-items:center;">
+                <button type="button" class="board-cred-btn" id="b-cred-eye-${assignedBoard._id}" title="Toggle Visibility" onclick="toggleBoardCredVisibility('${assignedBoard._id}', '${esc(assignedBoard.boardApiKey || '')}')">
+                  <re-icon icon="eye" size="14"></re-icon>
+                </button>
+                <button type="button" class="board-cred-btn" title="Copy Password" onclick="copyBoardCredText('${esc(assignedBoard.boardApiKey || '')}', 'Password')">
+                  <re-icon icon="copy" size="14"></re-icon>
+                </button>
+                <button type="button" class="board-cred-btn" title="Change Password" onclick="openChangeBoardPasswordModal('${assignedBoard._id}', '${esc(assignedBoard.deviceId)}', '${esc(assignedBoard.boardName)}')">
+                  <re-icon icon="edit" size="14"></re-icon>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div style="font-size:11px;color:var(--tmu);display:flex;align-items:center;gap:6px;margin-top:2px;">
+          <re-icon icon="info" size="13"></re-icon>
+          <span>Use these credentials on the sign-in screen (<a href="index.html" target="_blank" style="color:var(--gD);font-weight:600;text-decoration:underline;">index.html</a>) or the physical classroom kiosk display to log into this board.</span>
+        </div>
+      </div>` : ''}
     </div>` : ''}`;
 
   // SECTION 3A: IF SPECIAL HALL -> INCHARGE & PRE-BOOKING
@@ -1031,7 +1080,7 @@ function renderUnitDetail(unitId) {
 
     html += `
       <div class="uis-section">
-        <div class="uis-sec-hd">🎭 Special Hall Administrative &amp; Reservation Subsystem</div>
+        <div class="uis-sec-hd"><re-icon icon="layout"></re-icon> Special Hall Administrative &amp; Reservation Subsystem</div>
         <div class="uis-grid" style="margin-bottom:16px;">
           <div class="uis-item">
             <div class="uis-item-label">Hall Incharge</div>
@@ -1046,7 +1095,7 @@ function renderUnitDetail(unitId) {
             <div class="uis-item-val">${esc(room.incharge?.phone || '—')}</div>
           </div>
           <div class="uis-item" style="display:flex;align-items:center;">
-            <button class="btn-pri" style="width:100%;" onclick="openPreBookModal('${room._id}')">📅 Pre-Book Hall</button>
+            <button class="btn-pri" style="width:100%;" onclick="openPreBookModal('${room._id}')"><re-icon icon="calendar"></re-icon> Pre-Book Hall</button>
           </div>
         </div>
 
@@ -1086,11 +1135,11 @@ function renderUnitDetail(unitId) {
   if (isLab) {
     html += `
       <div class="uis-section">
-        <div class="uis-sec-hd">🔬 Laboratory Hardware &amp; Availability Specifications</div>
+        <div class="uis-sec-hd"><re-icon icon="microscope"></re-icon> Laboratory Hardware &amp; Availability Specifications</div>
         <div class="uis-grid">
           <div class="uis-item">
             <div class="uis-item-label">Workstations Count</div>
-            <div class="uis-item-val">🖥️ ${room.workstationsCount || room.capacity} Machines</div>
+            <div class="uis-item-val"><re-icon icon="monitor"></re-icon> ${room.workstationsCount || room.capacity} Machines</div>
           </div>
           <div class="uis-item">
             <div class="uis-item-label">Availability Status</div>
@@ -1109,7 +1158,7 @@ function renderUnitDetail(unitId) {
 
 // ── BLOCK CRUD OPERATIONS (MODAL POPUP, ZERO ALERT) ──
 function openAddBlockModal() {
-  document.getElementById('block-modal-title').textContent = '🏢 Add Campus Block';
+  document.getElementById('block-modal-title').innerHTML = '<re-icon icon="building"></re-icon> Add Campus Block';
   document.getElementById('block-edit-id').value = '';
   document.getElementById('block-input-name').value = '';
   document.getElementById('block-input-subname').value = '';
@@ -1119,6 +1168,9 @@ function openAddBlockModal() {
   document.getElementById('block-input-floors').value = '4';
   document.getElementById('block-input-ip').value = '';
   document.getElementById('block-input-status').value = 'Active';
+  document.getElementById('block-input-campus').value = 'Main Campus';
+  document.getElementById('block-input-latitude').value = '';
+  document.getElementById('block-input-longitude').value = '';
 
   const modal = document.getElementById('modal-block');
   if (modal) modal.classList.add('open');
@@ -1128,7 +1180,7 @@ function openEditBlockModal(blockId) {
   const block = ALL_BLOCKS.find(b => String(b._id) === String(blockId));
   if (!block) return;
 
-  document.getElementById('block-modal-title').textContent = '✏️ Edit Campus Block';
+  document.getElementById('block-modal-title').innerHTML = '<re-icon icon="edit"></re-icon> Edit Campus Block';
   document.getElementById('block-edit-id').value = block._id;
   document.getElementById('block-input-name').value = block.name;
   document.getElementById('block-input-subname').value = block.subName || '';
@@ -1138,6 +1190,11 @@ function openEditBlockModal(blockId) {
   document.getElementById('block-input-floors').value = block.floors || 1;
   document.getElementById('block-input-ip').value = block.ip || '';
   document.getElementById('block-input-status').value = block.status || 'Active';
+  document.getElementById('block-input-campus').value = block.campus || 'Main Campus';
+  document.getElementById('block-input-latitude').value = block.latitude || '';
+  document.getElementById('block-input-longitude').value = block.longitude || '';
+
+  updateBlockMapPreviewLink(block.latitude, block.longitude);
 
   const modal = document.getElementById('modal-block');
   if (modal) modal.classList.add('open');
@@ -1152,6 +1209,9 @@ async function saveBlockForm() {
   const floors = parseInt(document.getElementById('block-input-floors').value, 10) || 1;
   const ip = document.getElementById('block-input-ip').value.trim();
   const status = document.getElementById('block-input-status').value;
+  const campus = document.getElementById('block-input-campus').value.trim();
+  const latitude = parseFloat(document.getElementById('block-input-latitude').value);
+  const longitude = parseFloat(document.getElementById('block-input-longitude').value);
 
   if (!name || name.length < 2) {
     customAlert('Please enter a valid Block Name (at least 2 characters).', 'Validation Error');
@@ -1162,8 +1222,11 @@ async function saveBlockForm() {
     return;
   }
 
+  const payload = { name, subName, code, type, floors, ip, status, campus };
+  if (!isNaN(latitude)) payload.latitude = latitude;
+  if (!isNaN(longitude)) payload.longitude = longitude;
+
   try {
-    const payload = { name, subName, code, type, floors, ip, status };
     if (editId) {
       await api(`/api/timetable/buildings/${editId}`, { method: 'PUT', body: JSON.stringify(payload) });
       notify('Block updated successfully', 'success');
@@ -1176,6 +1239,35 @@ async function saveBlockForm() {
   } catch (err) {
     customAlert('Failed to save block: ' + err.message, 'Server Error');
   }
+}
+
+function updateBlockMapPreviewLink(lat, lng) {
+  const link = document.getElementById('block-map-preview-link');
+  if (link && lat && lng) {
+    link.href = `https://maps.google.com/?q=${lat},${lng}`;
+    link.style.display = 'inline-block';
+  } else if (link) {
+    link.style.display = 'none';
+  }
+}
+
+function detectBlockLocation() {
+  if (!navigator.geolocation) {
+    customAlert('Geolocation is not supported by this browser.', 'Error');
+    return;
+  }
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      const lat = pos.coords.latitude;
+      const lng = pos.coords.longitude;
+      document.getElementById('block-input-latitude').value = lat.toFixed(6);
+      document.getElementById('block-input-longitude').value = lng.toFixed(6);
+      updateBlockMapPreviewLink(lat, lng);
+      notify('Location detected', 'success');
+    },
+    (err) => customAlert('Failed to get location: ' + err.message, 'Error'),
+    { enableHighAccuracy: true, timeout: 10000 }
+  );
 }
 
 function confirmDeleteBlock(blockId) {
@@ -1255,7 +1347,7 @@ function selectUnitCategory(cat) {
 }
 
 function openAddUnitModal() {
-  document.getElementById('unit-modal-title').textContent = '🚪 Add Facility Unit';
+  document.getElementById('unit-modal-title').innerHTML = '<re-icon icon="arrow-door-in"></re-icon> Add Facility Unit';
   document.getElementById('unit-edit-id').value = '';
   document.getElementById('unit-input-hallno').value = '';
   document.getElementById('unit-input-name').value = '';
@@ -1264,6 +1356,10 @@ function openAddUnitModal() {
   document.getElementById('unit-input-wifi').value = '150 Mbps';
   document.getElementById('unit-input-mobile').value = '5G';
   document.getElementById('unit-select-status').value = 'Available';
+  document.getElementById('unit-input-latitude').value = '';
+  document.getElementById('unit-input-longitude').value = '';
+  document.getElementById('unit-input-accuracy').value = '';
+  document.getElementById('unit-input-geofence-radius').value = '50';
 
   // Pre-select current block and floor if in drill-down
   const bSelect = document.getElementById('unit-select-building');
@@ -1277,6 +1373,8 @@ function openAddUnitModal() {
   }
 
   selectUnitCategory('Room');
+  updateUnitMapPreviewLink('', '');
+
   const modal = document.getElementById('modal-unit');
   if (modal) modal.classList.add('open');
 }
@@ -1285,7 +1383,7 @@ function openEditUnitModal(unitId) {
   const room = ALL_ROOMS.find(r => String(r._id) === String(unitId));
   if (!room) return;
 
-  document.getElementById('unit-modal-title').textContent = '✏️ Edit Facility Unit';
+  document.getElementById('unit-modal-title').innerHTML = '<re-icon icon="edit"></re-icon> Edit Facility Unit';
   document.getElementById('unit-edit-id').value = room._id;
   document.getElementById('unit-input-hallno').value = room.hallNo;
   document.getElementById('unit-input-name').value = room.name || '';
@@ -1294,6 +1392,10 @@ function openEditUnitModal(unitId) {
   document.getElementById('unit-input-wifi').value = room.wifiSpeed || '150 Mbps';
   document.getElementById('unit-input-mobile').value = room.mobileSpeed || '5G';
   document.getElementById('unit-select-status').value = room.status || 'Available';
+  document.getElementById('unit-input-latitude').value = room.latitude || '';
+  document.getElementById('unit-input-longitude').value = room.longitude || '';
+  document.getElementById('unit-input-accuracy').value = room.locationAccuracy || '';
+  document.getElementById('unit-input-geofence-radius').value = room.geofenceRadius || 50;
 
   const bSelect = document.getElementById('unit-select-building');
   if (bSelect) {
@@ -1320,8 +1422,41 @@ function openEditUnitModal(unitId) {
     document.getElementById('unit-lab-status').value = room.labStatus || 'Available';
   }
 
+  updateUnitMapPreviewLink(room.latitude, room.longitude);
+
   const modal = document.getElementById('modal-unit');
   if (modal) modal.classList.add('open');
+}
+
+function updateUnitMapPreviewLink(lat, lng) {
+  const link = document.getElementById('unit-map-preview-link');
+  if (link && lat && lng) {
+    link.href = `https://maps.google.com/?q=${lat},${lng}`;
+    link.style.display = 'inline-block';
+  } else if (link) {
+    link.style.display = 'none';
+  }
+}
+
+function detectUnitLocation() {
+  if (!navigator.geolocation) {
+    customAlert('Geolocation is not supported by this browser.', 'Error');
+    return;
+  }
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      const lat = pos.coords.latitude;
+      const lng = pos.coords.longitude;
+      const acc = pos.coords.accuracy;
+      document.getElementById('unit-input-latitude').value = lat.toFixed(6);
+      document.getElementById('unit-input-longitude').value = lng.toFixed(6);
+      document.getElementById('unit-input-accuracy').value = Math.round(acc);
+      updateUnitMapPreviewLink(lat, lng);
+      notify('Location detected', 'success');
+    },
+    (err) => customAlert('Failed to get location: ' + err.message, 'Error'),
+    { enableHighAccuracy: true, timeout: 10000 }
+  );
 }
 
 function onUnitBuildingChange() {
@@ -1351,6 +1486,10 @@ async function saveUnitForm() {
   const ipAddress = document.getElementById('unit-input-ip').value.trim();
   const wifiSpeed = document.getElementById('unit-input-wifi').value.trim();
   const mobileSpeed = document.getElementById('unit-input-mobile').value.trim();
+  const latitude = parseFloat(document.getElementById('unit-input-latitude').value);
+  const longitude = parseFloat(document.getElementById('unit-input-longitude').value);
+  const accuracy = parseFloat(document.getElementById('unit-input-accuracy').value);
+  const geofenceRadius = parseInt(document.getElementById('unit-input-geofence-radius').value, 10) || 50;
 
   if (!hallNo) {
     customAlert('Please enter Hall / Room Number (e.g. LH-101, SH-204).', 'Validation Error');
@@ -1362,6 +1501,10 @@ async function saveUnitForm() {
   }
   if (isNaN(capacity) || capacity < 1) {
     customAlert('Please enter a valid seating capacity (positive integer).', 'Validation Error');
+    return;
+  }
+  if (isNaN(geofenceRadius) || geofenceRadius < 5 || geofenceRadius > 1000) {
+    customAlert('Geofence radius must be between 5 and 1000 meters.', 'Validation Error');
     return;
   }
 
@@ -1379,6 +1522,11 @@ async function saveUnitForm() {
     wifiSpeed,
     mobileSpeed
   };
+
+  if (!isNaN(latitude)) payload.latitude = latitude;
+  if (!isNaN(longitude)) payload.longitude = longitude;
+  if (!isNaN(accuracy)) payload.locationAccuracy = accuracy;
+  payload.geofenceRadius = geofenceRadius;
 
   if (CURRENT_UNIT_CAT === 'Hall') {
     payload.incharge = {
@@ -1544,7 +1692,7 @@ function openPreBookModal(roomId) {
   document.getElementById('prebook-hall-title').textContent = `Reserve ${room.hallNo} (${room.name || 'Special Hall'})`;
   document.getElementById('prebook-input-title').value = '';
   document.getElementById('prebook-input-organizer').value = '';
-  document.getElementById('prebook-input-date').value = new Date().toISOString().split('T')[0];
+  document.getElementById('prebook-input-date').value = todayIST();
   document.getElementById('prebook-input-start').value = '10:00';
   document.getElementById('prebook-input-end').value = '12:00';
   document.getElementById('prebook-input-notes').value = '';
@@ -1618,7 +1766,7 @@ function renderMaintenanceTable() {
   const maintRooms = ALL_ROOMS.filter(r => r.status === 'Maintenance' || r.status === 'Temporarily Unavailable');
 
   if (maintRooms.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="7" class="td-empty">🟢 All facilities are operational. No units currently under maintenance.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="7" class="td-empty"><span class="status-dot green"></span> All facilities are operational. No units currently under maintenance.</td></tr>';
     return;
   }
 
@@ -1632,7 +1780,7 @@ function renderMaintenanceTable() {
         <td><span class="badge badge-warning">${esc(r.status)}</span></td>
         <td><code>${esc(r.ipAddress || '—')}</code></td>
         <td>${esc(r.statusHistory?.length ? r.statusHistory[r.statusHistory.length - 1].reason : 'Routine inspection')}</td>
-        <td><button class="btn-out btn-xs" onclick="exploreUnit('${r._id}')">Inspect →</button></td>
+        <td><button class="btn-out btn-xs" onclick="exploreUnit('${r._id}')">Inspect <re-icon icon="arrow-right"></re-icon></button></td>
       </tr>`;
   }).join('');
 }
@@ -1649,6 +1797,11 @@ function renderBoardsTable() {
   tbody.innerHTML = ALL_BOARDS.map(b => {
     const room = ALL_ROOMS.find(r => String(r._id) === String(b.roomId?._id || b.roomId));
     const bldg = ALL_BLOCKS.find(x => String(x._id) === String(b.buildingId?._id || b.buildingId || room?.buildingId));
+    const isActive = b.status === 'Active';
+    const nextStatus = isActive ? 'Disabled' : 'Active';
+    const toggleBtnText = isActive ? 'Disable' : 'Enable';
+    const toggleBtnClass = isActive ? 'btn-danger' : 'btn-success';
+    const statusBadgeClass = isActive ? 'badge-success' : (b.status === 'Disabled' ? 'badge-danger' : 'badge-warning');
 
     return `
       <tr>
@@ -1657,14 +1810,38 @@ function renderBoardsTable() {
         <td>${room ? esc(room.hallNo) : '<span style="color:var(--tmu);">Unassigned</span>'}</td>
         <td>${esc(bldg?.name || '—')}</td>
         <td><code>${esc(b.currentIp || '192.168.10.15')}</code></td>
-        <td><span class="badge ${b.status === 'Active' ? 'badge-success' : 'badge-warning'}">${esc(b.status)}</span></td>
+        <td><span class="badge ${statusBadgeClass}">${esc(b.status)}</span></td>
         <td>
           <button class="btn-out btn-xs" onclick="openBoardLogsModal('${b._id}')">Logs</button>
-          <button class="btn-pri btn-xs" onclick="location.href='board.html?device=${encodeURIComponent(b.deviceId)}'">Open Kiosk</button>
+          <button class="${toggleBtnClass} btn-xs" onclick="toggleBoardStatus('${b._id}', '${nextStatus}')">${toggleBtnText}</button>
+          <button class="btn-pri btn-xs" onclick="location.href='board.html?device=${encodeURIComponent(b.deviceId)}'" ${!isActive ? 'disabled title="Board is disabled"' : ''}>Open Kiosk</button>
         </td>
       </tr>`;
   }).join('');
 }
+
+async function loadInitialData() {
+  await loadAllData();
+  if (typeof CURRENT_TAB !== 'undefined' && CURRENT_TAB === 'boards' && typeof renderBoardsTable === 'function') {
+    renderBoardsTable();
+  }
+}
+window.loadInitialData = loadInitialData;
+
+async function toggleBoardStatus(boardId, newStatus) {
+  try {
+    const res = await api(`/api/timetable/boards/${boardId}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status: newStatus })
+    });
+    if (res.error) throw new Error(res.error);
+    notify(`Smart board successfully ${newStatus === 'Active' ? 'enabled' : 'disabled'}!`, 'success');
+    await loadInitialData();
+  } catch (err) {
+    notify(err.message || 'Failed to update board status', 'error');
+  }
+}
+window.toggleBoardStatus = toggleBoardStatus;
 
 async function renderAuditLogsTable() {
   const tbody = document.getElementById('tbody-audit-logs');
@@ -1706,13 +1883,13 @@ function toggleAdminSidebar() {
   if (isMobile) {
     const isOpen = sidebar.classList.toggle('sb-mobile-open');
     if (overlay) overlay.classList.toggle('visible', isOpen);
-    if (toggleButton) toggleButton.innerHTML = isOpen ? '✖' : '☰';
+    if (toggleButton) toggleButton.innerHTML = isOpen ? '<re-icon icon="x"></re-icon>' : '<re-icon icon="menu"></re-icon>';
   } else {
     const isHidden = sidebar.classList.toggle('sb-hidden');
     if (mainContent) mainContent.classList.toggle('sb-expanded', isHidden);
     if (toggleButton) {
       toggleButton.classList.toggle('closed', isHidden);
-      toggleButton.innerHTML = isHidden ? '☰' : '✖';
+      toggleButton.innerHTML = isHidden ? '<re-icon icon="menu"></re-icon>' : '<re-icon icon="x"></re-icon>';
     }
   }
 }
@@ -1722,7 +1899,9 @@ function initUserProfile() {
   const user = typeof getUser === 'function' ? getUser() : null;
   if (!user) return;
   const displayName = user.fullName || user.name || user.username || 'User';
-  const roleName = user.role === 'admin' ? 'Admin' : (user.isTimeTableCoordinator ? 'TT Coordinator' : 'Teacher');
+  const isSudo = typeof isSudoAdmin === 'function' ? isSudoAdmin(user) : (['admin', 'sudo'].includes(user.role) && user.adminFlag !== 'subadmin');
+  const isAdm = typeof isAdminUser === 'function' ? isAdminUser(user) : (['admin', 'sudo'].includes(user.role) || Boolean(user.isAdmin));
+  const roleName = isSudo ? 'Sudo Admin' : (isAdm ? 'Admin' : (user.isTimeTableCoordinator ? 'TT Coordinator' : 'Teacher'));
   const avatarLetter = (displayName[0] || 'A').toUpperCase();
 
   const avEl = document.getElementById('sb-av');
@@ -1733,9 +1912,14 @@ function initUserProfile() {
   if (roleEl) roleEl.textContent = roleName;
 
   const backBtn = document.getElementById('admin-hub-back-btn');
-  if (backBtn && user.role !== 'admin') {
-    backBtn.textContent = '← Back to Timetable';
-    backBtn.onclick = () => { location.href = 'timetable.html'; };
+  if (backBtn) {
+    if (!isAdm) {
+      backBtn.innerHTML = '<re-icon icon="arrow-left"></re-icon> Back to Timetable';
+      backBtn.onclick = () => { location.href = 'timetable.html?tab=dashboard'; };
+    } else {
+      backBtn.innerHTML = '<re-icon icon="arrow-left"></re-icon> Back to Hub';
+      backBtn.onclick = () => { location.href = 'selector.html'; };
+    }
   }
 }
 
@@ -1764,7 +1948,7 @@ function exportFacilityReport() {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `EAMS-Campus-Facilities-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.download = `EAMS-Campus-Facilities-${todayIST()}.csv`;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
@@ -1773,28 +1957,258 @@ function exportFacilityReport() {
 }
 window.exportFacilityReport = exportFacilityReport;
 
-function openRegisterBoardModal() {
-  customAlert('Smart Board hardware displays are linked to specific classroom units. You can connect a board from the Unit Inspection Sheet or provision it via the Smart Board Gateway.', 'Smart Board Provisioning');
+function copyBoardCredText(text, label) {
+  if (!text) {
+    notify('No ' + label + ' available to copy', 'warn');
+    return;
+  }
+  navigator.clipboard.writeText(text).then(() => {
+    notify(label + ' copied to clipboard', 'success');
+  }).catch(() => {
+    notify('Failed to copy ' + label, 'warn');
+  });
 }
-window.openRegisterBoardModal = openRegisterBoardModal;
+window.copyBoardCredText = copyBoardCredText;
+
+function toggleBoardCredVisibility(boardId, actualKey, prefix = 'b-cred-') {
+  const el = document.getElementById(`${prefix}pwd-${boardId}`);
+  const eye = document.getElementById(`${prefix}eye-${boardId}`);
+  if (!el) return;
+  const isMasked = el.textContent.includes('•');
+  if (isMasked) {
+    el.textContent = actualKey || '(No key configured)';
+    if (eye) eye.innerHTML = '<re-icon icon="eye-off" size="14"></re-icon>';
+  } else {
+    el.textContent = '••••••••••••';
+    if (eye) eye.innerHTML = '<re-icon icon="eye" size="14"></re-icon>';
+  }
+}
+window.toggleBoardCredVisibility = toggleBoardCredVisibility;
+
+// ── SMART BOARD PASSWORD MANAGEMENT ──
+function openChangeBoardPasswordModal(boardId, deviceId, boardName) {
+  if (!boardId) {
+    notify('Board identifier not found.', 'warn');
+    return;
+  }
+  const board = ALL_BOARDS.find(b => String(b._id) === String(boardId));
+  const resolvedDeviceId = (board ? board.deviceId : deviceId) || '';
+  const resolvedBoardName = (board ? board.boardName : boardName) || 'Smart Board';
+
+  const idInp = document.getElementById('change-board-pwd-id');
+  const devInp = document.getElementById('change-board-pwd-device');
+  const subEl = document.getElementById('change-board-pwd-sub');
+  const newInp = document.getElementById('change-board-pwd-new');
+  const confInp = document.getElementById('change-board-pwd-confirm');
+
+  if (idInp) idInp.value = boardId;
+  if (devInp) devInp.value = resolvedDeviceId;
+  if (subEl) subEl.textContent = `Update sign-in password for ${resolvedBoardName} (${resolvedDeviceId})`;
+
+  if (newInp) {
+    newInp.value = '';
+    newInp.type = 'password';
+  }
+  if (confInp) {
+    confInp.value = '';
+    confInp.type = 'password';
+  }
+
+  const btnNew = document.getElementById('btn-toggle-new-board-pwd');
+  const btnConf = document.getElementById('btn-toggle-confirm-board-pwd');
+  if (btnNew) btnNew.innerHTML = '<re-icon icon="eye" size="14"></re-icon>';
+  if (btnConf) btnConf.innerHTML = '<re-icon icon="eye" size="14"></re-icon>';
+
+  openModal('modal-change-board-pwd');
+}
+window.openChangeBoardPasswordModal = openChangeBoardPasswordModal;
+
+function toggleInputVisibility(inputId, btnEl) {
+  const input = document.getElementById(inputId);
+  if (!input) return;
+  const isPwd = input.type === 'password';
+  input.type = isPwd ? 'text' : 'password';
+  if (btnEl) {
+    btnEl.innerHTML = `<re-icon icon="${isPwd ? 'eye-off' : 'eye'}" size="14"></re-icon>`;
+  }
+}
+window.toggleInputVisibility = toggleInputVisibility;
+
+function generateRandomBoardPassword() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+  let rand = '';
+  for (let i = 0; i < 6; i++) {
+    rand += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  const devInp = document.getElementById('change-board-pwd-device');
+  let suffix = rand;
+  if (devInp && devInp.value) {
+    const parts = devInp.value.split('-');
+    const hallPart = parts[parts.length - 1] || 'LH';
+    suffix = `${hallPart}_${rand}`;
+  }
+  const generated = `Board@${suffix}`;
+
+  const newInp = document.getElementById('change-board-pwd-new');
+  const confInp = document.getElementById('change-board-pwd-confirm');
+  if (newInp) {
+    newInp.value = generated;
+    newInp.type = 'text';
+  }
+  if (confInp) {
+    confInp.value = generated;
+    confInp.type = 'text';
+  }
+
+  const btnNew = document.getElementById('btn-toggle-new-board-pwd');
+  const btnConf = document.getElementById('btn-toggle-confirm-board-pwd');
+  if (btnNew) btnNew.innerHTML = '<re-icon icon="eye-off" size="14"></re-icon>';
+  if (btnConf) btnConf.innerHTML = '<re-icon icon="eye-off" size="14"></re-icon>';
+
+  notify('Generated secure password', 'info');
+}
+window.generateRandomBoardPassword = generateRandomBoardPassword;
+
+async function submitChangeBoardPassword() {
+  const boardId = document.getElementById('change-board-pwd-id')?.value;
+  const newPassword = document.getElementById('change-board-pwd-new')?.value?.trim();
+  const confirmPassword = document.getElementById('change-board-pwd-confirm')?.value?.trim();
+  const btn = document.getElementById('btn-save-board-pwd');
+
+  if (!boardId) {
+    customAlert('No board selected.', 'Error');
+    return;
+  }
+  if (!newPassword) {
+    customAlert('Please enter a new password.', 'Validation Error');
+    return;
+  }
+  if (newPassword.length < 4) {
+    customAlert('Password must be at least 4 characters long.', 'Validation Error');
+    return;
+  }
+  if (newPassword !== confirmPassword) {
+    customAlert('New password and confirm password do not match.', 'Validation Error');
+    return;
+  }
+
+  const originalBtnHtml = btn ? btn.innerHTML : '';
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<re-icon icon="refresh" size="14" class="spin"></re-icon> Updating…';
+  }
+
+  try {
+    const res = await api(`/api/timetable/boards/${boardId}/password`, {
+      method: 'PATCH',
+      body: JSON.stringify({ password: newPassword })
+    });
+
+    notify(res.message || 'Board password updated successfully!', 'success');
+
+    // Update in-memory ALL_BOARDS cache
+    const board = ALL_BOARDS.find(b => String(b._id) === String(boardId));
+    if (board) {
+      board.boardApiKey = newPassword;
+    }
+
+    // Refresh active unit detail card if open
+    if (EXPLORER_STATE.level === 3 && EXPLORER_STATE.unitId) {
+      renderUnitDetail(EXPLORER_STATE.unitId);
+    }
+
+    // Refresh logs modal if open
+    const logsModal = document.getElementById('modal-board-logs');
+    if (logsModal && logsModal.classList.contains('open')) {
+      openBoardLogsModal(boardId);
+    }
+
+    // Update register/edit modal if editing this board
+    const regApiKeyInp = document.getElementById('register-board-api-key');
+    const regEditIdInp = document.getElementById('register-board-edit-id');
+    if (regApiKeyInp && regEditIdInp && String(regEditIdInp.value) === String(boardId)) {
+      regApiKeyInp.value = newPassword;
+      currentRegisterBoardApiKey = newPassword;
+    }
+
+    closeModal('modal-change-board-pwd');
+  } catch (err) {
+    customAlert('Failed to update board password: ' + (err.message || err), 'Error');
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = originalBtnHtml;
+    }
+  }
+}
+window.submitChangeBoardPassword = submitChangeBoardPassword;
 
 function openBoardLogsModal(boardId) {
   const board = ALL_BOARDS.find(b => String(b._id) === String(boardId));
   const titleEl = document.getElementById('board-logs-title');
   const subEl = document.getElementById('board-logs-sub');
   const metricsEl = document.getElementById('board-logs-metrics');
+  const credsEl = document.getElementById('board-logs-creds');
   const contentEl = document.getElementById('board-logs-content');
 
-  if (titleEl) titleEl.textContent = `📡 Logs: ${board ? board.boardName : 'Smart Board'}`;
+  if (titleEl) titleEl.innerHTML = `<re-icon icon="radio" size="18"></re-icon> Logs: ${board ? esc(board.boardName) : 'Smart Board'}`;
   if (subEl) subEl.textContent = `Device ID: ${board ? board.deviceId : '—'} • Current IP: ${board?.currentIp || '192.168.10.15'}`;
 
   if (metricsEl) {
     metricsEl.innerHTML = `
       <div class="diag-card"><div class="dc-title">Status</div><div class="dc-val" style="color:var(--gD);">${board?.status || 'Active'}</div></div>
       <div class="diag-card"><div class="dc-title">Latency</div><div class="dc-val">12 ms</div></div>
-      <div class="diag-card"><div class="dc-title">Firmware</div><div class="dc-val">v2.4.1</div></div>
+      <div class="diag-card"><div class="dc-title">Firmware</div><div class="dc-val">${esc(board?.firmwareVersion || 'v2.4.1')}</div></div>
       <div class="diag-card"><div class="dc-title">Uptime</div><div class="dc-val">99.8%</div></div>
     `;
+  }
+
+  if (credsEl && board) {
+    credsEl.innerHTML = `
+      <div class="board-cred-box" style="margin-top:0;margin-bottom:12px;">
+        <div class="board-cred-header">
+          <div class="board-cred-title">
+            <re-icon icon="key" size="14"></re-icon> Board Kiosk Sign-In Credentials
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span class="board-cred-badge">Kiosk Sign-In Credentials</span>
+            <button type="button" class="btn-out btn-xs" style="padding:3px 9px;font-size:11px;font-weight:700;display:inline-flex;align-items:center;gap:5px;border-radius:6px;border-color:rgba(46,125,50,0.35);color:var(--gD);background:#fff;" onclick="openChangeBoardPasswordModal('${board._id}', '${esc(board.deviceId)}', '${esc(board.boardName)}')">
+              <re-icon icon="key" size="13"></re-icon> Change Password
+            </button>
+          </div>
+        </div>
+        <div class="board-cred-row">
+          <div class="board-cred-field">
+            <div class="board-cred-lbl">Login Username / Device ID</div>
+            <div class="board-cred-val-wrap">
+              <span class="board-cred-val">${esc(board.deviceId)}</span>
+              <button type="button" class="board-cred-btn" title="Copy Username" onclick="copyBoardCredText('${esc(board.deviceId)}', 'Username')">
+                <re-icon icon="copy" size="14"></re-icon>
+              </button>
+            </div>
+          </div>
+          <div class="board-cred-field">
+            <div class="board-cred-lbl">Login Password / Device Key</div>
+            <div class="board-cred-val-wrap">
+              <span class="board-cred-val" id="b-log-pwd-${board._id}">••••••••••••</span>
+              <div style="display:flex;gap:4px;align-items:center;">
+                <button type="button" class="board-cred-btn" id="b-log-eye-${board._id}" title="Toggle Visibility" onclick="toggleBoardCredVisibility('${board._id}', '${esc(board.boardApiKey || '')}', 'b-log-')">
+                  <re-icon icon="eye" size="14"></re-icon>
+                </button>
+                <button type="button" class="board-cred-btn" title="Copy Password" onclick="copyBoardCredText('${esc(board.boardApiKey || '')}', 'Password')">
+                  <re-icon icon="copy" size="14"></re-icon>
+                </button>
+                <button type="button" class="board-cred-btn" title="Change Password" onclick="openChangeBoardPasswordModal('${board._id}', '${esc(board.deviceId)}', '${esc(board.boardName)}')">
+                  <re-icon icon="edit" size="14"></re-icon>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  } else if (credsEl) {
+    credsEl.innerHTML = '';
   }
 
   if (contentEl) {
@@ -1803,13 +2217,284 @@ function openBoardLogsModal(boardId) {
       `[${new Date(Date.now() - 3600000).toLocaleTimeString()}] IP lease confirmed: ${board?.currentIp || '192.168.10.15'}`,
       `[${new Date(Date.now() - 7200000).toLocaleTimeString()}] Kiosk board heartbeat normal (Resolution: 1920x1080)`
     ];
-    contentEl.innerHTML = logs.map(l => `<div style="font-family:'DM Mono',monospace;font-size:12px;padding:3px 0;color:var(--td);">${esc(l)}</div>`).join('');
+    contentEl.innerHTML = logs.map(l => `<div class="board-log-line">${esc(l)}</div>`).join('');
   }
 
   const modal = document.getElementById('modal-board-logs');
   if (modal) modal.classList.add('open');
 }
 window.openBoardLogsModal = openBoardLogsModal;
+
+// ── REGISTER / EDIT SMART BOARD MODAL ──
+let currentRegisterBoardId = null;
+let currentRegisterBoardApiKey = null;
+
+function openRegisterBoardModal(boardId = null) {
+  const isEdit = !!boardId;
+  const modal = document.getElementById('modal-register-board');
+  if (!modal) return;
+
+  document.getElementById('register-board-title').innerHTML = isEdit
+    ? '<re-icon icon="edit"></re-icon> Edit Smart Board'
+    : '<re-icon icon="tv"></re-icon> Register Smart Board';
+  document.getElementById('register-board-sub').textContent = isEdit
+    ? 'Update board details. Regenerate API key if compromised.'
+    : 'Device provisioning: generates API key once. Store it securely — it won\'t be shown again.';
+
+  document.getElementById('register-board-edit-id').value = '';
+  document.getElementById('register-board-device-id').value = '';
+  document.getElementById('register-board-name').value = '';
+  document.getElementById('register-board-device-id-input').value = '';
+  document.getElementById('register-board-firmware').value = '';
+  document.getElementById('register-board-api-key').value = '';
+  document.getElementById('register-board-key-section').style.display = 'none';
+  document.getElementById('register-board-actions-section').style.display = 'none';
+  document.getElementById('register-board-status').style.display = 'none';
+  document.getElementById('register-board-test-result').style.display = 'none';
+
+  // Populate building select
+  const buildingSelect = document.getElementById('register-board-building');
+  if (buildingSelect) {
+    buildingSelect.innerHTML = '<option value="">— Select Building —</option>' +
+      ALL_BLOCKS.filter(b => b.status === 'Active').map(b =>
+        `<option value="${b._id}">${esc(b.name)} (${esc(b.code)})</option>`
+      ).join('');
+  }
+
+  // Populate room select (will be filtered by building)
+  const roomSelect = document.getElementById('register-board-room');
+  if (roomSelect) {
+    roomSelect.innerHTML = '<option value="">— Select Building First —</option>';
+    roomSelect.disabled = true;
+  }
+
+  if (isEdit) {
+    const board = ALL_BOARDS.find(b => String(b._id) === String(boardId));
+    if (board) {
+      currentRegisterBoardId = board._id;
+      document.getElementById('register-board-edit-id').value = board._id;
+      document.getElementById('register-board-device-id').value = board.deviceId;
+      document.getElementById('register-board-name').value = board.boardName;
+      document.getElementById('register-board-device-id-input').value = board.deviceId;
+      document.getElementById('register-board-firmware').value = board.firmwareVersion || '';
+      document.getElementById('register-board-device-id-input').readOnly = true;
+      document.getElementById('register-board-key-section').style.display = 'block';
+      document.getElementById('register-board-api-key').value = board.boardApiKey || '••••••••••••••••••••••••';
+      document.getElementById('register-board-actions-section').style.display = 'block';
+
+      if (buildingSelect) buildingSelect.value = board.buildingId?._id || board.buildingId || '';
+      onRegisterBoardBuildingChange();
+      if (roomSelect && board.roomId) {
+        roomSelect.value = board.roomId._id || board.roomId;
+      }
+    }
+  } else {
+    currentRegisterBoardId = null;
+    document.getElementById('register-board-device-id-input').readOnly = false;
+  }
+
+  modal.classList.add('open');
+}
+
+async function onRegisterBoardBuildingChange() {
+  const buildingSelect = document.getElementById('register-board-building');
+  const roomSelect = document.getElementById('register-board-room');
+  if (!buildingSelect || !roomSelect) return;
+
+  const buildingId = buildingSelect.value;
+  if (!buildingId) {
+    roomSelect.innerHTML = '<option value="">— Select Building First —</option>';
+    roomSelect.disabled = true;
+    return;
+  }
+
+  const rooms = ALL_ROOMS.filter(r =>
+    String(r.buildingId?._id || r.buildingId) === String(buildingId) &&
+    r.status !== 'Inactive'
+  );
+
+  roomSelect.innerHTML = '<option value="">— Select Room —</option>' +
+    rooms.map(r => `<option value="${r._id}">${esc(r.hallNo)} — ${esc(r.name || r.hallNo)} (Floor ${r.floor}, ${r.capacity} seats)</option>`).join('');
+  roomSelect.disabled = false;
+  onRegisterBoardRoomChange();
+}
+
+function onRegisterBoardRoomChange() {
+  const buildingSelect = document.getElementById('register-board-building');
+  const roomSelect = document.getElementById('register-board-room');
+  const devIdInp = document.getElementById('register-board-device-id-input');
+  const nameInp = document.getElementById('register-board-name');
+  if (!buildingSelect || !roomSelect || !devIdInp || devIdInp.readOnly) return;
+
+  const buildingId = buildingSelect.value;
+  const roomId = roomSelect.value;
+  if (!buildingId || !roomId) return;
+
+  const building = ALL_BLOCKS.find(b => String(b._id) === String(buildingId));
+  const room = ALL_ROOMS.find(r => String(r._id) === String(roomId));
+  if (!building || !room) return;
+
+  // Formula: TR-R<BlockCode>-<HallNo> (e.g. TR-RMB-LH38)
+  const blockCode = (building.code || 'MB').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const hallNoClean = (room.hallNo || 'R1').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const suggestedId = `TR-R${blockCode}-${hallNoClean}`;
+
+  if (!devIdInp.value || devIdInp.value.startsWith('SB-') || devIdInp.value.startsWith('TR-')) {
+    devIdInp.value = suggestedId;
+  }
+  if (!nameInp.value || nameInp.value.includes('Display') || nameInp.value.includes('Smart Board')) {
+    nameInp.value = `${room.hallNo} Display`;
+  }
+}
+
+async function saveRegisterBoard() {
+  const editId = document.getElementById('register-board-edit-id').value;
+  const isEdit = !!editId;
+  const boardName = document.getElementById('register-board-name').value.trim();
+  const deviceId = document.getElementById('register-board-device-id-input').value.trim().toUpperCase();
+  const buildingId = document.getElementById('register-board-building').value;
+  const roomId = document.getElementById('register-board-room').value;
+  const firmwareVersion = document.getElementById('register-board-firmware').value.trim();
+
+  if (!boardName) {
+    customAlert('Please enter a Board Name.', 'Validation Error');
+    return;
+  }
+  if (!deviceId) {
+    customAlert('Please enter a Device ID (e.g. TR-RMB-LH38).', 'Validation Error');
+    return;
+  }
+  if (!buildingId) {
+    customAlert('Please select a Building.', 'Validation Error');
+    return;
+  }
+  if (!roomId) {
+    customAlert('Please select a Room.', 'Validation Error');
+    return;
+  }
+
+  const payload = { boardName, deviceId, buildingId, roomId, firmwareVersion, status: 'Active' };
+
+  try {
+    let board;
+    if (isEdit) {
+      board = await api(`/api/timetable/boards/${editId}`, { method: 'PUT', body: JSON.stringify(payload) });
+      notify('Smart Board updated successfully', 'success');
+    } else {
+      board = await api('/api/timetable/boards', { method: 'POST', body: JSON.stringify(payload) });
+      notify('Smart Board registered successfully', 'success');
+      currentRegisterBoardApiKey = board.boardApiKey;
+      document.getElementById('register-board-api-key').value = board.boardApiKey;
+      document.getElementById('register-board-key-section').style.display = 'block';
+      document.getElementById('register-board-key-warning').textContent = 'Copy now — won\'t be shown again';
+      document.getElementById('register-board-actions-section').style.display = 'block';
+      document.getElementById('register-board-device-id-input').readOnly = true;
+    }
+  } catch (err) {
+    customAlert('Failed to save board: ' + err.message, 'Server Error');
+  }
+}
+
+function copyBoardApiKey() {
+  const input = document.getElementById('register-board-api-key');
+  if (!input || !input.value || input.value.includes('•')) return;
+  navigator.clipboard.writeText(input.value).then(() => {
+    notify('API Key copied to clipboard', 'success');
+  });
+}
+
+function confirmRegenerateBoardKey() {
+  customConfirm(
+    'Regenerating the API key will invalidate the current key immediately. The board device will need to be reconfigured with the new key. Are you sure?',
+    'Regenerate API Key',
+    async () => {
+      await regenerateBoardApiKey();
+    }
+  );
+}
+
+async function regenerateBoardApiKey() {
+  const editId = document.getElementById('register-board-edit-id').value;
+  if (!editId) return;
+
+  try {
+    const data = await api(`/api/timetable/boards/${editId}/token/regenerate`, { method: 'POST' });
+    currentRegisterBoardApiKey = data.boardApiKey;
+    document.getElementById('register-board-api-key').value = data.boardApiKey;
+    document.getElementById('register-board-key-warning').textContent = 'New key generated — copy now';
+    notify('API Key regenerated successfully', 'success');
+  } catch (err) {
+    customAlert('Failed to regenerate key: ' + err.message, 'Server Error');
+  }
+}
+
+async function testBoardConnection() {
+  const editId = document.getElementById('register-board-edit-id').value;
+  if (!editId) return;
+
+  const resultEl = document.getElementById('register-board-test-result');
+  resultEl.style.display = 'block';
+  resultEl.textContent = 'Testing connection…';
+  resultEl.style.color = 'var(--info)';
+
+  try {
+    const data = await api(`/api/timetable/boards/${editId}/command`, {
+      method: 'POST',
+      body: JSON.stringify({ command: 'ping' })
+    });
+
+    if (data.success) {
+      resultEl.textContent = `✓ Connection test successful! Board responded in ${data.latencyMs || '?'}ms`;
+      resultEl.style.color = 'var(--gD)';
+      notify('Board connection test passed', 'success');
+    } else {
+      resultEl.textContent = `✗ Test failed: ${data.reason || 'Board offline or unreachable'}`;
+      resultEl.style.color = 'var(--red)';
+      notify('Board connection test failed', 'error');
+    }
+  } catch (err) {
+    resultEl.textContent = `✗ Test error: ${err.message}`;
+    resultEl.style.color = 'var(--red)';
+    notify('Connection test error', 'error');
+  }
+}
+
+function sendIdentifyCommand() {
+  const editId = document.getElementById('register-board-edit-id').value;
+  if (!editId) return;
+
+  sendBoardCommand(editId, 'identify');
+}
+
+function sendReloadCommand() {
+  const editId = document.getElementById('register-board-edit-id').value;
+  if (!editId) return;
+
+  sendBoardCommand(editId, 'reload');
+}
+
+function sendResyncCommand() {
+  const editId = document.getElementById('register-board-edit-id').value;
+  if (!editId) return;
+
+  sendBoardCommand(editId, 'resync');
+}
+
+async function sendBoardCommand(boardId, command) {
+  try {
+    const data = await api(`/api/timetable/boards/${boardId}/command`, {
+      method: 'POST',
+      body: JSON.stringify({ command })
+    });
+    if (data.success) {
+      notify(`Command "${command}" sent successfully`, 'success');
+    } else {
+      notify(`Command failed: ${escapeHtml(data.reason || '')}`, 'error');
+    }
+  } catch (err) {
+    notify('Failed to send command: ' + err.message, 'error');
+  }
+}
 
 // ── INITIALIZE ON LOAD ──
 document.addEventListener('DOMContentLoaded', () => {
@@ -1820,3 +2505,17 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   loadAllData();
 });
+
+// Expose functions globally for HTML onclick handlers
+window.openRegisterBoardModal = openRegisterBoardModal;
+window.onRegisterBoardBuildingChange = onRegisterBoardBuildingChange;
+window.onRegisterBoardRoomChange = onRegisterBoardRoomChange;
+window.saveRegisterBoard = saveRegisterBoard;
+window.copyBoardApiKey = copyBoardApiKey;
+window.confirmRegenerateBoardKey = confirmRegenerateBoardKey;
+window.testBoardConnection = testBoardConnection;
+window.sendIdentifyCommand = sendIdentifyCommand;
+window.sendReloadCommand = sendReloadCommand;
+window.sendResyncCommand = sendResyncCommand;
+window.detectBlockLocation = detectBlockLocation;
+window.detectUnitLocation = detectUnitLocation;

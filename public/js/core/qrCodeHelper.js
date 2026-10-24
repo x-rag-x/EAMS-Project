@@ -84,7 +84,7 @@
   function showQrError(el, text, size) {
     el.innerHTML =
       '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;width:' + size + 'px;height:' + size + 'px;padding:20px;text-align:center;background:var(--gLt, #e8f5e9);border:2px dashed var(--gLr, #a5d6a7);border-radius:12px;">' +
-        '<div style="font-size:48px;margin-bottom:10px;">⚠️</div>' +
+        '<div style="font-size:48px;margin-bottom:10px;"><re-icon icon="alert-triangle"></re-icon></div>' +
         '<div style="font-size:14px;font-weight:600;color:var(--td, #1a2e1a);margin-bottom:8px;">QR Generation Failed</div>' +
         '<div style="font-size:11px;color:var(--tmu, #5a7a5a);margin-bottom:12px;">Unable to generate QR code. Students can use the link below:</div>' +
         '<input type="text" value="' + text + '" readonly onclick="this.select()" style="width:100%;padding:8px;font-size:10px;border:1px solid var(--br, #ddd);border-radius:6px;text-align:center;cursor:pointer;" />' +

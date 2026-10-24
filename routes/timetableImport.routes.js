@@ -14,10 +14,12 @@ const router = express.Router();
 const multer = require('multer');
 const M = require('../models');
 const { authMiddleware } = require('../middleware/auth');
+const { isSudoAdmin, hasPageRight } = require('../utils/access');
 const { logAction } = require('../utils/logAction');
 const { sanitizeToString, sanitizeToObjectId } = require('../utils/sanitizeQuery');
 const { parseTimetableWorkbook } = require('../utils/timetableExcelParser');
 const { resolveSectionEntities, resolveCourse, resolveTeacher, resolveRoom } = require('../utils/fuzzyMatch');
+const { normalizeYearRange } = require('../utils/yearFormat');
 
 // Memory storage for Excel upload (max 15MB)
 const upload = multer({
@@ -29,10 +31,9 @@ const upload = multer({
 function canManage(req) {
   const u = req.user;
   if (!u) return false;
-  if (u.role === 'admin' || u.isAdmin) return true;
+  if (isSudoAdmin(u)) return true;
   if (u.isTimeTableCoordinator === true) return true;
-  const rights = Array.isArray(u.adminRights) ? u.adminRights : (typeof u.adminRights === 'string' ? [u.adminRights] : []);
-  if (rights.includes('timetablePage') || rights.includes('adderModules') || rights.includes('all')) return true;
+  if (hasPageRight(u, 'timetable', 'create') || hasPageRight(u, 'timetable', 'edit')) return true;
   return false;
 }
 
@@ -250,10 +251,11 @@ router.post('/commit', authMiddleware, requireManager, async (req, res) => {
   try {
     const {
       deptId,
-      academicYear = '2026-2027',
+      academicYear: rawAcademicYear = '2026-2027',
       publishDirectly = false,
       sections = []
     } = req.body;
+    const academicYear = normalizeYearRange(rawAcademicYear);
 
     const resolvedDeptId = sanitizeToObjectId(deptId) || req.user.deptId;
     if (!resolvedDeptId) {

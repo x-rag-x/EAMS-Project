@@ -5,23 +5,25 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>EAMS – System Maintenance</title>
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/base.css">
+<script src="js/core/escape.js"></script>
+<script src="js/core/icons.js"></script>
+  <link rel="stylesheet" href="css/base.css">
 <link rel="stylesheet" href="css/maintenance.css">
 </head>
 <body>
 
 <!-- Animated background -->
 <div class="gears-wrap">
-  <div class="gear gear-1">⚙️</div>
-  <div class="gear gear-2">⚙️</div>
-  <div class="gear gear-3">⚙️</div>
+  <div class="gear gear-1"><re-icon icon="settings"></re-icon></div>
+  <div class="gear gear-2"><re-icon icon="settings"></re-icon></div>
+  <div class="gear gear-3"><re-icon icon="settings"></re-icon></div>
 </div>
 <div class="orb orb-1"></div>
 <div class="orb orb-2"></div>
 <div class="orb orb-3"></div>
 
 <div class="card">
-  <div class="icon-ring">🔧</div>
+  <div class="icon-ring"><re-icon icon="sledgehammer"></re-icon></div>
 
   <span class="brand" id="maint-brand">EAMS</span>
   <h1>System Maintenance</h1>
@@ -37,21 +39,21 @@
   <!-- Info box -->
   <div class="info-box" id="info-box">
     <div class="info-row">
-      <span class="info-ic">🕐</span>
+      <span class="info-ic"><re-icon icon="history"></re-icon></span>
       <div class="info-body">
         <div class="info-label">Started At</div>
         <div class="info-val" id="info-started">—</div>
       </div>
     </div>
     <div class="info-row" id="end-row" style="display:none;">
-      <span class="info-ic">🏁</span>
+      <span class="info-ic"><re-icon icon="flag"></re-icon></span>
       <div class="info-body">
         <div class="info-label">Expected End</div>
         <div class="info-val" id="info-end">—</div>
       </div>
     </div>
     <div class="info-row" id="affected-row" style="display:none;">
-      <span class="info-ic">👥</span>
+      <span class="info-ic"><re-icon icon="users"></re-icon></span>
       <div class="info-body">
         <div class="info-label">Affected Users</div>
         <div class="info-val" id="info-affected">—</div>
@@ -61,7 +63,7 @@
 
   <!-- Countdown timer -->
   <div class="countdown-wrap" id="countdown-wrap" style="display:none;">
-    <div class="countdown-label">⏳ Estimated time remaining</div>
+    <div class="countdown-label"><re-icon icon="hourglass"></re-icon> Estimated time remaining</div>
     <div class="countdown-row">
       <div class="countdown-unit">
         <span class="countdown-num" id="cd-h">00</span>
@@ -91,10 +93,10 @@
 
   <!-- Admin message -->
   <div class="msg-box" id="msg-box">
-    💬 &nbsp;<span id="maint-message">System is currently under scheduled maintenance. We apologize for the inconvenience.</span>
+    <re-icon icon="message-square"></re-icon> &nbsp;<span id="maint-message">System is currently under scheduled maintenance. We apologize for the inconvenience.</span>
   </div>
 
-  <a href="index.html" class="back-btn">← Back to Login</a>
+  <a href="index.html" class="back-btn"><re-icon icon="arrow-left"></re-icon> Back to Login</a>
 
   <p class="auto-refresh">Auto-refreshes every <b id="refresh-secs">30</b>s &nbsp;·&nbsp; <span id="next-refresh">checking...</span></p>
   <p class="contact-note">For urgent matters, contact your system administrator.</p>

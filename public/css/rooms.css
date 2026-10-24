@@ -2049,3 +2049,159 @@ body {
   border-color: var(--gD, #1b5e20);
 }
 
+/* Modal medium size */
+.modal-md {
+  max-width: 580px;
+}
+
+/* Smart Board Diagnostics & Telemetry Modal */
+.diag-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin-bottom: 12px;
+}
+@media (max-width: 600px) {
+  .diag-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.diag-card {
+  background: var(--gP, #f4f7f4);
+  border: 1px solid var(--br, #d1e2d1);
+  border-radius: 10px;
+  padding: 10px 12px;
+  text-align: center;
+}
+
+.dc-title {
+  font-size: 10px;
+  text-transform: uppercase;
+  color: var(--tmu, #5a735a);
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  margin-bottom: 3px;
+}
+
+.dc-val {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--td, #1a2e1a);
+}
+
+.board-log-line {
+  font-family: 'DM Mono', monospace;
+  font-size: 11.5px;
+  padding: 4px 0;
+  color: #4ade80;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+/* Board Kiosk Login Credentials Card */
+.board-cred-box {
+  background: linear-gradient(135deg, rgba(27, 94, 32, 0.03), rgba(46, 125, 50, 0.07));
+  border: 1.5px solid rgba(46, 125, 50, 0.22);
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin-top: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.board-cred-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.board-cred-title {
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--gD, #1b5e20);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.board-cred-badge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: 12px;
+  background: var(--gLt, #e8f5e9);
+  color: var(--gD, #1b5e20);
+  border: 1px solid rgba(46, 125, 50, 0.3);
+}
+
+.board-cred-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+@media (max-width: 600px) {
+  .board-cred-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+.board-cred-field {
+  background: #ffffff;
+  border: 1px solid var(--br, #d1e2d1);
+  border-radius: 9px;
+  padding: 9px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.board-cred-lbl {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--tmu, #5a735a);
+  letter-spacing: 0.4px;
+}
+
+.board-cred-val-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.board-cred-val {
+  font-family: 'DM Mono', monospace;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--td, #1a2e1a);
+  letter-spacing: 0.5px;
+  word-break: break-all;
+}
+
+.board-cred-btn {
+  background: transparent;
+  border: none;
+  color: var(--gM, #2e7d32);
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 5px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all .2s;
+  flex-shrink: 0;
+}
+.board-cred-btn:hover {
+  background: var(--gLt, #e8f5e9);
+  color: var(--gD, #1b5e20);
+}
+.board-cred-btn:active {
+  transform: scale(0.96);
+}
+
+

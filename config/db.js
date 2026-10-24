@@ -8,12 +8,25 @@ try {
 
 const mongoose = require('mongoose');
 const cfg = require('./index');
-const bcrypt = require('bcryptjs');
+const bcrypt = require('@node-rs/bcrypt');
 const M = require('../models');
 const { startSessionMonitor } = require('../utils/sessionMonitor');
 const { logAction } = require('../utils/logAction');
+const { normalizeYearRange, toBatchTrackId } = require('../utils/yearFormat');
 
 const { DEFAULT_SETTINGS_LIST } = require('./defaultSettings');
+const { syncActiveLoginSessions } = require('../utils/sessionMigration');
+const { mergeDuplicateClassAttendance } = require('../utils/attendanceMigration');
+
+mongoose.connection.on('error', err => {
+  console.warn('   [MongoDB Connection Warning]:', err.message);
+});
+mongoose.connection.on('disconnected', () => {
+  console.warn('   [MongoDB Disconnected]: Connection lost. Waiting for automatic reconnection...');
+});
+mongoose.connection.on('reconnected', () => {
+  console.log('   ✓ MongoDB reconnected successfully');
+});
 
 mongoose.connect(cfg.MONGO_URI, {
   dbName: cfg.DB_NAME,
@@ -21,7 +34,7 @@ mongoose.connect(cfg.MONGO_URI, {
   minPoolSize: 2,
   socketTimeoutMS: 45000,
   connectTimeoutMS: 30000,
-  serverSelectionTimeoutMS: 30000,
+  serverSelectionTimeoutMS: 8000,
   autoIndex: true
 })
   .then(async() => {
@@ -29,8 +42,11 @@ mongoose.connect(cfg.MONGO_URI, {
     console.log(`> Checking Admin User...`);
     await seedAdmin();
     await seedSettings();
+    await seedAcademicYear();
     await seedStudent();
     await seedTeacher();
+    await syncActiveLoginSessions();
+    await mergeDuplicateClassAttendance();
   })
   .catch(err => { console.error('   3/5: MongoDB error:', err.message); process.exit(1); });
 
@@ -59,12 +75,14 @@ async function seedSettings() {
       if (pagesDoc) {
         const toTri = (val) => (typeof val === 'string' ? val : (val === false ? 'disabled' : 'enabled'));
         const pVal = {
-          pageStudents:  toTri(leg.pageStudents || pagesDoc.value?.pageStudents),
-          pageTeachers:  toTri(leg.pageTeachers || pagesDoc.value?.pageTeachers),
-          pageManage:    toTri(leg.pageManage || pagesDoc.value?.pageManage),
-          pageBulk:      toTri(leg.pageBulk || pagesDoc.value?.pageBulk),
-          pageTimeTable: toTri(leg.pageTimeTable || pagesDoc.value?.pageTimeTable || 'enabled'),
-          pageSelector:  toTri(leg.pageSelector || pagesDoc.value?.pageSelector || 'enabled'),
+          pageStudents:   toTri(leg.pageStudents || pagesDoc.value?.pageStudents),
+          pageTeachers:   toTri(leg.pageTeachers || pagesDoc.value?.pageTeachers),
+          pageController: toTri(leg.pageController || pagesDoc.value?.pageController || 'enabled'),
+          pageRooms:      toTri(leg.pageRooms || pagesDoc.value?.pageRooms || 'enabled'),
+          pageManage:     toTri(leg.pageManage || pagesDoc.value?.pageManage),
+          pageBulk:       toTri(leg.pageBulk || pagesDoc.value?.pageBulk),
+          pageTimeTable:  toTri(leg.pageTimeTable || pagesDoc.value?.pageTimeTable || 'enabled'),
+          pageSelector:   toTri(leg.pageSelector || pagesDoc.value?.pageSelector || 'enabled'),
         };
         await M.Settings.findOneAndUpdate({ key: 'pages' }, { $set: { value: pVal } });
       }
@@ -119,23 +137,54 @@ async function seedSettings() {
   }
 
   async function seedAdmin() {
-    // Seed default admin account in Admin and User collections
-    const adminExists = await M.User.findOne({ username: 'admin', role: 'admin' });
+    // Seed default admin account in Teacher and User collections
+    const adminExists = await M.Teacher.findOne({ username: 'admin' });
     if (adminExists) {
       console.log(`   4/5: Admin User found...`);
+      // Ensure shadow User record is normalized to role: 'teacher' and matches trackId (§4.8, R1.7, R3)
+      const shadowUser = await M.User.findOne({ username: 'admin' });
+      if (!shadowUser) {
+        await M.User.create({ username: 'admin', role: 'teacher', trackId: adminExists.trackId || 'TR-ADMIN001', status: 'active', bootstrapPending: Boolean(adminExists.bootstrapPending) });
+      } else if (shadowUser.role !== 'teacher' || !shadowUser.trackId || shadowUser.bootstrapPending !== Boolean(adminExists.bootstrapPending)) {
+        await M.User.updateOne({ username: 'admin' }, { $set: { role: 'teacher', trackId: adminExists.trackId || 'TR-ADMIN001', bootstrapPending: Boolean(adminExists.bootstrapPending) } });
+      }
     }
     else {
-      const adminPass = cfg.ADMIN_PASSWORD || process.env.adminPassword;
-      if (!adminPass) {
-        console.warn('   [WARNING] ADMIN_PASSWORD/adminPassword not set in environment. Skipping default admin seed to prevent insecure account.');
-        return;
-      }
+      const isDefault = !cfg.ADMIN_PASSWORD && !process.env.adminPassword;
+      const adminPass = cfg.ADMIN_PASSWORD || process.env.adminPassword || 'EAMS-admin@123';
       const hash = await bcrypt.hash(adminPass, cfg.BCRYPT_ROUNDS);
-      await M.Admin.create({ fullName: 'Administrator', firstName: 'Admin', lastName: '', username: 'admin', password: hash, trackId: 'TR-ADMIN001', isAdmin: true, adminRights: 'all', adminFlag: 'superadmin', mustChangePassword: true });
-      // Create shadow User record for unified session tracking
+      const now = new Date();
+      await M.Teacher.create({
+        fullName: 'Administrator',
+        firstName: 'Admin',
+        lastName: null,
+        username: 'admin',
+        password: hash,
+        trackId: 'TR-ADMIN001',
+        designation: 'System Administrator',
+        specials: [{ option: 'isAdmin', value: true, key: '' }],
+        pageRights: [{
+          page: '*',
+          module: '*',
+          accessRole: 'sudoAdmin',
+          scope: 'institution',
+          deptId: null,
+          actions: ['view', 'create', 'edit', 'delete', 'approve', 'export', 'assign', 'publish'],
+          enabled: true
+        }],
+        mustChangePassword: true,
+        bootstrapPending: true,
+        isDefaultPassword: isDefault,
+        firstBootAt: now
+      });
+      // Create shadow User record for unified session tracking with role: 'teacher'
       const userExists = await M.User.findOne({ username: 'admin' });
-      if (!userExists) await M.User.create({ username: 'admin', role: 'admin', trackId: 'TR-ADMIN001', status: 'active' });
-      console.log(`   4/5: Admin User not found, Created new user successfully`);
+      if (!userExists) {
+        await M.User.create({ username: 'admin', role: 'teacher', trackId: 'TR-ADMIN001', status: 'active', bootstrapPending: true });
+      } else {
+        await M.User.updateOne({ username: 'admin' }, { $set: { role: 'teacher', bootstrapPending: true } });
+      }
+      console.log(`   4/5: Admin User not found, Created new user successfully (bootstrapPending: true)`);
     }
   }
 
@@ -151,8 +200,18 @@ async function seedSettings() {
           return;
         }
         const hash = await bcrypt.hash(studentPass, cfg.BCRYPT_ROUNDS);
-        const dept = await M.Department.findOne();
-        await M.Student.create({fullName: 'Test Student', password: hash, username: 'student', trackId: 'TRSTD001', regNo: '2022A7PS0203P', deptId: dept ? dept._id : undefined});
+        let dept = await M.Department.findOne();
+        if (!dept) {
+          dept = await M.Department.create({ name: 'Computer Science and Engineering', code: 'CSE', trackId: 'DP-CSE001' });
+        }
+        await M.Student.create({
+          fullName: 'Test Student',
+          password: hash,
+          username: 'student',
+          trackId: 'TR-STD001',
+          registerNo: '2022A7PS0203P',
+          deptId: dept._id
+        });
         await M.User.create({ username: 'student', role: 'student', trackId: 'TR-STD001', status: 'active' });
         await logAction(
           null, 'SYSTEM', 'system',
@@ -179,7 +238,7 @@ async function seedSettings() {
         }
         const hash = await bcrypt.hash(teacherPass, cfg.BCRYPT_ROUNDS);
         const dept = await M.Department.findOne();
-        await M.Teacher.create({fullName: 'Test Teacher', password: hash, username: 'teacher', trackId: 'TRTEC001', empId: 'EMP001', deptId: dept ? dept._id : undefined});
+        await M.Teacher.create({fullName: 'Test Teacher', password: hash, username: 'teacher', trackId: 'TR-TEC001', empId: 'EMP001', deptId: dept ? dept._id : undefined});
         await M.User.create({ username: 'teacher', role: 'teacher', trackId: 'TR-TEC001', status: 'active' });
         await logAction(
           null, 'SYSTEM', 'system',
@@ -190,5 +249,95 @@ async function seedSettings() {
         );
         console.log(`Test Teacher Created successfully`);
       }
+    }
+  }
+
+  async function seedAcademicYear() {
+    try {
+      const yearCount = await M.Year.countDocuments();
+      if (yearCount === 0) {
+        console.log(`> Checking Academic Year...`);
+        const acadSetting = await M.Settings.findOne({ key: 'academic' }).lean();
+        const rawAcadYear = (acadSetting && acadSetting.value && acadSetting.value.academicYear) || '2026-2027';
+        const acadYear = normalizeYearRange(rawAcadYear);
+        const m = acadYear.match(/^(\d{4})-(\d{4})$/);
+        const startY = m ? parseInt(m[1], 10) : 2026;
+
+        const batches = [
+          {
+            batchTrackId: `TR-BATCH-${String(startY).slice(-2)}${String(startY + 4).slice(-2)}`,
+            batch: `${startY}-${startY + 4}`,
+            currentYear: 'I',
+            currentSem: 'I',
+            regulation: '2025'
+          },
+          {
+            batchTrackId: `TR-BATCH-${String(startY - 1).slice(-2)}${String(startY + 3).slice(-2)}`,
+            batch: `${startY - 1}-${startY + 3}`,
+            currentYear: 'II',
+            currentSem: 'III',
+            regulation: '2025'
+          },
+          {
+            batchTrackId: `TR-BATCH-${String(startY - 2).slice(-2)}${String(startY + 2).slice(-2)}`,
+            batch: `${startY - 2}-${startY + 2}`,
+            currentYear: 'III',
+            currentSem: 'V',
+            regulation: '2021'
+          },
+          {
+            batchTrackId: `TR-BATCH-${String(startY - 3).slice(-2)}${String(startY + 1).slice(-2)}`,
+            batch: `${startY - 3}-${startY + 1}`,
+            currentYear: 'IV',
+            currentSem: 'VII',
+            regulation: '2021'
+          }
+        ];
+
+        // Also merge any existing batches from Class or Student collections
+        const existingBatches = await Promise.all([
+          M.Class.distinct('batch'),
+          M.Student.distinct('batch')
+        ]);
+        const extraBatches = [...new Set([...(existingBatches[0] || []), ...(existingBatches[1] || [])].filter(Boolean))];
+        extraBatches.forEach(eb => {
+          const ebNorm = normalizeYearRange(eb);
+          if (ebNorm && !batches.some(b => b.batch === ebNorm)) {
+            const trackId = toBatchTrackId(ebNorm);
+            batches.push({
+              batchTrackId: trackId || `TR-BATCH-2529`,
+              batch: ebNorm,
+              currentYear: 'II',
+              currentSem: 'III',
+              regulation: '2025'
+            });
+          }
+        });
+
+        await M.Year.create({
+          academicYear: acadYear,
+          batches: batches,
+          regulations: [
+            { code: '2021', name: 'Regulation 2021', year: '2021', isDefault: false },
+            { code: '2025', name: 'Regulation 2025', year: '2025', isDefault: true }
+          ],
+          semesterDates: [],
+          createdBy: 'system',
+          isCurrent: true
+        });
+        console.log(`   Academic Year seeded → ${acadYear} (${batches.length} batches)`);
+      } else {
+        // Ensure at least one academic year is flagged as isCurrent
+        const currentYear = await M.Year.findOne({ isCurrent: true });
+        if (!currentYear) {
+          const latest = await M.Year.findOne().sort({ createdAt: -1 });
+          if (latest) {
+            latest.isCurrent = true;
+            await latest.save();
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('   [WARNING] seedAcademicYear:', e.message);
     }
   }

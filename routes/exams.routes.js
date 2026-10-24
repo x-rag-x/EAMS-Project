@@ -1,12 +1,13 @@
 const express = require('express');
 const router = express.Router();
 const M = require('../models');
-const { authMiddleware, adminOnly } = require('../middleware/auth');
+const { authMiddleware, requirePage } = require('../middleware/auth');
 const { logAction } = require('../utils/logAction');
 const { refreshExamStatuses } = require('../utils/examUtils');
-const { dateToDow } = require('../utils/dateUtils');
+const { dateToDow, satOrdinal } = require('../utils/dateUtils');
 const { sanitizeToString } = require('../utils/sanitizeQuery');
 const { checkModuleGuard } = require('../middleware/portalGuard');
+const { normalizeYearRange } = require('../utils/yearFormat');
 
 router.get('/', authMiddleware, async (req, res) => {
   try {
@@ -14,10 +15,15 @@ router.get('/', authMiddleware, async (req, res) => {
     const filter = {};
     if (req.query.examType)    filter.examType    = sanitizeToString(req.query.examType);
     if (req.query.semester)    filter.semester    = sanitizeToString(req.query.semester);
-    if (req.query.status)      filter.status      = sanitizeToString(req.query.status);
-    if (req.query.academicYear) filter.academicYear = sanitizeToString(req.query.academicYear);
+    if (req.query.academicYear) {
+      const nay = normalizeYearRange(req.query.academicYear);
+      filter.academicYear = { $in: [nay, sanitizeToString(req.query.academicYear)] };
+    }
     if (req.query.deptName)    filter.deptName    = sanitizeToString(req.query.deptName);
-    if (req.query.batch)       filter.batch       = sanitizeToString(req.query.batch);
+    if (req.query.batch) {
+      const nb = normalizeYearRange(req.query.batch);
+      filter.batch = { $in: [nb, sanitizeToString(req.query.batch)] };
+    }
     const exams = await M.Exam.find(filter).sort({ createdAt: -1 });
     res.json(exams);
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -165,7 +171,7 @@ async function unmarkExamDatesInCalendar(dates, sem, yr) {
 }
 
 // POST /api/exams  — create exam + auto-mark calendar days immediately
-router.post('/', authMiddleware, adminOnly, checkModuleGuard('modelExams', 'Exams Module'), async (req, res) => {
+router.post('/', authMiddleware, requirePage('manage', 'create', { tab: 'exam' }), checkModuleGuard('modelExams', 'Exams Module'), async (req, res) => {
   try {
     const { title, examType, academicYear, year, semester, batch, deptId, deptName, Dates, timing, notes, status, isFinalized } = req.body;
     if (!title || !examType || !semester || !Dates || !Array.isArray(Dates) || Dates.length === 0) {
@@ -178,8 +184,8 @@ router.post('/', authMiddleware, adminOnly, checkModuleGuard('modelExams', 'Exam
     
     const examData = {
       ExamTrackId: trackId,
-      batch: batch || '',
-      academicYear: academicYear || '',
+      batch: normalizeYearRange(batch),
+      academicYear: normalizeYearRange(academicYear),
       year: calculatedYear,
       semester,
       deptName: deptName || '',
@@ -227,7 +233,7 @@ router.post('/', authMiddleware, adminOnly, checkModuleGuard('modelExams', 'Exam
 });
 
 // PUT /api/exams/:id
-router.put('/:id', authMiddleware, adminOnly, async (req, res) => {
+router.put('/:id', authMiddleware, requirePage('manage', 'edit', { tab: 'exam' }), async (req, res) => {
   try {
     const { title, examType, academicYear, year, semester, batch, deptName, Dates, timing, notes, status, isFinalized } = req.body;
     const prevExam = await M.Exam.findOne({ ExamTrackId: req.params.id }).lean();
@@ -236,10 +242,10 @@ router.put('/:id', authMiddleware, adminOnly, async (req, res) => {
     const updateData = {};
     if (title) updateData.title = title;
     if (examType) updateData.examType = examType;
-    if (academicYear !== undefined) updateData.academicYear = academicYear;
+    if (academicYear !== undefined) updateData.academicYear = normalizeYearRange(academicYear);
     if (year) updateData.year = year;
     if (semester) updateData.semester = semester;
-    if (batch !== undefined) updateData.batch = batch;
+    if (batch !== undefined) updateData.batch = normalizeYearRange(batch);
     if (deptName !== undefined) updateData.deptName = deptName;
     if (Dates) updateData.Dates = Dates;
     if (timing) updateData.timing = timing;
@@ -303,11 +309,21 @@ router.put('/:id', authMiddleware, adminOnly, async (req, res) => {
 });
 
 // DELETE /api/exams/:id
-router.delete('/:id', authMiddleware, adminOnly, async (req, res) => {
+router.delete('/:id', authMiddleware, requirePage('manage', 'delete', { tab: 'exam' }), async (req, res) => {
   try {
-    const exam = await M.Exam.findOneAndDelete({ ExamTrackId: req.params.id }).lean();
+    const exam = await M.Exam.findOne({ ExamTrackId: req.params.id }).lean();
     if (!exam) return res.status(404).json({ error: 'Exam not found' });
     
+    await M.UndoLog.create({
+      collectionName: 'exams',
+      label: `Exam: ${exam.title || exam.ExamTrackId} (${exam.academicYear || ''})`,
+      snapshot: exam,
+      deletedBy: (req.user && (req.user.name || req.user.fullName || req.user.username)) || 'Admin',
+      expiresAt: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000)
+    }).catch(err => console.warn('[UndoLog Error]:', err.message));
+
+    await M.Exam.findOneAndDelete({ ExamTrackId: req.params.id });
+
     // Revert calendar exam entries
     await unmarkExamDatesInCalendar(exam.Dates, exam.semester, exam.year);
     

@@ -33,5 +33,6 @@ const CalendarDay = mongoose.model('CalendarDay', CalendarDaySchema);
 module.exports = {
   CalendarDay,
   AcademicCalendar: CalendarDay,
+  Calendar: CalendarDay,
 };
 

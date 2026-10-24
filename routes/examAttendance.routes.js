@@ -1,10 +1,11 @@
 const express = require('express');
 const router = express.Router();
 const M = require('../models');
-const { authMiddleware, adminOnly, requireRole } = require('../middleware/auth');
+const { authMiddleware, requireRole } = require('../middleware/auth');
 const { logAction } = require('../utils/logAction');
 const { sanitizeToString } = require('../utils/sanitizeQuery');
 const { checkModuleGuard } = require('../middleware/portalGuard');
+const { todayInInstitutionTz } = require('../utils/institutionTime');
 
 router.get('/', authMiddleware, async (req, res) => {
   try {
@@ -39,7 +40,7 @@ router.get('/halls-today', authMiddleware, requireRole('teacher', 'admin'), asyn
   try {
     const { examTrackId, date } = req.query;
     if (!examTrackId) return res.status(400).json({ error: 'examTrackId required' });
-    const dateStr = date || new Date().toISOString().split('T')[0];
+    const dateStr = date || await todayInInstitutionTz();
     const dateObj = new Date(dateStr + 'T00:00:00');
     const records = await M.ExamAttendance.find({ examTrackId, date: dateObj }).sort({ markedAt: 1 });
     res.json(records);

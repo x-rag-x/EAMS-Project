@@ -7,8 +7,10 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&family=Playfair+Display:wght@700&family=DM+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/base.css">
-  <link rel="stylesheet" href="css/timetable.css">
+  <script src="js/core/escape.js"></script>
+  <script src="js/core/icons.js"></script>
+  <link rel="stylesheet" href="css/base.css?v=2.5.6">
+  <link rel="stylesheet" href="css/timetable.css?v=2.5.7">
   <script>
     (function() {
       try {
@@ -16,13 +18,20 @@
         var user = null;
         try { user = JSON.parse(sessionStorage.getItem('user') || sessionStorage.getItem('eams_user')); } catch (e) {}
         var canAccess = user && (
+          user.isSudoAdmin === true ||
+          user.isSuperAdmin === true ||
+          user.isSubAdmin === true ||
+          user.isAdmin === true ||
+          ['sudoAdmin', 'superAdmin', 'subAdmin', 'admin'].includes(user.accessRole) ||
           user.role === 'admin' ||
+          user.role === 'sudo' ||
           user.isTimeTableCoordinator === true ||
           user.isHod === true ||
-          (Array.isArray(user.adminRights) && (user.adminRights.includes('all') || user.adminRights.includes('timetablePage'))) ||
-          (user.adminRights === 'all' || user.adminRights === 'timetablePage') ||
-          (user.role === 'teacher' && user.isAdmin && (user.adminRights === 'all' || (Array.isArray(user.adminRights) && (user.adminRights.includes('all') || user.adminRights.includes('timetablePage'))))) ||
-          (Array.isArray(user.specials) && user.specials.some(function(s) { return s && (s.option === 'isHod' || s.option === 'isTimeTableCoordinator'); }))
+          user.isPrincipal === true ||
+          (user.pages && Boolean(user.pages.timetable)) ||
+          (user.access && (user.access.level === 'full' || user.access.level === 'sudo' || (Array.isArray(user.access.pages) && user.access.pages.includes('timetable')) || (user.access.pages && user.access.pages.timetable))) ||
+          (Array.isArray(user.pageRights) && user.pageRights.some(function(p) { return p && p.enabled !== false && (p.page === '*' || p.page === 'timetable'); })) ||
+          (Array.isArray(user.specials) && user.specials.some(function(s) { return s && (s.option === 'isAdmin' || s.option === 'isHod' || s.option === 'isTimeTableCoordinator'); }))
         );
         if (!token || !canAccess) {
           var ret = encodeURIComponent((window.location.pathname.split('/').pop() || 'timetable.html') + window.location.search);
@@ -36,10 +45,10 @@
 
   <!-- AUTH GATE -->
   <div id="auth-gate" style="display:none">
-    <div class="ag-icon">🔒</div>
+    <div class="ag-icon"><re-icon icon="lock"></re-icon></div>
     <div style="font-size:22px;font-weight:800;color:var(--td)">Access Denied</div>
     <div style="font-size:14px;color:var(--tmu)">You don't have permission to view or manage timetables.</div>
-    <button class="btn-out" onclick="goHome()" style="margin-top:16px;">← Back to Dashboard</button>
+    <button class="btn-out" onclick="goHome()" style="margin-top:16px;"><re-icon icon="arrow-left"></re-icon> Back to Dashboard</button>
   </div>
 
   <!-- EAMS THREE-BODY PAGE LOADER -->
@@ -73,20 +82,20 @@
 
       <div class="sb-nav" id="main-nav">
         <div class="sb-section-label">Workspace Views</div>
-        <button class="sb-item" data-view="dashboard"><span class="sbi-ic">📊</span>Dashboard</button>
-        <button class="sb-item act" data-view="grid"><span class="sbi-ic">▦</span>Timetable Matrix</button>
-        <button class="sb-item" data-view="workload"><span class="sbi-ic">◒</span>Faculty Workload &amp; Schedule</button>
-        <button class="sb-item" data-view="free"><span class="sbi-ic">⊙</span>Free Slots Finder</button>
-        <button class="sb-item" data-view="rooms"><span class="sbi-ic">⌗</span>Room Allocations</button>
-        <button class="sb-item" data-view="overview"><span class="sbi-ic">▥</span>Department Overview</button>
-        <button class="sb-item" data-view="exports"><span class="sbi-ic">⇩</span>Export Center</button>
+        <button class="sb-item act" data-view="dashboard"><span class="sbi-ic"><re-icon icon="grid"></re-icon></span>Dashboard</button>
+        <button class="sb-item" data-view="grid"><span class="sbi-ic"><re-icon icon="calendar"></re-icon></span>Timetable Matrix</button>
+        <button class="sb-item" data-view="workload"><span class="sbi-ic"><re-icon icon="users"></re-icon></span>Faculty Workload &amp; Schedule</button>
+        <button class="sb-item" data-view="free"><span class="sbi-ic"><re-icon icon="search"></re-icon></span>Free Slots Finder</button>
+        <button class="sb-item" data-view="rooms"><span class="sbi-ic"><re-icon icon="arrow-door-in"></re-icon></span>Room Allocations</button>
+        <button class="sb-item" data-view="overview"><span class="sbi-ic"><re-icon icon="layout"></re-icon></span>Department Overview</button>
+        <button class="sb-item" data-view="exports"><span class="sbi-ic"><re-icon icon="download"></re-icon></span>Export Center</button>
 
         <div class="sb-section-label">Management &amp; Audit</div>
-        <button class="sb-item" data-view="subjects"><span class="sbi-ic">📚</span>Subjects</button>
-        <button class="sb-item" data-view="approvals"><span class="sbi-ic">◇</span>Conflict &amp; Approvals<span class="sb-badge alert" id="approval-count"></span></button>
-        <button class="sb-item" data-view="history"><span class="sbi-ic">◷</span>Version History</button>
-        <button class="sb-item" data-view="attendance"><span class="sbi-ic">◉</span>Attendance Insights</button>
-        <button class="sb-item" onclick="window.location.href='rooms.html'"><span class="sbi-ic">🏛️</span>Rooms &amp; Facilities</button>
+        <button class="sb-item" data-view="subjects"><span class="sbi-ic"><re-icon icon="book-open"></re-icon></span>Subjects</button>
+        <button class="sb-item" data-view="approvals"><span class="sbi-ic"><re-icon icon="check-circle"></re-icon></span>Conflict &amp; Approvals<span class="sb-badge alert" id="approval-count"></span></button>
+        <button class="sb-item" data-view="history"><span class="sbi-ic"><re-icon icon="history"></re-icon></span>Version History</button>
+        <button class="sb-item" data-view="attendance"><span class="sbi-ic"><re-icon icon="trend-up"></re-icon></span>Attendance Insights</button>
+        <button class="sb-item" onclick="window.location.href='rooms.html'"><span class="sbi-ic"><re-icon icon="building2"></re-icon></span>Rooms &amp; Facilities</button>
       </div>
 
       <div class="sb-bottom">
@@ -98,7 +107,7 @@
           </div>
         </div>
 
-        <button class="sb-back-btn" onclick="goHome()">← Back to Dashboard</button>
+        <button class="sb-back-btn" onclick="goHome()"><re-icon icon="arrow-left"></re-icon> Back to Dashboard</button>
         
         <button class="sb-logout-btn" onclick="doLogout()" title="Logout">
           <div class="logout-sign">
@@ -120,11 +129,11 @@
             <div class="mode-toggle" id="envToggle" role="group" aria-label="Timetable environment selector">
               <span class="mode-thumb" aria-hidden="true"></span>
               <button type="button" class="mode active" data-mode="development" aria-pressed="true">
-                <span class="mode-ic">🛠️</span>
+                <span class="mode-ic"><re-icon icon="settings"></re-icon></span>
                 <span class="mode-lbl">Development</span>
               </button>
               <button type="button" class="mode" data-mode="production" aria-pressed="false">
-                <span class="mode-ic">✅</span>
+                <span class="mode-ic"><re-icon icon="check-circle"></re-icon></span>
                 <span class="mode-lbl">Production</span>
               </button>
             </div>
@@ -140,7 +149,7 @@
         </div>
 
         <div class="topbar-right">          
-          <div class="profile-chip" onclick="goHome()" title="User Profile">
+          <div class="profile-chip" onclick="openUserProfile()" title="My Profile" style="cursor:pointer;">
             <div class="profile-av" id="topbar-avatar">?</div>
             <div class="profile-info">
               <span class="profile-name" id="topbar-name">—</span>
@@ -166,8 +175,15 @@
         <!-- Quick Launcher Popover Menu (Class Timetable Tabs) -->
         <div class="tt-tab-launcher" id="tt-tab-launcher" style="display:none;" role="menu" aria-label="Open Class Tab">
           <div class="tt-launcher-hd">Open Class Tab</div>
+          <button type="button" class="tt-launcher-item" data-launcher="main-matrix" data-section="" title="Go to Select Class Tab">
+            <span class="tt-launcher-icon"><re-icon icon="layout"></re-icon></span>
+            <div class="tt-launcher-text">
+              <div class="tt-launcher-title">Class Matrix Launcher</div>
+              <div class="tt-launcher-sub">Select class from dropdowns</div>
+            </div>
+          </button>
           <button type="button" class="tt-launcher-item" data-launcher="section" data-section="" title="Open Next Available Class Tab">
-            <span class="tt-launcher-icon">➕</span>
+            <span class="tt-launcher-icon"><re-icon icon="plus"></re-icon></span>
             <div class="tt-launcher-text">
               <div class="tt-launcher-title">Next Available Class</div>
               <div class="tt-launcher-sub">Open next unopened section in new tab</div>
@@ -201,7 +217,7 @@
   </div>
 
   <!-- FLOATING SIDEBAR TOGGLE BUTTON (Below 1600px Split Mode) -->
-  <button type="button" class="sb-float-toggle" id="sb-float-toggle" style="display:none;" title="Expand Sidebar" aria-label="Toggle Sidebar">☰</button>
+  <button type="button" class="sb-float-toggle" id="sb-float-toggle" style="display:none;" title="Expand Sidebar" aria-label="Toggle Sidebar"><re-icon icon="menu" size="16"></re-icon></button>
 
   <!-- TOAST -->
   <div class="toast" id="toast"></div>
@@ -215,7 +231,7 @@
           <h2 class="modal-title" id="modal-title">Add Timetable Entry</h2>
           <div class="modal-sub">Allocate teaching faculty, room, and period duration for the selected section.</div>
         </div>
-        <button type="button" class="modal-close close-modal" aria-label="Close dialog">×</button>
+        <button type="button" class="modal-close close-modal" aria-label="Close dialog"><re-icon icon="x" size="18"></re-icon></button>
       </div>
       <div class="modal-body form-grid"></div>
       <div class="modal-note">
@@ -223,8 +239,8 @@
       </div>
       <div class="modal-ft">
         <button type="button" class="btn-out close-modal">Cancel</button>
-        <button type="button" class="btn-out" id="copy-slot">Copy</button>
         <button type="button" class="btn-out" id="delete-slot" style="color:var(--red,#dc2626);border-color:rgba(220,38,38,0.3);">Delete</button>
+        <button type="button" class="btn-out" id="copy-slot" style="display:none;"><re-icon icon="copy" size="14"></re-icon> Copy</button>
         <button type="button" class="btn-pri" id="save-slot">Save Entry</button>
       </div>
     </div>
@@ -240,7 +256,7 @@
           <h2 class="modal-title">Slot Comment</h2>
           <div class="modal-sub" id="comment-modal-sub">Add remarks, lab requirements, or substitute instructions.</div>
         </div>
-        <button type="button" class="modal-close" id="close-comment-modal" aria-label="Close dialog">×</button>
+        <button type="button" class="modal-close" id="close-comment-modal" aria-label="Close dialog"><re-icon icon="x" size="18"></re-icon></button>
       </div>
       <div class="modal-body" style="padding-top:14px;">
         <div class="fg" style="margin-bottom:0;">
@@ -266,12 +282,12 @@
           <h2 class="modal-title" id="confirm-modal-title">Delete Timetable Slot</h2>
           <div class="modal-sub" id="confirm-modal-sub">This action will modify your timetable draft.</div>
         </div>
-        <button type="button" class="modal-close" id="close-confirm-modal" aria-label="Close dialog">×</button>
+        <button type="button" class="modal-close" id="close-confirm-modal" aria-label="Close dialog"><re-icon icon="x" size="18"></re-icon></button>
       </div>
       <div class="modal-body" style="padding:16px 0 6px 0;">
         <div style="display:flex;gap:14px;align-items:flex-start;">
           <div class="confirm-icon-box" id="confirm-modal-icon">
-            🗑️
+            <re-icon icon="trash2"></re-icon>
           </div>
           <div style="flex:1;">
             <div class="confirm-msg" id="confirm-modal-message">
@@ -296,10 +312,10 @@
       <div class="modal-hd">
         <div>
           <span class="modal-eyebrow">ACADEMIC CURRICULUM</span>
-          <h2 class="modal-title" id="tt-subj-modal-title">📚 Add Department Subject</h2>
+          <h2 class="modal-title" id="tt-subj-modal-title"><re-icon icon="book-open"></re-icon> Add Department Subject</h2>
           <div class="modal-sub">Define course code, name, credits and regulation protocol.</div>
         </div>
-        <button type="button" class="modal-close" onclick="closeTtSubjectModal()" aria-label="Close dialog">×</button>
+        <button type="button" class="modal-close" onclick="closeTtSubjectModal()" aria-label="Close dialog"><re-icon icon="x" size="18"></re-icon></button>
       </div>
       <div class="modal-body" style="padding-top:12px;">
         <input type="hidden" id="tt-subj-id">
@@ -342,7 +358,7 @@
       </div>
       <div class="modal-ft" style="display:flex;justify-content:flex-end;gap:10px;margin-top:14px;">
         <button type="button" class="btn-out" onclick="closeTtSubjectModal()">Cancel</button>
-        <button type="button" class="btn-pri" id="tt-subj-save-btn" onclick="saveTtSubject()">💾 Save Subject</button>
+        <button type="button" class="btn-pri" id="tt-subj-save-btn" onclick="saveTtSubject()"><re-icon icon="save" size="14"></re-icon> Save Subject</button>
       </div>
     </div>
   </div>
@@ -352,7 +368,11 @@
   <script src="js/core/api.js"></script>
   <script src="js/core/toast.js"></script>
   <script src="js/core/modal.js"></script>
+  <script src="js/core/popup.js"></script>
+  <script src="js/core/guard.js"></script>
   <script src="js/core/tabWorkspace.js"></script>
-  <script src="js/pages/timetable.page.js"></script>
+  <script src="js/core/searchableDropdown.js"></script>
+  <script src="js/pages/teacherTimetable.module.js"></script>
+  <script src="js/pages/timetable.page.js?v=2.5.6"></script>
 </body>
 </html>

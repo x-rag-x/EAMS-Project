@@ -3,8 +3,8 @@ const mongoose = require('mongoose');
 const ExportTemplateSchema = new mongoose.Schema({
   templateName: { type: String, required: true, trim: true },
   userId:       { type: mongoose.Schema.Types.ObjectId, required: true, refPath: 'userModel' },
-  userModel:    { type: String, required: true, enum: ['Admin', 'Teacher', 'Student'] },
-  role:         { type: String, required: true, enum: ['admin', 'teacher', 'student'] },
+  userModel:    { type: String, required: true, enum: ['Teacher', 'Student'] },
+  role:         { type: String, required: true, enum: ['teacher', 'student'] },
   reportType:   { type: String, required: true },
   config: {
     filters:  { type: mongoose.Schema.Types.Mixed, default: {} },
@@ -22,9 +22,9 @@ ExportTemplateSchema.index({ role: 1, reportType: 1 });
 const ExportHistorySchema = new mongoose.Schema({
   exportTrackId: { type: String, required: true, unique: true, sparse: true },
   userId:        { type: mongoose.Schema.Types.ObjectId, required: true, refPath: 'userModel' },
-  userModel:     { type: String, required: true, enum: ['Admin', 'Teacher', 'Student'] },
+  userModel:     { type: String, required: true, enum: ['Teacher', 'Student'] },
   userName:      { type: String, required: true },
-  role:          { type: String, required: true, enum: ['admin', 'teacher', 'student'] },
+  role:          { type: String, required: true, enum: ['teacher', 'student'] },
   reportType:    { type: String, required: true },
   config: {
     filters:     { type: mongoose.Schema.Types.Mixed, default: {} },

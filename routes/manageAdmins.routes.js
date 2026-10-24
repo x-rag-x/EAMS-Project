@@ -1,233 +1,264 @@
+/**
+ * routes/manageAdmins.routes.js
+ *
+ * Manage Portal Admin Management API
+ * Backed by modern M.Teacher.pageRights access system.
+ * Allows viewing, granting, and revoking Manage portal delegated access.
+ */
+
 const express = require('express');
 const router = express.Router();
-const bcrypt = require('bcryptjs');
+const mongoose = require('mongoose');
 const M = require('../models');
-const { authMiddleware, adminOnly } = require('../middleware/auth');
+const { authMiddleware, requirePage, isSudo } = require('../middleware/auth');
 const { logAction } = require('../utils/logAction');
+const { sanitizeToObjectId } = require('../utils/sanitizeQuery');
+const { parseAllowedTabs } = require('../config/pageRegistry');
+const { assertNotLastSudoAdmin } = require('../utils/adminGuards');
 
-// GET /api/manage-admins  — list all admins with manage portal access (ManageAdmin collection + Teachers with managePage right)
-router.get('/', authMiddleware, adminOnly, async (req, res) => {
+/**
+ * GET /api/manage-admins
+ * Returns all teachers who have access to the Manage portal
+ */
+router.get('/', authMiddleware, requirePage('manage', 'view', { tab: 'settings' }), async (req, res) => {
   try {
-    const [customAdmins, teachersWithAccess] = await Promise.all([
-      M.ManageAdmin.find().select('-password').sort({ createdAt: -1 }).lean(),
-      M.Teacher.find({
-        $or: [
-          { adminRights: { $in: ['managePage', 'all'] } },
-          { 'specials.option': 'managePage' }
-        ]
-      }).select('-password').sort({ fullName: 1 }).lean()
-    ]);
+    const teachers = await M.Teacher.find({
+      $or: [
+        { 'pageRights.grants.page': 'manage' },
+        { 'pageRights.grants.page': '*' },
+        { 'pageRights.accessRole': 'sudoAdmin' },
+        { 'specials.option': 'isAdmin' }
+      ]
+    }).select('fullName username email department deptId specials pageRights createdAt').lean();
 
-    const teacherAdmins = teachersWithAccess.map(t => ({
-      _id: t._id,
-      name: t.fullName,
-      email: t.email,
-      username: t.username,
-      department: t.department || '',
-      type: 'teacher',
-      teacherId: t._id,
-      trackId: t.trackId,
-      permissions: ['calendar', 'exam', 'attendance', 'settings'],
-      active: true,
-      addedBy: 'Faculty Role',
-      createdAt: t.createdAt
-    }));
+    const result = [];
+    const seenTeacherIds = new Set();
 
-    const customFormatted = customAdmins.map(a => ({
-      ...a,
-      type: 'custom'
-    }));
+    for (const t of teachers) {
+      const isSudoUser = t.pageRights?.accessRole === 'sudoAdmin' || (Array.isArray(t.specials) && t.specials.some(s => s && s.option === 'isAdmin'));
+      const grants = (Array.isArray(t.pageRights?.grants) ? t.pageRights.grants : []).filter(g => g && g.enabled !== false && (g.page === 'manage' || g.page === '*'));
 
-    const combined = [...teacherAdmins, ...customFormatted];
-    res.json(combined);
-  } catch (err) { res.status(500).json({ error: err.message }); }
+      if (grants.length > 0) {
+        for (const g of grants) {
+          let perms = [];
+          if (Array.isArray(g.allowedTabs) && g.allowedTabs.length && !g.allowedTabs.includes('*')) {
+            perms = g.allowedTabs;
+          } else if (g.module && g.module !== '*') {
+            perms = parseAllowedTabs('manage', g.module);
+          } else {
+            perms = ['calendar', 'exam', 'attendance', 'settings'];
+          }
+
+          result.push({
+            _id: String(g._id || t._id),
+            grantId: String(g._id || ''),
+            teacherId: String(t._id),
+            name: t.fullName,
+            username: t.username,
+            email: t.email || '',
+            department: t.department || '',
+            type: 'teacher',
+            active: g.enabled !== false,
+            isFullAdmin: isSudoUser,
+            permissions: perms,
+            addedBy: g.grantedBy?.name || (isSudoUser ? 'System' : 'Administrator'),
+            grantedAt: g.grantedAt || t.createdAt || new Date()
+          });
+          seenTeacherIds.add(String(t._id));
+        }
+      } else if (isSudoUser && !seenTeacherIds.has(String(t._id))) {
+        result.push({
+          _id: String(t._id),
+          grantId: '',
+          teacherId: String(t._id),
+          name: t.fullName,
+          username: t.username,
+          email: t.email || '',
+          department: t.department || '',
+          type: 'teacher',
+          active: true,
+          isFullAdmin: true,
+          permissions: ['calendar', 'exam', 'attendance', 'settings'],
+          addedBy: 'Super Administrator',
+          grantedAt: t.createdAt || new Date()
+        });
+        seenTeacherIds.add(String(t._id));
+      }
+    }
+
+    res.json(result);
+  } catch (err) {
+    console.error('[GET /api/manage-admins error]:', err);
+    res.status(500).json({ error: 'Failed to fetch manage portal admins', details: err.message });
+  }
 });
 
-// POST /api/manage-admins  — grant manage access to an existing teacher OR create a custom admin
-router.post('/', authMiddleware, adminOnly, async (req, res) => {
+/**
+ * POST /api/manage-admins
+ * Grant Manage portal access to a teacher
+ */
+router.post('/', authMiddleware, requirePage('manage', 'edit', { tab: 'settings' }), async (req, res) => {
   try {
-    const { teacherId, name, username, password, email, permissions } = req.body;
-    const adderName = (req.user && (req.user.name || req.user.fullName || req.user.username)) || 'Admin';
-    const adderRole = (req.user && req.user.role) || 'admin';
-    const adderId   = (req.user && (req.user._id || req.user.trackId)) || null;
+    const { teacherId, permissions } = req.body;
+    const tId = sanitizeToObjectId(teacherId);
+    if (!tId) {
+      return res.status(400).json({ error: 'Faculty member ID is required' });
+    }
 
-    // Case 1: Granting access to existing teacher
-    if (teacherId) {
-      const teacher = await M.Teacher.findById(teacherId);
-      if (!teacher) return res.status(404).json({ error: 'Teacher not found' });
-      
-      let rights = Array.isArray(teacher.adminRights) ? teacher.adminRights.slice() : [];
-      if (!rights.includes('managePage') && !rights.includes('all')) {
-        rights = rights.filter(r => r !== 'none');
-        rights.push('managePage');
-        teacher.adminRights = rights;
-      }
-      teacher.isAdmin = true;
-      await teacher.save();
+    const teacher = await M.Teacher.findById(tId);
+    if (!teacher) {
+      return res.status(404).json({ error: 'Faculty member not found' });
+    }
 
-      await logAction(
-        adderId,
-        adderName,
-        adderRole,
-        'Manage Access Granted to Teacher',
-        teacher.fullName,
-        'manage',
-        'info',
-        req.ip,
-        req.user.sessionId,
-        {
-          module: 'manage',
-          subType: 'action',
-          trackId: req.user.trackId,
-          actingWithAdminRights: req.user.actingWithAdminRights,
-          changes: { before: { adminRights: 'none' }, after: { adminRights: teacher.adminRights } }
-        }
-      );
-      return res.json({
-        _id: teacher._id,
-        name: teacher.fullName,
-        email: teacher.email,
-        username: teacher.username,
-        department: teacher.department,
-        type: 'teacher',
-        teacherId: teacher._id,
-        permissions: permissions || ['calendar', 'exam', 'attendance'],
-        active: true
+    const selectedPerms = Array.isArray(permissions) && permissions.length > 0
+      ? permissions.filter(p => ['calendar', 'exam', 'attendance', 'settings'].includes(p))
+      : ['calendar', 'exam', 'attendance', 'settings'];
+
+    const grantId = new mongoose.Types.ObjectId();
+    const isAll = selectedPerms.length === 4;
+    const moduleRule = isAll ? '*' : selectedPerms.join(',');
+
+    const isCallerSudo = isSudo(req);
+
+    const newGrant = {
+      _id: grantId,
+      page: 'manage',
+      module: moduleRule,
+      scope: isCallerSudo ? 'institution' : 'department',
+      deptId: teacher.deptId || null,
+      dept: teacher.department || '',
+      actions: ['view', 'create', 'edit'],
+      allowedTabs: selectedPerms,
+      tabActions: selectedPerms.reduce((acc, tab) => {
+        acc[tab] = ['view', 'create', 'edit'];
+        return acc;
+      }, {}),
+      enabled: true,
+      validFrom: new Date(),
+      source: isCallerSudo ? 'sudo' : 'superAdmin',
+      grantedBy: {
+        trackId: req.user.trackId || String(req.user._id),
+        name: req.user.fullName || req.user.name || req.user.username
+      },
+      grantedAt: new Date()
+    };
+
+    let pr = teacher.pageRights || { accessRole: 'none', version: 0, grants: [] };
+    if (!Array.isArray(pr.grants)) pr.grants = [];
+
+    // Replace any existing manage portal grant with the updated one
+    pr.grants = pr.grants.filter(g => g.page !== 'manage');
+    pr.grants.push(newGrant);
+
+    if (pr.accessRole === 'none' || !pr.accessRole) {
+      pr.accessRole = 'subAdmin';
+    }
+    pr.version = (pr.version || 0) + 1;
+
+    teacher.pageRights = { ...pr };
+    teacher.markModified('pageRights');
+    teacher.accessVersion = (teacher.accessVersion || 0) + 1;
+    await teacher.save();
+
+    await logAction(
+      req.user.trackId || String(req.user._id),
+      req.user.name || req.user.fullName || req.user.username,
+      req.user.role || 'admin',
+      'Manage Portal Access Granted',
+      `Granted Manage portal access to ${teacher.fullName} (${selectedPerms.join(', ')})`,
+      'manage',
+      'info',
+      req.ip,
+      req.user.sessionId,
+      { module: 'manage', subType: 'grant-manage-access', teacherId: teacher._id, grantId }
+    );
+
+    res.json({
+      ok: true,
+      message: 'Manage portal access granted successfully',
+      data: { grantId, teacherId: teacher._id }
+    });
+  } catch (err) {
+    console.error('[POST /api/manage-admins error]:', err);
+    res.status(500).json({ error: 'Failed to grant manage portal access', details: err.message });
+  }
+});
+
+/**
+ * DELETE /api/manage-admins/:id
+ * Revoke Manage portal access from a teacher or grant
+ */
+router.delete('/:id', authMiddleware, requirePage('manage', 'edit', { tab: 'settings' }), async (req, res) => {
+  try {
+    const idStr = String(req.params.id);
+    let teacher = null;
+
+    if (mongoose.isValidObjectId(idStr)) {
+      teacher = await M.Teacher.findOne({
+        $or: [
+          { _id: idStr },
+          { 'pageRights.grants._id': idStr }
+        ]
       });
     }
 
-    // Case 2: Custom Manage Admin
-    if (!name || !username || !password) return res.status(400).json({ error: 'name, username, password required' });
-    const exists = await M.ManageAdmin.findOne({ username: username.toLowerCase().trim() });
-    if (exists) return res.status(400).json({ error: 'Username already taken' });
-    const hashed = await bcrypt.hash(password, 10);
-    const trackId = `TR-ADM${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
-    const admin  = await M.ManageAdmin.create({
-      trackId,
-      name: name.trim(),
-      username: username.toLowerCase().trim(),
-      password: hashed,
-      email: email || '',
-      permissions: permissions || ['calendar','exam','attendance'],
-      addedBy: adderName
+    if (!teacher) {
+      teacher = await M.Teacher.findOne({ trackId: idStr });
+    }
+
+    if (!teacher) {
+      return res.status(404).json({ error: 'Manage portal admin record not found' });
+    }
+
+    const isTargetSudo = teacher.pageRights?.accessRole === 'sudoAdmin' || (Array.isArray(teacher.specials) && teacher.specials.some(s => s && s.option === 'isAdmin'));
+    if (isTargetSudo) {
+      const lastCheck = await assertNotLastSudoAdmin(teacher._id);
+      if (!lastCheck.allowed) {
+        return res.status(400).json({ error: `Cannot revoke: ${lastCheck.reason || 'Cannot remove last sudo admin'}` });
+      }
+      if (!isSudo(req)) {
+        return res.status(403).json({ error: 'Only Sudo Admin can revoke full administrator privileges' });
+      }
+    }
+
+    let pr = teacher.pageRights || { accessRole: 'none', version: 0, grants: [] };
+    if (!Array.isArray(pr.grants)) pr.grants = [];
+
+    // Remove any grant matching either the grant ID or page 'manage'
+    pr.grants = pr.grants.filter(g => String(g._id) !== idStr && g.page !== 'manage');
+
+    const liveGrants = pr.grants.filter(g => g.enabled);
+    if (liveGrants.length === 0 && pr.accessRole === 'subAdmin') {
+      pr.accessRole = 'none';
+    }
+    pr.version = (pr.version || 0) + 1;
+
+    teacher.pageRights = { ...pr };
+    teacher.markModified('pageRights');
+    teacher.accessVersion = (teacher.accessVersion || 0) + 1;
+    await teacher.save();
+
+    await logAction(
+      req.user.trackId || String(req.user._id),
+      req.user.name || req.user.fullName || req.user.username,
+      req.user.role || 'admin',
+      'Manage Portal Access Revoked',
+      `Revoked Manage portal access from ${teacher.fullName}`,
+      'manage',
+      'info',
+      req.ip,
+      req.user.sessionId,
+      { module: 'manage', subType: 'revoke-manage-access', teacherId: teacher._id }
+    );
+
+    res.json({
+      ok: true,
+      message: `Manage portal access revoked for ${teacher.fullName}`
     });
-    const { password: _, ...safe } = admin.toObject();
-    await logAction(
-      adderId,
-      adderName,
-      adderRole,
-      'Manage Admin Created',
-      name,
-      'manage',
-      'info',
-      req.ip,
-      req.user.sessionId,
-      {
-        module: 'manage',
-        subType: 'entry-create',
-        trackId: req.user.trackId,
-        actingWithAdminRights: req.user.actingWithAdminRights,
-        changes: { before: null, after: safe }
-      }
-    );
-    res.json({ ...safe, type: 'custom' });
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-// PUT /api/manage-admins/:id
-router.put('/:id', authMiddleware, adminOnly, async (req, res) => {
-  try {
-    const update = {};
-    if (req.body.name)        update.name        = req.body.name.trim();
-    if (req.body.email)       update.email       = req.body.email;
-    if (req.body.permissions) update.permissions = req.body.permissions;
-    if (typeof req.body.active === 'boolean') update.active = req.body.active;
-    if (req.body.password) {
-      update.password = await bcrypt.hash(req.body.password, 10);
-    }
-    const before = await M.ManageAdmin.findById(req.params.id).select('-password').lean();
-    const admin = await M.ManageAdmin.findByIdAndUpdate(req.params.id, { $set: update }, { returnDocument: 'after' }).select('-password').lean();
-    if (!admin) return res.status(404).json({ error: 'Not found' });
-    await logAction(
-      req.user.trackId || req.user._id,
-      req.user.name,
-      req.user.role,
-      'Manage Admin Updated',
-      admin.name,
-      'manage',
-      'info',
-      req.ip,
-      req.user.sessionId,
-      {
-        module: 'manage',
-        subType: 'field-edit',
-        trackId: req.user.trackId,
-        actingWithAdminRights: req.user.actingWithAdminRights,
-        changes: { before, after: admin }
-      }
-    );
-    res.json({ ...admin, type: 'custom' });
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-// DELETE /api/manage-admins/:id  — revoke access from teacher or delete custom admin
-router.delete('/:id', authMiddleware, adminOnly, async (req, res) => {
-  try {
-    const id = req.params.id;
-    const actorName = (req.user && (req.user.name || req.user.fullName || req.user.username)) || 'Admin';
-    const actorRole = (req.user && req.user.role) || 'admin';
-    const actorId   = (req.user && (req.user._id || req.user.trackId)) || null;
-
-    // Check if ID is a Teacher
-    const teacher = await M.Teacher.findById(id);
-    if (teacher) {
-      let rights = Array.isArray(teacher.adminRights) ? teacher.adminRights : [];
-      teacher.adminRights = rights.filter(r => r !== 'managePage');
-      if (teacher.adminRights.length === 0) teacher.adminRights = ['none'];
-      await teacher.save();
-      await logAction(
-        actorId,
-        actorName,
-        actorRole,
-        'Manage Access Revoked from Teacher',
-        teacher.fullName,
-        'manage',
-        'warning',
-        req.ip,
-        req.user.sessionId,
-        {
-          module: 'manage',
-          subType: 'action',
-          trackId: req.user.trackId,
-          actingWithAdminRights: req.user.actingWithAdminRights,
-          changes: { before: { adminRights: rights }, after: { adminRights: teacher.adminRights } }
-        }
-      );
-      return res.json({ ok: true });
-    }
-
-    const admin = await M.ManageAdmin.findByIdAndDelete(id).lean();
-    if (!admin) return res.status(404).json({ error: 'Admin not found' });
-    await logAction(
-      actorId,
-      actorName,
-      actorRole,
-      'Manage Admin Deleted',
-      admin.name,
-      'manage',
-      'warning',
-      req.ip,
-      req.user.sessionId,
-      {
-        module: 'manage',
-        subType: 'entry-delete',
-        trackId: req.user.trackId,
-        actingWithAdminRights: req.user.actingWithAdminRights,
-        changes: { before: admin, after: null }
-      }
-    );
-    res.json({ ok: true });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) {
+    console.error('[DELETE /api/manage-admins error]:', err);
+    res.status(500).json({ error: 'Failed to revoke manage portal access', details: err.message });
+  }
 });
 
 module.exports = router;

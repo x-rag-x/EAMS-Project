@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const { Schema } = mongoose;
+const { normalizeYearRange } = require('../utils/yearFormat');
 
 // ── Sub-schemas ──
 
@@ -25,12 +26,15 @@ const GridSlotSchema = new Schema({
   teacherTrackId: { type: String, default: '' },
   room:           String,
   roomId:         { type: Schema.Types.ObjectId, ref: 'Room' },
+  type:           { type: String, default: 'Theory' },
   combinedWith:   [String],
   isLab:          Boolean,
   span:           { type: Number, default: 1 },
   state:          String,
   activityId:     { type: Schema.Types.ObjectId, ref: 'SpecialActivity', default: null },
-  activityLabel:  { type: String, default: '' }
+  activityLabel:  { type: String, default: '' },
+  primaryClassId: { type: Schema.Types.ObjectId, ref: 'Class', default: null },
+  primaryClassName: { type: String, default: '' }
 }, { _id: false });
 
 
@@ -163,7 +167,7 @@ const SmartBoardSchema = new Schema({
   deviceId:        { type: String, required: true, unique: true, trim: true },
   buildingId:      { type: Schema.Types.ObjectId, ref: 'Building' },
   roomId:          { type: Schema.Types.ObjectId, ref: 'Room' },
-  status:          { type: String, enum: ['Active', 'Inactive', 'Maintenance'], default: 'Active' },
+  status:          { type: String, enum: ['Active', 'Inactive', 'Maintenance', 'Disabled'], default: 'Active' },
   firmwareVersion: { type: String, default: '' },
   registeredAt:    { type: Date, default: Date.now },
   registeredBy:    String,
@@ -221,7 +225,7 @@ const CurriculumAssignmentSchema = new Schema({
 const SemesterTemplateSchema = new Schema({
   classId:      { type: Schema.Types.ObjectId, ref: 'Class', required: true },
   timingSetId:  { type: Schema.Types.ObjectId, ref: 'TimingSet' },
-  academicYear: String,
+  academicYear: { type: String, trim: true, set: v => normalizeYearRange(v) },
   semester:     String,
   status:       { type: String, enum: ['draft', 'pending_approval', 'approved', 'published', 'archived'], default: 'draft' },
   grid:         [GridSlotSchema],
@@ -250,15 +254,39 @@ const OverrideSchema = new Schema({
   date:         Date,
   classId:      { type: Schema.Types.ObjectId, ref: 'Class' },
   period:       Number,
+  periodNumber: Number,
   type:         { type: String, enum: ['cancelled', 'substitute', 'room_change', 'holiday'], required: true },
   originalSlot: Schema.Types.Mixed,
   newSlot:      Schema.Types.Mixed,
   reason:       String,
   approvedBy:   String,
   requestId:    String,
+  source: {
+    type:      { type: String, enum: ['FACULTY_LEAVE', 'EMERGENCY', 'HOD_ASSIGN', 'MANUAL'], default: 'MANUAL' },
+    requestId: { type: String, default: '' }
+  },
+  status: {
+    type: String,
+    enum: ['tentative', 'confirmed', 'released'],
+    default: 'confirmed'
+  },
+  assignedBy: {
+    trackId: { type: String, default: '' },
+    role:    { type: String, enum: ['teacher', 'hod', 'ttc', 'principal', 'admin'], default: 'admin' }
+  },
+  originalTeacher: {
+    trackId: { type: String, default: '' },
+    name:    { type: String, default: '' }
+  },
+  substituteTeacher: {
+    trackId: { type: String, default: '' },
+    name:    { type: String, default: '' }
+  }
 }, { timestamps: true });
 
 OverrideSchema.index({ classId: 1, date: 1, period: 1 });
+OverrideSchema.index({ status: 1, date: 1 });
+OverrideSchema.index({ 'substituteTeacher.trackId': 1, date: 1 });
 
 
 // ── Version history & verification (development drafts and production snapshots) ──
@@ -273,20 +301,23 @@ const TimetableVersionSchema = new Schema({
   label:               String,
   changeSummary:       String,
   snapshot:            Schema.Types.Mixed,
-  status:              { type: String, enum: ['draft', 'pending_approval', 'approved', 'published', 'rejected', 'archived'], default: 'draft' },
+  status:              { type: String, enum: ['draft', 'pending_approval', 'approved', 'published', 'rejected', 'archived', 'withdrawn'], default: 'draft' },
   publishedBy:         String,
   publishedAt:         Date,
   savedBy:             String,
-  verificationStatus:  { type: String, enum: ['none', 'pending', 'approved', 'rejected'], default: 'none' },
+  verificationStatus:  { type: String, enum: ['none', 'pending', 'approved', 'rejected', 'withdrawn'], default: 'none' },
   verificationRequest: {
-    requestedBy: String,
-    requestedAt: Date,
-    notes:       String,
-    hodId:       { type: Schema.Types.ObjectId, ref: 'User' },
-    hodName:     String,
-    approvedBy:  String,
-    approvedAt:  Date,
-    comment:     String
+    requestedBy:     String,
+    requestedAt:     Date,
+    notes:           String,
+    hodId:           { type: Schema.Types.ObjectId, ref: 'User' },
+    hodName:         String,
+    approvedBy:      String,
+    approvedAt:      Date,
+    comment:         String,
+    withdrawnBy:     String,
+    withdrawnAt:     Date,
+    withdrawnReason: String
   },
 }, { timestamps: true });
 

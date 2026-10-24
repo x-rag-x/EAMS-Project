@@ -2,9 +2,10 @@ const express = require('express');
 const router = express.Router();
 const mongoose = require('mongoose');
 const M = require('../models');
-const { authMiddleware, adminOnly, requireRight } = require('../middleware/auth');
+const { authMiddleware, requirePage, scopeFilter, assertInScope } = require('../middleware/auth');
 const { logAction } = require('../utils/logAction');
 const { sanitizeToString } = require('../utils/sanitizeQuery');
+const { normalizeYearRange } = require('../utils/yearFormat');
 
 router.get('/', authMiddleware, async (req, res) => {
   try {
@@ -12,12 +13,11 @@ router.get('/', authMiddleware, async (req, res) => {
     if (req.query.deptId) filter.deptId = sanitizeToString(req.query.deptId);
     if (req.query.batch) {
       const b = sanitizeToString(req.query.batch);
-      const altB = b.includes('-') && b.length === 9
-        ? b.replace(/-(\d{4})$/, function (_, y) { return '-' + y.slice(-2); })
-        : (b.includes('-') && b.length === 7
-          ? b.replace(/^(\d{4})-(\d{2})$/, function (_, y1, y2) { return y1 + '-' + y1.slice(0, 2) + y2; })
-          : b);
-      filter.batch = { $in: [b, altB] };
+      const normB = normalizeYearRange(b);
+      const altB = normB.includes('-') && normB.length === 9
+        ? normB.replace(/-(\d{4})$/, function (_, y) { return '-' + y.slice(-2); })
+        : normB;
+      filter.batch = { $in: [normB, b, altB].filter(Boolean) };
     }
     const classes = await M.Class.find(filter)
       .populate({
@@ -41,12 +41,19 @@ router.get('/', authMiddleware, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-router.post('/', authMiddleware, adminOnly, requireRight('adderModules'), async (req, res) => {
+router.post('/', authMiddleware, requirePage('admin', 'create', { tab: 'struct' }), async (req, res) => {
   try {
+    if (req.scope && req.scope.type === 'department' && req.scope.deptId) {
+      req.body.deptId = req.scope.deptId;
+    }
+    if (!req.body.roomId || req.body.roomId === '' || req.body.roomId === 'null') {
+      req.body.roomId = null;
+    }
     if (req.body.roomId && !req.body.hallNo) {
       const rm = await M.Room.findById(req.body.roomId).lean();
       if (rm) req.body.hallNo = rm.hallNo;
     }
+    if (req.body.batch) req.body.batch = normalizeYearRange(req.body.batch);
     let cls = await M.Class.create(req.body);
     if (cls.roomId) {
       cls = await M.Class.findById(cls._id).populate({ path: 'roomId', populate: { path: 'buildingId' } });
@@ -73,13 +80,20 @@ router.post('/', authMiddleware, adminOnly, requireRight('adderModules'), async 
   } catch (err) { res.status(400).json({ error: err.message }); }
 });
 
-router.put('/:id', authMiddleware, adminOnly, async (req, res) => {
+router.put('/:id', authMiddleware, requirePage('admin', 'edit', { tab: 'struct' }), async (req, res) => {
   try {
+    const before = await M.Class.findById(req.params.id).lean();
+    if (before && !assertInScope(req, before.deptId)) {
+      return res.status(403).json({ error: 'Access denied: class is outside your department scope' });
+    }
+    if (req.body.roomId !== undefined && (!req.body.roomId || req.body.roomId === '' || req.body.roomId === 'null')) {
+      req.body.roomId = null;
+    }
     if (req.body.roomId && !req.body.hallNo) {
       const rm = await M.Room.findById(req.body.roomId).lean();
       if (rm) req.body.hallNo = rm.hallNo;
     }
-    const before = await M.Class.findById(req.params.id).lean();
+    if (req.body.batch) req.body.batch = normalizeYearRange(req.body.batch);
     const cls = await M.Class.findByIdAndUpdate(req.params.id, req.body, { returnDocument: 'after' })
       .populate({ path: 'roomId', populate: { path: 'buildingId' } })
       .lean();
@@ -105,7 +119,7 @@ router.put('/:id', authMiddleware, adminOnly, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-router.put('/:id/advisor', authMiddleware, adminOnly, async (req, res) => {
+router.put('/:id/advisor', authMiddleware, requirePage('admin', 'assign', { tab: 'roles' }), async (req, res) => {
   try {
     const classId = req.params.id;
     const { teacherId } = req.body;
@@ -131,7 +145,7 @@ router.put('/:id/advisor', authMiddleware, adminOnly, async (req, res) => {
     for (const pt of prevTeachers) {
       if (Array.isArray(pt.specials)) {
         pt.specials = pt.specials.filter(s => {
-          if (s.option === 'isClassAdvisor' || s.option === 'ClassAdvisorTrackId') {
+          if (s.option === 'isClassAdvisor') {
             if (s.key === className || s.key === classTrackId || s.value === className || s.value === classTrackId || (cls.advisorTeacherId && String(pt._id) === String(cls.advisorTeacherId))) {
               return false;
             }
@@ -167,19 +181,13 @@ router.put('/:id/advisor', authMiddleware, adminOnly, async (req, res) => {
       if (!Array.isArray(assignedTeacher.specials)) assignedTeacher.specials = [];
 
       assignedTeacher.specials = assignedTeacher.specials.filter(s =>
-        !(s.option === 'isClassAdvisor' && (s.key === className || s.key === classTrackId)) &&
-        !(s.option === 'ClassAdvisorTrackId' && (s.key === className || s.key === classTrackId))
+        !(s.option === 'isClassAdvisor' && (s.key === className || s.key === classTrackId))
       );
 
       assignedTeacher.specials.push({
         option: 'isClassAdvisor',
         key: className,
         value: true
-      });
-      assignedTeacher.specials.push({
-        option: 'ClassAdvisorTrackId',
-        key: className,
-        value: classTrackId
       });
 
       await assignedTeacher.save();
@@ -249,10 +257,13 @@ router.put('/:id/advisor', authMiddleware, adminOnly, async (req, res) => {
   }
 });
 
-router.delete('/:id', authMiddleware, adminOnly, requireRight('deletings'), async (req, res) => {
+router.delete('/:id', authMiddleware, requirePage('admin', 'delete', { tab: 'struct' }), async (req, res) => {
   try {
     const cls = await M.Class.findById(req.params.id).lean();
     if (cls) {
+      if (!assertInScope(req, cls.deptId)) {
+        return res.status(403).json({ error: 'Access denied: class is outside your department scope' });
+      }
       await M.UndoLog.create({
         collectionName: 'classes', label: `Class: ${cls.name}`,
         snapshot: cls, deletedBy: req.user.name, expiresAt: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000)
