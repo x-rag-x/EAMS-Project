@@ -221,6 +221,7 @@
   }
 
   root.Bulk.api = {
+    getToken: getToken,
     request: req,
     upload: upload,
     stream: streamEvents,
@@ -288,6 +289,19 @@
     rejectInitial: function (id, reason) {
       return req('POST', '/api/bulk/batches/' + id + '/reject-initial', { reason: reason });
     },
+    checkVerifyEntry: function (id, rowNumber, updatedData) {
+      return req('POST', '/api/bulk/batches/' + id + '/verify-entry/check', {
+        rowNumber: rowNumber,
+        updatedData: updatedData
+      });
+    },
+    copyToAll: function (id, field, value, rowNumber) {
+      return req('POST', '/api/bulk/batches/' + id + '/copy-to-all', {
+        field: field,
+        value: value,
+        rowNumber: rowNumber
+      });
+    },
     verifyEntry: function (id, rowNumber, updatedData) {
       return req('POST', '/api/bulk/batches/' + id + '/verify-entry', {
         rowNumber: rowNumber,
@@ -299,6 +313,32 @@
     },
     devBypassVerify: function (id) {
       return req('POST', '/api/bulk/batches/' + id + '/dev-bypass-verify');
+    },
+    editReviewRow: function (id, rowNumber, updatedData) {
+      return req('POST', '/api/bulk/batches/' + id + '/review/edit-row', {
+        rowNumber: rowNumber,
+        updatedData: updatedData
+      });
+    },
+    removeReviewRow: function (id, rowNumber, reason) {
+      return req('POST', '/api/bulk/batches/' + id + '/review/remove-row', {
+        rowNumber: rowNumber,
+        reason: reason
+      });
+    },
+    removeRow: function (id, rowNumber, reason) {
+      return req('POST', '/api/bulk/batches/' + id + '/remove-row', {
+        rowNumber: rowNumber,
+        reason: reason || 'Skipped from importing'
+      });
+    },
+    clearReviewField: function (id, field) {
+      return req('POST', '/api/bulk/batches/' + id + '/review/clear-field', {
+        field: field
+      });
+    },
+    confirmReview: function (id) {
+      return req('POST', '/api/bulk/batches/' + id + '/review/confirm');
     },
     submitFinal: function (id) {
       return req('POST', '/api/bulk/batches/' + id + '/submit-final');
@@ -326,6 +366,47 @@
     },
     getProgress: function (id) {
       return req('GET', '/api/bulk/batches/' + id + '/progress');
+    },
+    submitGrievance: function (id, data) {
+      return req('POST', '/api/bulk/batches/' + id + '/grievances', data);
+    },
+    resolveGrievance: function (id, msgId, replyNote) {
+      return req('PATCH', '/api/bulk/batches/' + id + '/grievances/' + msgId, { replyNote: replyNote });
+    },
+    getGrievances: function (id) {
+      return req('GET', '/api/bulk/batches/' + id + '/grievances');
+    },
+    downloadSkippedCsv: function (id) {
+      window.location.href = '/api/bulk/batches/' + id + '/skipped-report.csv';
+    },
+    searchUsers: function (q) {
+      return req('GET', '/api/bulk/users/search?q=' + encodeURIComponent(q || ''));
+    },
+    addParticipant: function (id, userId, level) {
+      return req('POST', '/api/bulk/batches/' + id + '/participants', {
+        userId: userId,
+        level: level
+      });
+    },
+    updateParticipantLevel: function (id, userId, level) {
+      return req('PATCH', '/api/bulk/batches/' + id + '/participants/' + userId, {
+        level: level
+      });
+    },
+    removeParticipant: function (id, userId) {
+      return req('DELETE', '/api/bulk/batches/' + id + '/participants/' + userId);
+    },
+    deleteChat: function (id, scope) {
+      return req('POST', '/api/bulk/batches/' + id + '/delete', { scope: scope || 'me' });
+    },
+    restoreChat: function (id, scope) {
+      return req('POST', '/api/bulk/batches/' + id + '/restore', { scope: scope || 'me' });
+    },
+    undoBatch: function (id, confirm) {
+      return req('POST', '/api/bulk/batches/' + id + '/undo', { confirm: confirm !== false });
+    },
+    restageBatch: function (id, uploadIndex) {
+      return req('POST', '/api/bulk/batches/' + id + '/restage', { uploadIndex: uploadIndex || 0 });
     }
   };
 })(window);

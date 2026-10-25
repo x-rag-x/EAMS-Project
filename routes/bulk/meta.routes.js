@@ -95,8 +95,19 @@ router.get('/capabilities', authMiddleware, async (req, res) => {
       types.student = { enabled: true, reason: '' };
     }
 
+    const { getSetting } = require('../../utils/settingsCache');
+    const { isDevServer } = require('../../config');
+    const modelsSetting = await getSetting('models');
+    const mailCredentials = modelsSetting?.bulkMailCredentials !== false;
+    const isDev = isDevServer();
+
     const payload = {
       isSudo,
+      isDev,
+      flags: {
+        mailCredentials,
+        isDev
+      },
       user: {
         _id: req.user._id,
         name: req.user.name || req.user.username,
@@ -131,16 +142,31 @@ router.get('/schema', authMiddleware, requirePage('bulk', 'view'), (req, res) =>
     result[key] = {
       type: def.type,
       label: def.label,
+      exampleRows: def.exampleRows || [],
+      commonMistakes: def.commonMistakes || [],
+      limits: def.limits || { maxFileSizeMb: 10, maxRows: 5000, formats: ['.xlsx', '.csv'], firstSheetOnly: true },
       columns: def.columns.map(c => ({
         key: c.key,
         label: c.label,
         required: Boolean(c.required),
         aliases: c.aliases || [],
         example: c.example || '',
-        help: c.help || ''
+        help: c.help || '',
+        format: c.format || '',
+        allowed: c.allowed || [],
+        rules: c.rules || [],
+        description: c.description || c.help || '',
+        commonMistakes: c.commonMistakes || []
       }))
     };
   }
+
+  const requestedType = String(req.query.type || '').trim().toLowerCase();
+  if (requestedType && result[requestedType]) {
+    const single = result[requestedType];
+    return res.json({ ok: true, data: single, schema: single });
+  }
+
   const payload = Object.assign({ schemas: result }, result);
   res.json({ ok: true, data: payload, schemas: result });
 });

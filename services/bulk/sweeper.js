@@ -50,14 +50,22 @@ async function cleanupStaleDrafts() {
     const draftCutoff = new Date(Date.now() - STALE_DRAFT_DAYS * 24 * 60 * 60 * 1000);
     const staleDrafts = await M.BulkImportBatch.find({
       status: 'draft',
-      createdAt: { $lt: draftCutoff }
+      deletedAt: null,
+      createdAt: { $lt: draftCutoff },
+      $and: [
+        { $or: [{ uploads: { $exists: false } }, { uploads: { $size: 0 } }] },
+        { $or: [{ 'fileRef.gridFsId': null }, { 'fileRef.gridFsId': { $exists: false } }] },
+        { $or: [{ 'drive.folderId': null }, { 'drive.folderId': '' }, { 'drive.folderId': { $exists: false } }] }
+      ]
     }).select('_id');
 
     if (staleDrafts.length > 0) {
       const ids = staleDrafts.map(d => d._id);
-      await M.BulkChatMessage.deleteMany({ batchId: { $in: ids } });
-      const res = await M.BulkImportBatch.deleteMany({ _id: { $in: ids } });
-      console.log(`[BulkSweeper] Cleaned up ${res.deletedCount} abandoned bulk draft chats.`);
+      const res = await M.BulkImportBatch.updateMany(
+        { _id: { $in: ids } },
+        { $set: { deletedAt: new Date() } }
+      );
+      console.log(`[BulkSweeper] Soft-deleted ${res.modifiedCount} abandoned empty bulk draft chats.`);
     }
   } catch (err) {
     console.warn('[BulkSweeper Draft Cleanup Error]:', err.message);

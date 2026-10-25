@@ -12,6 +12,7 @@
 
 const M = require('../models');
 const { isSudoAdmin } = require('./access');
+const { matchesClassCalendarScope } = require('./examUtils');
 
 const DAY_FULL = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const DAY_ABBR = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -530,13 +531,20 @@ async function resolveTeacherRange(idn, fromISO, toISO) {
 
     let isHoliday = isSunday;
     let holidayReason = isSunday ? 'Sunday' : '';
+    let isExamDay = false;
+    let examReason = '';
 
     if (calDay?.details?.length) {
-      // Global holiday detail has no year, or all years
-      const globalHol = calDay.details.find(d => !d.year && ['leave', 'holiday', 'vacation', 'exam', 'event'].includes(d.dayType));
+      // Global holiday detail has no year, or all years (E8: exam separated from holiday)
+      const globalHol = calDay.details.find(d => !d.year && ['leave', 'holiday', 'vacation'].includes(d.dayType));
       if (globalHol) {
         isHoliday = true;
         holidayReason = globalHol.comments || `Academic Calendar: ${globalHol.dayType.toUpperCase()}`;
+      }
+      const globalExam = calDay.details.find(d => !d.year && d.dayType === 'exam');
+      if (globalExam) {
+        isExamDay = true;
+        examReason = globalExam.comments || 'College-wide Exam';
       }
     }
 
@@ -577,18 +585,32 @@ async function resolveTeacherRange(idn, fromISO, toISO) {
       const classDoc = classesMap.get(slot.classId);
       const clsYear = classDoc ? normalizeYear(classDoc.year) : '';
 
-      // Check class-specific holiday / half-day in CalendarDay
+      // Check class-specific holiday / exam / half-day in CalendarDay (E3 & E8 scope-aware)
       if (calDay?.details?.length) {
-        const classHol = calDay.details.find(d => {
-          if (!['leave', 'holiday', 'vacation', 'exam', 'event'].includes(d.dayType)) return false;
-          return !d.year || normalizeYear(d.year) === clsYear;
-        });
-        if (classHol) {
-          slot.status = 'holiday';
-          slot.note = classHol.comments || `Academic Calendar: ${classHol.dayType.toUpperCase()}`;
+        const classExam = calDay.details.find(d => d.dayType === 'exam' && (classDoc ? matchesClassCalendarScope(d, classDoc) : (!d.year || normalizeYear(d.year) === clsYear)));
+        if (classExam) {
+          slot.status = 'exam';
+          slot.isExam = true;
+          slot.note = classExam.comments || 'Exam Day';
+          slot.examDetails = {
+            examTitle: classExam.comments,
+            timing: classExam.timing,
+            session: classExam.session,
+            halls: classExam.halls,
+            subjectName: classExam.subjectName || classExam.subjectCode
+          };
+        } else {
+          const classHol = calDay.details.find(d => {
+            if (!['leave', 'holiday', 'vacation'].includes(d.dayType)) return false;
+            return classDoc ? matchesClassCalendarScope(d, classDoc) : (!d.year || normalizeYear(d.year) === clsYear);
+          });
+          if (classHol) {
+            slot.status = 'holiday';
+            slot.note = classHol.comments || `Academic Calendar: ${classHol.dayType.toUpperCase()}`;
+          }
         }
 
-        const halfDay = calDay.details.find(d => d.dayType === 'half-day' && (!d.year || normalizeYear(d.year) === clsYear));
+        const halfDay = calDay.details.find(d => d.dayType === 'half-day' && (classDoc ? matchesClassCalendarScope(d, classDoc) : (!d.year || normalizeYear(d.year) === clsYear)));
         if (halfDay && halfDay.timing?.end) {
           if (slot.start >= halfDay.timing.end) {
             slot.status = 'cancelled';

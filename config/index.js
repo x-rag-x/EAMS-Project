@@ -23,7 +23,12 @@ const isExplicitDev = process.env.NODE_ENV === 'development';
 const nodeEnv = isExplicitDev ? 'development' : (process.env.NODE_ENV || 'production');
 process.env.NODE_ENV = nodeEnv;
 
+function isDevServer() {
+  return process.env.NODE_ENV === 'development';
+}
+
 module.exports = {
+  isDevServer,
   // MongoDB database connection settings
   MONGO_URI: process.env.MONGO_URI,
   DB_NAME:   process.env.DB_NAME,

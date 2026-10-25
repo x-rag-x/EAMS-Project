@@ -990,6 +990,35 @@ function onEmBatchChange(presetSem){
     var curYr = document.getElementById('em-year') ? document.getElementById('em-year').value : '';
     updateSemesterDropdownForYear(curYr, presetSem);
   }
+  var dVal = document.getElementById('em-dept') ? document.getElementById('em-dept').value : '';
+  populateExamClasses(dVal, (opt && opt.value) || '', null);
+}
+function populateExamClasses(deptId, batch, selectedClassId) {
+  var classSel = document.getElementById('em-class');
+  if (!classSel) return;
+  classSel.innerHTML = '<option value="">All Classes / Sections</option>';
+  if (!deptId) return;
+
+  var qs = '/classes?deptId=' + encodeURIComponent(deptId);
+  if (batch) qs += '&batch=' + encodeURIComponent(batch);
+
+  apiCall('GET', qs).then(function(classes) {
+    var clsArr = Array.isArray(classes) ? classes : [];
+    var html = '<option value="">All Classes / Sections</option>';
+    clsArr.forEach(function(c) {
+      var sel = (selectedClassId && (String(c._id) === String(selectedClassId))) ? ' selected' : '';
+      html += '<option value="' + c._id + '"' + sel + '>' + (c.name || 'Class') + (c.sem ? ' (Sem ' + c.sem + ')' : '') + '</option>';
+    });
+    classSel.innerHTML = html;
+  }).catch(function() {});
+}
+
+function onEmDeptChange() {
+  var deptEl = document.getElementById('em-dept');
+  var bSel = document.getElementById('em-batch');
+  var deptId = deptEl ? deptEl.value : '';
+  var batch = bSel ? bSel.value : '';
+  populateExamClasses(deptId, batch, null);
 }
 
 function onEmYearChange(){
@@ -1016,6 +1045,89 @@ function onEmSemChange(){
   else if(['VII','VIII'].includes(sem)) yrSel.value = 'IV';
 }
 
+var emSelectedDates = [];
+
+function renderEmDateChips(){
+  var chipsWrap = document.getElementById('em-dates-chips');
+  var summaryEl = document.getElementById('em-dates-summary');
+  if(!chipsWrap) return;
+  emSelectedDates = Array.from(new Set(emSelectedDates.filter(Boolean))).sort();
+  if(!emSelectedDates.length){
+    chipsWrap.innerHTML = '<span style="font-size:12px;color:var(--tdi);">No real exam days selected. Pick start & end dates or click + Add Date.</span>';
+    if(summaryEl) summaryEl.textContent = '0 days selected';
+    return;
+  }
+  var html = '';
+  var dows = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  emSelectedDates.forEach(function(ds){
+    var p = ds.split('-');
+    var dt = new Date(parseInt(p[0],10), parseInt(p[1],10)-1, parseInt(p[2],10));
+    var dow = dows[dt.getDay()];
+    html += '<span style="display:inline-flex;align-items:center;gap:5px;padding:3px 8px;background:var(--s1);border:1px solid var(--border);border-radius:12px;font-size:11.5px;font-weight:500;">'
+          + '<span>' + dow + ' ' + fmtDate(ds) + '</span>'
+          + '<span onclick="removeExamDate(\''+ds+'\')" style="cursor:pointer;color:var(--tmu);font-size:13px;line-height:1;margin-left:2px;" title="Remove this date">×</span>'
+          + '</span>';
+  });
+  chipsWrap.innerHTML = html;
+  if(summaryEl) summaryEl.textContent = emSelectedDates.length + ' real exam day' + (emSelectedDates.length===1?'':'s') + ' selected';
+}
+
+function onEmDateRangeChange(){
+  var start = document.getElementById('em-start').value;
+  var end = document.getElementById('em-end').value;
+  if(!start || !end || start > end) return;
+
+  var cur = new Date(start + 'T00:00:00');
+  var endD = new Date(end + 'T00:00:00');
+  var dates = [];
+  while(cur <= endD){
+    var y = cur.getFullYear(), m = cur.getMonth() + 1, d = cur.getDate();
+    var ds = y + '-' + pad2(m) + '-' + pad2(d);
+    var dow = cur.getDay();
+    // Exclude Sundays (0)
+    if(dow !== 0){
+      // Exclude non-working Saturdays (1st, 3rd)
+      var isWorkingSat = true;
+      if(dow === 6){
+        var sn = getSatOrdinal(d, m, y);
+        isWorkingSat = (sn % 2 === 0 || sn === 5);
+      }
+      if(isWorkingSat){
+        // Exclude declared calendar holidays
+        var calDoc = (calendarData && calendarData[ds]) || null;
+        var isHoliday = false;
+        if(calDoc){
+          if(calDoc.dayType === 'holiday' || calDoc.dayType === 'leave') isHoliday = true;
+          if(Array.isArray(calDoc.details) && calDoc.details.some(function(det){ return det.dayType === 'holiday' || det.dayType === 'leave'; })) isHoliday = true;
+        }
+        if(!isHoliday){
+          dates.push(ds);
+        }
+      }
+    }
+    cur.setDate(cur.getDate() + 1);
+  }
+  emSelectedDates = dates;
+  renderEmDateChips();
+}
+
+function removeExamDate(dateStr){
+  emSelectedDates = emSelectedDates.filter(function(d){ return d !== dateStr; });
+  renderEmDateChips();
+}
+
+function addCustomExamDate(){
+  var inp = document.getElementById('em-custom-date');
+  if(!inp || !inp.value) return;
+  var ds = inp.value.trim();
+  if(!emSelectedDates.includes(ds)){
+    emSelectedDates.push(ds);
+    emSelectedDates.sort();
+    renderEmDateChips();
+  }
+  inp.value = '';
+}
+
 function openExamModal(examId){
   document.getElementById('exam-modal-title').textContent=examId?'Edit Exam':'Add Exam';
   document.getElementById('em-id').value=examId||'';
@@ -1025,6 +1137,9 @@ function openExamModal(examId){
   document.getElementById('em-dept').value=''; document.getElementById('em-t-start').value='09:00';
   document.getElementById('em-t-end').value='16:00'; document.getElementById('em-status').value='upcoming';
   document.getElementById('em-start').value=''; document.getElementById('em-end').value='';
+  if(document.getElementById('em-class')) document.getElementById('em-class').innerHTML = '<option value="">All Classes / Sections</option>';
+  if(document.getElementById('em-custom-date')) document.getElementById('em-custom-date').value='';
+  emSelectedDates = [];
   if(examId){
     var ex=examsData.find(function(e){return e.ExamTrackId===examId;});
     if(ex){
@@ -1033,19 +1148,24 @@ function openExamModal(examId){
       document.getElementById('em-type').value=ex.examType||'';
       document.getElementById('em-year').value=ex.year||(['I','II'].includes(ex.semester)?'I':['III','IV'].includes(ex.semester)?'II':['V','VI'].includes(ex.semester)?'III':'IV');
       document.getElementById('em-semester').value=ex.semester||'';
-      var deptId=''; if(ex.deptName){ var mdept=deptsData.find(function(d){return d.name===ex.deptName;}); if(mdept) deptId=mdept._id; }
+      var deptId=ex.deptId || ''; 
+      if(!deptId && ex.deptName){ var mdept=deptsData.find(function(d){return d.name===ex.deptName;}); if(mdept) deptId=mdept._id; }
       document.getElementById('em-dept').value=deptId;
+      populateExamClasses(deptId, ex.batch, ex.classId);
       document.getElementById('em-start').value=rng.start;
       document.getElementById('em-end').value=rng.end;
       document.getElementById('em-t-start').value=(ex.timing&&ex.timing.start)||'09:00';
       document.getElementById('em-t-end').value=(ex.timing&&ex.timing.end)||'16:00';
       document.getElementById('em-status').value=ex.status||'upcoming';
       document.getElementById('em-notes').value=ex.notes||'';
+      emSelectedDates = (Array.isArray(ex.Dates) ? ex.Dates.slice() : []).sort();
+      renderEmDateChips();
       populateExamAcYearsAndBatches(ex.academicYear, ex.batch, ex.semester);
       openModal('exam-modal-bg');
       return;
     }
   }
+  renderEmDateChips();
   populateExamAcYearsAndBatches(null, null, null);
   openModal('exam-modal-bg');
 }
@@ -1065,11 +1185,15 @@ function saveExam(finalize){
   if(!semester){showToast('Semester is required','warn');return;}
   if(!start||!end){showToast('Start and end dates required','warn');return;} 
   if(start>end){showToast('Start must be before end','warn');return;}
+  if(!emSelectedDates || !emSelectedDates.length){
+    showToast('Please select at least one real exam date','warn');
+    return;
+  }
 
   dbToast('Saving exam & syncing calendar…','saving');
   var deptEl=document.getElementById('em-dept'), deptId=deptEl.value||null, deptName=deptId?deptEl.options[deptEl.selectedIndex].text:'';
-  var Dates=[], cur=new Date(start+'T00:00:00'), endD=new Date(end+'T00:00:00');
-  while(cur<=endD){ Dates.push(cur.getFullYear()+'-'+pad2(cur.getMonth()+1)+'-'+pad2(cur.getDate())); cur.setDate(cur.getDate()+1); }
+  var classEl=document.getElementById('em-class'), classId=classEl?(classEl.value||null):null, className=(classEl&&classId)?classEl.options[classEl.selectedIndex].text:'';
+  var Dates = emSelectedDates.slice().sort();
   
   apiCall(id?'PUT':'POST',id?'/exams/'+id:'/exams',{
     title,
@@ -1080,6 +1204,8 @@ function saveExam(finalize){
     batch:batch,
     deptId,
     deptName,
+    classId,
+    className,
     Dates,
     timing:{start:document.getElementById('em-t-start').value,end:document.getElementById('em-t-end').value},
     status:document.getElementById('em-status').value,
@@ -1133,12 +1259,18 @@ function onExamSelChange(){
 function populateDateDrop(ex){
   var sel=document.getElementById('ea-date-sel');
   sel.innerHTML='<option value="">— Select Date —</option>';
-  var rng=examDates(ex);
-  if(!rng.start||!rng.end) return;
-  var cur=new Date(rng.start+'T00:00:00'), end=new Date(rng.end+'T00:00:00');
-  while(cur<=end){ var ds=cur.getFullYear()+'-'+pad2(cur.getMonth()+1)+'-'+pad2(cur.getDate()); var dow=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][cur.getDay()]; sel.innerHTML+='<option value="'+ds+'">'+dow+' '+fmtDate(ds)+(ds===todayStr()?' (Today)':'')+'</option>'; cur.setDate(cur.getDate()+1); }
-  if(rng.start<=todayStr()&&todayStr()<=rng.end) sel.value=todayStr();
+  var dates = (ex && Array.isArray(ex.Dates)) ? ex.Dates.slice().sort() : [];
+  if(!dates.length) return;
+  var dows=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  dates.forEach(function(ds){
+    var p=ds.split('-');
+    var cur=new Date(parseInt(p[0],10), parseInt(p[1],10)-1, parseInt(p[2],10));
+    var dow=dows[cur.getDay()];
+    sel.innerHTML+='<option value="'+ds+'">'+dow+' '+fmtDate(ds)+(ds===todayStr()?' (Today)':'')+'</option>';
+  });
+  if(dates.includes(todayStr())) sel.value=todayStr();
 }
+
 function onExamDateChange(){ loadHallSummary(); }
 function populateDeptCheckboxes(){
   if(!deptsData.length){ apiCall('GET','/depts').then(function(d){ deptsData=Array.isArray(d)?d:[]; buildDeptCbs(); }).catch(function(){}); return; }

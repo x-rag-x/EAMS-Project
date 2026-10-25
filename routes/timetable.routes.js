@@ -9,6 +9,7 @@ const { decryptLog } = require('../utils/logCrypto');
 const { sanitizeToString, sanitizeToObjectId } = require('../utils/sanitizeQuery');
 const escapeRegex = s => String(s || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const { normalizeYearRange } = require('../utils/yearFormat');
+const { matchesClassCalendarScope } = require('../utils/examUtils');
 const jwt = require('jsonwebtoken');
 const cfg = require('../config');
 const { getSettings } = require('../utils/settingsCache');
@@ -1538,7 +1539,8 @@ router.post('/auto-gen', requireManager, async (req, res) => {
     }).lean();
 
     const workingSaturdays = calendarDays.filter(cd => cd.day === 'Saturday' && cd.details?.some(d => d.dayType === 'working'));
-    const holidays = calendarDays.filter(cd => cd.details?.some(d => ['holiday', 'vacation', 'exam'].includes(d.dayType)));
+    const holidays = calendarDays.filter(cd => cd.details?.some(d => ['holiday', 'vacation', 'leave'].includes(d.dayType)));
+    const examDays = calendarDays.filter(cd => cd.details?.some(d => d.dayType === 'exam'));
 
     let assignments = Array.isArray(req.body.assignments) && req.body.assignments.length ? req.body.assignments : [];
 
@@ -5701,11 +5703,20 @@ router.get('/free-teachers', async (req, res) => {
 
     let isHoliday = false;
     let holidayReason = '';
+    let isExamDay = false;
+    let examReason = '';
+    let examDetail = null;
     if (calendarDay?.details?.length) {
-      const holDetail = calendarDay.details.find(d => ['holiday', 'vacation', 'exam', 'event'].includes(d.dayType));
+      const holDetail = calendarDay.details.find(d => ['holiday', 'vacation', 'leave'].includes(d.dayType));
       if (holDetail) {
         isHoliday = true;
         holidayReason = holDetail.comments || `Academic Calendar: ${holDetail.dayType.toUpperCase()}`;
+      }
+      const exDetail = calendarDay.details.find(d => d.dayType === 'exam');
+      if (exDetail) {
+        isExamDay = true;
+        examReason = exDetail.comments || 'Exam Day';
+        examDetail = exDetail;
       }
     }
     if (dayName === 'Sunday') {
@@ -6262,16 +6273,33 @@ router.get('/resolve/:classId/:date', async (req, res) => {
 
     let isHoliday = false;
     let holidayReason = '';
+    let isExamDay = false;
+    let examReason = '';
+    let examDetail = null;
     if (calendarDay?.details?.length) {
-      const hol = calendarDay.details.find(d => {
-        if (!['holiday', 'vacation', 'exam', 'event', 'leave'].includes(d.dayType)) return false;
-        if (!d.year) return true; // applies to all years
+      const ex = calendarDay.details.find(d => {
+        if (d.dayType !== 'exam') return false;
+        if (classDoc) return matchesClassCalendarScope(d, classDoc);
+        if (!d.year) return true;
         const dYear = String(d.year).trim().toUpperCase();
         return dYear === clsYear || dYear === clsYearRoman;
       });
-      if (hol) {
-        isHoliday = true;
-        holidayReason = hol.comments || `Academic Calendar: ${hol.dayType.toUpperCase()}`;
+      if (ex) {
+        isExamDay = true;
+        examReason = ex.comments || 'Exam Day';
+        examDetail = ex;
+      } else {
+        const hol = calendarDay.details.find(d => {
+          if (!['holiday', 'vacation', 'leave'].includes(d.dayType)) return false;
+          if (classDoc) return matchesClassCalendarScope(d, classDoc);
+          if (!d.year) return true;
+          const dYear = String(d.year).trim().toUpperCase();
+          return dYear === clsYear || dYear === clsYearRoman;
+        });
+        if (hol) {
+          isHoliday = true;
+          holidayReason = hol.comments || `Academic Calendar: ${hol.dayType.toUpperCase()}`;
+        }
       }
     }
     if (dayName === 'Sunday') {

@@ -85,6 +85,7 @@ const DEFAULT_SETTINGS_MAP = {
       moduleDelUseAdminPass: true,
       requireHodApproval:    true,
       modelSmartBoards:      true,
+      bulkMailCredentials:   true,
     }
   },
 

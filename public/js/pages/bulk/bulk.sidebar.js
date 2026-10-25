@@ -139,23 +139,35 @@
         var timeLabel = util.timeAgo(item.lastMessageAt || item.updatedAt || item.createdAt);
         var statusClass = 'status-' + (item.status || 'draft');
         var uploaderName = (item.uploadedBy && item.uploadedBy.name) || item.uploaderName || '';
+        var isClosed = Boolean(item.closed && item.closed.at);
+        var lockBadge = isClosed ? ' <re-icon icon="lock" size="11" style="vertical-align:middle;color:var(--tmu);opacity:0.85;" title="Closed import chat"></re-icon>' : '';
 
-        html += '<div class="chat-item ' + (isActive ? 'active' : '') + '" data-action="select-chat" data-chat-id="' + util.esc(item._id) + '">' +
+        var itemTrackId = item.batchTrackId || item.trackId || item._id;
+        html += '<div class="chat-item ' + (isActive ? 'active' : '') + '" data-action="select-chat" data-chat-id="' + util.esc(item._id) + '" data-track-id="' + util.esc(itemTrackId) + '">' +
           '<div class="chat-item-ic"><re-icon icon="' + iconName + '" size="15"></re-icon></div>' +
           '<div class="chat-item-body">' +
-            '<div class="chat-item-title" title="' + util.esc(item.title) + '">' + util.esc(item.title || (typeMeta.label + ' Import')) + '</div>' +
+            '<div class="chat-item-title" title="' + util.esc(item.title) + '">' + util.esc(item.title || (typeMeta.label + ' Import')) + lockBadge + '</div>' +
             '<div class="chat-item-sub">' +
               '<span>' + util.esc(timeLabel) + '</span>' +
               (uploaderName ? ('<span>· ' + util.esc(uploaderName) + '</span>') : '') +
             '</div>' +
-            '<div class="chat-item-meta">' +
-              '<span class="chat-status-pill ' + statusClass + '">' + util.esc(statusMeta.label) + '</span>' +
-              (isUnread ? '<span class="chat-unread-dot" title="Unread updates"></span>' : '') +
-            '</div>' +
+            (function () {
+              var isAdm = user && (user.role === 'admin' || user.role === 'sudo' || user.isSudoAdmin || user.accessRole === 'sudoAdmin' || user.accessRole === 'superAdmin');
+              var openGrv = (item.grievance && item.grievance.open) || 0;
+              var grvBadge = (isAdm && openGrv > 0)
+                ? '<span class="chat-status-pill status-failed" style="font-size:9.5px;padding:1px 5px;margin-left:4px;" title="' + openGrv + ' open problem report(s)">⚑ ' + openGrv + '</span>'
+                : '';
+              return '<div class="chat-item-meta">' +
+                '<span class="chat-status-pill ' + statusClass + '">' + util.esc(statusMeta.label) + '</span>' +
+                grvBadge +
+                (isUnread ? '<span class="chat-unread-dot" title="Unread updates"></span>' : '') +
+              '</div>';
+            })() +
           '</div>' +
-          '<button class="chat-archive-btn" data-action="archive-chat" data-chat-id="' + util.esc(item._id) + '" title="' + (state.archiveView ? 'Unarchive' : 'Archive') + '">' +
-            '<re-icon icon="' + (state.archiveView ? 'archive-restore' : 'archive') + '" size="13"></re-icon>' +
-          '</button>' +
+          (state.archiveView
+            ? '<button class="chat-archive-btn" data-action="restore-chat" data-chat-id="' + util.esc(item._id) + '" title="Restore chat"><re-icon icon="archive-restore" size="13"></re-icon></button>'
+            : '<button class="chat-menu-btn" data-action="chat-menu" data-chat-id="' + util.esc(item._id) + '" title="Chat options" aria-label="Chat options"><re-icon icon="more-vertical" size="14"></re-icon></button>'
+          ) +
         '</div>';
       }
     }
@@ -202,6 +214,46 @@
           pills.forEach(function (p) { p.classList.remove('active'); });
           pill.classList.add('active');
           store.setState({ filterStatus: status });
+        });
+      }
+
+      // Contextmenu / Right click on chat item opens 3-dot menu
+      var listContainer = document.getElementById('chat-sb-list');
+      if (listContainer) {
+        listContainer.addEventListener('contextmenu', function (e) {
+          var chatItem = e.target.closest('.chat-item');
+          if (!chatItem) return;
+          e.preventDefault();
+          var cid = chatItem.getAttribute('data-chat-id');
+          if (cid && root.Bulk.menu) {
+            root.Bulk.menu.openMenu(chatItem, cid);
+          }
+        });
+
+        listContainer.addEventListener('click', function (e) {
+          var menuBtn = e.target.closest('[data-action="chat-menu"]');
+          if (menuBtn) {
+            e.stopPropagation();
+            var cid = menuBtn.getAttribute('data-chat-id');
+            if (cid && root.Bulk.menu) {
+              root.Bulk.menu.openMenu(menuBtn, cid);
+            }
+            return;
+          }
+
+          var restoreBtn = e.target.closest('[data-action="restore-chat"]');
+          if (restoreBtn) {
+            e.stopPropagation();
+            var rId = restoreBtn.getAttribute('data-chat-id');
+            if (rId) {
+              api.restoreChat(rId, 'me').then(function () {
+                if (typeof root.showToast === 'function') root.showToast('Chat restored');
+                fetchAndRefreshList();
+              }).catch(function (err) {
+                if (typeof root.showToast === 'function') root.showToast('Could not restore: ' + err.message, 'warn');
+              });
+            }
+          }
         });
       }
     }

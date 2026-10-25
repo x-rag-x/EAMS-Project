@@ -10,7 +10,9 @@
     "memory": "node scripts/memory.js",
     "track:chat": "node scripts/track_chat.js",
     "end:chat": "node scripts/track_chat.js --auto-memory",
-    "check:xss": "node scripts/check-xss-patterns.js"
+    "check:xss": "node scripts/check-xss-patterns.js",
+    "check:invariants": "node scripts/check-bulk-invariants.js",
+    "migrate:bulk:v2": "node scripts/migrateBulkV2.js"
   },
   "engines": {
     "node": ">=18.0.0"

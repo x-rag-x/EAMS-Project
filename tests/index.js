@@ -20,6 +20,14 @@ const SUITES = [
   'tests/test-bulk-f39-f40.js',
   'tests/bulk-golden-test.js',
   'tests/bulk-p4-p5-test.js',
+  'tests/test-bulk-p1.js',
+  'tests/test-bulk-p2.js',
+  'tests/test-bulk-p3.js',
+  'tests/test-bulk-p4.js',
+  'tests/test-bulk-p5.js',
+  'tests/test-bulk-p6.js',
+  'tests/test-bulk-p7.js',
+  'tests/test-bulk-p8.js',
   'scripts/check-xss-patterns.js'
 ];
 

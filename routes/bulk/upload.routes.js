@@ -61,9 +61,7 @@ router.post(
         const updateFields = {
           fileRef,
           originalFileName: req.file.originalname,
-          mimeType: req.file.mimetype,
-          // Keep base64 temporarily until migration phase P7
-          fileBufferBase64: req.file.buffer.toString('base64')
+          mimeType: req.file.mimetype
         };
         if (req.scope) {
           updateFields['uploadedBy.scope'] = req.scope;

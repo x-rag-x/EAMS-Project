@@ -77,12 +77,13 @@
     staged: { label: 'Staged', step: 1, pill: 'st-staged' },
     skipped_resolved: { label: 'Skipped Resolved', step: 1, pill: 'st-staged' },
     pending_sudo_initial: { label: 'Awaiting Sudo', step: 2, pill: 'st-pending' },
-    sudo_initial_approved: { label: 'Sudo Approved', step: 3, pill: 'st-prog' },
+    sudo_initial_approved: { label: 'Initial Approved', step: 3, pill: 'st-prog' },
     verifying: { label: 'Verifying', step: 3, pill: 'st-prog' },
-    verified_all: { label: 'Verified All', step: 4, pill: 'st-prog' },
-    pending_final_approval: { label: 'Final Approval Needed', step: 4, pill: 'st-pending' },
-    committing: { label: 'Committing…', step: 4, pill: 'st-proc' },
-    committed: { label: 'Committed', step: 5, pill: 'st-done' },
+    verified_all: { label: 'Verified All', step: 3, pill: 'st-prog' },
+    sudo_review: { label: 'Admin Review', step: 4, pill: 'st-pending' },
+    pending_final_approval: { label: 'Final Approval Needed', step: 5, pill: 'st-pending' },
+    committing: { label: 'Committing…', step: 6, pill: 'st-proc' },
+    committed: { label: 'Committed', step: 6, pill: 'st-done' },
     rejected: { label: 'Rejected', step: 0, pill: 'st-fail' },
     cancelled: { label: 'Cancelled', step: 0, pill: 'st-fail' }
   };
@@ -90,21 +91,16 @@
   var STEPS = [
     { num: 0, label: 'Upload' },
     { num: 1, label: 'Review' },
-    { num: 2, label: 'Initial Approval' },
+    { num: 2, label: 'Approval' },
     { num: 3, label: 'Verification' },
-    { num: 4, label: 'Final Approval' },
-    { num: 5, label: 'Committed' }
+    { num: 4, label: 'Admin Review' },
+    { num: 5, label: 'Final Approval' },
+    { num: 6, label: 'Committed' }
   ];
 
-  function getStepForStatus(status, type) {
+  function getStepForStatus(status) {
     var meta = STATUSES[status] || { step: 0 };
-    var step = meta.step;
-    // Dept, class, subject skip step 3 (Verification)
-    var isSimpleType = type && (type === 'dept' || type === 'class' || type === 'subject');
-    if (isSimpleType) {
-      if (status === 'sudo_initial_approved' || status === 'verified_all') return 4;
-    }
-    return step;
+    return meta.step;
   }
 
   root.Bulk.config = {

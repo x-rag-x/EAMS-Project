@@ -1,6 +1,25 @@
 const M = require('../../models');
 const { bus } = require('./progress');
 
+function resolveActorTier(actor, author) {
+  if (author === 'system' || !actor || actor.role === 'system') return 'system';
+  if (actor.tier) return actor.tier;
+  try {
+    const { resolveAccess } = require('../../utils/resolveAccess');
+    const acc = resolveAccess(actor);
+    if (acc.tier === 'sudoAdmin' || acc.flags?.isSudo) return 'sudo';
+    if (acc.tier === 'superAdmin' || acc.flags?.isSuper) return 'super';
+    if (acc.tier === 'subAdmin' || acc.flags?.isSub) return 'sub';
+  } catch (e) {}
+  const role = String(actor.role || '').toLowerCase();
+  if (role === 'sudo' || role === 'admin') return 'sudo';
+  if (role === 'super' || role === 'superadmin') return 'super';
+  if (role === 'sub' || role === 'subadmin') return 'sub';
+  if (role === 'system') return 'system';
+  return 'staff';
+}
+
+
 function preview(card, payload = {}) {
   if (payload.text) return String(payload.text).slice(0, 80);
   switch (card) {
@@ -28,6 +47,8 @@ function preview(card, payload = {}) {
       return `Import error: ${payload.error || 'Failed'}`;
     case 'rejected':
       return `Rejected: ${payload.reason || 'Not approved'}`;
+    case 'grievance':
+      return `⚑ Grievance: ${payload.rows?.length || 0} row(s) flagged`;
     default:
       return 'Batch update';
   }
@@ -69,11 +90,21 @@ async function postMessage(batchId, {
     kind,
     card,
     author,
-    actor: actor ? {
-      userId: actor._id || actor.userId || null,
-      name:   actor.name || actor.fullName || actor.username || 'System',
-      role:   actor.role || 'system'
-    } : { name: 'System', role: 'system' },
+    actor: (actor && author !== 'system') ? {
+      userId:   actor._id || actor.userId || null,
+      trackId:  actor.trackId || null,
+      username: actor.username || null,
+      name:     actor.name || actor.fullName || actor.username || 'User',
+      role:     actor.role || 'staff',
+      tier:     resolveActorTier(actor, author)
+    } : {
+      userId: null,
+      trackId: null,
+      username: null,
+      name:   (actor && actor.name) || 'EAMS Assistant',
+      role:   'system',
+      tier:   'system'
+    },
     payload
   });
 

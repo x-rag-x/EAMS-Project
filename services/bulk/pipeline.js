@@ -1,5 +1,6 @@
 const M = require('../../models');
 const { createTracker } = require('./progress');
+const { runStage } = require('./stage');
 const { transition } = require('./stateMachine');
 const { postMessage } = require('./messages');
 const storage = require('./storage');
@@ -70,47 +71,60 @@ async function runStageJob(batchId, user, reqMeta = {}) {
     const batch = await M.BulkImportBatch.findById(batchId);
     if (!batch) throw new Error('Batch not found');
 
-    // 1. Receive file
-    await tracker.start('receive', 'File received on server');
+    // Stage 0: Uploading the file
     let buffer = null;
-    if (batch.fileRef && batch.fileRef.gridFsId) {
-      buffer = await storage.get(batch.fileRef.gridFsId);
-    } else if (batch.fileBufferBase64) {
-      buffer = Buffer.from(batch.fileBufferBase64, 'base64');
-    }
+    await runStage(tracker, 'stage', 0, async () => {
+      await tracker.start('receive', 'File received on server');
+      if (batch.fileRef && batch.fileRef.gridFsId) {
+        buffer = await storage.get(batch.fileRef.gridFsId);
+      } else if (batch.fileBufferBase64) {
+        buffer = Buffer.from(batch.fileBufferBase64, 'base64');
+      }
+      if (!buffer || !buffer.length) {
+        throw new Error('Spreadsheet file payload is empty or could not be loaded');
+      }
+      await tracker.done('receive', `${(buffer.length / (1024 * 1024)).toFixed(2)} MB loaded`);
+    });
 
-    if (!buffer || !buffer.length) {
-      throw new Error('Spreadsheet file payload is empty or could not be loaded');
-    }
-    await tracker.done('receive', `${(buffer.length / (1024 * 1024)).toFixed(2)} MB loaded`);
+    // Stage 1: Saving to Drive (Sequential, non-fatal)
+    const driveMeta = {
+      folderId: '',
+      folderName: '',
+      folderUrl: '',
+      fileId: '',
+      fileUrl: '',
+      status: 'pending',
+      uploadedAt: null,
+      error: ''
+    };
 
-    // 2. Parallel Google Drive upload (failures are non-fatal warnings)
-    await tracker.start('drive', 'Creating Google Drive folder & archiving sheet');
-    const drivePromise = (async () => {
-      const driveMeta = {
-        folderId: '',
-        folderName: '',
-        folderUrl: '',
-        fileId: '',
-        fileUrl: '',
-        status: 'pending',
-        uploadedAt: null,
-        error: ''
-      };
-
+    await runStage(tracker, 'stage', 1, async () => {
+      await tracker.start('drive', 'Saving spreadsheet to Google Drive');
       try {
-        const folderName = `${batch.batchTrackId}_${batch.type.toUpperCase()}`;
-        const driveFolder = await createBatchFolder(folderName);
-        if (driveFolder && driveFolder.folderId) {
-          driveMeta.folderId = driveFolder.folderId;
-          driveMeta.folderName = driveFolder.folderName;
-          driveMeta.folderUrl = driveFolder.folderUrl;
+        let folderId = batch.drive?.folderId;
+        let folderName = batch.drive?.folderName || batch.batchTrackId;
+        let folderUrl = batch.drive?.folderUrl;
+
+        if (!folderId) {
+          const { provisionDriveFolder } = require('./driveFolder');
+          const prov = await provisionDriveFolder(batch._id);
+          if (prov && prov.folderId) {
+            folderId = prov.folderId;
+            folderName = prov.folderName || batch.batchTrackId;
+            folderUrl = prov.folderUrl;
+          }
+        }
+
+        if (folderId) {
+          driveMeta.folderId = folderId;
+          driveMeta.folderName = folderName;
+          driveMeta.folderUrl = folderUrl || `https://drive.google.com/drive/folders/${folderId}`;
 
           const driveFile = await uploadBufferToDrive(
             buffer,
             batch.originalFileName || `${batch.batchTrackId}.xlsx`,
             batch.mimeType || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-            driveFolder.folderId
+            folderId
           );
 
           if (driveFile && driveFile.fileId) {
@@ -118,7 +132,7 @@ async function runStageJob(batchId, user, reqMeta = {}) {
             driveMeta.fileUrl = driveFile.driveUrl;
             driveMeta.status = 'uploaded';
             driveMeta.uploadedAt = new Date();
-            await tracker.done('drive', `Archived in folder ${driveFolder.folderName}`);
+            await tracker.done('drive', `Archived in folder ${folderName}`);
           } else {
             driveMeta.status = 'file_failed';
             await tracker.warn('drive', 'Drive file upload could not be verified');
@@ -133,67 +147,91 @@ async function runStageJob(batchId, user, reqMeta = {}) {
         driveMeta.error = gErr.message;
         await tracker.warn('drive', `Google Drive notice: ${gErr.message}`);
       }
-      return driveMeta;
-    })();
+    });
 
-    // 3. Read spreadsheet
-    await tracker.start('read', 'Parsing spreadsheet rows and headers');
+    // Stage 2: Reading spreadsheet
     const { scanAndValidateWorkbook } = require('./scan');
-
-    // 4. Validate rows against reference collections
-    await tracker.start('validate', 'Validating constraints, foreign keys, and formats');
     const fakeReq = await buildExecutionContext(user, batch);
 
-    const scanResult = await scanAndValidateWorkbook(batch.type, buffer, fakeReq, {
-      onProgress: ({ processed, total, eligible, skipped }) => {
-        const pct = total ? Math.round((processed / total) * 100) : 0;
-        tracker.tick('validate', pct, `${processed} / ${total} · ${eligible} ready · ${skipped} skipped`, {
-          processed,
-          total,
-          eligible,
-          skipped
-        });
-      }
+    await runStage(tracker, 'stage', 2, async () => {
+      await tracker.start('read', 'Parsing spreadsheet rows and headers');
+      await tracker.done('read', 'Workbook parsed');
     });
-    await tracker.done('read', `Found ${scanResult.totalRows} total data rows`);
-    await tracker.done('validate', `${scanResult.eligibleRows.length} eligible, ${scanResult.skippedRows.length} skipped`);
 
-    // Wait for drive upload to finish or settle
-    const driveMeta = await drivePromise;
-
-    // 5. Save to EAMS
-    await tracker.start('save', 'Persisting staged records to database');
-    const isAutoVerified = ['dept', 'class', 'subject'].includes(batch.type);
-    const verifiedCount = isAutoVerified ? scanResult.eligibleRows.length : 0;
-
-    const updatedBatch = await M.BulkImportBatch.findOneAndUpdate(
-      { _id: batch._id },
-      {
-        $set: {
-          totalRows: scanResult.totalRows,
-          eligibleCount: scanResult.eligibleRows.length,
-          skippedCount: scanResult.skippedRows.length,
-          verifiedCount,
-          eligibleRows: scanResult.eligibleRows,
-          skippedRows: scanResult.skippedRows,
-          drive: driveMeta
+    // Stage 3: Validating data
+    let scanResult = null;
+    await runStage(tracker, 'stage', 3, async () => {
+      await tracker.start('validate', 'Validating constraints, foreign keys, and formats');
+      scanResult = await scanAndValidateWorkbook(batch.type, buffer, fakeReq, {
+        onProgress: ({ processed, total, eligible, skipped }) => {
+          const pct = total ? Math.round((processed / total) * 100) : 0;
+          tracker.tick('validate', pct, `${processed} / ${total} · ${eligible} ready · ${skipped} skipped`, {
+            processed,
+            total,
+            eligible,
+            skipped
+          });
         }
-      },
-      { returnDocument: 'after' }
-    );
-
-    // Transition state from processing -> staged
-    await transition(updatedBatch, 'staged', {
-      user,
-      from: ['processing', 'uploading'],
-      details: {
-        totalRows: scanResult.totalRows,
-        eligible: scanResult.eligibleRows.length,
-        skipped: scanResult.skippedRows.length
-      }
+      });
+      await tracker.done('validate', `${scanResult.eligibleRows.length} eligible, ${scanResult.skippedRows.length} skipped`);
     });
 
-    await tracker.done('save', `${scanResult.eligibleRows.length} ready for review`);
+    // Stage 4: Cleaning up
+    let updatedBatch = null;
+    await runStage(tracker, 'stage', 4, async () => {
+      await tracker.start('save', 'Persisting staged records to database');
+      const isAutoVerified = ['dept', 'class', 'subject'].includes(batch.type);
+      const verifiedCount = isAutoVerified ? scanResult.eligibleRows.length : 0;
+
+      updatedBatch = await M.BulkImportBatch.findOneAndUpdate(
+        { _id: batch._id },
+        {
+          $set: {
+            totalRows: scanResult.totalRows,
+            eligibleCount: scanResult.eligibleRows.length,
+            skippedCount: scanResult.skippedRows.length,
+            verifiedCount,
+            eligibleRows: scanResult.eligibleRows,
+            skippedRows: scanResult.skippedRows,
+            drive: driveMeta
+          },
+          $push: {
+            uploads: {
+              epoch: batch.epoch || 0,
+              name: batch.originalFileName || `${batch.batchTrackId}.xlsx`,
+              size: buffer.length,
+              sha256: batch.fileRef?.sha256 || '',
+              gridFsId: batch.fileRef?.gridFsId || null,
+              drive: {
+                fileId: driveMeta.fileId || '',
+                url: driveMeta.fileUrl || ''
+              },
+              at: new Date(),
+              by: user._id || null
+            }
+          }
+        },
+        { returnDocument: 'after' }
+      );
+
+      await transition(updatedBatch, 'staged', {
+        user,
+        from: ['processing', 'uploading'],
+        details: {
+          totalRows: scanResult.totalRows,
+          eligible: scanResult.eligibleRows.length,
+          skipped: scanResult.skippedRows.length
+        }
+      });
+
+      await tracker.done('save', `${scanResult.eligibleRows.length} ready for review`);
+    });
+
+    // Stage 5: Done (hold 1.5s, then summary card posted)
+    const doneHoldMs = (process.env.BULK_STAGE_HOLD_MS !== undefined ? parseInt(process.env.BULK_STAGE_HOLD_MS, 10) : 1500);
+    await runStage(tracker, 'stage', 5, async () => {
+      // Done stage complete
+    }, { holdMs: doneHoldMs, mode: 'after' });
 
     // Post Summary card to transcript
     await postMessage(batch._id, {

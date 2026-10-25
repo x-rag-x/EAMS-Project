@@ -3,8 +3,10 @@ const router = express.Router();
 const crypto = require('crypto');
 const M = require('../../models');
 const { authMiddleware, requirePage } = require('../../middleware/auth');
-const { isSudoCaller, loadBatch, listFilter, toClient } = require('../../services/bulk/access');
+const { isSudoCaller, isAdminRole, loadBatch, listFilter, toClient } = require('../../services/bulk/access');
 const { postMessage } = require('../../services/bulk/messages');
+const { createWithUniqueTrackId } = require('../../services/bulk/trackId');
+const { provisionDriveFolder } = require('../../services/bulk/driveFolder');
 
 /**
  * Generates an 8-character uppercase alphanumeric track ID (e.g. TR-BATCH-MVDFA9BM)
@@ -41,7 +43,8 @@ async function get24HourVerificationCount() {
 // ── 1. LIST BATCHES (SIDEBAR / HISTORY) ──
 router.get('/batches', authMiddleware, requirePage('bulk', 'view'), async (req, res) => {
   try {
-    const filter = listFilter(req.user);
+    const isDeletedQuery = req.query.deleted === 'true' || req.query.tab === 'deleted';
+    const filter = listFilter(req.user, { showDeleted: isDeletedQuery && isSudoCaller(req.user) });
     const { status, type, uploader, q, cursor, limit = 50, since, includeArchived, archived } = req.query;
 
     const query = { ...filter };
@@ -167,12 +170,13 @@ router.post('/batches', authMiddleware, requirePage('bulk', 'create'), async (re
       return res.status(403).json({ error: 'Department creation requires global administrator privileges' });
     }
 
-    const batchTrackId = generateBatchTrackId();
+    // Track ID is generated via createWithUniqueTrackId
     const typeLabel = type.charAt(0).toUpperCase() + type.slice(1);
-    const title = `${typeLabel} Import · ${batchTrackId.slice(-6)}`;
+    const title = `${typeLabel} Import`;
 
-    const batch = await M.BulkImportBatch.create({
-      batchTrackId,
+    const batch = await createWithUniqueTrackId(type, (trackId) => ({
+      provisioning: { state: 'pending', at: new Date() },
+      // trackId set by allocator
       title,
       type,
       parentBatchId: parentBatchId || null,
@@ -198,8 +202,13 @@ router.post('/batches', authMiddleware, requirePage('bulk', 'create'), async (re
         status: 'INITIALIZED',
         timestamp: new Date(),
         user: req.user.name || req.user.username,
-        details: { type }
+        details: { type, trackId }
       }]
+    }));
+
+    // Start background Drive folder provisioning
+    provisionDriveFolder(batch._id).catch(pErr => {
+      console.warn('[DriveFolder] Background provisioning notice:', pErr.message);
     });
 
     // Seed initial conversational cards
@@ -229,8 +238,12 @@ router.post('/batches', authMiddleware, requirePage('bulk', 'create'), async (re
     const clientBatch = toClient(refreshed, req.user);
     res.status(201).json({
       ok: true,
-      data: { batch: clientBatch },
-      batch: clientBatch
+      data: {
+        batch: clientBatch,
+        provisioning: clientBatch.provisioning || { state: 'pending' }
+      },
+      batch: clientBatch,
+      provisioning: clientBatch.provisioning || { state: 'pending' }
     });
   } catch (err) {
     console.error('[BulkBatches Create Error]:', err);
@@ -293,13 +306,24 @@ router.get('/batches/:id/messages', authMiddleware, requirePage('bulk', 'view'),
       .limit(limit)
       .lean();
 
+    const isViewerAdmin = isAdminRole(req.user);
+    const sanitizedMessages = isViewerAdmin ? messages : messages.map(m => {
+      if (m && m.payload && (m.payload.driveUrl || m.payload.driveFolder)) {
+        const p = { ...m.payload };
+        delete p.driveUrl;
+        delete p.driveFolder;
+        return { ...m, payload: p };
+      }
+      return m;
+    });
+
     res.json({
       ok: true,
       data: {
-        messages,
+        messages: sanitizedMessages,
         lastSeq: req.batch.messageSeq || 0
       },
-      messages,
+      messages: sanitizedMessages,
       lastSeq: req.batch.messageSeq || 0
     });
   } catch (err) {
@@ -394,16 +418,15 @@ router.post('/batches/:id/seen', authMiddleware, requirePage('bulk', 'view'), lo
 router.post('/batches/:id/clone', authMiddleware, requirePage('bulk', 'create'), loadBatch('ownerOrSudo'), async (req, res) => {
   try {
     const type = req.batch.type;
-    const batchTrackId = generateBatchTrackId();
     const typeLabel = type.charAt(0).toUpperCase() + type.slice(1);
-    const title = `${typeLabel} Import · ${batchTrackId.slice(-6)} (Retry)`;
+    const title = `${typeLabel} Import (Retry)`;
 
-    const newBatch = await M.BulkImportBatch.create({
-      batchTrackId,
+    const newBatch = await createWithUniqueTrackId(type, (trackId) => ({
       title,
       type,
       parentBatchId: req.batch._id,
       status: 'draft',
+      provisioning: { state: 'pending', at: new Date() },
       uploadedBy: {
         userId:   req.user._id,
         trackId:  req.user.trackId || '',
@@ -422,11 +445,15 @@ router.post('/batches/:id/clone', authMiddleware, requirePage('bulk', 'create'),
       messageSeq: 0,
       roadmap: [{
         stage: 'draft',
-        status: 'CLONED_FROM_' + req.batch.batchTrackId,
+        status: 'CLONED_FROM_' + (req.batch.batchTrackId || req.batch._id),
         timestamp: new Date(),
         user: req.user.name || req.user.username,
-        details: { parentBatchId: req.batch._id }
+        details: { parentBatchId: req.batch._id, trackId }
       }]
+    }));
+
+    provisionDriveFolder(newBatch._id).catch(pErr => {
+      console.warn('[DriveFolder] Clone provisioning notice:', pErr.message);
     });
 
     await postMessage(newBatch._id, {

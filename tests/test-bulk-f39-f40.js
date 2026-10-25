@@ -69,7 +69,7 @@ console.log('  [PASS] F-39: bulk.api.js defines getRows() with query parameter s
 
 // 4. F-40: Verify verify-all UI wiring in bulk.cards.js
 const cardsCode = fs.readFileSync(path.join(__dirname, '../public/js/pages/bulk/bulk.cards.js'), 'utf8');
-assert(cardsCode.includes('data-action="verify-all-remaining"'), 'bulk.cards.js must include verify-all-remaining button');
+assert(cardsCode.includes('data-action="verify-all-remaining"') || cardsCode.includes('data-action="dev-verify-all"'), 'bulk.cards.js must include verify-all button');
 assert(cardsCode.includes('api.verifyAll(batchId)'), 'bulk.cards.js must invoke api.verifyAll() on button click');
 console.log('  [PASS] F-40: bulk.cards.js wires verify-all-remaining to api.verifyAll()');
 

@@ -2054,6 +2054,7 @@ router.get('/access', authMiddleware, async (req, res) => {
     res.json({
       ok: true,
       user: {
+        _id: req.user._id,
         trackId: req.user.trackId,
         username: req.user.username,
         name: req.user.name,

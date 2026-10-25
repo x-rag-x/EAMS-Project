@@ -18,126 +18,96 @@
   }
 
   // Helper for template downloads using XLSX
-  function downloadTemplate(type) {
-    var T = {
-      dept: {
-        headers: ['DeptName', 'Code', 'Number', 'CourseType', 'Branch', 'Category', 'Icon'],
-        rows: [
-          ['Computer Science Engineering', 'CSE', '104', 'UG', 'B.E', 'Programme', 'laptop'],
-          ['Electronics & Communication', 'ECE', '105', 'UG', 'B.E', 'Programme', 'cpu'],
-          ['Science & Humanities', 'S&H', '100', 'UG', 'B.E', 'Supportive', 'book-open']
-        ],
-        notes: [
-          ['Column', 'Required?', 'Notes'],
-          ['DeptName', 'Yes', 'Full department name. Must be unique.'],
-          ['Code', 'Yes', 'Short uppercase code. Must be unique.'],
-          ['Number', 'Yes', '3-digit register code e.g. 104'],
-          ['CourseType', 'Yes', 'UG or PG (default: UG)'],
-          ['Branch', 'Yes', 'B.E, B.TECH, M.E, or M.TECH (default: B.E)'],
-          ['Category', 'No', 'Programme or Supportive (default: Programme)'],
-          ['Icon', 'No', 'Icon name (default: building2)']
-        ]
-      },
-      teacher: {
-        headers: ['Name', 'EmployeeID', 'Department', 'Username', 'Designation', 'Password', 'Email', 'Gender'],
-        rows: [
-          ['John Doe', 'EMP001', 'CSE', 'johndoe', 'Assistant Professor', 'teacher123', 'john@inst.edu', 'male'],
-          ['Jane Smith', 'EMP002', 'ECE', 'janesmith', 'Associate Professor', 'teacher123', 'jane@inst.edu', 'female'],
-          ['Raj Kumar', 'EMP003', 'MECH', 'rajkumar', 'Professor', 'teacher123', 'raj@inst.edu', 'male']
-        ],
-        notes: [
-          ['Column', 'Required?', 'Notes'],
-          ['Name', 'Yes', 'Full name of the teacher'],
-          ['EmployeeID', 'Yes', 'Unique employee number'],
-          ['Department', 'Yes', 'Dept code (e.g. CSE, IT, AIML) or department name'],
-          ['Username', 'Yes', 'Unique login username (lowercase)'],
-          ['Designation', 'No', 'Role title (default: Assistant Professor)'],
-          ['Password', 'No', 'Initial password (default: teacher123)'],
-          ['Email', 'No', 'Email address'],
-          ['Gender', 'No', 'male, female, or other (default: unspecified)']
-        ]
-      },
-      class: {
-        headers: ['Department', 'HallNo', 'Semester', 'Batch', 'Year'],
-        rows: [
-          ['CSE', 'LH01', 'I', '2025-29', 'I Year'],
-          ['CSE', 'LH02', 'I', '2025-29', 'I Year'],
-          ['ECE', 'LH03', 'III', '2024-28', 'II Year']
-        ],
-        notes: [
-          ['Column', 'Required?', 'Notes'],
-          ['Department', 'Yes', 'Dept code (e.g. CSE, IT, AIML) or department name. Auto-creates if not found.'],
-          ['HallNo', 'Yes', 'Room or hall identifier'],
-          ['Semester', 'Yes', 'Roman numeral I through VIII'],
-          ['Batch', 'Yes', 'Must match an active batch under current Academic Year'],
-          ['Year', 'No', 'Year level (default: I Year)'],
-          ['', '', ''],
-          ['NOTE', '', 'ClassName is auto-generated as BATCH DEPTCODE (e.g. 25-29 CSE)']
-        ]
-      },
-      subject: {
-        headers: ['Name', 'Code', 'Department', 'Credits', 'Type'],
-        rows: [
-          ['Data Structures', 'CS201', 'CSE', '4', 'Theory'],
-          ['Digital Electronics Lab', 'EC301', 'ECE', '2', 'Lab'],
-          ['Engineering Mathematics', 'MA101', 'CSE', '3', 'Theory']
-        ],
-        notes: [
-          ['Column', 'Required?', 'Notes'],
-          ['Name', 'Yes', 'Full subject name'],
-          ['Code', 'Yes', 'Subject short code e.g. CS201'],
-          ['Department', 'Yes', 'Dept code (e.g. CSE, IT, AIML) or department name'],
-          ['Credits', 'No', 'Number of credits (default: 3)'],
-          ['Type', 'No', 'Theory, Lab, or Project (default: Theory)'],
-          ['', '', ''],
-          ['NOTE', '', 'SubjectCode is auto-generated as DEPTCODE-CODE (e.g. CSE-CS201)']
-        ]
-      },
-      student: {
-        headers: ['FullName', 'RegisterNo', 'Gender', 'AcademicYear', 'Batch', 'CourseType', 'Branch', 'Department', 'Class', 'Email', 'Username', 'Residency', 'Year', 'Password'],
-        rows: [
-          ['Ananya Sharma', '2025104001', 'Female', '2025-26', '2025-29', 'UG', 'B.E', 'CSE', '25-29 CSE-A', 'ananya@inst.edu', 'ananya25', 'Dayscholar', 'I Year', 'Student@123'],
-          ['Ravi Kumar', '2025104002', 'Male', '2025-26', '2025-29', 'UG', 'B.E', 'CSE', '25-29 CSE-A', 'ravi@inst.edu', 'ravi25', 'Hosteller', 'I Year', 'Student@123'],
-          ['Priya Nair', '2025105001', 'Female', '2025-26', '2025-29', 'UG', 'B.E', 'ECE', '25-29 ECE-A', 'priya@inst.edu', 'priya25', 'Dayscholar', 'I Year', 'Student@123']
-        ],
-        notes: [
-          ['Column', 'Required?', 'Notes'],
-          ['FullName', 'Yes', 'Student full name'],
-          ['RegisterNo', 'Yes', 'Unique registration number'],
-          ['Gender', 'Yes', 'Male or Female'],
-          ['AcademicYear', 'Yes', 'Academic year e.g. 2025-26'],
-          ['Batch', 'Yes', 'Batch range e.g. 2025-29'],
-          ['CourseType', 'Yes', 'UG or PG'],
-          ['Branch', 'Yes', 'B.E, B.TECH, M.E, or M.TECH'],
-          ['Department', 'Yes', 'Dept code (e.g. CSE, IT, AIML) or department name'],
-          ['Class', 'Yes', 'Class name e.g. 25-29 CSE-A'],
-          ['Email', 'Yes', 'Valid email address'],
-          ['Username', 'Yes', 'Unique login (no SB-/TR- prefix)'],
-          ['Residency', 'No', 'Dayscholar or Hosteller (default: Dayscholar)'],
-          ['Year', 'No', 'Year level e.g. I Year'],
-          ['Password', 'No', 'Initial password (server default if blank)'],
-          ['', '', ''],
-          ['NOTE', '', 'Use standard Dept Code (e.g. CSE, IT, AIML) for Department to avoid naming mismatches.']
-        ]
+  var foldedOverrides = {};
+
+  function resolveSchemaCols(type, schema) {
+    if (!type) return [];
+    var pool = (schema && schema.schemas) ? schema.schemas : (schema || {});
+    var entry = pool[type];
+    if (entry) {
+      if (Array.isArray(entry)) return entry;
+      if (Array.isArray(entry.columns)) return entry.columns;
+    }
+    return DEFAULT_SCHEMAS[type] || [];
+  }
+
+  function resolveSchema(type, schema) {
+    if (!type) return { columns: [] };
+    var pool = (schema && schema.schemas) ? schema.schemas : (schema || {});
+    var entry = pool[type] || {};
+    var cols = resolveSchemaCols(type, schema);
+    var typeMeta = config.TYPES[type] || {};
+    return {
+      type: type,
+      label: entry.label || typeMeta.label || type,
+      columns: cols,
+      exampleRows: entry.exampleRows || [],
+      commonMistakes: entry.commonMistakes || [
+        'Trailing whitespace in identifiers',
+        'Duplicate rows or merged header cells',
+        'References to non-existent departments or classes'
+      ],
+      limits: entry.limits || {
+        maxFileSizeMb: 10,
+        maxRows: 5000,
+        formats: ['.xlsx', '.csv'],
+        firstSheetOnly: true
       }
     };
+  }
 
-    var cfg = T[type];
-    if (!cfg || typeof root.XLSX === 'undefined') {
+  // Dynamic template download building from single schema source of truth
+  function downloadTemplate(type) {
+    var schemaData = resolveSchema(type, store.getState().schema);
+    var cols = schemaData.columns;
+    if (!cols || !cols.length || typeof root.XLSX === 'undefined') {
       if (typeof root.showToast === 'function') root.showToast('Template generation unavailable', 'warn');
       return;
     }
 
-    var data = [cfg.headers].concat(cfg.rows);
-    var ws = root.XLSX.utils.aoa_to_sheet(data);
-    ws['!cols'] = cfg.headers.map(function (h) { return { wch: Math.max(h.length + 4, 16) }; });
-    var wb = root.XLSX.utils.book_new();
-    root.XLSX.utils.book_append_sheet(wb, ws, type);
-    if (cfg.notes) {
-      var ns = root.XLSX.utils.aoa_to_sheet(cfg.notes);
-      ns['!cols'] = [{ wch: 16 }, { wch: 10 }, { wch: 55 }];
-      root.XLSX.utils.book_append_sheet(wb, ns, 'Instructions');
+    var headers = cols.map(function (c) { return c.label || c.key; });
+    var rows = [];
+    if (schemaData.exampleRows && schemaData.exampleRows.length) {
+      rows = schemaData.exampleRows.map(function (ex) {
+        return headers.map(function (h) {
+          if (ex[h] !== undefined) return ex[h];
+          var lk = h.charAt(0).toLowerCase() + h.slice(1);
+          if (ex[lk] !== undefined) return ex[lk];
+          return '';
+        });
+      });
+    } else {
+      rows.push(cols.map(function (c) { return c.example || ''; }));
     }
+
+    var data = [headers].concat(rows);
+    var ws = root.XLSX.utils.aoa_to_sheet(data);
+    ws['!cols'] = headers.map(function (h) { return { wch: Math.max(h.length + 4, 18) }; });
+
+    var wb = root.XLSX.utils.book_new();
+    var sheetName = (schemaData.label || type).slice(0, 31);
+    root.XLSX.utils.book_append_sheet(wb, ws, sheetName);
+
+    // Sheet 2: Instructions
+    var notes = [
+      ['Column', 'Required?', 'Format / Allowed Values', 'Rules', 'Description']
+    ];
+    for (var i = 0; i < cols.length; i++) {
+      var c = cols[i];
+      var rulesStr = Array.isArray(c.rules) ? c.rules.join('; ') : (c.rules || '');
+      var allowedStr = Array.isArray(c.allowed) && c.allowed.length ? c.allowed.join(' | ') : (c.format || '');
+      notes.push([
+        c.label || c.key,
+        c.required ? 'Yes' : 'No',
+        allowedStr,
+        rulesStr,
+        c.description || c.help || ''
+      ]);
+    }
+    var ns = root.XLSX.utils.aoa_to_sheet(notes);
+    ns['!cols'] = [{ wch: 18 }, { wch: 10 }, { wch: 28 }, { wch: 32 }, { wch: 48 }];
+    root.XLSX.utils.book_append_sheet(wb, ns, 'Instructions');
+
     root.XLSX.writeFile(wb, 'EAMS_' + type + '_template.xlsx');
   }
 
@@ -154,9 +124,18 @@
       var selectedType = (ctx.msg && ctx.msg.payload && ctx.msg.payload.type) || (ctx.batch && ctx.batch.type);
       if (selectedType) {
         var meta = config.TYPES[selectedType] || { label: selectedType.charAt(0).toUpperCase() + selectedType.slice(1), icon: 'upload' };
-        return '<div class="bubble-user-file">' +
-          '<re-icon icon="' + (meta.icon || 'upload') + '" size="16"></re-icon>' +
-          '<span>' + util.esc(meta.label) + ' import</span>' +
+        var typeLabel = meta.label || (selectedType.charAt(0).toUpperCase() + selectedType.slice(1));
+        return '<div class="user-request-card">' +
+          '<div class="user-request-header">' +
+            '<div class="user-request-icon-box">' +
+              '<re-icon icon="' + (meta.icon || 'upload') + '" size="18"></re-icon>' +
+            '</div>' +
+            '<div class="user-request-body">' +
+              '<div class="user-request-title">' + util.esc(typeLabel) + ' Import Request</div>' +
+              '<div class="user-request-sub">Initiated record import workflow</div>' +
+            '</div>' +
+            '<span class="user-request-badge">Requested</span>' +
+          '</div>' +
         '</div>';
       }
 
@@ -265,42 +244,84 @@
   registerCard('column-ref', {
     downloadTemplate: downloadTemplate,
     resolveSchemaCols: resolveSchemaCols,
+    resolveSchema: resolveSchema,
     key: function (ctx) {
       var batch = ctx.batch || {};
       var type = batch.type || (ctx.msg && ctx.msg.payload && ctx.msg.payload.type) || 'student';
       var cols = resolveSchemaCols(type, ctx.schema);
       return 'col-ref-' + type + '-c' + cols.length;
     },
+    mode: function (ctx) {
+      var batch = ctx.batch || {};
+      var batchKey = batch._id || 'temp';
+      if (foldedOverrides[batchKey] !== undefined) {
+        return foldedOverrides[batchKey] ? 'folded' : 'open';
+      }
+      if (typeof root.Bulk.cardMode === 'function') {
+        return root.Bulk.cardMode('column-ref', batch);
+      }
+      return (!batch.status || batch.status === 'draft') ? 'open' : 'folded';
+    },
     render: function (ctx) {
       var batch = ctx.batch || {};
       var type = batch.type || (ctx.msg && ctx.msg.payload && ctx.msg.payload.type) || 'student';
-      var meta = config.TYPES[type] || { label: type, icon: 'file' };
-      var schemaCols = resolveSchemaCols(type, ctx.schema);
+      var schemaData = resolveSchema(type, ctx.schema);
+      var schemaCols = schemaData.columns;
+      var meta = config.TYPES[type] || { label: schemaData.label || type, icon: 'book-open' };
+      var currentMode = this.mode(ctx);
 
-      var html = '<div class="card-frame">' +
-        '<div class="card-header">' +
-          '<div class="card-title">' +
-            '<re-icon icon="' + meta.icon + '" size="16"></re-icon>' +
-            '<span>' + util.esc(meta.label) + ' Template & Columns Guide</span>' +
+      // Folded Pill State
+      if (currentMode === 'folded') {
+        return '<div class="guide-pill-wrap" style="padding:4px 0;">' +
+          '<button type="button" class="guide-pill-toggle" data-action="toggle-guide" data-type="' + type + '">' +
+            '<span>📘 ' + util.esc(meta.label) + ' Template &amp; Columns Guide</span>' +
+            '<span style="opacity:0.75;font-weight:400;margin-left:6px;">▸ Show</span>' +
+          '</button>' +
+        '</div>';
+      }
+
+      // Open Detailed Guide Layout
+      var reqCols = schemaCols.filter(function (c) { return c.required; });
+      var reqNames = reqCols.map(function (c) { return util.esc(c.label || c.key); }).join(' · ');
+
+      var html = '<div class="card-frame" data-mode="open">' +
+        '<div class="card-header" style="display:flex;align-items:center;justify-content:space-between;padding:12px 18px;background:#f8faf8;border-bottom:1px solid var(--brl);">' +
+          '<div class="card-title" style="font-weight:700;font-size:13.5px;color:var(--td);display:flex;align-items:center;gap:10px;">' +
+            '<div style="width:30px;height:30px;border-radius:8px;background:rgba(46,125,50,0.12);color:var(--gD,#1b5e20);display:flex;align-items:center;justify-content:center;">' +
+              '<re-icon icon="' + (meta.icon || 'book-open') + '" size="16"></re-icon>' +
+            '</div>' +
+            '<div>' +
+              '<div>' + util.esc(meta.label) + ' Template &amp; Columns Guide</div>' +
+              '<div style="font-size:11px;color:var(--tmu);font-weight:400;">Standard layout &amp; data validation rules</div>' +
+            '</div>' +
           '</div>' +
-          '<div style="display:flex;gap:8px;">' +
-            '<button type="button" class="btn-out" style="padding:4px 10px;font-size:11px;" data-action="download-template" data-type="' + type + '">' +
-              '<re-icon icon="download" size="13"></re-icon> Download Excel Template' +
+          '<div style="display:flex;gap:8px;align-items:center;">' +
+            '<button type="button" class="btn-download-tpl" data-action="download-template" data-type="' + type + '" title="Download official Excel template">' +
+              '<re-icon icon="download" size="13"></re-icon> <span>Download Excel template</span>' +
+            '</button>' +
+            '<button type="button" class="btn-out" style="padding:5px 9px;font-size:11.5px;display:inline-flex;align-items:center;gap:4px;" data-action="toggle-guide" title="Collapse guide">' +
+              '<re-icon icon="chevron-up" size="12"></re-icon> <span>Collapse</span>' +
             '</button>' +
           '</div>' +
         '</div>' +
-        '<div class="card-body" style="padding:14px 18px;">' +
-          '<div style="font-size:12px;color:var(--tmu);margin-bottom:12px;">' +
-            'Your spreadsheet must include the required columns below. Column order is automatically detected by header names.' +
+
+        '<div class="card-body guide-full-body" style="padding:16px 18px;">' +
+          // 1 · Required columns summary chip
+          '<div style="margin-bottom:14px;padding:9px 14px;background:#f0fdf4;border-radius:10px;border:1px solid #bbf7d0;font-size:12px;line-height:1.5;display:flex;align-items:center;gap:8px;">' +
+            '<span style="font-weight:700;color:#166534;white-space:nowrap;">1 · Required columns:</span>' +
+            '<span style="color:#15803d;font-weight:500;">' + (reqNames || 'All standard columns') + '</span>' +
           '</div>' +
-          '<div style="overflow-x:auto;">' +
-            '<table class="stg-table" style="width:100%;font-size:11.5px;border-collapse:collapse;">' +
+
+          // Columns Specification Table with horizontal scroll support
+          '<div class="guide-table-scroll" style="overflow-x:auto;margin-bottom:16px;border:1px solid var(--brl);border-radius:10px;">' +
+            '<table class="stg-table guide-spec-table" style="width:100%;min-width:640px;font-size:11.5px;border-collapse:collapse;">' +
               '<thead>' +
                 '<tr style="background:#f4f7f4;text-align:left;">' +
-                  '<th style="padding:6px 10px;">Column Name</th>' +
-                  '<th style="padding:6px 10px;">Required?</th>' +
-                  '<th style="padding:6px 10px;">Accepted Headers / Aliases</th>' +
-                  '<th style="padding:6px 10px;">Example</th>' +
+                  '<th style="padding:9px 12px;white-space:nowrap;text-align:left;min-width:110px;">Column</th>' +
+                  '<th style="padding:9px 12px;white-space:nowrap;text-align:left;min-width:85px;">Req.</th>' +
+                  '<th style="padding:9px 12px;white-space:nowrap;text-align:left;min-width:170px;">Format / Allowed Values</th>' +
+                  '<th style="padding:9px 12px;white-space:nowrap;text-align:left;min-width:120px;">Example</th>' +
+                  '<th style="padding:9px 12px;white-space:nowrap;text-align:left;min-width:150px;">Rules</th>' +
                 '</tr>' +
               '</thead>' +
               '<tbody>';
@@ -309,33 +330,98 @@
         for (var i = 0; i < schemaCols.length; i++) {
           var col = schemaCols[i];
           var reqBadge = col.required
-            ? '<span class="chat-status-pill status-verified_all" style="font-size:9px;">Required</span>'
-            : '<span class="chat-status-pill status-draft" style="font-size:9px;">Optional</span>';
-          var aliases = (col.aliases || []).slice(0, 3).join(', ');
+            ? '<span class="chat-status-pill status-verified_all" style="font-size:9.5px;font-weight:700;">● Required</span>'
+            : '<span class="chat-status-pill status-draft" style="font-size:9.5px;">○ Optional</span>';
+          var formatStr = col.format || (col.allowed && col.allowed.length ? col.allowed.join(' | ') : 'Text');
+          var rulesStr = Array.isArray(col.rules) && col.rules.length ? col.rules.join(', ') : (col.description || 'standard');
 
           html += '<tr style="border-bottom:1px solid var(--brl);">' +
-            '<td style="padding:6px 10px;font-weight:600;">' + util.esc(col.label || col.key) + '</td>' +
-            '<td style="padding:6px 10px;">' + reqBadge + '</td>' +
-            '<td style="padding:6px 10px;color:var(--tmu);font-family:monospace;font-size:11px;">' + util.esc(aliases || col.key) + '</td>' +
-            '<td style="padding:6px 10px;color:var(--td);">' + util.esc(col.example || '—') + '</td>' +
+            '<td style="padding:8px 12px;font-weight:600;white-space:nowrap;text-align:left;">' + util.esc(col.label || col.key) + '</td>' +
+            '<td style="padding:8px 12px;white-space:nowrap;text-align:left;">' + reqBadge + '</td>' +
+            '<td style="padding:8px 12px;white-space:nowrap;color:var(--td);text-align:left;">' + util.esc(formatStr) + '</td>' +
+            '<td style="padding:8px 12px;white-space:nowrap;color:var(--tmu);font-family:monospace;font-size:11px;text-align:left;">' + util.esc(col.example || '—') + '</td>' +
+            '<td style="padding:8px 12px;white-space:nowrap;color:var(--tmu);font-size:11px;text-align:left;">' + util.esc(rulesStr) + '</td>' +
           '</tr>';
         }
       } else {
-        html += '<tr><td colspan="4" style="padding:10px;text-align:center;color:var(--tmu);">Loading column specifications…</td></tr>';
+        html += '<tr><td colspan="5" style="padding:10px;text-align:center;color:var(--tmu);">Loading column specifications…</td></tr>';
       }
 
-      html += '</tbody></table></div>' +
-        '</div>' +
+      html += '</tbody></table></div>';
+
+      // 2 · Example rows mini-table
+      if (schemaData.exampleRows && schemaData.exampleRows.length) {
+        var headers = schemaCols.slice(0, 6).map(function (c) { return c.label || c.key; });
+        html += '<div style="margin-bottom:16px;">' +
+          '<div style="font-size:12px;font-weight:700;color:var(--td);margin-bottom:6px;">2 · Example rows</div>' +
+          '<div style="overflow-x:auto;border:1px solid var(--brl);border-radius:10px;">' +
+            '<table style="width:100%;min-width:600px;font-size:11.5px;border-collapse:collapse;background:#fafcfa;">' +
+              '<thead><tr style="background:#eef4ee;text-align:left;">';
+        for (var h = 0; h < headers.length; h++) {
+          html += '<th style="padding:7px 12px;border-right:1px solid var(--brl);font-weight:600;white-space:nowrap;text-align:left;">' + util.esc(headers[h]) + '</th>';
+        }
+        html += '</tr></thead><tbody>';
+        for (var r = 0; r < schemaData.exampleRows.length; r++) {
+          var rowData = schemaData.exampleRows[r];
+          html += '<tr style="border-top:1px solid var(--brl);">';
+          for (var cIdx = 0; cIdx < headers.length; cIdx++) {
+            var colKey = headers[cIdx];
+            var val = rowData[colKey] !== undefined ? rowData[colKey] : (rowData[colKey.toLowerCase()] !== undefined ? rowData[colKey.toLowerCase()] : '—');
+            html += '<td style="padding:7px 12px;border-right:1px solid var(--brl);white-space:nowrap;text-align:left;">' + util.esc(val) + '</td>';
+          }
+          html += '</tr>';
+        }
+        html += '</tbody></table></div></div>';
+      }
+
+      // 3 · Common mistakes
+      if (schemaData.commonMistakes && schemaData.commonMistakes.length) {
+        html += '<div style="margin-bottom:14px;padding:10px 12px;background:#fef9f4;border-radius:10px;border:1px solid #fde68a;font-size:11.5px;">' +
+          '<div style="font-weight:700;color:#92400e;margin-bottom:4px;">3 · Common mistakes to avoid:</div>' +
+          '<ul style="margin:0;padding-left:18px;color:#78350f;line-height:1.5;">';
+        for (var m = 0; m < schemaData.commonMistakes.length; m++) {
+          html += '<li>' + util.esc(schemaData.commonMistakes[m]) + '</li>';
+        }
+        html += '</ul></div>';
+      }
+
+      // 4 · Limits summary pill
+      var limits = schemaData.limits || {};
+      html += '<div style="display:flex;align-items:center;gap:8px;font-size:11px;color:var(--tmu);padding-top:4px;border-top:1px solid var(--brl);">' +
+        '<strong>4 · Limits:</strong>' +
+        '<span>Max ' + (limits.maxFileSizeMb || 10) + ' MB · ' + (limits.maxRows || 5000) + ' rows · .xlsx or .csv · first sheet only</span>' +
       '</div>';
 
+      html += '</div></div>';
       return html;
     },
+    update: function (el, ctx) {
+      if (!el) return;
+      var newMode = this.mode(ctx);
+      el.setAttribute('data-mode', newMode);
+      el.innerHTML = this.render(ctx);
+      this.bind(el, ctx);
+    },
     bind: function (el, ctx) {
+      var self = this;
       el.addEventListener('click', function (e) {
-        var btn = e.target.closest('[data-action="download-template"]');
-        if (!btn) return;
-        var t = btn.getAttribute('data-type');
-        if (t) downloadTemplate(t);
+        var downloadBtn = e.target.closest('[data-action="download-template"]');
+        if (downloadBtn) {
+          var t = downloadBtn.getAttribute('data-type');
+          if (t) downloadTemplate(t);
+          return;
+        }
+
+        var toggleBtn = e.target.closest('[data-action="toggle-guide"]');
+        if (toggleBtn) {
+          var batch = ctx.batch || {};
+          var batchKey = batch._id || 'temp';
+          var current = self.mode(ctx);
+          foldedOverrides[batchKey] = (current === 'open');
+          el.innerHTML = self.render(ctx);
+          self.bind(el, ctx);
+          return;
+        }
       });
     }
   });
@@ -343,64 +429,107 @@
   // 3. UPLOAD CARD
   registerCard('upload', {
     key: function (ctx) {
-      return (ctx.batch ? ctx.batch.status : 'up-draft');
+      var b = ctx.batch || {};
+      return ['up', b.status || 'draft', b.originalFileName || ''].join('|');
+    },
+    mode: function (ctx) {
+      var batch = ctx.batch || {};
+      if (typeof root.Bulk.cardMode === 'function') {
+        return root.Bulk.cardMode('upload', batch);
+      }
+      return (!batch.status || batch.status === 'draft') ? 'open' : 'closed';
     },
     render: function (ctx) {
       var batch = ctx.batch || {};
-      var isDraft = !batch.status || batch.status === 'draft' || batch.status === 'uploading';
-      var isUploading = batch.status === 'uploading' || batch.status === 'processing';
+      var currentMode = this.mode(ctx);
+      if (currentMode === 'closed') {
+        return '<div class="card-frame card-closed" style="display:none;"></div>';
+      }
 
-      var html = '<div class="card-frame">' +
+      var html = '<div class="card-frame" data-mode="open">' +
         '<div class="card-header">' +
           '<div class="card-title">' +
             '<re-icon icon="upload-cloud" size="16"></re-icon>' +
             '<span>Upload Spreadsheet (.xlsx, .csv)</span>' +
           '</div>' +
-          '<div style="font-size:11px;color:var(--tmu);">' + (isDraft ? 'Max 10 MB · Up to 5,000 rows' : 'Uploaded') + '</div>' +
+          '<div style="font-size:11px;color:var(--tmu);">Max 10 MB · Up to 5,000 rows</div>' +
         '</div>' +
         '<div class="card-body">';
 
-      if (!isDraft && !isUploading) {
-        html += '<div style="padding:16px 20px;text-align:center;border:1px solid var(--brl);border-radius:14px;background:#f8faf8;">' +
-          '<div style="width:36px;height:36px;border-radius:10px;background:#f0fdf4;color:#15803d;display:flex;align-items:center;justify-content:center;margin:0 auto 8px;">' +
-            '<re-icon icon="check" size="20"></re-icon>' +
-          '</div>' +
-          '<div style="font-weight:700;font-size:13px;color:var(--td);">' +
-            util.esc(batch.originalFileName || 'Spreadsheet uploaded') +
-          '</div>' +
-          '<div style="font-size:11px;color:var(--tmu);margin-top:2px;">File uploaded and validated</div>' +
-        '</div>';
-      } else {
-        html += '<div class="uz ' + (isUploading ? 'dg' : '') + '" id="chat-dropzone" style="cursor:pointer;padding:28px 20px;text-align:center;border:2px dashed var(--br);border-radius:14px;background:#fbfdfb;transition:all 0.2s;">' +
-          '<input type="file" id="chat-file-input" accept=".xlsx,.csv" style="display:none;">' +
-          '<div style="width:44px;height:44px;border-radius:12px;background:var(--gLt);color:var(--gD);display:flex;align-items:center;justify-content:center;margin:0 auto 10px;">' +
-            '<re-icon icon="file-spreadsheet" size="22"></re-icon>' +
-          '</div>' +
-          '<div style="font-weight:700;font-size:13.5px;color:var(--td);margin-bottom:4px;" id="chat-dropzone-title">' +
-            (isUploading ? 'Uploading and validating spreadsheet…' : 'Drag & drop your Excel file here, or click to browse') +
-          '</div>' +
-          '<div style="font-size:11.5px;color:var(--tmu);" id="chat-dropzone-sub">' +
-            'Supports Microsoft Excel (.xlsx) and Comma-Separated Values (.csv)' +
-          '</div>' +
-          '<div id="chat-upload-prog-wrap" style="display:none;margin-top:14px;max-width:320px;margin-left:auto;margin-right:auto;">' +
-            '<div class="prog-bar-track">' +
-              '<div class="prog-bar-fill" id="chat-upload-prog-fill" style="width:0%;"></div>' +
+      var hasPreviousUploads = batch.status === 'draft' && Array.isArray(batch.uploads) && batch.uploads.length > 0;
+      var latestUpload = hasPreviousUploads ? batch.uploads[batch.uploads.length - 1] : null;
+
+      if (latestUpload) {
+        html += '<div class="restage-box" style="margin-bottom:16px;padding:12px 14px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">' +
+          '<div style="display:flex;align-items:center;gap:10px;">' +
+            '<div style="width:36px;height:36px;border-radius:10px;background:#dcfce7;color:#166534;display:flex;align-items:center;justify-content:center;">' +
+              '<re-icon icon="file-spreadsheet" size="18"></re-icon>' +
             '</div>' +
-            '<div style="display:flex;justify-content:space-between;font-size:10.5px;color:var(--tmu);margin-top:4px;">' +
-              '<span id="chat-upload-prog-text">Uploading…</span>' +
-              '<span id="chat-upload-prog-pct">0%</span>' +
+            '<div>' +
+              '<div style="font-weight:700;font-size:13px;color:#166534;">Use previously uploaded spreadsheet</div>' +
+              '<div style="font-size:11.5px;color:#15803d;">' +
+                util.esc(latestUpload.name || 'sheet.xlsx') + ' · ' + util.formatBytes(latestUpload.size || 0) + ' · ' + util.timeAgo(latestUpload.at) +
+              '</div>' +
             '</div>' +
           '</div>' +
+          '<button type="button" class="btn-restage" data-action="restage-file" data-upload-index="' + (batch.uploads.length - 1) + '" style="padding:7px 14px;font-size:12px;font-weight:600;background:#16a34a;color:#fff;border:none;border-radius:8px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;">' +
+            '<re-icon icon="refresh-cw" size="13"></re-icon>' +
+            '<span>Use this file →</span>' +
+          '</button>' +
+        '</div>' +
+        '<div style="text-align:center;font-size:11px;color:var(--tmu);margin-bottom:14px;position:relative;">' +
+          '<span style="background:#fff;padding:0 8px;position:relative;z-index:1;">or upload a new spreadsheet</span>' +
+          '<div style="position:absolute;top:50%;left:0;right:0;height:1px;background:var(--brl,#e2e8f0);z-index:0;"></div>' +
         '</div>';
       }
 
-      html += '</div></div>';
+      html += '<div class="uz" id="chat-dropzone" style="cursor:pointer;padding:28px 20px;text-align:center;border:2px dashed var(--br);border-radius:14px;background:#fbfdfb;transition:all 0.2s;">' +
+            '<input type="file" id="chat-file-input" accept=".xlsx,.csv" style="display:none;">' +
+            '<div style="width:44px;height:44px;border-radius:12px;background:var(--gLt);color:var(--gD);display:flex;align-items:center;justify-content:center;margin:0 auto 10px;">' +
+              '<re-icon icon="file-spreadsheet" size="22"></re-icon>' +
+            '</div>' +
+            '<div style="font-weight:700;font-size:13.5px;color:var(--td);margin-bottom:4px;" id="chat-dropzone-title">' +
+              'Drag & drop your Excel file here, or click to browse' +
+            '</div>' +
+            '<div style="font-size:11.5px;color:var(--tmu);" id="chat-dropzone-sub">' +
+              'Supports Microsoft Excel (.xlsx) and Comma-Separated Values (.csv)' +
+            '</div>' +
+            '<div id="chat-upload-prog-wrap" style="display:none;margin-top:14px;max-width:320px;margin-left:auto;margin-right:auto;">' +
+              '<div class="prog-bar-track">' +
+                '<div class="prog-bar-fill" id="chat-upload-prog-fill" style="width:0%;"></div>' +
+              '</div>' +
+              '<div style="display:flex;justify-content:space-between;font-size:10.5px;color:var(--tmu);margin-top:4px;">' +
+                '<span id="chat-upload-prog-text">Uploading…</span>' +
+                '<span id="chat-upload-prog-pct">0%</span>' +
+              '</div>' +
+            '</div>' +
+          '</div>' +
+        '</div>' +
+      '</div>';
       return html;
+    },
+    update: function (el, ctx) {
+      if (!el) return;
+      var newMode = this.mode(ctx);
+      el.setAttribute('data-mode', newMode);
+      if (newMode === 'closed') {
+        el.style.transition = 'all 0.32s ease';
+        el.style.opacity = '0';
+        el.style.transform = 'scaleY(0.9)';
+        setTimeout(function () {
+          el.style.display = 'none';
+        }, 320);
+      } else {
+        el.style.display = '';
+        el.style.opacity = '1';
+        el.style.transform = '';
+        el.innerHTML = this.render(ctx);
+        this.bind(el, ctx);
+      }
     },
     bind: function (el, ctx) {
       var batch = ctx.batch || {};
-      var isDraft = !batch.status || batch.status === 'draft' || batch.status === 'uploading';
-      if (!isDraft) return;
+      if (this.mode(ctx) === 'closed') return;
 
       var dropzone = el.querySelector('#chat-dropzone');
       var fileInput = el.querySelector('#chat-file-input');
@@ -411,6 +540,24 @@
       var titleEl = el.querySelector('#chat-dropzone-title');
 
       if (!dropzone || !fileInput) return;
+
+      var restageBtn = el.querySelector('[data-action="restage-file"]');
+      if (restageBtn) {
+        restageBtn.addEventListener('click', function (e) {
+          e.stopPropagation();
+          var uIdx = parseInt(restageBtn.getAttribute('data-upload-index'), 10) || 0;
+          restageBtn.disabled = true;
+          restageBtn.innerHTML = '<span>Processing…</span>';
+
+          api.restageBatch(batch._id, uIdx).then(function () {
+            if (typeof root.showToast === 'function') root.showToast('Re-processing uploaded spreadsheet…');
+          }).catch(function (err) {
+            restageBtn.disabled = false;
+            restageBtn.innerHTML = '<re-icon icon="refresh-cw" size="13"></re-icon><span>Use this file →</span>';
+            if (typeof root.showToast === 'function') root.showToast('Failed to restage: ' + err.message, 'warn');
+          });
+        });
+      }
 
       dropzone.addEventListener('click', function () {
         fileInput.click();
@@ -451,97 +598,202 @@
           return;
         }
 
-        if (titleEl) titleEl.textContent = 'Uploading ' + file.name + ' (' + util.formatBytes(file.size) + ')…';
-        if (progWrap) progWrap.style.display = 'block';
-
         var batchId = ctx.batch._id;
+
+        // 1. Dispatch optimistic right-side file bubble
+        var optMsg = {
+          _id: 'opt-' + Date.now(),
+          batchId: batchId,
+          kind: 'user-file',
+          card: 'file',
+          sender: store.getState().user || { name: 'You', role: 'teacher' },
+          author: 'user',
+          payload: {
+            name: file.name,
+            size: file.size,
+            mimeType: file.type || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+          },
+          createdAt: new Date().toISOString(),
+          seq: (ctx.batch.messageSeq || 0) + 1
+        };
+
+        // 2. Fold Guide card
+        foldedOverrides[batchId] = true;
+        var guideEl = document.querySelector('[data-card-key^="col-ref-"]');
+        if (guideEl && cards['column-ref'] && typeof cards['column-ref'].update === 'function') {
+          cards['column-ref'].update(guideEl, ctx);
+        }
+
+        // 3. Animate-close Upload card
+        el.setAttribute('data-mode', 'closed');
+        el.style.transition = 'all 0.32s ease';
+        el.style.opacity = '0';
+        el.style.transform = 'scaleY(0.9)';
+        setTimeout(function () {
+          el.style.display = 'none';
+        }, 320);
+
+        // 4. Update batch and progress in store to trigger stage card
+        var patchedBatch = Object.assign({}, ctx.batch, {
+          status: 'uploading',
+          originalFileName: file.name,
+          fileSize: file.size,
+          progress: {
+            jobKind: 'stage',
+            percent: 5,
+            phase: 'Uploading file…',
+            stage: { index: 0, total: 6, key: 'receive', text: 'Uploading the file' }
+          }
+        });
+
+        var nextMsgs = (store.getState().messages || []).concat([optMsg]);
+        store.setState({
+          batch: patchedBatch,
+          messages: nextMsgs,
+          progress: patchedBatch.progress
+        });
+
+        // 5. Fire upload XHR
         api.upload(batchId, file, function (loaded, total) {
           var pct = Math.round((loaded / total) * 100);
           if (progFill) progFill.style.width = pct + '%';
           if (progPct) progPct.textContent = pct + '%';
           if (progText) progText.textContent = util.formatBytes(loaded) + ' of ' + util.formatBytes(total);
         }).then(function (res) {
-          if (typeof root.showToast === 'function') root.showToast('File uploaded successfully. Processing rows…');
+          if (typeof root.showToast === 'function') root.showToast('File uploaded. Processing stages…');
           if (typeof root.Bulk.openChat === 'function') root.Bulk.openChat(batchId);
         }).catch(function (err) {
-          if (progWrap) progWrap.style.display = 'none';
-          if (titleEl) titleEl.textContent = 'Upload failed: ' + (err.message || 'Error');
+          // Re-open on error
+          el.style.display = '';
+          el.style.opacity = '1';
+          el.style.transform = '';
+          el.setAttribute('data-mode', 'open');
+          foldedOverrides[batchId] = false;
+          if (guideEl && cards['column-ref']) cards['column-ref'].update(guideEl, ctx);
           if (typeof root.showToast === 'function') root.showToast('Upload error: ' + err.message, 'danger');
         });
       }
     }
   });
 
-  // 4. PROGRESS CARD
+  // 3b. UPLOADED SPREADSHEET FILE CARD (WhatsApp-style document bubble)
+  registerCard('file', {
+    key: function (ctx) {
+      var p = (ctx.msg && ctx.msg.payload) || {};
+      return ['file', p.name || '', p.size || 0].join('|');
+    },
+    mode: function () {
+      return 'open';
+    },
+    render: function (ctx) {
+      var p = (ctx.msg && ctx.msg.payload) || {};
+      var name = p.name || 'Spreadsheet.xlsx';
+      var bytes = p.size || 0;
+      var sizeStr = util.formatBytes ? util.formatBytes(bytes) : ((bytes ? (bytes / 1024).toFixed(1) : 0) + ' KB');
+      var ext = (name.split('.').pop() || 'XLSX').toUpperCase();
+      var isExcel = ext === 'XLSX' || ext === 'XLS';
+      var isCsv = ext === 'CSV';
+      var typeDesc = isExcel ? 'Excel Spreadsheet' : (isCsv ? 'CSV Document' : 'Spreadsheet File');
+
+      var fileSvg = (typeof root.getIconSvg === 'function')
+        ? root.getIconSvg('file-spreadsheet', { size: 20 })
+        : '<re-icon icon="file-spreadsheet" size="20"></re-icon>';
+
+      return '<div class="file-attachment-card" data-ext="' + util.esc(ext.toLowerCase()) + '">' +
+        '<div class="file-icon-box ' + (isExcel ? 'is-excel' : (isCsv ? 'is-csv' : '')) + '">' +
+          fileSvg +
+          '<span class="file-badge">' + util.esc(ext) + '</span>' +
+        '</div>' +
+        '<div class="file-details">' +
+          '<div class="file-name" title="' + util.esc(name) + '">' + util.esc(name) + '</div>' +
+          '<div class="file-meta">' +
+            '<span class="file-size">' + util.esc(sizeStr) + '</span>' +
+            '<span class="file-dot">•</span>' +
+            '<span class="file-desc">' + util.esc(typeDesc) + '</span>' +
+          '</div>' +
+        '</div>' +
+      '</div>';
+    }
+  });
+
+  // 4. PROGRESS CARD (Single Status Line Stage Engine)
   registerCard('progress', {
     key: function (ctx) {
       var p = ctx.progress || (ctx.batch ? ctx.batch.progress : null);
       if (!p) return 'prog-empty';
-      return [p.jobKind, p.phase, p.percent, p.error].join('|');
+      var stg = p.stage || {};
+      return [p.jobKind, p.phase, p.percent, stg.key, stg.index, p.error].join('|');
+    },
+    mode: function (ctx) {
+      var batch = ctx.batch || {};
+      if (typeof root.Bulk.cardMode === 'function') {
+        return root.Bulk.cardMode('progress', batch);
+      }
+      var s = batch.status;
+      if (s === 'uploading' || s === 'processing' || s === 'committing') return 'open';
+      if (s === 'staged' || s === 'skipped_resolved' || s === 'committed') return 'folded';
+      return 'closed';
     },
     render: function (ctx) {
-      var p = ctx.progress || (ctx.batch ? ctx.batch.progress : null);
-      if (!p || !p.phases) {
-        return '<div class="progress-card-box"><div style="color:var(--tmu);font-size:12px;">Initializing job execution…</div></div>';
+      var batch = ctx.batch || {};
+      var currentMode = this.mode(ctx);
+      if (currentMode === 'closed') {
+        return '<div class="card-frame card-closed" style="display:none;"></div>';
       }
-
-      var overallPct = p.percent || 0;
-      var isError = Boolean(p.error);
-
-      var html = '<div class="progress-card-box">' +
-        '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">' +
-          '<div style="font-weight:700;font-size:13.5px;color:var(--td);display:flex;align-items:center;gap:8px;">' +
-            '<re-icon icon="activity" size="16"></re-icon>' +
-            '<span>' + (p.jobKind === 'commit' ? 'Database Commit & Google Drive Archive' : 'Parsing & Validating Workbook') + '</span>' +
-          '</div>' +
-          '<div style="font-size:12px;font-weight:700;color:var(--gD);">' + overallPct + '%</div>' +
-        '</div>' +
-        '<div class="prog-phases-list">';
-
-      for (var i = 0; i < p.phases.length; i++) {
-        var ph = p.phases[i];
-        var iconHtml = '';
-        var status = ph.status || 'pending';
-
-        if (status === 'running') {
-          iconHtml = '<re-icon icon="loader" size="14"></re-icon>';
-        } else if (status === 'done') {
-          iconHtml = '<re-icon icon="check" size="14"></re-icon>';
-        } else if (status === 'warn') {
-          iconHtml = '<re-icon icon="alert-triangle" size="14"></re-icon>';
-        } else if (status === 'error') {
-          iconHtml = '<re-icon icon="x" size="14"></re-icon>';
-        } else {
-          iconHtml = '<span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#cbd5e1;"></span>';
+      if (currentMode === 'folded') {
+        if (root.Bulk && root.Bulk.stage && typeof root.Bulk.stage.renderDoneChip === 'function') {
+          return root.Bulk.stage.renderDoneChip(batch);
         }
-
-        html += '<div class="prog-item">' +
-          '<div class="prog-status-icon ' + status + '">' + iconHtml + '</div>' +
-          '<div class="prog-label">' + util.esc(ph.label || ph.key) + '</div>' +
-          '<div class="prog-bar-track">' +
-            '<div class="prog-bar-fill" style="width:' + (ph.percent || (status === 'done' ? 100 : 0)) + '%;"></div>' +
-          '</div>' +
-          '<div class="prog-detail">' + util.esc(ph.detail || '') + '</div>' +
+        var totalRows = (batch.eligibleRows ? batch.eligibleRows.length : 0) + (batch.skippedRows ? batch.skippedRows.length : 0);
+        return '<div class="chip-stage-done" style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;background:#eef7ee;color:var(--gD);border-radius:16px;font-size:12px;font-weight:600;">' +
+          '<span>✓</span> <span>Validated ' + (totalRows || 0) + ' rows</span>' +
         '</div>';
       }
 
-      html += '</div>';
-
-      if (isError) {
-        html += '<div style="margin-top:14px;padding:10px 14px;background:#fee2e2;border-radius:10px;color:#991b1b;font-size:12px;display:flex;align-items:center;gap:8px;">' +
-          '<re-icon icon="alert-circle" size="16"></re-icon>' +
-          '<span>' + util.esc(p.error) + '</span>' +
-        '</div>';
+      // Open mode: 6-dot single status line
+      if (root.Bulk && root.Bulk.stage && typeof root.Bulk.stage.render === 'function') {
+        return root.Bulk.stage.render(ctx);
       }
 
-      html += '</div>';
-      return html;
+      var p = ctx.progress || (ctx.batch ? ctx.batch.progress : null) || {};
+      return '<div class="progress-card-box">' +
+        '<div style="font-size:13px;font-weight:700;color:var(--td);margin-bottom:8px;">Parsing &amp; Validating Workbook</div>' +
+        '<div style="font-size:12px;color:var(--tmu);">' + util.esc(p.phase || 'Processing…') + '</div>' +
+      '</div>';
+    },
+    update: function (el, ctx) {
+      if (!el) return;
+      var newMode = this.mode(ctx);
+      el.setAttribute('data-mode', newMode);
+      if (newMode === 'closed') {
+        el.style.display = 'none';
+        return;
+      }
+      el.style.display = '';
+      if (newMode === 'folded') {
+        el.innerHTML = this.render(ctx);
+      } else if (newMode === 'open') {
+        if (root.Bulk && root.Bulk.stage && typeof root.Bulk.stage.update === 'function') {
+          root.Bulk.stage.update(el, ctx);
+        } else {
+          el.innerHTML = this.render(ctx);
+        }
+      }
     },
     bind: function (el, ctx) {}
   });
 
-  // 5. SUMMARY CARD
+  // 5. SUMMARY CARD (Phase 4 V2: Skipped Checklist, CSV Report, Grievances, Auto-Approve CTA)
   registerCard('summary', {
+    mode: function (ctx) {
+      var batch = ctx.batch || {};
+      if (typeof root.Bulk.cardMode === 'function') {
+        return root.Bulk.cardMode('summary', batch);
+      }
+      var s = batch.status;
+      if (s === 'draft' || s === 'uploading' || s === 'processing') return 'closed';
+      return 'open';
+    },
     key: function (ctx) {
       var b = ctx.batch || {};
       var skippedDoneCount = 0;
@@ -549,7 +801,8 @@
       for (var i = 0; i < skipped.length; i++) {
         if (skipped[i].isDone || skipped[i].isResolved) skippedDoneCount++;
       }
-      return [b.status, b.eligibleCount, b.skippedCount, skippedDoneCount, b.drive ? b.drive.folderUrl : ''].join('|');
+      var grvOpen = (b.grievance && b.grievance.open) || 0;
+      return [b.status, b.eligibleCount, b.skippedCount, skippedDoneCount, grvOpen, b.drive ? b.drive.folderUrl : ''].join('|');
     },
     render: function (ctx) {
       var batch = ctx.batch || {};
@@ -563,20 +816,36 @@
         if (!skippedList[s].isDone && !skippedList[s].isResolved) unresolvedCount++;
       }
 
-      var driveFolder = batch.drive && batch.drive.folderUrl;
-      var driveFile = batch.drive && batch.drive.fileUrl;
+      var user = ctx.user || ctx.viewer || (store.getState ? store.getState().user : null) || {};
+      var isAutoApprover = Boolean(
+        user.isSudoAdmin ||
+        user.accessRole === 'sudoAdmin' ||
+        user.accessRole === 'superAdmin' ||
+        user.role === 'sudo' ||
+        (user.role === 'admin' && user.adminFlag !== 'subadmin')
+      );
+
       var isForwarded = ['pending_sudo_initial', 'sudo_initial_approved', 'verifying', 'verified_all', 'pending_final_approval', 'committing', 'committed'].includes(batch.status);
       var isStagedOrSkipped = batch.status === 'staged' || batch.status === 'skipped_resolved';
+      var openGrievanceCount = (batch.grievance && batch.grievance.open) || 0;
 
-      var html = '<div class="card-frame">' +
-        '<div class="card-header">' +
+      var html = '<div class="card-frame" data-card="summary">' +
+        '<div class="card-header" style="display:flex;align-items:center;justify-content:space-between;">' +
           '<div class="card-title">' +
             '<re-icon icon="clipboard-check" size="16"></re-icon>' +
             '<span>Staging Summary &amp; Validation Report</span>' +
           '</div>' +
-          '<div style="font-size:11px;color:var(--tmu);">' + util.fmtDate(batch.updatedAt || batch.createdAt) + '</div>' +
+          '<div style="display:flex;align-items:center;gap:8px;">' +
+            (openGrievanceCount > 0 ? (
+              '<button type="button" class="btn-out" data-action="open-grievances" style="padding:2px 8px;font-size:11px;background:#fef2f2;border-color:#fca5a5;color:#991b1b;font-weight:700;">' +
+                '<re-icon icon="flag" size="12"></re-icon> ' + openGrievanceCount + ' open grievance' + (openGrievanceCount > 1 ? 's' : '') +
+              '</button>'
+            ) : '') +
+            '<div style="font-size:11px;color:var(--tmu);">' + util.fmtDate(batch.updatedAt || batch.createdAt) + '</div>' +
+          '</div>' +
         '</div>' +
         '<div class="card-body">' +
+          // 3 Stat Tiles
           '<div style="display:grid;grid-template-columns:repeat(3, 1fr);gap:12px;margin-bottom:16px;">' +
             '<div style="background:#f8faf8;padding:12px;border-radius:12px;border:1px solid var(--brl);text-align:center;">' +
               '<div style="font-size:11px;color:var(--tmu);font-weight:600;text-transform:uppercase;">Total Scanned</div>' +
@@ -592,74 +861,131 @@
             '</div>' +
           '</div>';
 
-      if (driveFolder || driveFile) {
-        html += '<div class="drive-sync-strip">' +
-          '<div class="drive-sync-info">' +
-            '<re-icon icon="hard-drive" size="16"></re-icon>' +
-            '<span>Google Drive Folder &amp; Raw Sheet Synchronized</span>' +
-          '</div>' +
-          '<div class="drive-actions">' +
-            (driveFolder ? ('<a href="' + util.esc(driveFolder) + '" target="_blank" class="btn-out drive-btn"><re-icon icon="folder" size="13"></re-icon> Open Folder</a>') : '') +
-            (driveFile ? ('<a href="' + util.esc(driveFile) + '" target="_blank" class="btn-out drive-btn"><re-icon icon="external-link" size="13"></re-icon> View Sheet</a>') : '') +
-          '</div>' +
-        '</div>';
+      // Admin-only Drive Strip (Redacted by server for staff)
+      if (batch.drive) {
+        var driveFolder = batch.drive.folderUrl;
+        var driveFile = batch.drive.fileUrl;
+        var isDriveDegraded = batch.drive.status === 'folder_failed' || batch.drive.status === 'file_failed';
+
+        if (isDriveDegraded) {
+          html += '<div class="drive-sync-strip" style="background:#fff7ed;border-color:#fed7aa;">' +
+            '<div class="drive-sync-info" style="color:#c2410c;">' +
+              '<re-icon icon="alert-triangle" size="16"></re-icon>' +
+              '<span>Google Drive folder not created or sync degraded</span>' +
+            '</div>' +
+            '<div class="drive-actions">' +
+              '<button type="button" class="btn-out drive-btn" data-action="retry-drive"><re-icon icon="refresh-cw" size="13"></re-icon> Retry Drive</button>' +
+            '</div>' +
+          '</div>';
+        } else if (driveFolder || driveFile) {
+          html += '<div class="drive-sync-strip">' +
+            '<div class="drive-sync-info">' +
+              '<re-icon icon="hard-drive" size="16"></re-icon>' +
+              '<span>Google Drive Folder &amp; Raw Sheet Synchronized</span>' +
+            '</div>' +
+            '<div class="drive-actions">' +
+              (driveFolder ? ('<a href="' + util.esc(driveFolder) + '" target="_blank" class="btn-out drive-btn"><re-icon icon="folder" size="13"></re-icon> Open Folder</a>') : '') +
+              (driveFile ? ('<a href="' + util.esc(driveFile) + '" target="_blank" class="btn-out drive-btn"><re-icon icon="external-link" size="13"></re-icon> View Sheet</a>') : '') +
+            '</div>' +
+          '</div>';
+        }
       }
 
+      // Skipped Rows Checklist v2
       if (skippedList.length > 0) {
+        var showFilters = skippedList.length > 20;
+
         html += '<div style="margin-top:16px;border-top:1px solid var(--brl);padding-top:16px;">' +
-          '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">' +
+          '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px;">' +
             '<div style="font-weight:700;font-size:12.5px;color:#92400e;display:flex;align-items:center;gap:6px;">' +
               '<re-icon icon="alert-triangle" size="15"></re-icon>' +
               '<span>Skipped Rows Checklist (' + unresolvedCount + ' pending)</span>' +
             '</div>' +
-            (!isForwarded ? '<button type="button" class="btn-out" style="padding:3px 8px;font-size:11px;" data-action="mark-all-done"><re-icon icon="check-check" size="12"></re-icon> Mark All Done</button>' : '') +
+            '<div style="display:flex;align-items:center;gap:8px;">' +
+              (showFilters ? (
+                '<div class="skipped-filter-strip" style="display:flex;gap:4px;">' +
+                  '<button type="button" class="skipped-pill act" data-filter="all">All ' + skippedList.length + '</button>' +
+                  '<button type="button" class="skipped-pill" data-filter="pending">Pending ' + unresolvedCount + '</button>' +
+                  '<button type="button" class="skipped-pill" data-filter="done">Done ' + (skippedList.length - unresolvedCount) + '</button>' +
+                  '<input type="text" class="skipped-filter-input" placeholder="Search rows…" style="padding:2px 8px;font-size:11px;border:1px solid var(--brl);border-radius:12px;width:110px;">' +
+                '</div>'
+              ) : '') +
+              (!isForwarded ? '<button type="button" class="btn-out" style="padding:3px 8px;font-size:11px;" data-action="mark-all-done"><re-icon icon="check-check" size="12"></re-icon> Mark All Done</button>' : '') +
+            '</div>' +
           '</div>' +
-          '<div style="max-height:220px;overflow-y:auto;border:1px solid var(--brl);border-radius:10px;">' +
-            '<table class="stg-table" style="width:100%;font-size:11px;border-collapse:collapse;">' +
-              '<thead>' +
-                '<tr style="background:#f8faf8;text-align:left;">' +
-                  '<th style="padding:6px 8px;width:30px;">Done</th>' +
-                  '<th style="padding:6px 8px;width:50px;">Row</th>' +
-                  '<th style="padding:6px 8px;">Identifier / Name</th>' +
-                  '<th style="padding:6px 8px;">Reason / Issues</th>' +
+
+          // Table layout: Row 56px, Identifier minmax(150px, 1fr), Reason 2fr, Done 64px
+          '<div style="max-height:260px;overflow-y:auto;border:1px solid var(--brl);border-radius:10px;" class="skipped-table-wrap">' +
+            '<table class="stg-table skipped-table" style="width:100%;font-size:11.5px;border-collapse:collapse;">' +
+              '<thead style="position:sticky;top:0;z-index:2;background:#f8faf8;">' +
+                '<tr style="border-bottom:1px solid var(--br);text-align:left;">' +
+                  '<th style="padding:8px 10px;width:56px;">Row</th>' +
+                  '<th style="padding:8px 10px;min-width:150px;">Identifier / Name</th>' +
+                  '<th style="padding:8px 10px;">Reason / Issues</th>' +
+                  '<th style="padding:8px 10px;width:64px;text-align:center;">Done</th>' +
                 '</tr>' +
               '</thead>' +
-              '<tbody>';
+              '<tbody id="skipped-rows-tbody">';
 
         for (var r = 0; r < skippedList.length; r++) {
           var row = skippedList[r];
           var isDone = Boolean(row.isDone || row.isResolved);
           var rowKey = (row.rowNumber !== undefined ? row.rowNumber : r);
-          var ident = row.name || (row.data ? (row.data.registerNo || row.data.name || row.data.code) : '') || '—';
-          var issuesStr = Array.isArray(row.issues) ? row.issues.join('; ') : (row.reason || 'Invalid data');
+          var ident = row.name || (row.data ? (row.data.registerNo || row.data.name || row.data.fullName || row.data.employeeNo || row.data.code) : '') || '—';
+          var issuesStr = Array.isArray(row.issues) && row.issues.length ? row.issues.join('; ') : (row.reason || 'Invalid data');
 
-          html += '<tr style="border-bottom:1px solid var(--brl);background:' + (isDone ? '#f0fdf4' : '#ffffff') + ';">' +
-            '<td style="padding:6px 8px;text-align:center;">' +
+          html += '<tr class="skipped-row-item" data-done="' + (isDone ? '1' : '0') + '" data-search="' + util.esc((ident + ' ' + issuesStr).toLowerCase()) + '" style="border-bottom:1px solid var(--brl);background:' + (isDone ? '#f0fdf4' : '#ffffff') + ';">' +
+            '<td style="padding:8px 10px;font-weight:700;color:var(--td);">' + (row.rowNumber || (r + 1)) + '</td>' +
+            '<td style="padding:8px 10px;font-weight:600;color:var(--td);">' + util.esc(ident) + '</td>' +
+            '<td style="padding:8px 10px;color:#92400e;line-height:1.4;">' + util.esc(issuesStr) + '</td>' +
+            '<td style="padding:8px 10px;text-align:center;">' +
               '<input type="checkbox" class="skipped-done-check" data-row-key="' + rowKey + '" ' + (isDone ? 'checked' : '') + ' ' + (isForwarded ? 'disabled' : '') + '>' +
             '</td>' +
-            '<td style="padding:6px 8px;font-weight:600;">' + (row.rowNumber || (r + 1)) + '</td>' +
-            '<td style="padding:6px 8px;font-weight:600;color:var(--td);">' + util.esc(ident) + '</td>' +
-            '<td style="padding:6px 8px;color:#b45309;">' + util.esc(issuesStr) + '</td>' +
           '</tr>';
         }
 
-        html += '</tbody></table></div>' +
-        '</div>';
-      }
+        html += '</tbody></table></div>';
 
-      if (isStagedOrSkipped) {
+        // Skipped Footer Bar: Grievance, CSV Download, Re-scan, Continue
+        html += '<div style="margin-top:12px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">' +
+          '<div style="display:flex;gap:8px;align-items:center;">' +
+            '<button type="button" class="btn-out" data-action="open-report-grievance" style="font-size:11px;padding:5px 10px;color:#92400e;border-color:#fde68a;background:#fffbeb;">' +
+              '<re-icon icon="flag" size="13"></re-icon> <span>⚑ Grievances</span>' +
+            '</button>' +
+            '<button type="button" class="btn-out" data-action="download-skipped-csv" style="font-size:11px;padding:5px 10px;">' +
+              '<re-icon icon="download" size="13"></re-icon> <span>⬇ Skipped report (.csv)</span>' +
+            '</button>' +
+          '</div>' +
+          (isStagedOrSkipped ? (
+            '<div style="display:flex;gap:8px;align-items:center;">' +
+              '<button type="button" class="btn-out" style="padding:7px 12px;font-size:11.5px;" data-action="rescan-batch">' +
+                '<re-icon icon="refresh-cw" size="13"></re-icon> <span>↻ Re-scan file</span>' +
+              '</button>' +
+              '<button type="button" class="btn-replace" style="padding:7px 18px;font-size:12px;background:var(--gB);" data-action="forward-sudo" ' + (unresolvedCount > 0 ? 'disabled title="Please mark all skipped rows as done before continuing"' : '') + '>' +
+                (isAutoApprover
+                  ? '<re-icon icon="check" size="14"></re-icon> <span>Continue — auto-approve</span>'
+                  : '<re-icon icon="arrow-right" size="14"></re-icon> <span>Request initial approval</span>') +
+              '</button>' +
+            '</div>'
+          ) : '') +
+        '</div>' +
+        '</div>';
+      } else if (isStagedOrSkipped) {
+        // No skipped rows: simple continue bar
         html += '<div style="margin-top:20px;display:flex;align-items:center;justify-content:space-between;border-top:1px solid var(--brl);padding-top:14px;">' +
           '<button type="button" class="btn-out" style="padding:8px 14px;font-size:12px;" data-action="rescan-batch">' +
-            '<re-icon icon="refresh-cw" size="13"></re-icon> Re-scan Uploaded File' +
+            '<re-icon icon="refresh-cw" size="13"></re-icon> Re-scan file' +
           '</button>' +
-          '<button type="button" class="btn-replace" style="padding:8px 20px;font-size:12.5px;background:var(--gB);" data-action="forward-sudo" ' + (unresolvedCount > 0 ? 'disabled title="Please resolve or mark all skipped rows before continuing"' : '') + '>' +
-            '<re-icon icon="arrow-right" size="14"></re-icon> Continue to Initial Approval' +
+          '<button type="button" class="btn-replace" style="padding:8px 20px;font-size:12.5px;background:var(--gB);" data-action="forward-sudo">' +
+            (isAutoApprover
+              ? '<re-icon icon="check" size="14"></re-icon> <span>Continue — auto-approve</span>'
+              : '<re-icon icon="arrow-right" size="14"></re-icon> <span>Request initial approval</span>') +
           '</button>' +
         '</div>';
       } else if (isForwarded) {
         html += '<div style="margin-top:14px;font-size:11.5px;color:var(--gD);display:flex;align-items:center;gap:6px;">' +
-          '<re-icon icon="check-circle-2" size="15"></re-icon>' +
-          '<span>Forwarded for Initial Approval</span>' +
+          '<re-icon icon="check-circle" size="15"></re-icon>' +
+          '<span>Initial approval granted / in verification pipeline</span>' +
         '</div>';
       }
 
@@ -667,9 +993,10 @@
       return html;
     },
     bind: function (el, ctx) {
-      var batchId = ctx.batch._id;
+      var batch = ctx.batch || {};
+      var batchId = batch._id;
 
-      // Checkbox changes for skipped rows
+      // Handle Skipped Rows Checkbox Toggle
       var debouncedSave = util.debounce(function () {
         var checkboxes = el.querySelectorAll('.skipped-done-check');
         var resolved = [];
@@ -678,47 +1005,95 @@
             resolved.push(parseInt(cb.getAttribute('data-row-key'), 10));
           }
         });
-        api.resolveSkipped(batchId, resolved)
-          .then(function (res) {
-            if (typeof root.showToast === 'function') root.showToast('Skipped status saved');
-            var b = store.getState().batch;
-            store.setState({
-              batch: Object.assign({}, b, {
-                skippedRows: (res && res.skippedRows) ? res.skippedRows : b.skippedRows,
-                status: (res && res.status) ? res.status : b.status
-              })
+        api.resolveSkipped(batchId, resolved).then(function (res) {
+          if (res && res.batch) {
+            store.setState({ batch: res.batch });
+          } else {
+            api.getBatch(batchId).then(function (bRes) {
+              var fresh = (bRes && bRes.data && bRes.data.batch) || (bRes && bRes.batch);
+              if (fresh) store.setState({ batch: fresh });
             });
-          })
-          .catch(function (err) {
-            if (typeof root.showToast === 'function') root.showToast('Failed to save: ' + err.message, 'warn');
-          });
-      }, 400);
+          }
+        }).catch(function (err) {
+          if (typeof root.showToast === 'function') root.showToast('Failed to update: ' + err.message, 'danger');
+        });
+      }, 300);
 
       el.addEventListener('change', function (e) {
         if (e.target.classList.contains('skipped-done-check')) {
+          var tr = e.target.closest('tr');
+          if (tr) {
+            tr.style.background = e.target.checked ? '#f0fdf4' : '#ffffff';
+            tr.setAttribute('data-done', e.target.checked ? '1' : '0');
+          }
           debouncedSave();
         }
       });
 
-      el.addEventListener('click', function (e) {
-        var markAllBtn = e.target.closest('[data-action="mark-all-done"]');
-        if (markAllBtn) {
+      // Filter pills & search filter in skipped rows table
+      var filterPills = el.querySelectorAll('.skipped-pill');
+      var filterInput = el.querySelector('.skipped-filter-input');
+      var currentFilter = 'all';
+
+      function applyRowFilters() {
+        var query = (filterInput ? filterInput.value : '').toLowerCase().trim();
+        var rows = el.querySelectorAll('.skipped-row-item');
+        rows.forEach(function (row) {
+          var isDone = row.getAttribute('data-done') === '1';
+          var matchesFilter = (currentFilter === 'all') ||
+                              (currentFilter === 'pending' && !isDone) ||
+                              (currentFilter === 'done' && isDone);
+          var searchContent = row.getAttribute('data-search') || '';
+          var matchesSearch = !query || searchContent.includes(query);
+
+          row.style.display = (matchesFilter && matchesSearch) ? '' : 'none';
+        });
+      }
+
+      filterPills.forEach(function (pill) {
+        pill.addEventListener('click', function () {
+          filterPills.forEach(function (p) { p.classList.remove('act'); });
+          pill.classList.add('act');
+          currentFilter = pill.getAttribute('data-filter') || 'all';
+          applyRowFilters();
+        });
+      });
+
+      if (filterInput) {
+        filterInput.addEventListener('input', applyRowFilters);
+      }
+
+      // Mark all done button
+      var markAllBtn = el.querySelector('[data-action="mark-all-done"]');
+      if (markAllBtn) {
+        markAllBtn.addEventListener('click', function () {
           var checkboxes = el.querySelectorAll('.skipped-done-check');
           var resolved = [];
           checkboxes.forEach(function (cb) {
             cb.checked = true;
             resolved.push(parseInt(cb.getAttribute('data-row-key'), 10));
+            var tr = cb.closest('tr');
+            if (tr) {
+              tr.style.background = '#f0fdf4';
+              tr.setAttribute('data-done', '1');
+            }
           });
           api.resolveSkipped(batchId, resolved).then(function (res) {
-            var b = store.getState().batch;
-            store.setState({
-              batch: Object.assign({}, b, {
-                skippedRows: (res && res.skippedRows) ? res.skippedRows : b.skippedRows,
-                status: (res && res.status) ? res.status : b.status
-              })
+            if (typeof root.showToast === 'function') root.showToast('All skipped issues marked as done');
+            api.getBatch(batchId).then(function (bRes) {
+              var fresh = (bRes && bRes.data && bRes.data.batch) || (bRes && bRes.batch);
+              if (fresh) store.setState({ batch: fresh });
             });
-            if (typeof root.Bulk.openChat === 'function') root.Bulk.openChat(batchId);
+          }).catch(function (err) {
+            if (typeof root.showToast === 'function') root.showToast('Failed to mark all done: ' + err.message, 'danger');
           });
+        });
+      }
+
+      // Action clicks: download CSV, re-scan, forward-sudo, retry-drive
+      el.addEventListener('click', function (e) {
+        if (e.target.closest('[data-action="download-skipped-csv"]')) {
+          api.downloadSkippedCsv(batchId);
           return;
         }
 
@@ -730,24 +1105,92 @@
             if (typeof root.Bulk.openChat === 'function') root.Bulk.openChat(batchId);
           }).catch(function (err) {
             rescanBtn.disabled = false;
-            if (typeof root.showToast === 'function') root.showToast(err.message, 'warn');
+            if (typeof root.showToast === 'function') root.showToast('Re-scan failed: ' + err.message, 'danger');
           });
           return;
         }
 
-        var forwardBtn = e.target.closest('[data-action="forward-sudo"]');
-        if (forwardBtn) {
-          forwardBtn.disabled = true;
-          api.forwardSudo(batchId).then(function () {
-            if (typeof root.showToast === 'function') root.showToast('Forwarded for Initial Approval');
+        var fwdBtn = e.target.closest('[data-action="forward-sudo"]');
+        if (fwdBtn) {
+          fwdBtn.disabled = true;
+          fwdBtn.textContent = 'Submitting…';
+          api.forwardSudo(batchId).then(function (res) {
+            if (typeof root.showToast === 'function') {
+              root.showToast(res.message || 'Advanced to next stage');
+            }
             if (typeof root.Bulk.openChat === 'function') root.Bulk.openChat(batchId);
           }).catch(function (err) {
-            forwardBtn.disabled = false;
-            if (typeof root.showToast === 'function') root.showToast(err.message, 'warn');
+            fwdBtn.disabled = false;
+            fwdBtn.textContent = 'Continue';
+            if (typeof root.showToast === 'function') root.showToast('Error: ' + err.message, 'danger');
           });
+          return;
+        }
+
+        var retryDriveBtn = e.target.closest('[data-action="retry-drive"]');
+        if (retryDriveBtn) {
+          retryDriveBtn.disabled = true;
+          retryDriveBtn.textContent = 'Retrying…';
+          api.retryDrive(batchId).then(function () {
+            if (typeof root.showToast === 'function') root.showToast('Google Drive retry initiated');
+            if (typeof root.Bulk.openChat === 'function') root.Bulk.openChat(batchId);
+          }).catch(function (err) {
+            retryDriveBtn.disabled = false;
+            retryDriveBtn.textContent = 'Retry Drive';
+            if (typeof root.showToast === 'function') root.showToast('Drive retry failed: ' + err.message, 'danger');
+          });
+          return;
         }
       });
     }
+  });
+
+  // 5.5 GRIEVANCE CARD (Problem Report Chat Bubble)
+  registerCard('grievance', {
+    key: function (ctx) {
+      var p = (ctx.msg && ctx.msg.payload) || {};
+      return ['grievance', p.status || 'open', (p.rows || []).length].join('|');
+    },
+    render: function (ctx) {
+      var msg = ctx.msg || {};
+      var p = msg.payload || {};
+      var isResolved = p.status === 'resolved';
+      var viewer = ctx.viewer || ctx.user || {};
+      var isAdm = viewer.role === 'admin' || viewer.role === 'sudo' || viewer.isSudoAdmin || viewer.accessRole === 'sudoAdmin' || viewer.accessRole === 'superAdmin';
+
+      var html = '<div class="card-frame card-grievance" style="border-color:' + (isResolved ? '#bbf7d0' : '#fecaca') + ';">' +
+        '<div class="card-header" style="background:' + (isResolved ? '#f0fdf4' : '#fff5f5') + ';display:flex;align-items:center;justify-content:space-between;padding:10px 14px;">' +
+          '<div style="display:flex;align-items:center;gap:6px;font-weight:700;font-size:12.5px;color:' + (isResolved ? '#15803d' : '#991b1b') + ';">' +
+            '<re-icon icon="flag" size="14"></re-icon>' +
+            '<span>Problem Report · ' + ((p.rows && p.rows.length) || 0) + ' row(s) flagged</span>' +
+          '</div>' +
+          '<span class="chat-status-pill ' + (isResolved ? 'status-verified_all' : 'status-failed') + '">' +
+            (isResolved ? '✓ Resolved' : '● Open') +
+          '</span>' +
+        '</div>' +
+        '<div class="card-body" style="padding:12px 14px;">' +
+          (p.note ? ('<div style="font-size:12px;color:#78350f;background:#fef3c7;padding:6px 10px;border-radius:8px;margin-bottom:8px;"><strong>Note:</strong> ' + util.esc(p.note) + '</div>') : '') +
+          '<div style="font-size:11px;font-family:monospace;color:var(--td);background:#fbfdfb;padding:8px 10px;border-radius:8px;border:1px solid var(--brl);white-space:pre-wrap;max-height:140px;overflow-y:auto;margin-bottom:8px;">' +
+            util.esc(p.text || '') +
+          '</div>';
+
+      if (isResolved) {
+        html += '<div style="font-size:11px;color:#15803d;display:flex;align-items:center;gap:6px;">' +
+          '<re-icon icon="check" size="12"></re-icon>' +
+          '<span>Resolved by ' + util.esc(p.resolvedBy || 'Administrator') + (p.replyNote ? ' · ' + util.esc(p.replyNote) : '') + '</span>' +
+        '</div>';
+      } else if (isAdm) {
+        html += '<div style="display:flex;gap:8px;align-items:center;margin-top:8px;">' +
+          '<button type="button" class="btn-out" data-action="open-admin-grievances" style="font-size:11px;padding:4px 10px;color:#991b1b;border-color:#fca5a5;">' +
+            '<span>Inspect &amp; Resolve</span>' +
+          '</button>' +
+        '</div>';
+      }
+
+      html += '</div></div>';
+      return html;
+    },
+    bind: function (el, ctx) {}
   });
 
   // 6. SUDO REVIEW CARD
@@ -858,10 +1301,20 @@
       }
       return [b.status, verCount, b.eligibleCount].join('|');
     },
+    mode: function (ctx) {
+      if (typeof root.Bulk.cardMode === 'function') {
+        return root.Bulk.cardMode('verify', ctx.batch);
+      }
+      return 'open';
+    },
+    update: function (el, ctx) {
+      if (typeof this.mode === 'function') {
+        el.dataset.mode = this.mode(ctx);
+      }
+    },
     render: function (ctx) {
       var batch = ctx.batch || {};
       var type = batch.type;
-      var isSimpleType = type === 'dept' || type === 'class' || type === 'subject';
 
       var total = batch.eligibleCount || (batch.eligibleRows ? batch.eligibleRows.length : 0);
       var verifiedCount = 0;
@@ -871,98 +1324,103 @@
       }
       var pct = total > 0 ? Math.round((verifiedCount / total) * 100) : 0;
       var isAllVerified = verifiedCount >= total && total > 0;
+      var caps = root.Bulk.caps || (store.getState() && store.getState().caps) || {};
+      var isDev = Boolean(caps.isDev || (caps.flags && caps.flags.isDev));
+
+      var stepTitle = (type === 'student' || type === 'teacher')
+        ? 'Step 3: Verification &amp; Credential Dispatch'
+        : 'Step 3: Verification &amp; Details Review';
 
       var html = '<div class="card-frame">' +
         '<div class="card-header">' +
           '<div class="card-title">' +
             '<re-icon icon="user-check" size="16"></re-icon>' +
-            '<span>Step 3: Verification &amp; Credential Dispatch</span>' +
+            '<span>' + stepTitle + '</span>' +
           '</div>' +
           '<div style="font-size:11px;font-weight:700;color:var(--gD);">' + verifiedCount + ' / ' + total + ' Verified (' + pct + '%)</div>' +
         '</div>' +
-        '<div class="card-body">';
-
-      if (isSimpleType) {
-        html += '<div style="display:flex;align-items:center;gap:10px;color:var(--gD);font-size:13px;font-weight:600;">' +
-          '<re-icon icon="check-circle-2" size="20"></re-icon>' +
-          '<span>Verification automatically passed for ' + (config.TYPES[type] ? config.TYPES[type].label : type) + '. Ready for final commitment.</span>' +
-        '</div>';
-      } else {
-        html += '<div style="margin-bottom:14px;">' +
-          '<div class="prog-bar-track" style="height:10px;">' +
-            '<div class="prog-bar-fill" style="width:' + pct + '%;"></div>' +
+        '<div class="card-body">' +
+          '<div style="margin-bottom:14px;">' +
+            '<div class="prog-bar-track" style="height:10px;">' +
+              '<div class="prog-bar-fill" style="width:' + pct + '%;"></div>' +
+            '</div>' +
           '</div>' +
-        '</div>' +
-        '<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">' +
-          '<button type="button" class="btn-out" style="padding:10px 18px;font-size:12.5px;" data-action="open-drawer">' +
-            '<re-icon icon="table" size="14"></re-icon> ' + (isAllVerified ? ('Review Verified Records (' + total + ')') : ('Open Verification Panel (' + (total - verifiedCount) + ' remaining)')) +
-          '</button>';
+          '<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">' +
+            '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">';
 
-        if (isAllVerified) {
-          var isSudo = typeof root.isSudoAdmin === 'function' ? root.isSudoAdmin(ctx.user) : (ctx.user && (ctx.user.role === 'sudo' || (ctx.user.role === 'admin' && ctx.user.adminFlag !== 'subadmin')));
-          if (isSudo) {
-            html += '<button type="button" class="btn-replace" style="padding:10px 20px;font-size:12.5px;background:var(--gD);" data-action="approve-commit">' +
-              '<re-icon icon="check" size="14"></re-icon> Commit Records to Database' +
-            '</button>';
-          } else {
-            html += '<button type="button" class="btn-replace" style="padding:10px 20px;font-size:12.5px;background:var(--gB);" data-action="submit-final">' +
-              '<re-icon icon="arrow-right" size="14"></re-icon> Submit for Final Approval' +
-            '</button>';
-          }
+      if (!isAllVerified) {
+        html += '<button type="button" class="btn-replace" style="padding:10px 20px;font-size:12.5px;background:var(--w-teal,#00a884);" data-action="start-verifying">' +
+          '<re-icon icon="check" size="14"></re-icon> Start verifying &rarr;' +
+        '</button>' +
+        '<button type="button" class="btn-out" style="padding:10px 18px;font-size:12.5px;" data-action="open-drawer">' +
+          '<re-icon icon="table" size="14"></re-icon> Open Overview (' + (total - verifiedCount) + ' remaining)' +
+        '</button>';
+      } else {
+        html += '<button type="button" class="btn-out" style="padding:10px 18px;font-size:12.5px;" data-action="open-drawer">' +
+          '<re-icon icon="table" size="14"></re-icon> Review Verified Records (' + total + ')' +
+        '</button>';
+
+        var isSudo = typeof root.isSudoAdmin === 'function' ? root.isSudoAdmin(ctx.user) : (ctx.user && (ctx.user.role === 'sudo' || (ctx.user.role === 'admin' && ctx.user.adminFlag !== 'subadmin')));
+        if (isSudo) {
+          html += '<button type="button" class="btn-replace" style="padding:10px 20px;font-size:12.5px;background:var(--gD);" data-action="approve-commit">' +
+            '<re-icon icon="check" size="14"></re-icon> Commit Records to Database' +
+          '</button>';
         } else {
-          html += '<button type="button" class="btn-out" style="padding:10px 14px;font-size:12px;" data-action="verify-all-remaining">' +
-            '<re-icon icon="check-circle" size="14"></re-icon> Verify All Remaining' +
+          html += '<button type="button" class="btn-replace" style="padding:10px 20px;font-size:12.5px;background:var(--gB);" data-action="submit-final">' +
+            '<re-icon icon="arrow-right" size="14"></re-icon> Submit for Final Approval' +
           '</button>';
-          if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-            html += '<button type="button" class="btn-out" style="padding:10px 14px;font-size:11px;color:var(--tmu);" data-action="dev-bypass-verify">' +
-              '<re-icon icon="zap" size="12"></re-icon> Dev Bypass' +
-            '</button>';
-          }
         }
-
-        html += '</div>';
       }
 
-      html += '</div></div>';
+      html += '</div>';
+
+      if (isDev && !isAllVerified) {
+        html += '<div style="margin-left:auto;">' +
+          '<button type="button" class="btn-out" style="padding:10px 14px;font-size:11.5px;color:var(--w-accent-dark,#d97706);border-color:currentColor;" data-action="dev-verify-all" title="Development only testing shortcut">' +
+            '<re-icon icon="zap" size="12"></re-icon> DEV &middot; Verify all (testing only)' +
+          '</button>' +
+        '</div>';
+      }
+
+      html += '</div></div></div>';
       return html;
     },
     bind: function (el, ctx) {
       var batchId = ctx.batch._id;
       el.addEventListener('click', function (e) {
+        var startBtn = e.target.closest('[data-action="start-verifying"]');
+        if (startBtn) {
+          var batch = (store.getState && store.getState().batch) || ctx.batch;
+          var firstUnverified = (batch.eligibleRows || []).find(function (r) { return !r.isVerified; });
+          if (firstUnverified && typeof root.Bulk.openVerifyEditModal === 'function') {
+            root.Bulk.openVerifyEditModal(firstUnverified.rowNumber);
+          } else if (typeof root.showToast === 'function') {
+            root.showToast('All records already verified');
+          }
+          return;
+        }
+
         var drawerBtn = e.target.closest('[data-action="open-drawer"]');
         if (drawerBtn) {
           store.setState({ drawerOpen: true });
           return;
         }
 
-        var verifyAllBtn = e.target.closest('[data-action="verify-all-remaining"]');
-        if (verifyAllBtn) {
+        var devVerifyAllBtn = e.target.closest('[data-action="dev-verify-all"]');
+        if (devVerifyAllBtn) {
           e.preventDefault();
           var confFn = (typeof root.Bulk?.util?.safeConfirm === 'function') ? root.Bulk.util.safeConfirm :
                        (typeof root.confirmModal === 'function') ? root.confirmModal : window.confirm;
-          Promise.resolve(confFn('Are you sure you want to verify all remaining records and dispatch credentials?')).then(function (ok) {
+          Promise.resolve(confFn('DEV: Verify all remaining entries without sending emails?')).then(function (ok) {
             if (!ok) return;
-            verifyAllBtn.disabled = true;
+            devVerifyAllBtn.disabled = true;
             api.verifyAll(batchId).then(function () {
-              if (typeof root.showToast === 'function') root.showToast('All records verified successfully');
+              if (typeof root.showToast === 'function') root.showToast('DEV: All records verified successfully');
               if (typeof root.Bulk.openChat === 'function') root.Bulk.openChat(batchId);
             }).catch(function (err) {
-              verifyAllBtn.disabled = false;
+              devVerifyAllBtn.disabled = false;
               if (typeof root.showToast === 'function') root.showToast(err.message, 'warn');
             });
-          });
-          return;
-        }
-
-        var bypassBtn = e.target.closest('[data-action="dev-bypass-verify"]');
-        if (bypassBtn) {
-          bypassBtn.disabled = true;
-          api.devBypassVerify(batchId).then(function () {
-            if (typeof root.showToast === 'function') root.showToast('Dev bypass executed');
-            if (typeof root.Bulk.openChat === 'function') root.Bulk.openChat(batchId);
-          }).catch(function (err) {
-            bypassBtn.disabled = false;
-            if (typeof root.showToast === 'function') root.showToast(err.message, 'warn');
           });
           return;
         }
@@ -996,11 +1454,384 @@
     }
   });
 
-  // 8. FINAL APPROVAL & COMMIT CARD
+  // 7.5 ADMIN REVIEW CARD (P6, §6.14)
+  registerCard('review', {
+    key: function (ctx) {
+      var b = ctx.batch || {};
+      var changesCount = (b.reviewChanges && b.reviewChanges.length) || 0;
+      var removedCount = (b.removedRows && b.removedRows.length) || 0;
+      return [b.status, b.eligibleCount, changesCount, removedCount].join('|');
+    },
+    render: function (ctx) {
+      var batch = ctx.batch || {};
+      var user = ctx.user;
+      var isSudo = typeof root.isSudoAdmin === 'function' ? root.isSudoAdmin(user) : (user && (user.role === 'sudo' || (user.role === 'admin' && user.adminFlag !== 'subadmin')));
+      var eligible = batch.eligibleCount || 0;
+      var changes = batch.reviewChanges || [];
+      var editsCount = changes.filter(function (c) { return c.action === 'edit'; }).length;
+      var removedCount = (batch.removedRows && batch.removedRows.length) || 0;
+      var rows = batch.eligibleRows || [];
+      var typeMeta = config.TYPES[batch.type] || { label: batch.type || 'Records', singular: 'Record' };
+
+      var html = '<div class="card-frame" style="border-color:#bbf7d0;">' +
+        '<div class="card-header" style="background:#f0fdf4;">' +
+          '<div class="card-title" style="color:#15803d;">' +
+            '<re-icon icon="shield-check" size="18"></re-icon>' +
+            '<span>Step 3½: Admin Review</span>' +
+          '</div>' +
+          '<div style="font-size:11.5px;color:var(--tmu);font-weight:600;">' +
+            eligible + ' records · ' + editsCount + ' edits · ' + removedCount + ' removed' +
+          '</div>' +
+        '</div>';
+
+      if (!isSudo) {
+        html += '<div class="card-body" style="padding:20px;">' +
+          '<div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">' +
+            '<div class="chat-status-pill st-pending">Waiting for admin review</div>' +
+          '</div>' +
+          '<div style="font-size:13.5px;color:var(--td);line-height:1.5;">' +
+            'All <strong>' + eligible + ' records</strong> have been verified. An administrator is now reviewing the verified records before final approval.' +
+          '</div>' +
+        '</div></div>';
+        return html;
+      }
+
+      // Sudo view: 4 Tabs
+      html += '<div class="review-tabs">' +
+        '<button type="button" class="review-tab-btn active" data-tab="overview">Overview</button>' +
+        '<button type="button" class="review-tab-btn" data-tab="records">Records (' + eligible + ')</button>' +
+        '<button type="button" class="review-tab-btn" data-tab="fields">Fields written</button>' +
+        '<button type="button" class="review-tab-btn" data-tab="changes">Changes (' + changes.length + ')</button>' +
+      '</div>';
+
+      // Panel 1: Overview
+      html += '<div class="review-tab-panel active" data-panel="overview">' +
+        '<div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));gap:12px;margin-bottom:16px;">' +
+          '<div style="background:#f8faf8;padding:12px;border-radius:10px;border:1px solid var(--brl);">' +
+            '<div style="font-size:11px;color:var(--tmu);text-transform:uppercase;font-weight:600;">Target Collection</div>' +
+            '<div style="font-size:15px;font-weight:700;color:var(--td);margin-top:2px;">' + util.esc(typeMeta.label) + '</div>' +
+            '<div style="font-size:11px;color:var(--ts);margin-top:2px;">Will create ' + eligible + ' ' + util.esc(typeMeta.singular) + (['student', 'teacher'].includes(batch.type) ? (' + ' + eligible + ' User') : '') + ' accounts</div>' +
+          '</div>' +
+          '<div style="background:#f8faf8;padding:12px;border-radius:10px;border:1px solid var(--brl);">' +
+            '<div style="font-size:11px;color:var(--tmu);text-transform:uppercase;font-weight:600;">Review Modifications</div>' +
+            '<div style="font-size:15px;font-weight:700;color:var(--td);margin-top:2px;">' + editsCount + ' Edits · ' + removedCount + ' Removed</div>' +
+            '<div style="font-size:11px;color:var(--ts);margin-top:2px;">Every change tracked with audit log</div>' +
+          '</div>' +
+          '<div style="background:#f8faf8;padding:12px;border-radius:10px;border:1px solid var(--brl);">' +
+            '<div style="font-size:11px;color:var(--tmu);text-transform:uppercase;font-weight:600;">Google Drive Backup</div>' +
+            '<div style="font-size:15px;font-weight:700;color:var(--td);margin-top:2px;">' + (batch.drive?.folderId ? 'Folder Provisioned' : 'Local Archive') + '</div>' +
+            '<div style="font-size:11px;color:var(--ts);margin-top:2px;">' + util.esc(batch.drive?.folderName || (batch.batchTrackId || '')) + '</div>' +
+          '</div>' +
+        '</div>' +
+        '<div style="font-size:12.5px;color:var(--ts);line-height:1.5;">' +
+          'Verify all records and columns below. You can edit individual records, remove duplicates/invalids, or bulk-clear optional columns before giving final approval.' +
+        '</div>' +
+      '</div>';
+
+      // Panel 2: Records
+      html += '<div class="review-tab-panel" data-panel="records">' +
+        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px;">' +
+          '<div style="display:flex;gap:6px;">' +
+            '<button type="button" class="btn-out active" data-filter="all" style="padding:4px 10px;font-size:11px;">All (' + eligible + ')</button>' +
+            '<button type="button" class="btn-out" data-filter="edited" style="padding:4px 10px;font-size:11px;">Edited (' + editsCount + ')</button>' +
+            '<button type="button" class="btn-out" data-filter="mailed" style="padding:4px 10px;font-size:11px;">Mailed (' + rows.filter(function(r){ return r.emailSent; }).length + ')</button>' +
+          '</div>' +
+          '<input type="text" id="review-records-search" placeholder="Search rows…" style="padding:4px 10px;border-radius:6px;border:1px solid var(--brl);font-size:11.5px;max-width:180px;">' +
+        '</div>' +
+        '<div style="max-height:280px;overflow-y:auto;border:1px solid var(--brl);border-radius:8px;">';
+      var col2H = 'Identifier / Name';
+      var col3H = 'Department / Detail';
+      var col4H = 'Mail Status';
+      if (batch.type === 'class') {
+        col2H = 'Class Name';
+        col3H = 'Department & Batch';
+        col4H = 'Semester & Hall';
+      } else if (batch.type === 'dept') {
+        col2H = 'Department Name';
+        col3H = 'Code & Branch';
+        col4H = 'Course & Category';
+      } else if (batch.type === 'subject') {
+        col2H = 'Subject Name';
+        col3H = 'Code & Department';
+        col4H = 'Semester & Credits';
+      }
+
+      html += '<table style="width:100%;border-collapse:collapse;font-size:11.5px;" id="review-records-table">' +
+            '<thead style="background:#fafbfa;position:sticky;top:0;z-index:2;border-bottom:1px solid var(--brl);">' +
+              '<tr>' +
+                '<th style="padding:6px 10px;text-align:left;">Row</th>' +
+                '<th style="padding:6px 10px;text-align:left;">' + col2H + '</th>' +
+                '<th style="padding:6px 10px;text-align:left;">' + col3H + '</th>' +
+                '<th style="padding:6px 10px;text-align:left;">' + col4H + '</th>' +
+                '<th style="padding:6px 10px;text-align:right;">Actions</th>' +
+              '</tr>' +
+            '</thead>' +
+            '<tbody>';
+
+      var displayRows = rows.slice(0, 100);
+      for (var ri = 0; ri < displayRows.length; ri++) {
+        var r = displayRows[ri];
+        var d = r.data || {};
+        var isMailed = Boolean(r.emailSent || (r.mail && r.mail.mode === 'sent'));
+        var isEdited = changes.some(function(c){ return c.rowNumber === r.rowNumber; });
+
+        var c2Html = '', c3Html = '', c4Html = '';
+        if (batch.type === 'class') {
+          var cName = d.name || d.className || ('Class Row ' + r.rowNumber);
+          c2Html = '<div style="font-weight:600;color:var(--td);">' + util.esc(cName) + '</div>' +
+                   (d.advisor ? ('<div style="font-size:10.5px;color:var(--ts);">Adv: ' + util.esc(d.advisor) + '</div>') : '');
+          c3Html = util.esc((d.department || d.deptName || d.deptCode || '—') + (d.batch ? (' · ' + d.batch) : ''));
+          c4Html = util.esc((d.sem || d.semester ? ('Sem ' + (d.sem || d.semester)) : '') + (d.hallNo ? (' · ' + d.hallNo) : '—'));
+        } else if (batch.type === 'dept') {
+          c2Html = '<div style="font-weight:600;color:var(--td);">' + util.esc(d.name || ('Dept Row ' + r.rowNumber)) + '</div>' +
+                   '<div style="font-size:10.5px;color:var(--ts);font-family:monospace;">Code: ' + util.esc(d.code || '—') + '</div>';
+          c3Html = util.esc((d.courseType || 'UG') + ' · ' + (d.branch || 'B.E'));
+          c4Html = util.esc((d.category || 'programme') + (d.number ? (' · ' + d.number) : ''));
+        } else if (batch.type === 'subject') {
+          c2Html = '<div style="font-weight:600;color:var(--td);">' + util.esc(d.name || ('Subject Row ' + r.rowNumber)) + '</div>';
+          c3Html = util.esc((d.code || '—') + ' · ' + (d.department || d.deptName || '—'));
+          c4Html = util.esc((d.sem ? ('Sem ' + d.sem) : '') + (d.credits ? (' · ' + d.credits + ' cr') : '—'));
+        } else {
+          var ident = d.registerNo || d.employeeNo || d.code || d.username || ('Row ' + r.rowNumber);
+          var name = d.fullName || d.name || ident;
+          var dept = d.deptCode || d.department || d.deptName || d.branch || '—';
+          c2Html = '<div style="font-weight:600;color:var(--td);">' + util.esc(name) + '</div>' +
+                   '<div style="font-size:10.5px;color:var(--ts);">' + util.esc(ident) + (isEdited ? ' <span style="color:#d97706;">(Edited)</span>' : '') + '</div>';
+          c3Html = util.esc(dept);
+          c4Html = isMailed ? '<span class="chat-status-pill st-done" style="font-size:10px;padding:2px 6px;">Mailed</span>' : '<span style="color:var(--tmu);font-size:10.5px;">Pending</span>';
+        }
+
+        html += '<tr style="border-bottom:1px solid var(--brl);" data-row="' + r.rowNumber + '" data-mailed="' + isMailed + '" data-edited="' + isEdited + '">' +
+          '<td style="padding:6px 10px;font-weight:600;color:var(--tmu);">' + r.rowNumber + '</td>' +
+          '<td style="padding:6px 10px;">' + c2Html + '</td>' +
+          '<td style="padding:6px 10px;color:var(--ts);">' + c3Html + '</td>' +
+          '<td style="padding:6px 10px;">' + c4Html + '</td>' +
+          '<td style="padding:6px 10px;text-align:right;">' +
+            '<div class="review-row-actions" style="justify-content:flex-end;">' +
+              '<button type="button" class="review-action-btn" data-action="review-edit-row" data-row="' + r.rowNumber + '" title="Edit record"><re-icon icon="edit-2" size="12"></re-icon> Edit</button>' +
+              '<button type="button" class="review-action-btn" data-action="review-remove-row" data-row="' + r.rowNumber + '" ' + (isMailed ? 'disabled title="Row credentials already emailed; cannot be removed"' : 'title="Remove record"') + '><re-icon icon="trash-2" size="12"></re-icon> Remove</button>' +
+            '</div>' +
+          '</td>' +
+        '</tr>';
+      }
+
+      if (displayRows.length === 0) {
+        html += '<tr><td colspan="5" style="padding:16px;text-align:center;color:var(--tmu);">No records found.</td></tr>';
+      }
+
+      html += '</tbody></table></div>' +
+        (rows.length > 100 ? ('<div style="font-size:11px;color:var(--tmu);margin-top:6px;text-align:right;">Showing first 100 of ' + rows.length + ' records</div>') : '') +
+      '</div>';
+
+      // Panel 3: Fields written
+      html += '<div class="review-tab-panel" data-panel="fields">' +
+        '<div style="border:1px solid var(--brl);border-radius:8px;overflow:hidden;">' +
+          '<table style="width:100%;border-collapse:collapse;font-size:11.5px;">' +
+            '<thead style="background:#fafbfa;border-bottom:1px solid var(--brl);">' +
+              '<tr>' +
+                '<th style="padding:6px 10px;text-align:left;">Field</th>' +
+                '<th style="padding:6px 10px;text-align:left;">Source</th>' +
+                '<th style="padding:6px 10px;text-align:left;">Sample Value</th>' +
+                '<th style="padding:6px 10px;text-align:left;">Status</th>' +
+              '</tr>' +
+            '</thead>' +
+            '<tbody>';
+
+      var sampleRow = (rows[0] && rows[0].data) || {};
+      var sampleFields = Object.keys(sampleRow).filter(function(k){ return k !== 'password'; });
+      var systemKeys = ['trackId', 'username', 'mustChangePassword', 'deptId', 'classId'];
+
+      for (var f = 0; f < sampleFields.length; f++) {
+        var k = sampleFields[f];
+        var isSys = systemKeys.includes(k);
+        html += '<tr style="border-bottom:1px solid var(--brl);">' +
+          '<td style="padding:6px 10px;font-weight:600;"><code>' + util.esc(k) + '</code></td>' +
+          '<td style="padding:6px 10px;color:var(--ts);">' + (isSys ? 'System generated' : 'Uploaded sheet, normalized') + '</td>' +
+          '<td style="padding:6px 10px;color:var(--td);">' + util.esc(String(sampleRow[k] || '—')) + '</td>' +
+          '<td style="padding:6px 10px;">' + (isSys ? '<span class="chat-status-pill st-staged" style="font-size:9.5px;padding:1px 5px;">NEW</span>' : '<span style="color:var(--tmu);font-size:10px;">Mapped</span>') + '</td>' +
+        '</tr>';
+      }
+
+      html += '</tbody></table></div></div>';
+
+      // Panel 4: Changes
+      html += '<div class="review-tab-panel" data-panel="changes">';
+      if (changes.length === 0) {
+        html += '<div style="padding:24px;text-align:center;color:var(--tmu);font-size:12px;">No admin edits or removals have been made yet.</div>';
+      } else {
+        html += '<div style="display:flex;flex-direction:column;gap:8px;max-height:240px;overflow-y:auto;">';
+        var revChanges = changes.slice().reverse();
+        for (var ci = 0; ci < revChanges.length; ci++) {
+          var ch = revChanges[ci];
+          var actColor = ch.action === 'remove' ? '#ef4444' : (ch.action === 'clear' ? '#f59e0b' : '#3b82f6');
+          var timeStr = ch.at ? new Date(ch.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+
+          html += '<div style="background:#f8faf8;padding:8px 12px;border-radius:8px;border:1px solid var(--brl);font-size:12px;">' +
+            '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px;">' +
+              '<span style="font-weight:700;color:' + actColor + ';text-transform:uppercase;font-size:10.5px;">' + util.esc(ch.action) + '</span>' +
+              '<span style="font-size:10.5px;color:var(--tmu);">' + util.esc(timeStr) + '</span>' +
+            '</div>' +
+            '<div style="color:var(--td);">' +
+              (ch.action === 'edit' ? ('Edited row ' + ch.rowNumber + ' · ' + util.esc(ch.field) + ': ' + util.esc(String(ch.oldValue || 'none')) + ' → ' + util.esc(String(ch.newValue))) :
+               (ch.action === 'remove' ? ('Removed row ' + ch.rowNumber + ' · Reason: ' + util.esc(ch.reason)) :
+               ('Cleared optional field ' + util.esc(ch.field) + ' on ' + (ch.affectedCount || 0) + ' records'))) +
+            '</div>' +
+            '<div style="font-size:10.5px;color:var(--tmu);margin-top:2px;">By ' + util.esc(ch.by || 'Sudo Admin') + '</div>' +
+          '</div>';
+        }
+        html += '</div>';
+      }
+      html += '</div>';
+
+      // Footer with Clear Optional Field dropdown and Continue button
+      var optionalFields = [];
+      if (batch.type === 'student') optionalFields = [{ key: 'gender', label: 'Gender' }, { key: 'residency', label: 'Residency' }];
+      else if (batch.type === 'teacher') optionalFields = [{ key: 'designation', label: 'Designation' }, { key: 'gender', label: 'Gender' }];
+      else if (batch.type === 'dept') optionalFields = [{ key: 'number', label: 'Phone Number' }, { key: 'branch', label: 'Branch' }];
+      else if (batch.type === 'class') optionalFields = [{ key: 'hallNo', label: 'Hall Number' }];
+      else if (batch.type === 'subject') optionalFields = [{ key: 'credits', label: 'Credits' }];
+
+      html += '<div class="review-footer">' +
+        '<div style="display:flex;align-items:center;gap:8px;">';
+
+      if (optionalFields.length > 0) {
+        html += '<select id="review-clear-field-select" style="padding:6px 10px;border-radius:6px;border:1px solid var(--brl);font-size:11.5px;background:#fff;">' +
+          '<option value="">— Clear optional field —</option>' +
+          optionalFields.map(function(opt){ return '<option value="' + util.esc(opt.key) + '">' + util.esc(opt.label) + '</option>'; }).join('') +
+        '</select>' +
+        '<button type="button" class="btn-out" data-action="review-clear-field" style="padding:6px 12px;font-size:11.5px;"><re-icon icon="eraser" size="13"></re-icon> Clear</button>';
+      }
+
+      html += '</div>' +
+        '<button type="button" class="btn-replace" data-action="review-confirm" style="padding:8px 18px;font-size:12.5px;background:var(--gD);">' +
+          '<re-icon icon="check" size="14"></re-icon> Checked — continue to Final Approval' +
+        '</button>' +
+      '</div></div>';
+
+      return html;
+    },
+    bind: function (el, ctx) {
+      var batchId = ctx.batch._id;
+
+      // Tab switching
+      el.querySelectorAll('.review-tab-btn').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          el.querySelectorAll('.review-tab-btn').forEach(function (b) { b.classList.remove('active'); });
+          el.querySelectorAll('.review-tab-panel').forEach(function (p) { p.classList.remove('active'); });
+          btn.classList.add('active');
+          var tabName = btn.getAttribute('data-tab');
+          var targetPanel = el.querySelector('.review-tab-panel[data-panel="' + tabName + '"]');
+          if (targetPanel) targetPanel.classList.add('active');
+        });
+      });
+
+      // Filter chips in Records tab
+      el.querySelectorAll('[data-filter]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          el.querySelectorAll('[data-filter]').forEach(function (b) { b.classList.remove('active'); });
+          btn.classList.add('active');
+          var filter = btn.getAttribute('data-filter');
+          var trs = el.querySelectorAll('#review-records-table tbody tr');
+          trs.forEach(function (tr) {
+            if (filter === 'all') tr.style.display = '';
+            else if (filter === 'edited') tr.style.display = tr.getAttribute('data-edited') === 'true' ? '' : 'none';
+            else if (filter === 'mailed') tr.style.display = tr.getAttribute('data-mailed') === 'true' ? '' : 'none';
+          });
+        });
+      });
+
+      // Search input in Records tab
+      var searchInput = el.querySelector('#review-records-search');
+      if (searchInput) {
+        searchInput.addEventListener('input', function () {
+          var q = searchInput.value.toLowerCase().trim();
+          var trs = el.querySelectorAll('#review-records-table tbody tr');
+          trs.forEach(function (tr) {
+            tr.style.display = tr.textContent.toLowerCase().includes(q) ? '' : 'none';
+          });
+        });
+      }
+
+      // Actions delegator
+      el.addEventListener('click', function (e) {
+        // Edit Row
+        var editBtn = e.target.closest('[data-action="review-edit-row"]');
+        if (editBtn) {
+          var rowNum = parseInt(editBtn.getAttribute('data-row'), 10);
+          if (typeof root.Bulk.openVerifyEditModal === 'function') {
+            root.Bulk.openVerifyEditModal(rowNum, { mode: 'admin-edit' });
+          }
+          return;
+        }
+
+        // Remove Row
+        var removeBtn = e.target.closest('[data-action="review-remove-row"]');
+        if (removeBtn) {
+          var rowNumRem = parseInt(removeBtn.getAttribute('data-row'), 10);
+          var reason = window.prompt('Enter reason for removing row ' + rowNumRem + ':');
+          if (!reason || reason.trim().length < 3) {
+            if (reason !== null && typeof root.showToast === 'function') {
+              root.showToast('A reason of at least 3 characters is required', 'warn');
+            }
+            return;
+          }
+          removeBtn.disabled = true;
+          api.removeReviewRow(batchId, rowNumRem, reason.trim()).then(function (res) {
+            if (typeof root.showToast === 'function') root.showToast('Row ' + rowNumRem + ' removed');
+            if (typeof root.Bulk.openChat === 'function') root.Bulk.openChat(batchId);
+          }).catch(function (err) {
+            removeBtn.disabled = false;
+            if (typeof root.showToast === 'function') root.showToast(err.message, 'warn');
+          });
+          return;
+        }
+
+        // Clear Optional Field
+        var clearBtn = e.target.closest('[data-action="review-clear-field"]');
+        if (clearBtn) {
+          var sel = el.querySelector('#review-clear-field-select');
+          var fieldToClear = sel ? sel.value : '';
+          if (!fieldToClear) {
+            if (typeof root.showToast === 'function') root.showToast('Please select a field to clear', 'warn');
+            return;
+          }
+          var confFn = (typeof root.Bulk?.util?.safeConfirm === 'function') ? root.Bulk.util.safeConfirm :
+                       (typeof root.confirmModal === 'function') ? root.confirmModal : window.confirm;
+          Promise.resolve(confFn('Are you sure you want to blank field "' + fieldToClear + '" across all eligible records?')).then(function (ok) {
+            if (!ok) return;
+            clearBtn.disabled = true;
+            api.clearReviewField(batchId, fieldToClear).then(function (res) {
+              if (typeof root.showToast === 'function') root.showToast('Cleared ' + fieldToClear + ' on ' + res.data.affectedCount + ' records');
+              if (typeof root.Bulk.openChat === 'function') root.Bulk.openChat(batchId);
+            }).catch(function (err) {
+              clearBtn.disabled = false;
+              if (typeof root.showToast === 'function') root.showToast(err.message, 'warn');
+            });
+          });
+          return;
+        }
+
+        // Confirm Review
+        var confirmBtn = e.target.closest('[data-action="review-confirm"]');
+        if (confirmBtn) {
+          confirmBtn.disabled = true;
+          api.confirmReview(batchId).then(function () {
+            if (typeof root.showToast === 'function') root.showToast('Admin review confirmed');
+            if (typeof root.Bulk.openChat === 'function') root.Bulk.openChat(batchId);
+          }).catch(function (err) {
+            confirmBtn.disabled = false;
+            if (typeof root.showToast === 'function') root.showToast(err.message, 'warn');
+          });
+        }
+      });
+    }
+  });
+
+  // 8. FINAL APPROVAL & COMMIT CARD (P6, §6.15)
   registerCard('final', {
     key: function (ctx) {
       var b = ctx.batch || {};
-      return [b.status, b.eligibleCount, b.finalApproval ? b.finalApproval.status : ''].join('|');
+      return [b.status, b.eligibleCount, b.finalApproval ? b.finalApproval.status : '', (b.reviewChanges && b.reviewChanges.length) || 0].join('|');
     },
     render: function (ctx) {
       var batch = ctx.batch || {};
@@ -1011,21 +1842,36 @@
       var isPendingFinal = batch.status === 'pending_final_approval';
       var isVerifiedAll = batch.status === 'verified_all';
       var eligible = batch.eligibleCount || 0;
+      var ownerName = (batch.uploadedBy && batch.uploadedBy.name) ? batch.uploadedBy.name : 'Uploader';
+      var editsCount = (batch.reviewChanges || []).filter(function(c){ return c.action === 'edit'; }).length;
+      var removedCount = (batch.removedRows && batch.removedRows.length) || 0;
+      var openGrievances = (batch.grievance && batch.grievance.open) || 0;
+      var driveFolderUrl = batch.drive && batch.drive.folderUrl;
+      var trackId = batch.batchTrackId || batch._id;
 
-      var html = '<div class="card-frame">' +
-        '<div class="card-header">' +
-          '<div class="card-title">' +
-            '<re-icon icon="database" size="16"></re-icon>' +
+      var html = '<div class="card-frame" style="border-color:#bbf7d0;">' +
+        '<div class="card-header" style="background:#f0fdf4;">' +
+          '<div class="card-title" style="color:#15803d;">' +
+            '<re-icon icon="database" size="18"></re-icon>' +
             '<span>Step 4: Final Approval &amp; Database Commit</span>' +
           '</div>' +
-          '<div style="font-size:11px;color:var(--tmu);">' + (isCommitted ? 'Committed' : (eligible + ' records ready')) + '</div>' +
+          '<div style="font-size:11.5px;color:var(--tmu);font-weight:600;">' +
+            (isCommitted ? 'Committed' : (eligible + ' records ready')) +
+          '</div>' +
         '</div>' +
         '<div class="card-body">' +
           '<div style="background:#f8faf8;padding:12px 16px;border-radius:12px;border:1px solid var(--brl);margin-bottom:16px;font-size:12px;">' +
-            '<div style="font-weight:700;color:var(--td);margin-bottom:6px;">Pre-Flight Summary</div>' +
-            '<div>✓ All ' + eligible + ' records verified and validated</div>' +
-            '<div>✓ Passwords scrubbed before backup archive generation</div>' +
-            '<div>✓ Google Drive cryptographic ZIP backup enabled</div>' +
+            '<div style="font-weight:700;color:var(--td);margin-bottom:8px;">Pre-Flight Execution Summary</div>' +
+            '<div style="display:flex;flex-direction:column;gap:5px;color:var(--td);">' +
+              '<div>✓ <strong>' + eligible + ' records</strong> validated and ready to commit</div>' +
+              '<div>✓ <strong>' + editsCount + ' admin edits</strong> · <strong>' + removedCount + ' rows removed</strong></div>' +
+              (openGrievances > 0 ? ('<div style="color:#b45309;font-weight:600;">⚠ ' + openGrievances + ' open grievance(s) reported on this batch</div>') : '') +
+              '<div>✓ Google Drive cryptographic ZIP backup enabled (' + util.esc(trackId) + '_ARCHIVE.zip)</div>' +
+              (driveFolderUrl ? ('<div>✓ Drive Folder: <a href="' + util.esc(driveFolderUrl) + '" target="_blank" style="color:var(--gD);font-weight:600;text-decoration:none;">' + util.esc(trackId) + '</a></div>') : '') +
+            '</div>' +
+            '<div style="font-size:11px;color:var(--ts);margin-top:8px;padding-top:6px;border-top:1px solid var(--brl);">' +
+              'This will write ' + eligible + ' records · archive encrypted backup to Google Drive · log the action · close this chat · notify ' + util.esc(ownerName) + '.' +
+            '</div>' +
           '</div>';
 
       if (isCommitted) {
@@ -1039,9 +1885,17 @@
           '<span>Database commit is in progress…</span>' +
         '</div>';
       } else if (isSudo) {
-        html += '<button type="button" class="btn-replace" style="padding:12px 24px;font-size:13.5px;background:var(--gD);" data-action="approve-commit">' +
-          '<re-icon icon="database" size="15"></re-icon> Commit Records to Database' +
-        '</button>';
+        html += '<div style="margin-bottom:12px;">' +
+          '<textarea id="final-approval-notes" placeholder="Optional notes or commentary for this approval…" style="width:100%;height:60px;padding:8px 12px;border-radius:8px;border:1px solid var(--brl);font-size:12px;box-sizing:border-box;"></textarea>' +
+        '</div>' +
+        '<div style="display:flex;gap:10px;align-items:center;">' +
+          '<button type="button" class="btn-replace" style="padding:10px 20px;font-size:13px;background:var(--gD);" data-action="approve-commit">' +
+            '<re-icon icon="database" size="15"></re-icon> Approve &amp; Commit Records' +
+          '</button>' +
+          '<button type="button" class="btn-out" style="padding:10px 16px;font-size:13px;color:#ef4444;border-color:#fca5a5;" data-action="reject-batch">' +
+            '<re-icon icon="x-circle" size="14"></re-icon> Reject…' +
+          '</button>' +
+        '</div>';
       } else if (isPendingFinal) {
         html += '<div style="display:flex;align-items:center;gap:10px;background:#fffbeb;padding:12px 16px;border-radius:12px;border:1px solid #fde68a;">' +
           '<re-icon icon="clock" size="20" style="color:#d97706;"></re-icon>' +
@@ -1077,12 +1931,37 @@
 
         var commitBtn = e.target.closest('[data-action="approve-commit"]');
         if (commitBtn) {
-          commitBtn.disabled = true;
-          api.approveFinal(batchId).then(function () {
-            if (typeof root.showToast === 'function') root.showToast('Database commit initiated');
+          var confFn = (typeof root.Bulk?.util?.safeConfirm === 'function') ? root.Bulk.util.safeConfirm :
+                       (typeof root.confirmModal === 'function') ? root.confirmModal : window.confirm;
+          Promise.resolve(confFn('Execute final database commit? This will write verified records into MongoDB and archive backup to Google Drive.')).then(function (ok) {
+            if (!ok) return;
+            commitBtn.disabled = true;
+            api.approveFinal(batchId).then(function () {
+              if (typeof root.showToast === 'function') root.showToast('Database commit initiated');
+              if (typeof root.Bulk.openChat === 'function') root.Bulk.openChat(batchId);
+            }).catch(function (err) {
+              commitBtn.disabled = false;
+              if (typeof root.showToast === 'function') root.showToast(err.message, 'warn');
+            });
+          });
+          return;
+        }
+
+        var rejectBtn = e.target.closest('[data-action="reject-batch"]');
+        if (rejectBtn) {
+          var reason = window.prompt('Enter reason for rejecting this bulk import (minimum 3 characters):');
+          if (!reason || reason.trim().length < 3) {
+            if (reason !== null && typeof root.showToast === 'function') {
+              root.showToast('A reason of at least 3 characters is required to reject', 'warn');
+            }
+            return;
+          }
+          rejectBtn.disabled = true;
+          api.rejectInitial(batchId, reason.trim()).then(function () {
+            if (typeof root.showToast === 'function') root.showToast('Batch rejected');
             if (typeof root.Bulk.openChat === 'function') root.Bulk.openChat(batchId);
           }).catch(function (err) {
-            commitBtn.disabled = false;
+            rejectBtn.disabled = false;
             if (typeof root.showToast === 'function') root.showToast(err.message, 'warn');
           });
         }

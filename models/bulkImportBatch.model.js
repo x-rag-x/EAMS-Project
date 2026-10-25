@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 
 const BulkImportBatchSchema = new mongoose.Schema({
   batchTrackId: { type: String, required: true, unique: true, trim: true },
+  typeCode:     { type: String, enum: ['STD', 'TCH', 'DEP', 'CLS', 'SBJ'] },
   title:        { type: String, default: '', trim: true },
   type: {
     type: String,
@@ -10,6 +11,53 @@ const BulkImportBatchSchema = new mongoose.Schema({
   },
   parentBatchId: { type: mongoose.Schema.Types.ObjectId, ref: 'BulkImportBatch', default: null },
   archivedBy:    [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+  epoch:         { type: Number, default: 0 },
+  participants:  [{
+    userId:  { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    trackId: { type: String, default: '' },
+    name:    { type: String, default: '' },
+    role:    { type: String, default: '' },
+    tier:    { type: String, default: '' },
+    level:   { type: String, enum: ['viewer', 'collaborator'], default: 'viewer' },
+    addedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    addedAt: { type: Date, default: Date.now }
+  }],
+  closed: {
+    at:     { type: Date, default: null },
+    by:     { type: String, default: '' },
+    reason: { type: String, default: '' }
+  },
+  deletedAt: { type: Date, default: null },
+  deletedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+  provisioning: {
+    state: { type: String, enum: ['pending', 'ready', 'degraded'], default: 'pending' },
+    at:    { type: Date, default: null }
+  },
+  uploads: [{
+    epoch:    { type: Number, default: 0 },
+    name:     { type: String, default: '' },
+    size:     { type: Number, default: 0 },
+    sha256:   { type: String, default: '' },
+    gridFsId: { type: mongoose.Schema.Types.ObjectId, default: null },
+    drive: {
+      fileId: { type: String, default: '' },
+      url:    { type: String, default: '' }
+    },
+    at: { type: Date, default: Date.now },
+    by: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null }
+  }],
+  reviewRev:   { type: Number, default: 0 },
+  removedRows: [{
+    rowNumber: { type: Number },
+    data:      { type: mongoose.Schema.Types.Mixed, default: {} },
+    reason:    { type: String, default: '' },
+    by:        { type: String, default: '' },
+    at:        { type: Date, default: Date.now }
+  }],
+  grievance: {
+    open:  { type: Number, default: 0 },
+    total: { type: Number, default: 0 }
+  },
 
   lastMessageAt:      { type: Date, default: Date.now },
   lastMessagePreview: { type: String, default: '' },
@@ -57,6 +105,7 @@ const BulkImportBatchSchema = new mongoose.Schema({
       'sudo_initial_approved',   // Sudo admin approved initial request; verification open
       'verifying',               // In progress: individual student/teacher verifications
       'verified_all',            // 100% of eligible rows verified
+      'sudo_review',             // Step 3½: Sudo admin review of verified records
       'pending_final_approval',  // Submitted for final admin/sudo approval
       'committing',              // Background commit job running
       'committed',               // Committed to live DB and backed up
@@ -71,6 +120,13 @@ const BulkImportBatchSchema = new mongoose.Schema({
     jobKind:  { type: String, default: '' }, // 'stage' | 'rescan' | 'commit' | 'backup'
     phase:    { type: String, default: '' },
     percent:  { type: Number, default: 0 },
+    stage: {
+      index:     { type: Number, default: 0 },
+      total:     { type: Number, default: 6 },
+      key:       { type: String, default: '' },
+      text:      { type: String, default: '' },
+      startedAt: { type: Date, default: null }
+    },
     phases: [{
       key:        { type: String },
       label:      { type: String },
@@ -159,6 +215,34 @@ const BulkImportBatchSchema = new mongoose.Schema({
     userAgent:  String
   }],
 
+  // Removed rows moved out during Sudo Admin Review
+  removedRows: [{
+    rowNumber: { type: Number, required: true },
+    data:      { type: mongoose.Schema.Types.Mixed, default: {} },
+    reason:    { type: String, default: '' },
+    removedBy: { type: String, default: '' },
+    removedAt: { type: Date, default: Date.now }
+  }],
+
+  // Sudo Admin review changes audit trail
+  reviewChanges: [{
+    action:    { type: String, default: 'edit' }, // 'edit' | 'remove' | 'clear'
+    rowNumber: { type: Number, default: 0 },
+    field:     { type: String, default: '' },
+    oldValue:  { type: mongoose.Schema.Types.Mixed, default: null },
+    newValue:  { type: mongoose.Schema.Types.Mixed, default: null },
+    reason:    { type: String, default: '' },
+    by:        { type: String, default: '' },
+    at:        { type: Date, default: Date.now }
+  }],
+
+  // Chat close tracking after final commit
+  closed: {
+    at:     { type: Date, default: null },
+    by:     { type: String, default: '' },
+    reason: { type: String, default: '' }
+  },
+
   // Google Drive initial folder & sheet upload details
   drive: {
     folderId:   { type: String, default: '' },
@@ -198,10 +282,14 @@ BulkImportBatchSchema.index({ createdAt: -1 });
 BulkImportBatchSchema.index({ 'uploadedBy.userId': 1, lastMessageAt: -1 });
 BulkImportBatchSchema.index({ status: 1, lastMessageAt: -1 });
 BulkImportBatchSchema.index({ 'verificationAudit.verifiedAt': -1 });
+BulkImportBatchSchema.index({ 'participants.userId': 1 });
+BulkImportBatchSchema.index({ deletedAt: 1 });
+BulkImportBatchSchema.index({ typeCode: 1, createdAt: -1 });
 
 const BulkChatMessageSchema = new mongoose.Schema({
   batchId: { type: mongoose.Schema.Types.ObjectId, ref: 'BulkImportBatch', required: true, index: true },
   seq:     { type: Number, required: true },
+  epoch:   { type: Number, default: 0 },
   author:  { type: String, enum: ['system', 'user'], default: 'system' },
   kind:    { type: String, enum: ['card', 'event', 'text'], default: 'card' },
   card:    { type: String, default: '' },
@@ -209,12 +297,14 @@ const BulkChatMessageSchema = new mongoose.Schema({
   actor: {
     userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
     name:   { type: String, default: '' },
-    role:   { type: String, default: '' }
+    role:   { type: String, default: '' },
+    tier:   { type: String, default: '' }
   },
   createdAt: { type: Date, default: Date.now }
 }, { timestamps: true });
 
 BulkChatMessageSchema.index({ batchId: 1, seq: 1 }, { unique: true });
+BulkChatMessageSchema.index({ batchId: 1, epoch: 1 });
 
 module.exports = {
   BulkImportBatch: mongoose.model('BulkImportBatch', BulkImportBatchSchema),

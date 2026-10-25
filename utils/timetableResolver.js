@@ -7,6 +7,7 @@
 
 const M = require('../models');
 const { nowParts, getUtcDayBounds, todayInInstitutionTz } = require('./institutionTime');
+const { matchesClassCalendarScope } = require('./examUtils');
 
 const DAY_FULL = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const TO_ROMAN = { '1': 'I', '2': 'II', '3': 'III', '4': 'IV' };
@@ -198,35 +199,87 @@ async function getCalendarDay(dateStr) {
 }
 
 /**
- * Check if a class has a holiday on a given date
+ * Check if a class has an exam, holiday, or half-day on a given date (E8)
  */
-function checkClassHoliday(calDay, classDoc) {
-  if (!calDay?.details?.length || !classDoc) return { isHoliday: false, reason: null, isHalfDay: false, halfDayEnd: null };
+function checkClassCalendarStatus(calDay, classDoc) {
+  if (!calDay?.details?.length || !classDoc) {
+    return { isHoliday: false, isExamDay: false, isHalfDay: false, reason: null, halfDayEnd: null };
+  }
 
-  const clsYear = normalizeYear(classDoc.year);
+  // 1. Scoped Exam (E3 & E8: Exam is an instructional/assessment day, NOT a holiday)
+  const scopedExam = calDay.details.find(d => d.dayType === 'exam' && matchesClassCalendarScope(d, classDoc));
+  if (scopedExam) {
+    return {
+      isHoliday: false,
+      isExamDay: true,
+      reason: scopedExam.comments || 'Exam Day',
+      examTitle: scopedExam.comments || 'Exam',
+      timing: scopedExam.timing || { start: '09:30', end: '12:30' },
+      session: scopedExam.session || 'FN',
+      halls: scopedExam.halls || [],
+      subjectName: scopedExam.subjectName || '',
+      subjectCode: scopedExam.subjectCode || '',
+      examId: scopedExam.examId,
+      examTrackId: scopedExam.examTrackId,
+      isHalfDay: false,
+      halfDayEnd: null
+    };
+  }
 
-  // Class-specific holiday
+  // 2. Class-specific holiday / leave / vacation
   const classHol = calDay.details.find(d => {
-    if (!['leave', 'holiday', 'vacation', 'exam', 'event'].includes(d.dayType)) return false;
-    return !d.year || normalizeYear(d.year) === clsYear;
+    if (!['leave', 'holiday', 'vacation'].includes(d.dayType)) return false;
+    return matchesClassCalendarScope(d, classDoc);
   });
   if (classHol) {
-    return { isHoliday: true, reason: classHol.comments || `Academic Calendar: ${classHol.dayType.toUpperCase()}`, isHalfDay: false, halfDayEnd: null };
+    return { isHoliday: true, isExamDay: false, reason: classHol.comments || `Academic Calendar: ${classHol.dayType.toUpperCase()}`, isHalfDay: false, halfDayEnd: null };
   }
 
-  // Class-specific half-day
-  const halfDay = calDay.details.find(d => d.dayType === 'half-day' && (!d.year || normalizeYear(d.year) === clsYear));
+  // 3. Class-specific half-day
+  const halfDay = calDay.details.find(d => d.dayType === 'half-day' && matchesClassCalendarScope(d, classDoc));
   if (halfDay && halfDay.timing?.end) {
-    return { isHoliday: false, reason: null, isHalfDay: true, halfDayEnd: halfDay.timing.end };
+    return { isHoliday: false, isExamDay: false, reason: null, isHalfDay: true, halfDayEnd: halfDay.timing.end };
   }
 
-  // Global holiday
-  const globalHol = calDay.details.find(d => !d.year && ['leave', 'holiday', 'vacation', 'exam', 'event'].includes(d.dayType));
+  // 4. Global holiday
+  const globalHol = calDay.details.find(d => !d.year && !d.deptId && !d.classId && ['leave', 'holiday', 'vacation'].includes(d.dayType));
   if (globalHol) {
-    return { isHoliday: true, reason: globalHol.comments || `Academic Calendar: ${globalHol.dayType.toUpperCase()}`, isHalfDay: false, halfDayEnd: null };
+    return { isHoliday: true, isExamDay: false, reason: globalHol.comments || `Academic Calendar: ${globalHol.dayType.toUpperCase()}`, isHalfDay: false, halfDayEnd: null };
   }
 
-  return { isHoliday: false, reason: null, isHalfDay: false, halfDayEnd: null };
+  // 5. Global exam (college-wide)
+  const globalExam = calDay.details.find(d => !d.year && !d.deptId && !d.classId && d.dayType === 'exam');
+  if (globalExam) {
+    return {
+      isHoliday: false,
+      isExamDay: true,
+      reason: globalExam.comments || 'College-wide Exam',
+      examTitle: globalExam.comments || 'Exam',
+      timing: globalExam.timing || { start: '09:30', end: '12:30' },
+      session: globalExam.session || 'FN',
+      halls: globalExam.halls || [],
+      subjectName: globalExam.subjectName || '',
+      subjectCode: globalExam.subjectCode || '',
+      examId: globalExam.examId,
+      examTrackId: globalExam.examTrackId,
+      isHalfDay: false,
+      halfDayEnd: null
+    };
+  }
+
+  return { isHoliday: false, isExamDay: false, isHalfDay: false, reason: null, halfDayEnd: null };
+}
+
+function checkClassHoliday(calDay, classDoc) {
+  const status = checkClassCalendarStatus(calDay, classDoc);
+  return {
+    isHoliday: status.isHoliday,
+    isExamDay: status.isExamDay,
+    examTitle: status.examTitle,
+    reason: status.reason,
+    isHalfDay: status.isHalfDay,
+    halfDayEnd: status.halfDayEnd
+  };
 }
 
 /**
@@ -558,15 +611,41 @@ async function resolveRoomDaySchedule(roomId, dateStr = null) {
 
     if (!baseSlot) continue; // No slot for this period
 
-    // Check holiday for this class
-    const holidayCheck = checkClassHoliday(calDay, classDoc);
-    if (holidayCheck.isHoliday) {
+    // Check calendar status for this class (holiday / exam)
+    const calStatus = checkClassCalendarStatus(calDay, classDoc);
+    if (calStatus.isHoliday) {
       periods.push({
         period: periodNum,
         periodLabel: timingSet?.periods?.find(p => p.periodNumber === periodNum || p.number === periodNum)?.label || `Period ${periodNum}`,
         isHoliday: true,
-        holidayReason: holidayCheck.reason,
+        isExam: false,
+        holidayReason: calStatus.reason,
         slot: null
+      });
+      continue;
+    }
+
+    if (calStatus.isExamDay) {
+      // E8: Real exam details in the timetable matrix
+      periods.push({
+        period: periodNum,
+        periodLabel: timingSet?.periods?.find(p => p.periodNumber === periodNum || p.number === periodNum)?.label || `Period ${periodNum}`,
+        isHoliday: false,
+        isExam: true,
+        examTitle: calStatus.examTitle,
+        examTiming: calStatus.timing,
+        examSession: calStatus.session,
+        examHalls: calStatus.halls,
+        slot: {
+          period: periodNum,
+          status: 'exam',
+          type: 'exam',
+          subjectName: calStatus.subjectName || calStatus.examTitle || 'Exam',
+          subjectCode: calStatus.subjectCode || 'EXAM',
+          room: (calStatus.halls && calStatus.halls.length > 0) ? calStatus.halls.join(', ') : 'Exam Hall',
+          timing: calStatus.timing,
+          session: calStatus.session
+        }
       });
       continue;
     }
@@ -683,6 +762,7 @@ async function resolveRoomCurrentContext(roomId, customTime = null) {
   let state = scheduleStatus;
   if (currentSlot && !currentPeriod?.isBreak) state = 'in_class';
   else if (currentPeriod?.isBreak) state = 'break';
+  else if (schedule.periods.some(p => p.isExam)) state = 'exam';
   else if (schedule.periods.some(p => p.isHoliday)) state = 'holiday';
 
   return {
@@ -718,6 +798,7 @@ module.exports = {
   getOverridesForRoomDate,
   getCalendarDay,
   checkClassHoliday,
+  checkClassCalendarStatus,
   applyOverride,
   buildResolvedSlot,
   normalizeYear,

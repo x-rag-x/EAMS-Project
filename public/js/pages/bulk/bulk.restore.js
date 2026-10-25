@@ -75,7 +75,7 @@
       }
     }, 350);
 
-    var tok = sessionStorage.getItem('eams_token') || (typeof root.TOKEN !== 'undefined' ? root.TOKEN : '');
+    var tok = (root.Bulk && root.Bulk.api && root.Bulk.api.getToken) ? root.Bulk.api.getToken() : (typeof root.TOKEN !== 'undefined' ? root.TOKEN : '');
     var formData = new FormData();
     formData.append('backupFile', _selectedRestoreFile);
     formData.append('backupPassword', (pwdInput ? pwdInput.value.trim() : ''));
@@ -294,7 +294,7 @@
       }
     }, 450);
 
-    var tok = sessionStorage.getItem('eams_token') || (typeof root.TOKEN !== 'undefined' ? root.TOKEN : '');
+    var tok = (root.Bulk && root.Bulk.api && root.Bulk.api.getToken) ? root.Bulk.api.getToken() : (typeof root.TOKEN !== 'undefined' ? root.TOKEN : '');
     var formData = new FormData();
     formData.append('backupFile', _selectedRestoreFile);
     formData.append('backupPassword', (pwdInput ? pwdInput.value.trim() : ''));

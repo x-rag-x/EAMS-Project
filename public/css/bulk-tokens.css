@@ -1,0 +1,61 @@
+/* ==========================================================================
+   EAMS BULK UPLOAD - DESIGN TOKENS (CSS VARIABLES)
+   Defines brand, surfaces, geometry, semantic, elevations, and motion curves.
+   ========================================================================== */
+
+:root {
+  /* Brand palette */
+  --gD: #1b5e20;
+  --gK: #2e7d32;
+  --gB: #4caf50;
+  --gLt: #e8f5e9;
+  --td: #1a2e1a;
+  --tmu: #5a7a5a;
+
+  /* Chat surfaces (WhatsApp-group styled) */
+  --chat-wall: #eef3ee;                 /* wallpaper base (subtle SVG pattern layered on top) */
+  --bub-mine: #dcf3d6;
+  --bub-mine-ink: #143314;
+  --bub-other: #ffffff;
+  --bub-other-ink: #1a2e1a;
+  --bub-admin: #e6eefc;
+  --bub-admin-ink: #14284d;
+  --chip-admin: #2f5fd0;
+  --bub-system: #ffffff;
+  --bub-system-bd: rgba(27, 94, 32, 0.10);
+  --bub-event: rgba(27, 94, 32, 0.07);  /* Centred pill: "Ravi added Priya" */
+  --bub-event-ink: #284428;
+
+  /* Semantic */
+  --ok: #15803d;
+  --warn: #b45309;
+  --bad: #b91c1c;
+  --info: #1d4ed8;
+
+  /* Geometry */
+  --r-bub: 16px;
+  --r-bub-tail: 4px;
+  --r-card: 16px;
+  --av: 30px;
+  --av-sm: 24px;
+  --gap: 6px;
+  --gap-run: 2px;
+
+  /* Elevation */
+  --sh-1: 0 1px 1px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(20, 50, 20, 0.06);
+  --sh-2: 0 6px 20px rgba(20, 50, 20, 0.12);
+
+  /* Motion */
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --t-fast: 120ms;
+  --t-base: 200ms;
+  --t-slow: 320ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --t-fast: 1ms;
+    --t-base: 1ms;
+    --t-slow: 1ms;
+  }
+}

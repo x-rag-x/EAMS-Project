@@ -10,6 +10,8 @@
   <script src="js/core/icons.js"></script>
   <link rel="stylesheet" href="css/base.css">
   <link rel="stylesheet" href="css/bulk.css">
+  <link rel="stylesheet" href="css/bulk-tokens.css">
+  <link rel="stylesheet" href="css/bulk-rows.css">
   <link rel="stylesheet" href="css/bulk-chat.css">
 </head>
 <body>
@@ -36,10 +38,10 @@
         </button>
       </div>
 
-      <div class="chat-sb-search">
+      <form class="chat-sb-search" role="search" autocomplete="off" onsubmit="event.preventDefault();return false;">
         <re-icon icon="search" size="14" class="chat-search-icon"></re-icon>
-        <input type="text" class="chat-search-input" id="chat-search-input" placeholder="Search imports…">
-      </div>
+        <input type="search" class="chat-search-input" id="chat-search-input" name="bulk_search_query_no_autofill" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-form-type="other" placeholder="Search imports…">
+      </form>
 
       <div class="chat-sb-filters" id="chat-sb-filters">
         <button type="button" class="filter-pill active" data-status="all">All</button>
@@ -92,21 +94,37 @@
         <div class="chat-stepper" id="chat-header-stepper"></div>
 
         <div class="chat-header-actions">
+          <div class="chat-header-participants" id="chat-header-participants" style="display:none;"></div>
+          <button type="button" class="btn-out" id="btn-header-copy-link" data-action="copy-link" style="display:none;padding:6px 12px;font-size:12px;" title="Copy shareable link">
+            <re-icon icon="copy" size="14"></re-icon> <span>Copy Link</span>
+          </button>
           <button type="button" class="btn-out" id="btn-header-drawer" data-action="open-drawer" style="display:none;padding:6px 12px;font-size:12px;">
             <re-icon icon="table" size="14"></re-icon> Verification Panel
+          </button>
+          <button type="button" class="btn-icon" id="btn-header-menu" data-action="chat-menu" title="Chat options" aria-label="Chat options" style="display:none;border:none;background:none;padding:6px;cursor:pointer;border-radius:8px;color:var(--tmu);">
+            <re-icon icon="more-vertical" size="18"></re-icon>
           </button>
         </div>
       </header>
 
       <!-- Message Transcript -->
-      <div class="chat-transcript" id="chat-transcript">
+      <div class="chat-transcript" id="chat-transcript" role="log" aria-live="polite" aria-relevant="additions">
         <!-- Rendered by bulk.transcript.js -->
       </div>
 
+      <!-- Floating Scroll-To-Bottom Pill -->
+      <button type="button" id="btn-scroll-bottom" class="hidden" aria-label="Scroll to newest messages">
+        <re-icon icon="chevron-down" size="14"></re-icon>
+        <span id="scroll-bottom-text">↓ New messages</span>
+      </button>
+
       <!-- Bottom Chat Dock -->
       <div class="chat-dock" id="chat-dock">
-        <input type="text" class="chat-dock-input" id="chat-dock-input" placeholder="Type notes or commentary for this import batch…">
-        <button type="button" class="btn-chat-send" id="chat-dock-send">
+        <button type="button" class="btn-chat-clip" id="btn-chat-paperclip" title="Attach spreadsheet" aria-label="Attach spreadsheet">
+          <re-icon icon="paperclip" size="16"></re-icon>
+        </button>
+        <input type="text" class="chat-dock-input" id="chat-dock-input" name="bulk_chat_notes_no_autofill" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-form-type="other" placeholder="Type notes or commentary for this import batch…">
+        <button type="button" class="btn-chat-send" id="chat-dock-send" aria-label="Send message">
           <re-icon icon="send" size="14"></re-icon>
           <span>Send</span>
         </button>
@@ -151,7 +169,7 @@
                   <label style="display:block;font-size:11.5px;font-weight:700;color:var(--tmu);margin-bottom:4px;">
                     BACKUP RESTORE PASSWORD / KEY (OPTIONAL)
                   </label>
-                  <input type="text" id="restore-password-input" placeholder="e.g. 12-char hex key from email (leave blank for auto-key)"
+                  <input type="text" id="restore-password-input" name="backup_restore_key_no_autofill" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" placeholder="e.g. 12-char hex key from email (leave blank for auto-key)"
                     style="width:100%;padding:10px 14px;border:1.5px solid var(--br,#e2e8f0);border-radius:10px;font-size:13px;font-family:monospace;background:#f8fafc;">
                 </div>
                 <button class="btn btn-pri" id="restore-inspect-btn" onclick="startRestoreInspection()" style="margin-top:18px;padding:11px 22px;white-space:nowrap;" disabled>
@@ -330,7 +348,8 @@
 
   <!-- ── ROW VERIFICATION EDIT MODAL ────────────────────────── -->
   <div class="modal-bg" id="bulk-verify-edit-modal" onclick="if(event.target===this)closeVerifyEditModal()">
-    <div class="modal modal-lg">
+    <div class="modal modal-xl" style="max-width:960px;width:95vw;">
+      <form id="bulk-verify-form" autocomplete="off" onsubmit="event.preventDefault();return false;" style="display:contents;">
       <div class="modal-hd">
         <div>
           <div class="modal-title" id="verify-edit-title">Verification &amp; Details Review</div>
@@ -341,203 +360,274 @@
 
       <input type="hidden" id="vedit-row-number" value="">
 
-      <!-- 1. STUDENT VERIFICATION FORM -->
-      <div id="vedit-student-section" style="display:none;">
-        <div class="form-grid" style="grid-template-columns: 1.4fr 0.8fr 0.8fr;">
-          <div class="fg">
-            <label class="fl">Full Name</label>
-            <input type="text" class="fc2" id="vedit-name" placeholder="Full legal name">
+      <!-- 2-COLUMN SPLIT: LEFT DETAILS, RIGHT CHECKS & DIFF -->
+      <div class="vedit-grid">
+        <!-- LEFT: DETAILS FORM -->
+        <div class="vedit-left-col">
+          <!-- 1. STUDENT VERIFICATION FORM -->
+          <div id="vedit-student-section" style="display:none;">
+            <div class="form-grid" style="grid-template-columns: 1.4fr 0.8fr 0.8fr;">
+              <div class="fg">
+                <label class="fl">Full Name</label>
+                <input type="text" class="fc2" id="vedit-name" placeholder="Full legal name">
+              </div>
+              <div class="fg">
+                <label class="fl">First Name <span class="auto-txt">(auto)</span></label>
+                <input type="text" class="fc2" id="vedit-firstName" placeholder="First Name" readonly class="auto-block">
+              </div>
+              <div class="fg">
+                <label class="fl">Last Name <span class="auto-txt">(auto)</span></label>
+                <input type="text" class="fc2" id="vedit-lastName" placeholder="Last Name" readonly class="auto-block">
+              </div>
+            </div>
+
+            <div class="form-grid form-grid-2">
+              <div class="fg">
+                <label class="fl">Register Number<span style="color:var(--red);">*</span></label>
+                <input type="text" class="fc2" id="vedit-regNo" placeholder="e.g. 2025104001">
+              </div>
+              <div class="fg">
+                <div class="fl-row" style="display:flex;justify-content:space-between;align-items:center;">
+                  <label class="fl" style="margin-bottom:0;">Department</label>
+                  <button type="button" class="btn-copy-all" data-field="department" title="Copy department to all unverified rows">⧉ Copy to all</button>
+                </div>
+                <select class="fc2" id="vedit-dept" style="margin-top:4px;">
+                  <option value="">— Select —</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="form-grid" style="grid-template-columns: 1fr 1fr 1fr;">
+              <div class="fg">
+                <label class="fl">Track ID <span class="auto-txt">(auto)</span></label>
+                <input type="text" class="fc2" id="vedit-trackId" readonly class="auto-block" placeholder="Auto from Register No">
+              </div>
+              <div class="fg">
+                <div class="fl-row" style="display:flex;justify-content:space-between;align-items:center;">
+                  <label class="fl" style="margin-bottom:0;">Course Type</label>
+                  <button type="button" class="btn-copy-all" data-field="courseType" title="Copy course type to all unverified rows">⧉ Copy to all</button>
+                </div>
+                <input type="text" class="fc2" id="vedit-courseType" style="margin-top:4px;">
+              </div>
+              <div class="fg">
+                <div class="fl-row" style="display:flex;justify-content:space-between;align-items:center;">
+                  <label class="fl" style="margin-bottom:0;">Branch</label>
+                  <button type="button" class="btn-copy-all" data-field="branch" title="Copy branch to all unverified rows">⧉ Copy to all</button>
+                </div>
+                <input type="text" class="fc2" id="vedit-branch" style="margin-top:4px;">
+              </div>
+            </div>
+
+            <div class="form-grid" style="grid-template-columns: 1.1fr 1.2fr 1.3fr;">
+              <div class="fg">
+                <div class="fl-row" style="display:flex;justify-content:space-between;align-items:center;">
+                  <label class="fl" style="margin-bottom:0;">Academic Year</label>
+                  <button type="button" class="btn-copy-all" data-field="academicYear" title="Copy academic year to all unverified rows">⧉ Copy to all</button>
+                </div>
+                <select class="fc2" id="vedit-year" style="margin-top:4px;"></select>
+              </div>
+              <div class="fg">
+                <div class="fl-row" style="display:flex;justify-content:space-between;align-items:center;">
+                  <label class="fl" style="margin-bottom:0;">Batch<span style="color:var(--red);">*</span></label>
+                  <button type="button" class="btn-copy-all" data-field="batch" title="Copy batch to all unverified rows">⧉ Copy to all</button>
+                </div>
+                <select class="fc2" id="vedit-batch" style="margin-top:4px;"></select>
+              </div>
+              <div class="fg">
+                <div class="fl-row" style="display:flex;justify-content:space-between;align-items:center;">
+                  <label class="fl" style="margin-bottom:0;">Class</label>
+                  <button type="button" class="btn-copy-all" data-field="class" title="Copy class to all unverified rows">⧉ Copy to all</button>
+                </div>
+                <select class="fc2" id="vedit-class" style="margin-top:4px;"></select>
+              </div>
+            </div>
+
+            <div class="form-grid form-grid-2">
+              <div class="fg">
+                <div class="fl-row" style="display:flex;justify-content:space-between;align-items:center;">
+                  <label class="fl" style="margin-bottom:0;">Gender</label>
+                  <button type="button" class="btn-copy-all" data-field="gender" title="Copy gender to all unverified rows">⧉ Copy to all</button>
+                </div>
+                <select class="fc2" id="vedit-gender" style="margin-top:4px;">
+                  <option value="Male">Male</option>
+                  <option value="Female">Female</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+              <div class="fg">
+                <div class="fl-row" style="display:flex;justify-content:space-between;align-items:center;">
+                  <label class="fl" style="margin-bottom:0;">Dayscholar / Hosteller</label>
+                  <button type="button" class="btn-copy-all" data-field="residency" title="Copy residency to all unverified rows">⧉ Copy to all</button>
+                </div>
+                <select class="fc2" id="vedit-residency" style="margin-top:4px;">
+                  <option value="dayscholar">Dayscholar</option>
+                  <option value="hostel">Hosteller</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="fl" style="margin-top:8px;margin-bottom:6px;font-weight:700;">Student Login Details</div>
+            <div class="form-grid form-grid-2">
+              <div class="fg">
+                <label class="fl">Email <span class="auto-txt">(editable)</span></label>
+                <input type="email" class="fc2" id="vedit-email" placeholder="Student email" autocomplete="off">
+              </div>
+              <div class="fg">
+                <label class="fl" id="vedit-pw-label">Initial Password</label>
+                <div class="pw-wrap">
+                  <input type="password" class="fc2" id="vedit-password" name="new_student_password_no_autofill" autocomplete="new-password" data-lpignore="true" placeholder="Keep uploaded password">
+                  <button type="button" class="pw-eye" onclick="togglePwField('vedit-password',this)" tabindex="-1" title="Show password"><re-icon icon="eye" size="16"></re-icon></button>
+                </div>
+              </div>
+            </div>
+
+            <div class="form-grid" style="grid-template-columns:1fr;">
+              <div class="fg">
+                <label class="fl">Username <span class="auto-txt">(auto from email)</span></label>
+                <input type="text" class="fc2" id="vedit-username" readonly class="auto-block" placeholder="Auto from email">
+              </div>
+            </div>
           </div>
-          <div class="fg">
-            <label class="fl">First Name <span class="auto-txt">(auto)</span></label>
-            <input type="text" class="fc2" id="vedit-firstName" placeholder="First Name" readonly class="auto-block">
+
+          <!-- 2. TEACHER VERIFICATION FORM -->
+          <div id="vedit-teacher-section" style="display:none;">
+            <div class="form-grid" style="grid-template-columns: 1.4fr 0.8fr 0.8fr;">
+              <div class="fg">
+                <label class="fl">Full Name</label>
+                <input type="text" class="fc2" id="vedit-t-name" placeholder="Teacher name">
+              </div>
+              <div class="fg">
+                <label class="fl">First Name <span class="auto-txt">(auto)</span></label>
+                <input type="text" class="fc2" id="vedit-t-firstName" placeholder="Auto-split from name" readonly class="auto-block">
+              </div>
+              <div class="fg">
+                <label class="fl">Last Name <span class="auto-txt">(auto)</span></label>
+                <input type="text" class="fc2" id="vedit-t-lastName" placeholder="Auto-split from name" readonly class="auto-block">
+              </div>
+            </div>
+
+            <div class="form-grid form-grid-2">
+              <div class="fg">
+                <label class="fl">Employee ID</label>
+                <input type="text" class="fc2" id="vedit-t-empId" placeholder="EMP001">
+              </div>
+              <div class="fg">
+                <label class="fl">Track ID <span class="auto-txt">(auto)</span></label>
+                <input type="text" class="fc2" id="vedit-t-trackId" readonly class="auto-block" placeholder="Auto from Employee ID">
+              </div>
+            </div>
+
+            <div class="form-grid" style="grid-template-columns: 1.2fr 1fr 0.8fr;">
+              <div class="fg">
+                <div class="fl-row" style="display:flex;justify-content:space-between;align-items:center;">
+                  <label class="fl" style="margin-bottom:0;">Department</label>
+                  <button type="button" class="btn-copy-all" data-field="department" title="Copy department to all unverified rows">⧉ Copy to all</button>
+                </div>
+                <select class="fc2" id="vedit-t-dept" style="margin-top:4px;">
+                  <option value="">— Select —</option>
+                </select>
+              </div>
+              <div class="fg">
+                <div class="fl-row" style="display:flex;justify-content:space-between;align-items:center;">
+                  <label class="fl" style="margin-bottom:0;">Designation</label>
+                  <button type="button" class="btn-copy-all" data-field="designation" title="Copy designation to all unverified rows">⧉ Copy to all</button>
+                </div>
+                <select class="fc2" id="vedit-t-desig" style="margin-top:4px;">
+                  <option value="Assistant Professor">Assistant Professor</option>
+                  <option value="Associate Professor">Associate Professor</option>
+                  <option value="Professor">Professor</option>
+                  <option value="HOD">HOD</option>
+                  <option value="Lecturer">Lecturer</option>
+                </select>
+              </div>
+              <div class="fg">
+                <label class="fl">Gender</label>
+                <select class="fc2" id="vedit-t-gender">
+                  <option value="Male">Male</option>
+                  <option value="Female">Female</option>
+                  <option value="Other">Other</option>
+                  <option value="unspecified">Unspecified</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="fl" style="margin-top:8px;margin-bottom:6px;font-weight:700;">Teacher Login Details</div>
+            <div class="form-grid" style="grid-template-columns: 1.5fr 0.8fr 0.9fr;">
+              <div class="fg">
+                <label class="fl">Email</label>
+                <input type="email" class="fc2" id="vedit-t-email" placeholder="teacher@inst.edu">
+              </div>
+              <div class="fg">
+                <label class="fl" id="vedit-t-pw-label">Password</label>
+                <div class="pw-wrap">
+                  <input type="password" class="fc2" id="vedit-t-password" name="new_teacher_password_no_autofill" autocomplete="new-password" data-lpignore="true" placeholder="Keep uploaded password">
+                  <button type="button" class="pw-eye" onclick="togglePwField('vedit-t-password',this)" tabindex="-1" title="Show password"><re-icon icon="eye" size="16"></re-icon></button>
+                </div>
+              </div>
+              <div class="fg">
+                <label class="fl">Username</label>
+                <input type="text" class="fc2" id="vedit-t-username" placeholder="Auto from Email" readonly class="auto-block">
+              </div>
+            </div>
           </div>
-          <div class="fg">
-            <label class="fl">Last Name <span class="auto-txt">(auto)</span></label>
-            <input type="text" class="fc2" id="vedit-lastName" placeholder="Last Name" readonly class="auto-block">
+
+          <!-- 3. GENERIC FALLBACK SECTION (dept / class / subject) -->
+          <div id="vedit-generic-section" style="display:none;">
+            <div class="form-grid form-grid-2" id="vedit-generic-fields"></div>
           </div>
         </div>
 
-        <div class="form-grid form-grid-2">
-          <div class="fg">
-            <label class="fl">Register Number<span style="color:var(--red);">*</span></label>
-            <input type="text" class="fc2" id="vedit-regNo" placeholder="e.g. 2025104001">
-          </div>
-          <div class="fg">
-            <label class="fl">Department</label>
-            <select class="fc2" id="vedit-dept">
-              <option value="">— Select —</option>
-            </select>
-          </div>
-        </div>
-
-        <div class="form-grid" style="grid-template-columns: 1fr 1fr 1fr;">
-          <div class="fg">
-            <label class="fl">Track ID <span class="auto-txt">(auto)</span></label>
-            <input type="text" class="fc2" id="vedit-trackId" readonly class="auto-block" placeholder="Auto from Register No">
-          </div>
-          <div class="fg">
-            <label class="fl">Course Type <span class="auto-txt">(auto)</span></label>
-            <input type="text" class="fc2" id="vedit-courseType" readonly class="auto-block">
-          </div>
-          <div class="fg">
-            <label class="fl">Branch <span class="auto-txt">(auto)</span></label>
-            <input type="text" class="fc2" id="vedit-branch" readonly class="auto-block">
-          </div>
-        </div>
-
-        <div class="form-grid" style="grid-template-columns: 1.2fr 1.2fr 1.4fr;">
-          <div class="fg">
-            <label class="fl">Academic Year</label>
-            <select class="fc2" id="vedit-year"></select>
-          </div>
-          <div class="fg">
-            <label class="fl">Batch<span style="color:var(--red);">*</span></label>
-            <select class="fc2" id="vedit-batch"></select>
-          </div>
-          <div class="fg">
-            <label class="fl">Class</label>
-            <select class="fc2" id="vedit-class"></select>
-          </div>
-        </div>
-
-        <div class="form-grid form-grid-2">
-          <div class="fg">
-            <label class="fl">Gender</label>
-            <select class="fc2" id="vedit-gender">
-              <option value="Male">Male</option>
-              <option value="Female">Female</option>
-              <option value="Other">Other</option>
-            </select>
-          </div>
-          <div class="fg">
-            <label class="fl">Dayscholar / Hosteller</label>
-            <select class="fc2" id="vedit-residency">
-              <option value="dayscholar">Dayscholar</option>
-              <option value="hostel">Hosteller</option>
-            </select>
-          </div>
-        </div>
-
-        <div class="fl" style="margin-top:10px;margin-bottom:6px;">Student Login Details</div>
-        <div class="form-grid form-grid-2">
-          <div class="fg">
-            <label class="fl">Email <span class="auto-txt">(editable)</span></label>
-            <input type="email" class="fc2" id="vedit-email" placeholder="Student email" autocomplete="off">
-          </div>
-          <div class="fg">
-            <label class="fl">Initial Password</label>
-            <div class="pw-wrap">
-              <input type="password" class="fc2" id="vedit-password" placeholder="Keep uploaded password">
-              <button type="button" class="pw-eye" onclick="togglePwField('vedit-password',this)" tabindex="-1" title="Show password"><re-icon icon="eye" size="16"></re-icon></button>
+        <!-- RIGHT: LIVE CHECKS & DIFF PANEL -->
+        <div class="vedit-right-col" id="vedit-checks-col">
+          <div class="vedit-checks-panel">
+            <div class="vedit-checks-header">
+              <re-icon icon="shield-check" size="14"></re-icon>
+              <span>Automated Checks &amp; Validation</span>
+              <span class="vedit-checks-badge checking" id="vedit-checks-badge">Checking…</span>
+            </div>
+            <div class="vedit-checks-body" id="vedit-checks-list">
+              <div style="font-size:12px;color:var(--tmu,#5a7a5a);padding:6px 0;">Running checks…</div>
+            </div>
+            <div class="vedit-diffs-section" id="vedit-diffs-section" style="display:none;">
+              <div class="vedit-diffs-header">
+                <re-icon icon="edit-2" size="12"></re-icon> <span>Edits &amp; Diffs</span>
+              </div>
+              <div class="vedit-diffs-body" id="vedit-diffs-list"></div>
             </div>
           </div>
         </div>
-
-        <div class="form-grid" style="grid-template-columns:1fr;">
-          <div class="fg">
-            <label class="fl">Username <span class="auto-txt">(auto from email)</span></label>
-            <input type="text" class="fc2" id="vedit-username" readonly class="auto-block" placeholder="Auto from email">
-          </div>
-        </div>
-      </div>
-
-      <!-- 2. TEACHER VERIFICATION FORM -->
-      <div id="vedit-teacher-section" style="display:none;">
-        <div class="form-grid" style="grid-template-columns: 1.4fr 0.8fr 0.8fr;">
-          <div class="fg">
-            <label class="fl">Full Name</label>
-            <input type="text" class="fc2" id="vedit-t-name" placeholder="Teacher name">
-          </div>
-          <div class="fg">
-            <label class="fl">First Name <span class="auto-txt">(auto)</span></label>
-            <input type="text" class="fc2" id="vedit-t-firstName" placeholder="Auto-split from name" readonly class="auto-block">
-          </div>
-          <div class="fg">
-            <label class="fl">Last Name <span class="auto-txt">(auto)</span></label>
-            <input type="text" class="fc2" id="vedit-t-lastName" placeholder="Auto-split from name" readonly class="auto-block">
-          </div>
-        </div>
-
-        <div class="form-grid form-grid-2">
-          <div class="fg">
-            <label class="fl">Employee ID</label>
-            <input type="text" class="fc2" id="vedit-t-empId" placeholder="EMP001">
-          </div>
-          <div class="fg">
-            <label class="fl">Track ID <span class="auto-txt">(auto)</span></label>
-            <input type="text" class="fc2" id="vedit-t-trackId" readonly class="auto-block" placeholder="Auto from Employee ID">
-          </div>
-        </div>
-
-        <div class="form-grid" style="grid-template-columns: 1.2fr 1fr 0.8fr;">
-          <div class="fg">
-            <label class="fl">Department</label>
-            <select class="fc2" id="vedit-t-dept">
-              <option value="">— Select —</option>
-            </select>
-          </div>
-          <div class="fg">
-            <label class="fl">Designation</label>
-            <select class="fc2" id="vedit-t-desig">
-              <option value="Assistant Professor">Assistant Professor</option>
-              <option value="Associate Professor">Associate Professor</option>
-              <option value="Professor">Professor</option>
-              <option value="HOD">HOD</option>
-              <option value="Lecturer">Lecturer</option>
-            </select>
-          </div>
-          <div class="fg">
-            <label class="fl">Gender</label>
-            <select class="fc2" id="vedit-t-gender">
-              <option value="Male">Male</option>
-              <option value="Female">Female</option>
-              <option value="Other">Other</option>
-              <option value="unspecified">Unspecified</option>
-            </select>
-          </div>
-        </div>
-
-        <div class="fl" style="margin-top:10px;margin-bottom:6px;">Teacher Login Details</div>
-        <div class="form-grid" style="grid-template-columns: 1.5fr 0.6fr 0.9fr;">
-          <div class="fg">
-            <label class="fl">Email</label>
-            <input type="email" class="fc2" id="vedit-t-email" placeholder="teacher@inst.edu">
-          </div>
-          <div class="fg">
-            <label class="fl">Password</label>
-            <div class="pw-wrap">
-              <input type="password" class="fc2" id="vedit-t-password" placeholder="Keep uploaded password">
-              <button type="button" class="pw-eye" onclick="togglePwField('vedit-t-password',this)" tabindex="-1" title="Show password"><re-icon icon="eye" size="16"></re-icon></button>
-            </div>
-          </div>
-          <div class="fg">
-            <label class="fl">Username</label>
-            <input type="text" class="fc2" id="vedit-t-username" placeholder="Auto from Email" readonly class="auto-block">
-          </div>
-        </div>
-      </div>
-
-      <!-- 3. GENERIC FALLBACK SECTION -->
-      <div id="vedit-generic-section" style="display:none;">
-        <div class="form-grid form-grid-2" id="vedit-generic-fields"></div>
       </div>
 
       <!-- Credential Email Notice -->
-      <div class="stg-mail-notice" id="vedit-mail-notice" style="margin-top:16px;">
+      <div class="stg-mail-notice" id="vedit-mail-notice" style="margin-top:14px;">
         <re-icon icon="mail"></re-icon>
-        <div>
-          <b>Automated Credential Email:</b> Clicking "Verify &amp; Save Details" confirms this entry for commitment and dispatches initial credentials to their registered email address.
+        <div id="vedit-mail-notice-text">
+          <b>Automated Credential Email:</b> Clicking "Verify &amp; Mail Credentials" confirms this entry and dispatches initial credentials to their registered email address.
         </div>
       </div>
 
-      <!-- Form Actions -->
-      <div class="form-actions" style="margin-top:20px;">
-        <button type="button" class="btn-form-ghost" onclick="closeVerifyEditModal()">Cancel</button>
-        <button type="button" class="btn-form-pri" id="btn-submit-verify" onclick="submitVerifyEntry()">
-          <re-icon icon="check"></re-icon> Verify &amp; Save Details
-        </button>
+      <!-- Mandatory Confirmation Tickbox (Hidden per user preference - direct button verification) -->
+      <div class="vedit-confirm-box" id="vedit-confirm-box" style="display:none;margin-top:12px;padding:10px 14px;background:var(--w-bg,#f0f2f5);border:1px solid var(--w-border,#e9edef);border-radius:8px;">
+        <label style="display:flex;align-items:center;gap:10px;font-size:12.5px;cursor:pointer;user-select:none;margin:0;">
+          <input type="checkbox" id="vedit-confirm-tick" style="width:16px;height:16px;accent-color:var(--w-teal,#00a884);cursor:pointer;" checked>
+          <span id="vedit-confirm-text">I have checked name, identifier, department and credentials</span>
+        </label>
       </div>
+
+      <!-- Form Actions (Prev, Cancel, Verify) -->
+      <div class="form-actions" style="margin-top:16px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
+        <div style="display:flex;gap:8px;">
+          <button type="button" class="btn-form-ghost" id="btn-verify-prev" onclick="Bulk.navVerifyRow(-1)">‹ Prev</button>
+          <button type="button" class="btn-form-ghost" id="btn-verify-skip" style="display:none;" onclick="Bulk.navVerifyRow(1)">Skip ›</button>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button type="button" class="btn-form-ghost" onclick="closeVerifyEditModal()">Cancel</button>
+          <button type="button" class="btn-form-pri" id="btn-submit-verify" onclick="submitVerifyEntry()" disabled>
+            <re-icon icon="check"></re-icon> <span id="vedit-submit-label">Verify &amp; Mail Credentials  ⏎</span>
+          </button>
+        </div>
+      </div>
+      </form>
     </div>
   </div>
 
@@ -556,12 +646,19 @@
   <script src="js/pages/bulk/bulk.config.js?v=20261021"></script>
   <script src="js/pages/bulk/bulk.api.js?v=20261021"></script>
   <script src="js/pages/bulk/bulk.store.js?v=20261021"></script>
+  <script src="js/pages/bulk/bulk.avatar.js?v=20261025"></script>
+  <script src="js/pages/bulk/bulk.row.js?v=20261025"></script>
+  <script src="js/pages/bulk/bulk.stage.js?v=20261025"></script>
+  <script src="js/pages/bulk/bulk.reveal.js?v=20261025"></script>
   <script src="js/pages/bulk/bulk.sidebar.js?v=20261021"></script>
   <script src="js/pages/bulk/bulk.cards.js?v=20261021"></script>
   <script src="js/pages/bulk/bulk.transcript.js?v=20261021"></script>
   <script src="js/pages/bulk/bulk.drawer.js?v=20261021"></script>
+  <script src="js/pages/bulk/bulk.grievance.js?v=20261025"></script>
+  <script src="js/pages/bulk/bulk.menu.js?v=20261025"></script>
   <script src="js/pages/bulk/bulk.verify-modal.js?v=20261021"></script>
   <script src="js/pages/bulk/bulk.restore.js?v=20261021"></script>
+  <script src="js/pages/bulk/bulk.router.js?v=20261021"></script>
   <script src="js/pages/bulk/bulk.boot.js?v=20261021"></script>
 </body>
 </html>

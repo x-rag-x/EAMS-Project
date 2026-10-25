@@ -1,3 +1,32 @@
+## 🔹 `v2.5.1` — 25 October 2026 *(Bulk Operations Restructure V2)*
+
+### **WhatsApp-Style Chat Interface for Bulk Operations**
+- **Complete UI/UX Overhaul**: Built an asynchronous, WhatsApp-style conversational workspace featuring chat avatars with 12 deterministic WCAG hues, system glyphs, message side alignment rules (viewer right, others left), delivery/seen ticks, date grouping chips, and subtle doodle wallpaper.
+- **Track ID Engine (`TR-BK{CODE}-{5}`)**: Canonical 5-character track IDs for each import type (`TR-BKSTD-`, `TR-BKTCH-`, `TR-BKDEP-`, `TR-BKCLS-`, `TR-BKSBJ-`) with deep linking via `?bulk={trackId}` and legacy `?chat=` URL backwards compatibility.
+- **One Google Drive Folder per Chat**: Idempotently provisions a dedicated Google Drive folder named `{trackId}` under `Uploads/`, housing raw sheets, subsequent uploads, and encrypted committed archives (`{trackId}_ARCHIVE.zip`). Drive operations are strictly non-destructive (zero file/folder deletion or trashing).
+
+### **6-Stage Processing Engine & Staging Summary**
+- **Single Status Line**: Dynamic pipeline engine (`services/bulk/stage.js`) running sequential validation stages (*Saving file to GridFS → Reading sheet → Validating headers → Parsing data → Resolving dependencies → Staging records*) with real-time SSE progress tracking and a single cross-fading status line.
+- **Interactive Guide & Live Templates**: Dynamic schema-driven column guide with downloadable starter templates for all 5 entities (students, teachers, departments, classes, subjects), example rows, and common pitfalls.
+- **Staging Summary & Skipped Rows Checklist**: Total/Eligible/Skipped tiles, admin-only Drive strip with viewer redaction, exportable `.csv` skipped report, and a structured checklist for resolving skipped rows with inline problem reports.
+- **Grievance & Error Reporting System**: Contextual error reporting modal allowing staff to copy formatted issue reports to the clipboard or dispatch them directly to administrators. Includes sticky admin alert banners and slide-over grievances drawer.
+
+### **Universal Verification, Admin Review & Final Commit**
+- **Universal Verification Drawer & Modal**: Step-by-step verification modal with live validator dry-run checks (`/verify-entry/check`), visual diff chips, mandatory confirmation gates, keyboard shortcuts (Enter/Esc), and `copy-to-all` bulk population for unverified records.
+- **Configurable Credential Mail Toggle**: Introduced `models.bulkMailCredentials` setting to govern automated credentials delivery, enforcing mandatory password rules when email delivery is disabled.
+- **Admin Review Stage (`sudo_review`)**: Pre-commit review stage allowing Sudo Administrators to inspect records, perform administrative edits, remove duplicate rows, or clear optional fields across batches with event logging. Mailed rows are locked against credential mutation.
+- **6-Stage Commit Pipeline**: Final approval initiates sequential database writing, encrypted Google Drive archiving, awaited audit logging, chat closure, and uploader notifications.
+
+### **3-Dot Chat Manager, Non-Destructive Undo & Invariants**
+- **3-Dot Dropdown Popover & Participant Management**: Sidebar and header 3-dot manager supporting participant invitations (up to 10 members, Viewer/Collaborator levels, live search, in-app notifications), rename, and copy link.
+- **Header Avatar Stack**: Interactive overlapping participant avatars in the chat header with member counts and click-to-manage dialog.
+- **Non-Destructive Undo Engine**: Atomic CAS reset returning workflow status to `draft`, incrementing `epoch: +1`, preserving uploaded files, Drive items, committed records, and message history inside collapsible `<details class="epoch-fold">` previous attempt containers.
+- **Restage Stored Spreadsheet**: Allows re-scanning previously uploaded spreadsheets from GridFS without re-uploading.
+- **Database-Only Storage Guard**: Zero client-side storage (`localStorage`/`sessionStorage`/cookies/IndexedDB) invariant enforced across the bulk application.
+- **Idempotent Migration & Rollback (`scripts/migrateBulkV2.js`)**: Supports `--dry-run`, `--apply`, and `--rollback`.
+
+---
+
 ## 🔹 `v2.5.0` — 24 October 2026 *(Long due features)*
 
 ### **UI/UX Modernization & Reicon SVG Design System**

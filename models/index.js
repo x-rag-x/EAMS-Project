@@ -42,9 +42,11 @@ const trustDisputeModels = require('./trustDispute.model');
 const attendanceAdjustmentModels = require('./attendanceAdjustment.model');
 const deviceShareCaseModels = require('./deviceShareCase.model');
 const bulkImportBatchModels = require('./bulkImportBatch.model');
+const bulkChatSnapshotModels = require('./bulkChatSnapshot.model');
 
 module.exports = {
   ...bulkImportBatchModels,
+  ...bulkChatSnapshotModels,
   ...userModels,
   ...departmentModels,
   ...classModels,

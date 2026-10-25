@@ -130,10 +130,25 @@
         var row = pageRows[j];
         var d = row.data || {};
         var isVer = Boolean(row.isVerified);
-        var name = d.fullName || d.name || 'Row ' + row.rowNumber;
+        var name = d.fullName || d.name || ('Row ' + row.rowNumber);
         var subInfo = d.class || d.department || d.designation || '';
         var ident = d.registerNo || d.employeeNo || d.code || '—';
         var track = d.trackId || '';
+
+        var batchType = batch.type;
+        if (batchType === 'class') {
+          name = d.name || d.className || ('Class Row ' + row.rowNumber);
+          subInfo = [d.department || d.deptName || d.deptCode, d.batch, d.sem ? ('Sem ' + d.sem) : ''].filter(Boolean).join(' · ');
+          ident = (d.hallNo ? ('Hall: ' + d.hallNo) : '') || (d.advisor ? ('Adv: ' + d.advisor) : '—');
+        } else if (batchType === 'dept') {
+          name = d.name || ('Dept Row ' + row.rowNumber);
+          subInfo = [d.courseType, d.branch, d.category].filter(Boolean).join(' · ');
+          ident = d.code ? ('Code: ' + d.code) : (d.number ? ('Tel: ' + d.number) : '—');
+        } else if (batchType === 'subject') {
+          name = d.name || ('Subject Row ' + row.rowNumber);
+          subInfo = [d.department || d.deptName, d.sem ? ('Sem ' + d.sem) : '', d.type].filter(Boolean).join(' · ');
+          ident = d.code ? ('Code: ' + d.code) : '—';
+        }
 
         tableHtml += '<tr style="border-bottom:1px solid var(--brl);background:' + (isVer ? '#f0fdf4' : '#ffffff') + ';">' +
           '<td style="padding:10px 14px;font-weight:600;color:var(--tmu);">' + row.rowNumber + '</td>' +
@@ -150,9 +165,12 @@
               ? '<span class="chat-status-pill status-verified_all" style="display:inline-flex;align-items:center;gap:4px;"><re-icon icon="check" size="12"></re-icon> Verified</span>'
               : '<span class="chat-status-pill status-verifying" style="display:inline-flex;align-items:center;gap:4px;"><re-icon icon="clock" size="12"></re-icon> Pending</span>') +
           '</td>' +
-          '<td style="padding:10px 14px;text-align:right;">' +
+          '<td style="padding:10px 14px;text-align:right;white-space:nowrap;">' +
             '<button type="button" class="btn-out" style="padding:5px 12px;font-size:11.5px;" data-action="open-verify-modal" data-row-num="' + row.rowNumber + '">' +
               '<re-icon icon="edit-3" size="12"></re-icon> ' + (isVer ? 'Edit' : 'Verify') +
+            '</button>' +
+            '<button type="button" class="btn-out text-danger" style="padding:5px 10px;font-size:11.5px;margin-left:6px;color:#dc2626;border-color:#fca5a5;" data-action="delete-verify-row" data-row-num="' + row.rowNumber + '">' +
+              '<re-icon icon="trash-2" size="12"></re-icon> Delete' +
             '</button>' +
           '</td>' +
         '</tr>';
@@ -221,6 +239,35 @@
           if (typeof root.Bulk.openVerifyEditModal === 'function') {
             root.Bulk.openVerifyEditModal(rowNum);
           }
+          return;
+        }
+
+        var delBtn = e.target.closest('[data-action="delete-verify-row"]');
+        if (delBtn) {
+          var delRowNum = parseInt(delBtn.getAttribute('data-row-num'), 10);
+          var batch = store.getState().batch;
+          if (!batch || !batch._id || isNaN(delRowNum)) return;
+          var confFn = (typeof root.Bulk !== 'undefined' && root.Bulk.util && typeof root.Bulk.util.safeConfirm === 'function') ? root.Bulk.util.safeConfirm :
+                       (typeof root.confirmModal === 'function') ? root.confirmModal : window.confirm;
+          Promise.resolve(confFn('Skip row ' + delRowNum + ' from importing? This record will be removed from the batch.')).then(function (ok) {
+            if (!ok) return;
+            delBtn.disabled = true;
+            if (typeof root.showToast === 'function') root.showToast('Removing row ' + delRowNum + '…');
+
+            api.removeRow(batch._id, delRowNum, 'Skipped from importing').then(function (res) {
+              var updatedEligible = (batch.eligibleRows || []).filter(function (r) { return r.rowNumber !== delRowNum; });
+              var updatedBatch = Object.assign({}, batch, {
+                eligibleRows: updatedEligible,
+                eligibleCount: updatedEligible.length,
+                verifiedCount: updatedEligible.filter(function (r) { return r.isVerified; }).length
+              });
+              store.setState({ batch: updatedBatch });
+              if (typeof root.showToast === 'function') root.showToast('Row ' + delRowNum + ' skipped from importing.');
+            }).catch(function (err) {
+              delBtn.disabled = false;
+              if (typeof root.showToast === 'function') root.showToast('Could not remove row: ' + err.message, 'warn');
+            });
+          });
           return;
         }
 

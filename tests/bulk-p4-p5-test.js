@@ -66,14 +66,11 @@ assert.strictEqual(getStep('uploading', 'student'), 0);
 assert.strictEqual(getStep('staged', 'student'), 1);
 assert.strictEqual(getStep('pending_sudo_initial', 'student'), 2);
 assert.strictEqual(getStep('verifying', 'student'), 3);
-assert.strictEqual(getStep('verified_all', 'student'), 4);
-assert.strictEqual(getStep('committing', 'student'), 4);
-assert.strictEqual(getStep('committed', 'student'), 5);
-
-// Dept/class/subject skip verification
-assert.strictEqual(getStep('sudo_initial_approved', 'dept'), 4);
-assert.strictEqual(getStep('sudo_initial_approved', 'class'), 4);
-assert.strictEqual(getStep('sudo_initial_approved', 'subject'), 4);
+assert.strictEqual(getStep('verified_all', 'student'), 3);
+assert.strictEqual(getStep('sudo_review', 'student'), 4);
+assert.strictEqual(getStep('pending_final_approval', 'student'), 5);
+assert.strictEqual(getStep('committing', 'student'), 6);
+assert.strictEqual(getStep('committed', 'student'), 6);
 console.log('     ✓ Stepper mapping adheres to verification skipping specifications.');
 
 // 4. Test Student & Teacher Track ID Computation in Util

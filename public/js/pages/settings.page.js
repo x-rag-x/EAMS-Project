@@ -290,6 +290,7 @@ function getCardValues(cardKey) {
       modelExportSheet: document.getElementById('mod-export') ? document.getElementById('mod-export').checked : true,
       moduleDelUseAdminPass: document.getElementById('mod-delpass') ? document.getElementById('mod-delpass').checked : true,
       modelSmartBoards: document.getElementById('mod-smartboards') ? document.getElementById('mod-smartboards').checked : true,
+      bulkMailCredentials: document.getElementById('mod-bulk-mail') ? document.getElementById('mod-bulk-mail').checked : true,
     };
   } else if (cardKey === 'security') {
     return {
@@ -518,6 +519,7 @@ function loadAllSettings() {
       setChk('mod-export', mod.modelExportSheet !== false);
       setChk('mod-delpass', mod.moduleDelUseAdminPass !== false);
       setChk('mod-smartboards', mod.modelSmartBoards !== false);
+      setChk('mod-bulk-mail', mod.bulkMailCredentials !== false);
 
       // 5. Security
       var sec = data.security || {};
@@ -714,6 +716,7 @@ function restoreCardValues(cardKey, snapshot) {
     setChk('mod-export', d.modelExportSheet !== false);
     setChk('mod-delpass', d.moduleDelUseAdminPass !== false);
     setChk('mod-smartboards', d.modelSmartBoards !== false);
+    setChk('mod-bulk-mail', d.bulkMailCredentials !== false);
   } else if (cardKey === 'security') {
     setChk('sec-forcepw', d.forcePasswordChange !== false);
     setChk('sec-strongpw', d.requireStrongPassword !== false);
@@ -1635,6 +1638,13 @@ var KEY_EXPLANATIONS = {
     "desc": "Automated escalation trigger when an HOD fails to review a pending leave request within timeout.",
     "trueEffect": "Unreviewed leave requests automatically escalate to the Principal's dashboard after the deadline.",
     "falseEffect": "Requests remain in the HOD's approval queue indefinitely until explicit manual action is taken."
+  },
+  "bulkMailCredentials": {
+    "type": "boolean",
+    "name": "Bulk Import Automated Credential Emails",
+    "desc": "Feature switch controlling whether credentials are automatically emailed to newly verified accounts during bulk imports.",
+    "trueEffect": "Sends credential emails with initial access credentials to registered addresses upon single-row verification.",
+    "falseEffect": "Disables credential email dispatch; requires password to be provided manually per row."
   },
   "modelLeave": {
     "type": "boolean",

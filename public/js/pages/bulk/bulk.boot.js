@@ -35,9 +35,42 @@
 
     var typeMeta = config.TYPES[batch.type] || { label: batch.type, icon: 'upload' };
     if (titleEl) titleEl.textContent = batch.title || (typeMeta.label + ' Import');
+    var copyBtn = document.getElementById('btn-header-copy-link');
+    if (copyBtn) {
+      copyBtn.style.display = batch ? 'inline-flex' : 'none';
+    }
+
+    var menuBtn = document.getElementById('btn-header-menu');
+    if (menuBtn) {
+      menuBtn.style.display = batch ? 'inline-flex' : 'none';
+      if (batch) {
+        menuBtn.onclick = function (e) {
+          e.stopPropagation();
+          if (root.Bulk.menu) root.Bulk.menu.openMenu(menuBtn, batch._id);
+        };
+      } else {
+        menuBtn.onclick = null;
+      }
+    }
+
+    if (root.Bulk.menu && typeof root.Bulk.menu.renderHeaderParticipants === 'function') {
+      root.Bulk.menu.renderHeaderParticipants(batch);
+    }
+
     if (trackEl) {
-      trackEl.style.display = 'inline-block';
-      trackEl.textContent = batch.batchTrackId || batch.trackId || ('ID: ' + String(batch._id).slice(-6));
+      if (batch) {
+        var tid = batch.batchTrackId || batch.trackId || ('ID: ' + String(batch._id).slice(-6));
+        trackEl.style.display = 'inline-block';
+        trackEl.textContent = tid;
+        trackEl.title = 'Click to copy shareable link';
+        trackEl.style.cursor = 'pointer';
+        trackEl.onclick = function () {
+          if (root.Bulk.router) root.Bulk.router.copyLink(tid);
+        };
+      } else {
+        trackEl.style.display = 'none';
+        trackEl.onclick = null;
+      }
     }
 
     if (stepperEl) {
@@ -71,6 +104,28 @@
   var currentStreamAbort = null;
   var isCreatingBatch = false;
 
+  function renderNotFound(targetId) {
+    var transcript = document.getElementById('chat-transcript');
+    var dock = document.getElementById('chat-dock');
+    if (dock) dock.style.display = 'none';
+    if (!transcript) return;
+
+    transcript.innerHTML =
+      '<div class="chat-not-found" style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:360px;padding:48px 20px;text-align:center;">' +
+        '<div style="width:54px;height:54px;border-radius:50%;background:var(--gLt);color:var(--gD);display:flex;align-items:center;justify-content:center;margin-bottom:16px;">' +
+          '<re-icon icon="alert-circle" size="26"></re-icon>' +
+        '</div>' +
+        '<h3 style="font-size:17px;font-weight:700;color:var(--td);margin:0 0 8px 0;">Import Not Found</h3>' +
+        '<p style="font-size:13px;color:var(--tmu);max-width:340px;margin:0 0 20px 0;line-height:1.5;">' +
+          'This import doesn\'t exist or you don\'t have permission to access it.' +
+        '</p>' +
+        '<button type="button" class="btn-new-chat" data-action="new-import" style="padding:9px 18px;font-size:13px;">' +
+          '<re-icon icon="plus" size="15"></re-icon>' +
+          '<span>Start a New Import</span>' +
+        '</button>' +
+      '</div>';
+  }
+
   function openChat(batchId, skipHistoryPush) {
     if (currentStreamAbort) {
       try { currentStreamAbort.abort(); } catch (e) {}
@@ -78,10 +133,10 @@
     }
 
     if (!batchId) {
-      store.setState({ activeId: null, batch: null, messages: [], progress: null, activeTab: 'chat' });
+      store.setState({ activeId: null, batch: null, messages: [], progress: null, activeTab: 'chat', notFound: false });
       updateHeader(null);
-      if (!skipHistoryPush && window.history.pushState) {
-        window.history.pushState({}, '', window.location.pathname);
+      if (!skipHistoryPush && root.Bulk.router) {
+        root.Bulk.router.setBulk(null);
       }
       return;
     }
@@ -98,8 +153,8 @@
       drawerOpen: false
     });
 
-    if (!skipHistoryPush && window.history.pushState) {
-      window.history.pushState({}, '', '?chat=' + encodeURIComponent(batchId));
+    if (!skipHistoryPush && root.Bulk.router) {
+      root.Bulk.router.setBulk(batchId);
     }
 
     // Load batch details and messages in parallel with cancellation signal
@@ -116,13 +171,23 @@
         throw new Error('Batch data could not be loaded');
       }
 
+      var trackId = batchData.batchTrackId || batchData.trackId;
+      if (trackId && root.Bulk.router) {
+        root.Bulk.router.setBulk(trackId, { replace: true });
+      }
+
       store.setState({
+        activeId: batchData._id,
         batch: batchData,
         messages: msgsData,
-        progress: batchData.progress || null
+        progress: batchData.progress || null,
+        notFound: false
       });
 
       updateHeader(batchData);
+      if (root.Bulk.grievance && typeof root.Bulk.grievance.checkAdminBanner === 'function') {
+        root.Bulk.grievance.checkAdminBanner(batchData, store.getState().user);
+      }
 
       // Paginate remaining messages if batch has more messages than initial page
       var maxSeq = msgsData.length > 0 ? (msgsData[msgsData.length - 1].seq || 0) : 0;
@@ -162,14 +227,27 @@
           if (event.type === 'progress') {
             store.setState({ progress: event.data });
           } else if (event.type === 'message') {
-            var newMsgs = (st.messages || []).slice();
-            var exists = newMsgs.some(function (m) {
-              return (m._id && event.data._id && m._id === event.data._id) ||
-                     (m.seq !== undefined && event.data.seq !== undefined && m.seq === event.data.seq);
-            });
-            if (!exists) {
-              newMsgs.push(event.data);
-              store.setState({ messages: newMsgs });
+            var handleIncomingMessage = function (msg) {
+              var curMsgs = (store.getState().messages || []).slice();
+              var exists = curMsgs.some(function (m) {
+                return (m._id && msg._id && m._id === msg._id) ||
+                       (m.seq !== undefined && msg.seq !== undefined && m.seq === msg.seq);
+              });
+              if (!exists) {
+                curMsgs.push(msg);
+                store.setState({ messages: curMsgs });
+              }
+            };
+
+            if (root.Bulk.reveal && typeof root.Bulk.reveal.enqueue === 'function') {
+              root.Bulk.reveal.enqueue([event.data], {
+                isLive: true,
+                onCommit: function (committed) {
+                  committed.forEach(handleIncomingMessage);
+                }
+              });
+            } else {
+              handleIncomingMessage(event.data);
             }
             // If the message brings a newer sequence number, refresh batch
             if (event.data && event.data.seq && (!st.batch || event.data.seq > (st.batch.messageSeq || 0))) {
@@ -184,6 +262,14 @@
                   updateHeader(freshBatch);
                 }
               }).catch(function () {});
+            }
+          } else if (event.type === 'grievance') {
+            if (st.batch) {
+              var patchedBatch = Object.assign({}, st.batch, { grievance: event.data });
+              store.setState({ batch: patchedBatch });
+              if (root.Bulk.grievance && typeof root.Bulk.grievance.checkAdminBanner === 'function') {
+                root.Bulk.grievance.checkAdminBanner(patchedBatch, store.getState().user);
+              }
             }
           } else if (event.type === 'status') {
             // F-15: Refetch the complete batch from server so counts, eligibleRows, and roadmap reflect state change
@@ -213,6 +299,20 @@
                 return r;
               });
               store.setState({ batch: Object.assign({}, st.batch, { eligibleRows: updatedRows }) });
+            }
+          } else if (event.type === 'reset') {
+            openChat(batchId, true);
+          } else if (event.type === 'participants') {
+            if (st.batch) {
+              var pBatch = Object.assign({}, st.batch, { participants: event.data });
+              store.setState({ batch: pBatch });
+              updateHeader(pBatch);
+            }
+          } else if (event.type === 'closed') {
+            if (st.batch) {
+              var cBatch = Object.assign({}, st.batch, { closed: event.data, status: 'committed' });
+              store.setState({ batch: cBatch });
+              updateHeader(cBatch);
             }
           } else if (event.type === 'snapshot') {
             if (event.data) {
@@ -251,7 +351,17 @@
       }
     }).catch(function (err) {
       if (abortController.signal.aborted) return;
-      if (typeof root.showToast === 'function') root.showToast('Failed to open chat: ' + err.message, 'warn');
+      console.warn('[Bulk] Failed to open chat:', err.message);
+      store.setState({
+        activeId: null,
+        batch: null,
+        messages: [],
+        progress: null,
+        notFound: true,
+        notFoundId: batchId
+      });
+      updateHeader(null);
+      renderNotFound(batchId);
     });
   }
 
@@ -266,17 +376,33 @@
       btn.style.pointerEvents = 'none';
     }
 
+    var transcript = document.getElementById('chat-transcript');
+    if (root.Bulk.reveal && typeof root.Bulk.reveal.showTyping === 'function' && transcript) {
+      root.Bulk.reveal.showTyping(transcript, 'Preparing for new bulk operation…');
+    }
+
     var typeMeta = config.TYPES[type] || { label: type };
     var title = typeMeta.label + ' Import - ' + new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 
+    var startTime = Date.now();
     api.createBatch(type, title).then(function (res) {
       var batch = res && res.data && res.data.batch ? res.data.batch : (res && res.batch ? res.batch : null);
-      if (batch && batch._id) {
-        root.Bulk.sidebar.refresh().then(function () {
-          openChat(batch._id);
-        });
+      if (batch && (batch.batchTrackId || batch._id)) {
+        var trackId = batch.batchTrackId || batch._id;
+        if (root.Bulk.router) root.Bulk.router.setBulk(trackId);
+        
+        var elapsed = Date.now() - startTime;
+        var holdTime = Math.max(0, 1200 - elapsed);
+        setTimeout(function () {
+          root.Bulk.sidebar.refresh().then(function () {
+            openChat(batch._id, true);
+          });
+        }, holdTime);
       }
     }).catch(function (err) {
+      if (root.Bulk.reveal && typeof root.Bulk.reveal.hideTyping === 'function' && transcript) {
+        root.Bulk.reveal.hideTyping(transcript);
+      }
       if (typeof root.showToast === 'function') root.showToast('Could not start import: ' + err.message, 'warn');
     }).finally(function () {
       isCreatingBatch = false;
@@ -408,19 +534,17 @@
       var rawSchema = results[1] || {};
       var schema = (rawSchema.data && rawSchema.data.schemas) ? rawSchema.data.schemas : (rawSchema.schemas || rawSchema.data || rawSchema);
       store.setState({ caps: caps, schema: schema });
+      root.Bulk.caps = caps;
 
       // Refresh sidebar list
       return root.Bulk.sidebar.refresh();
     }).then(function () {
       // Route based on URL query
-      var params = new URLSearchParams(window.location.search);
-      var chatId = params.get('chat');
-      var tab = params.get('tab') || params.get('page');
-
-      if (tab === 'restore' && isSudo) {
+      var route = root.Bulk.router ? root.Bulk.router.getRoute() : { tab: 'chat', id: null };
+      if (route.tab === 'restore' && isSudo) {
         switchTab('restore');
-      } else if (chatId) {
-        openChat(chatId, true);
+      } else if (route.id) {
+        openChat(route.id, true);
       } else {
         openChat(null, true);
       }
@@ -428,14 +552,12 @@
 
     // Browser navigation back/forward support
     window.addEventListener('popstate', function () {
-      var params = new URLSearchParams(window.location.search);
-      var chatId = params.get('chat');
-      var tab = params.get('tab');
-      if (tab === 'restore') {
+      var route = root.Bulk.router ? root.Bulk.router.getRoute() : { tab: 'chat', id: null };
+      if (route.tab === 'restore') {
         switchTab('restore');
       } else {
         switchTab('chat');
-        openChat(chatId, true);
+        openChat(route.id, true);
       }
     });
 
@@ -445,11 +567,25 @@
       if (!actionEl) return;
       var action = actionEl.getAttribute('data-action');
 
-      if (action === 'new-import') {
+      if (action === 'chat-menu') {
+        e.stopPropagation();
+        var cid = actionEl.getAttribute('data-chat-id') || (store.getState().batch && store.getState().batch._id);
+        if (cid && root.Bulk.menu) {
+          root.Bulk.menu.openMenu(actionEl, cid);
+        }
+      } else if (action === 'new-import') {
         openChat(null);
+      } else if (action === 'copy-link') {
+        var st = store.getState();
+        var curBatch = st.batch;
+        var trackId = curBatch ? (curBatch.batchTrackId || curBatch.trackId) : null;
+        if (trackId && root.Bulk.router) {
+          root.Bulk.router.copyLink(trackId);
+        }
       } else if (action === 'select-chat') {
+        var trackId = actionEl.getAttribute('data-track-id');
         var id = actionEl.getAttribute('data-chat-id');
-        if (id) openChat(id);
+        if (trackId || id) openChat(trackId || id);
       } else if (action === 'archive-chat') {
         e.stopPropagation();
         var archId = actionEl.getAttribute('data-chat-id');

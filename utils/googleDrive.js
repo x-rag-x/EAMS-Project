@@ -353,10 +353,46 @@ async function uploadBufferToDrive(buffer, fileName, mimeType, parentFolderId) {
   }
 }
 
+/**
+ * Finds an existing folder in Google Drive by its exact name under a specific parent folder.
+ * Defaults parent to the bulk Uploads/ folder if parentId is not specified.
+ */
+async function findFolderByName(name, parentId) {
+  try {
+    const token = await getDriveAccessToken();
+    if (!token) return null;
+
+    let targetParent = parentId;
+    if (!targetParent) {
+      const uploadsFolder = await getOrCreateBulkUploadsFolder();
+      targetParent = uploadsFolder ? uploadsFolder.folderId : BULK_BACKUP_FOLDER_ID;
+    }
+
+    const safeName = String(name || '').replace(/'/g, "\\'");
+    const q = encodeURIComponent(`'${targetParent}' in parents and name = '${safeName}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false`);
+    const res = await fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name)&spaces=drive`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    const data = await res.json();
+    if (data.files && data.files.length > 0) {
+      return {
+        folderId: data.files[0].id,
+        folderName: data.files[0].name,
+        folderUrl: `https://drive.google.com/drive/folders/${data.files[0].id}`
+      };
+    }
+    return null;
+  } catch (err) {
+    console.warn('[GoogleDrive] findFolderByName error:', err.message);
+    return null;
+  }
+}
+
 module.exports = {
   uploadFileToDrive,
   uploadBufferToDrive,
   createBatchFolder,
+  findFolderByName,
   getOrCreateBulkUploadsFolder,
   BACKUP_FOLDER_ID,
   BULK_BACKUP_FOLDER_ID,

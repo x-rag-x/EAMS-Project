@@ -47,6 +47,7 @@ function createTracker(batchId, kind = 'stage') {
     counters: { total: 0, processed: 0, eligible: 0, skipped: 0, committed: 0 },
     error: '',
     heartbeatAt: new Date(),
+    stage: { index: 0, total: 6, key: '', text: '', startedAt: null },
     phases: defs.map(d => ({
       key: d.key,
       label: LABELS[d.key] || d.key,
@@ -131,6 +132,20 @@ function createTracker(batchId, kind = 'stage') {
       }
       st.error = errorMsg;
       return flush(true);
+    },
+    setStage: (idx, total, key, text) => {
+      st.stage = {
+        index: idx,
+        total: total || 6,
+        key: key || '',
+        text: text || '',
+        startedAt: new Date()
+      };
+      return flush(true);
+    },
+    heartbeat: () => {
+      st.heartbeatAt = new Date();
+      return flush(false);
     }
   };
 }

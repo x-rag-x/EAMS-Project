@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { authMiddleware, requirePage } = require('../../middleware/auth');
-const { loadBatch } = require('../../services/bulk/access');
+const { loadBatch, isAdminRole } = require('../../services/bulk/access');
 const { bus } = require('../../services/bulk/progress');
 
 /**
@@ -16,11 +16,30 @@ router.get('/batches/:id/events', authMiddleware, requirePage('bulk', 'view'), l
     'X-Accel-Buffering': 'no'
   });
 
+  const isViewerAdmin = isAdminRole(req.user);
+
   const sendEvent = (event) => {
     try {
       const idPrefix = event.seq ? `id: ${event.seq}\n` : '';
       const eventName = event.type || 'message';
-      const dataPayload = JSON.stringify(event.data || {});
+      let eventData = event.data || {};
+
+      // Server-side redaction for non-admin viewers
+      if (!isViewerAdmin) {
+        if (eventName === 'provisioned') {
+          eventData = {
+            status: eventData.status || 'ready',
+            provisioningState: eventData.provisioningState || 'ready'
+          };
+        } else if (eventName === 'message' && eventData.payload) {
+          const p = { ...eventData.payload };
+          delete p.driveUrl;
+          delete p.driveFolder;
+          eventData = { ...eventData, payload: p };
+        }
+      }
+
+      const dataPayload = JSON.stringify(eventData);
       res.write(`${idPrefix}event: ${eventName}\ndata: ${dataPayload}\n\n`);
       if (typeof res.flush === 'function') res.flush();
     } catch (err) {
