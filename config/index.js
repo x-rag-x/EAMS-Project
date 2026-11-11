@@ -23,6 +23,13 @@ const isExplicitDev = process.env.NODE_ENV === 'development';
 const nodeEnv = isExplicitDev ? 'development' : (process.env.NODE_ENV || 'production');
 process.env.NODE_ENV = nodeEnv;
 
+
+let ttLinkSecret = process.env.TT_LINK_SECRET;
+if (!ttLinkSecret || !ttLinkSecret.trim()) {
+  console.warn('[SECURITY WARNING] TT_LINK_SECRET is not set in environment. Using ephemeral fallback secret.');
+  ttLinkSecret = (process.env.JWT_SECRET || 'dev-secret') + '-tt-links';
+}
+
 module.exports = {
   // MongoDB database connection settings
   MONGO_URI: process.env.MONGO_URI,
@@ -53,4 +60,6 @@ module.exports = {
   PRODUCTION_DOMAIN: process.env.PRODUCTION_DOMAIN || '',
   QRID_ENCRYPTION_KEY: process.env.QRID_ENCRYPTION_KEY,
   SID_ENCRYPTION_KEY: process.env.SID_ENCRYPTION_KEY,
+  TT_LINK_SECRET: ttLinkSecret,
+  isDevServer: () => process.env.NODE_ENV !== 'production',
 };

@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const mongoose = require('mongoose');
 const M = require('../models');
-const { authMiddleware, requireRole, requirePage } = require('../middleware/auth');
+const { authMiddleware, requireRole, requirePage, scopeFilter, assertInScope } = require('../middleware/auth');
 const {
   attendanceClearLimiter,
   attendanceMarkLimiter,
@@ -11,13 +11,17 @@ const {
   attendanceUpdateIpLimiter
 } = require('../utils/rateLimiters');
 const { sanitizeToString } = require('../utils/sanitizeQuery');
+const countService = require('../services/countService');
 const { checkAttendanceMarkGuard, getCachedSettings } = require('../middleware/portalGuard');
 const { verifyTeacherAssignment } = require('../utils/assignmentAuth');
-const { isSudoAdmin } = require('../utils/access');
+const { isSudoAdmin, isAdminUser, hasInstitutionReach } = require('../utils/access');
+const escapeRegex = s => String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const { resolveEntitlements, enforceAttendancePolicy } = require('../utils/attendancePolicy');
 const { onAttendanceSaved } = require('../utils/sessionHooks');
 const { logAction } = require('../utils/logAction');
-const { todayInInstitutionTz, todayIST } = require('../utils/institutionTime');
+const { getSetting } = require('../utils/settingsCache');
+const { sendError } = require('../utils/sendError');
+const { todayInInstitutionTz, todayIST, getStartOfInstitutionDaySync, getEndOfInstitutionDaySync } = require('../utils/institutionTime');
 
 function parseYearNum(val) {
   if (typeof val === 'number') return val;
@@ -88,6 +92,293 @@ router.get('/entitlements', authMiddleware, async (req, res) => {
   }
 });
 
+// 60-second in-memory cache for Subject and Class lookups
+let _subjectsCache = { at: 0, map: null };
+let _classesCache = { at: 0, map: null };
+
+async function getCachedSubjectMap() {
+  const now = Date.now();
+  if (_subjectsCache.map && now - _subjectsCache.at < 60000) {
+    return _subjectsCache.map;
+  }
+  const allSubjects = await M.Subject.find()
+    .select('_id subjectTrackId subjectCode name deptId')
+    .lean();
+  const map = new Map();
+  allSubjects.forEach(sub => {
+    map.set(String(sub._id), sub);
+    if (sub.subjectTrackId) map.set(sub.subjectTrackId, sub);
+    if (sub.subjectCode) map.set(sub.subjectCode, sub);
+  });
+  _subjectsCache = { at: now, map };
+  return map;
+}
+
+async function getCachedClassMap() {
+  const now = Date.now();
+  if (_classesCache.map && now - _classesCache.at < 60000) {
+    return _classesCache.map;
+  }
+  const allClasses = await M.Class.find()
+    .select('_id classTrackId name department deptCode section year semester')
+    .lean();
+  const map = new Map();
+  allClasses.forEach(c => {
+    map.set(String(c._id), c);
+    if (c.classTrackId) map.set(c.classTrackId, c);
+  });
+  _classesCache = { at: now, map };
+  return map;
+}
+
+function invalidateAttendanceMetadataCache() {
+  _subjectsCache = { at: 0, map: null };
+  _classesCache = { at: 0, map: null };
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// S2: Scope attendance records by role, department, and teacher class assignment
+// ═══════════════════════════════════════════════════════════════════════
+async function resolveAttendanceScope(req, qClassId, qTeacherId) {
+  const isStudent = req.user.role === 'student';
+  const isSudo = isSudoAdmin(req.user) || Boolean(req.access && req.access.flags?.isSudo);
+  const hasAdminReach = isSudo || hasInstitutionReach(req.user) || req.user.role === 'admin' || Boolean(req.access && req.access.flags?.isSuper);
+  const isHodOrPrincipal = Boolean(
+    req.user.isHod ||
+    req.user.isPrincipal ||
+    (req.access && (req.access.flags?.isHod || req.access.isPrincipal)) ||
+    (req.access && req.access.pages?.admin?.scope === 'department')
+  );
+  const isRegularTeacher = !hasAdminReach && !isHodOrPrincipal && req.user.role === 'teacher';
+
+  const scope = {
+    isStudent,
+    hasAdminReach,
+    isHodOrPrincipal,
+    isRegularTeacher,
+    filter: {},
+    studentCaller: null,
+    effectiveTeacherId: qTeacherId,
+    advisedClassSet: new Set(),
+    callerCandidates: [],
+    assignedRows: [],
+    allowedClassIds: new Set(),
+    isBlocked: false,
+    blockReason: null,
+    statusCode: 200
+  };
+
+  if (isStudent) {
+    const studentQueries = [{ trackId: req.user.trackId }, { username: req.user.username }];
+    if (typeof req.user._id === 'string' && mongoose.Types.ObjectId.isValid(req.user._id)) {
+      studentQueries.push({ _id: req.user._id });
+    }
+    const studentCaller = await M.Student.findOne({ $or: studentQueries }).lean();
+    if (!studentCaller || (!studentCaller.classId && !studentCaller.class)) {
+      scope.isBlocked = true;
+      return scope;
+    }
+    scope.studentCaller = studentCaller;
+    const studentClassId = studentCaller.classId || studentCaller.class;
+    const classQuery = [{ _id: studentClassId }, { classTrackId: studentClassId }, { name: studentClassId }];
+    if (mongoose.Types.ObjectId.isValid(studentClassId)) {
+      classQuery.unshift({ _id: new mongoose.Types.ObjectId(studentClassId) });
+    }
+    const cls = await M.Class.findOne({ $or: classQuery }).lean();
+    const validClassIds = [String(studentClassId)];
+    if (cls) {
+      validClassIds.push(String(cls._id));
+      if (cls.classTrackId) validClassIds.push(cls.classTrackId);
+      if (cls.name) validClassIds.push(cls.name);
+    }
+    scope.filter.classId = { $in: validClassIds };
+    return scope;
+  }
+
+  if (hasAdminReach) {
+    if (qClassId && qClassId !== 'all') {
+      scope.filter.$or = [{ classId: qClassId }];
+      const classQuery = [];
+      if (mongoose.isValidObjectId(qClassId)) {
+        classQuery.push({ _id: qClassId });
+      }
+      classQuery.push({ classTrackId: qClassId });
+      classQuery.push({ name: qClassId });
+      const cls = await M.Class.findOne({ $or: classQuery }).lean();
+      if (cls) {
+        scope.filter.$or.push({ classId: String(cls._id) });
+        if (cls.classTrackId) scope.filter.$or.push({ classId: cls.classTrackId });
+      }
+    }
+    return scope;
+  }
+
+  if (isHodOrPrincipal) {
+    let userDeptId = req.access?.pages?.admin?.deptId || req.user.deptId || null;
+    let userDeptName = req.access?.pages?.admin?.dept || req.user.department || req.user.deptName || '';
+    let userDeptCode = req.user.deptCode || '';
+
+    if (!userDeptCode && userDeptId) {
+      const dDoc = await M.Department.findById(userDeptId).select('code name').lean();
+      if (dDoc) {
+        userDeptCode = dDoc.code || '';
+        if (!userDeptName) userDeptName = dDoc.name || '';
+      }
+    }
+
+    const deptClasses = await M.Class.find({
+      $or: [
+        ...(userDeptId && mongoose.isValidObjectId(userDeptId) ? [{ deptId: userDeptId }] : []),
+        ...(userDeptCode ? [{ deptCode: new RegExp(`^${escapeRegex(userDeptCode)}$`, 'i') }] : []),
+        ...(userDeptName ? [{ deptName: new RegExp(`^${escapeRegex(userDeptName)}$`, 'i') }] : [])
+      ]
+    }).select('_id trackId classTrackId name').lean();
+
+    const hodAllowedClassIds = new Set();
+    deptClasses.forEach(c => {
+      hodAllowedClassIds.add(String(c._id));
+      if (c.trackId) hodAllowedClassIds.add(String(c.trackId));
+      if (c.classTrackId) hodAllowedClassIds.add(String(c.classTrackId));
+      if (c.name) hodAllowedClassIds.add(String(c.name));
+    });
+    scope.allowedClassIds = hodAllowedClassIds;
+
+    if (qClassId && qClassId !== 'all') {
+      if (!hodAllowedClassIds.has(String(qClassId))) {
+        scope.isBlocked = true;
+        scope.statusCode = 403;
+        scope.blockReason = 'Class is outside your department scope';
+        return scope;
+      }
+      scope.filter.$or = [{ classId: qClassId }];
+      const matched = deptClasses.find(c => String(c._id) === qClassId || c.trackId === qClassId || c.classTrackId === qClassId || c.name === qClassId);
+      if (matched) {
+        scope.filter.$or.push({ classId: String(matched._id) });
+        if (matched.trackId) scope.filter.$or.push({ classId: matched.trackId });
+        if (matched.classTrackId) scope.filter.$or.push({ classId: matched.classTrackId });
+      }
+    } else {
+      const classIdList = Array.from(hodAllowedClassIds);
+      scope.filter.$or = [
+        ...(userDeptCode ? [{ departmentCode: new RegExp(`^${escapeRegex(userDeptCode)}$`, 'i') }] : []),
+        ...(userDeptName ? [{ departmentCode: new RegExp(`^${escapeRegex(userDeptName)}$`, 'i') }] : []),
+        ...(classIdList.length > 0 ? [{ classId: { $in: classIdList } }] : [])
+      ];
+    }
+    return scope;
+  }
+
+  // Regular staff
+  const callerTeacherCandidates = [
+    req.user.trackId,
+    String(req.user._id),
+    req.user.roleId,
+    req.user.username
+  ].filter(Boolean);
+  scope.callerCandidates = callerTeacherCandidates;
+
+  // S2 fix: Ignore teacherId for non-admins unless it is the caller
+  if (qTeacherId) {
+    const isCaller = callerTeacherCandidates.includes(String(qTeacherId));
+    if (!isCaller) {
+      scope.effectiveTeacherId = req.user.trackId || String(req.user._id);
+    }
+  }
+
+  const [advisedClasses, assignedRows] = await Promise.all([
+    M.Class.find({
+      $or: [
+        { advisorTeacherId: req.user._id },
+        { advisorTeacherTrackId: req.user.trackId },
+        { 'subjectTeachers.teacherId': req.user._id },
+        { 'subjectTeachers.teacherTrackId': req.user.trackId }
+      ]
+    }).select('_id trackId classTrackId name advisorTeacherId advisorTeacherTrackId').lean(),
+    M.Assignment.find({
+      $or: [
+        { teacherId: { $in: callerTeacherCandidates } },
+        { teacherTrackId: { $in: callerTeacherCandidates } }
+      ]
+    }).select('classId subjectId subjectTrackId').lean()
+  ]);
+
+  scope.assignedRows = assignedRows;
+  const assignedClassIds = assignedRows.map(a => a.classId).filter(Boolean);
+  let extraClasses = [];
+  if (assignedClassIds.length > 0) {
+    const objIds = assignedClassIds.filter(id => mongoose.isValidObjectId(id));
+    extraClasses = await M.Class.find({
+      $or: [
+        ...(objIds.length > 0 ? [{ _id: { $in: objIds } }] : []),
+        { trackId: { $in: assignedClassIds } },
+        { classTrackId: { $in: assignedClassIds } },
+        { name: { $in: assignedClassIds } }
+      ]
+    }).select('_id trackId classTrackId name').lean();
+  }
+
+  const combinedClasses = [...advisedClasses, ...extraClasses];
+  const uniqueClassMap = new Map();
+  combinedClasses.forEach(c => uniqueClassMap.set(String(c._id), c));
+  const allStaffClasses = Array.from(uniqueClassMap.values());
+
+  const teacherAllowedClassIds = new Set();
+  allStaffClasses.forEach(c => {
+    teacherAllowedClassIds.add(String(c._id));
+    if (c.trackId) teacherAllowedClassIds.add(String(c.trackId));
+    if (c.classTrackId) teacherAllowedClassIds.add(String(c.classTrackId));
+    if (c.name) teacherAllowedClassIds.add(String(c.name));
+  });
+  assignedClassIds.forEach(id => teacherAllowedClassIds.add(String(id)));
+  scope.allowedClassIds = teacherAllowedClassIds;
+
+  advisedClasses.forEach(c => {
+    const isAdvisor = String(c.advisorTeacherId) === String(req.user._id) || c.advisorTeacherTrackId === req.user.trackId;
+    if (isAdvisor) {
+      scope.advisedClassSet.add(String(c._id));
+      if (c.trackId) scope.advisedClassSet.add(String(c.trackId));
+      if (c.classTrackId) scope.advisedClassSet.add(String(c.classTrackId));
+      if (c.name) scope.advisedClassSet.add(String(c.name));
+    }
+  });
+
+  if (teacherAllowedClassIds.size === 0) {
+    scope.isBlocked = true;
+    return scope;
+  }
+
+  if (qClassId && qClassId !== 'all') {
+    if (!teacherAllowedClassIds.has(String(qClassId))) {
+      scope.isBlocked = true;
+      scope.statusCode = 403;
+      scope.blockReason = 'Class is outside your assignments';
+      return scope;
+    }
+    scope.filter.$or = [{ classId: qClassId }];
+    const matched = allStaffClasses.find(c => String(c._id) === qClassId || c.trackId === qClassId || c.classTrackId === qClassId || c.name === qClassId);
+    if (matched) {
+      scope.filter.$or.push({ classId: String(matched._id) });
+      if (matched.trackId) scope.filter.$or.push({ classId: matched.trackId });
+      if (matched.classTrackId) scope.filter.$or.push({ classId: matched.classTrackId });
+    }
+  } else {
+    scope.filter.classId = { $in: Array.from(teacherAllowedClassIds) };
+  }
+
+  return scope;
+}
+
+function isPeriodAllowedForTeacher(period, classId, scope) {
+  if (!scope.isRegularTeacher) return true;
+  if (scope.advisedClassSet.has(String(classId))) return true;
+  if (scope.callerCandidates.includes(period.teacherTrackId) || period.teacherTrackId === scope.callerCandidates[0]) return true;
+  const teachesSubject = scope.assignedRows.some(a =>
+    (String(a.classId) === String(classId) || scope.allowedClassIds.has(String(classId))) &&
+    (a.subjectId === period.subjectTrackId || a.subjectTrackId === period.subjectTrackId)
+  );
+  return teachesSubject;
+}
+
 // GET /api/attendance - Query attendance records with search, filters, and pagination
 router.get('/', authMiddleware, async (req, res) => {
   try {
@@ -96,62 +387,65 @@ router.get('/', authMiddleware, async (req, res) => {
     const qDate = sanitizeToString(req.query.date);
     const qClassId = sanitizeToString(req.query.classId);
     const qTeacherId = sanitizeToString(req.query.teacherId);
+    const qSubjectId = sanitizeToString(req.query.subjectId);
     const qStatus = sanitizeToString(req.query.status);
     const qSearch = sanitizeToString(req.query.search);
     const page = Math.max(1, parseInt(req.query.page || '1', 10));
     const limitParam = req.query.limit;
     const limit = (limitParam === '0' || limitParam === 'all') ? 0 : Math.max(1, parseInt(limitParam || '50', 10));
 
-    const filter = {};
-    let studentCaller = null;
-    if (req.user.role === 'student') {
-      const studentQueries = [{ trackId: req.user.trackId }, { username: req.user.username }];
-      if (typeof req.user._id === 'string' && mongoose.Types.ObjectId.isValid(req.user._id)) {
-        studentQueries.push({ _id: req.user._id });
+    // S2 fix: Scope attendance records by role, department, and teacher class assignment
+    const scope = await resolveAttendanceScope(req, qClassId, qTeacherId);
+    if (scope.isBlocked) {
+      if (scope.statusCode === 403) {
+        return res.status(403).json({ error: scope.blockReason });
       }
-      studentCaller = await M.Student.findOne({ $or: studentQueries }).lean();
-      if (!studentCaller || (!studentCaller.classId && !studentCaller.class)) {
-        return res.json([]);
-      }
-      const studentClassId = studentCaller.classId || studentCaller.class;
-      const classQuery = [{ _id: studentClassId }, { classTrackId: studentClassId }, { name: studentClassId }];
-      if (mongoose.Types.ObjectId.isValid(studentClassId)) {
-        classQuery.unshift({ _id: new mongoose.Types.ObjectId(studentClassId) });
-      }
-      const cls = await M.Class.findOne({ $or: classQuery }).lean();
-      const validClassIds = [String(studentClassId)];
-      if (cls) {
-        validClassIds.push(String(cls._id));
-        if (cls.classTrackId) validClassIds.push(cls.classTrackId);
-      }
-      filter.classId = { $in: validClassIds };
-    } else if (qClassId && qClassId !== 'all') {
-      filter.$or = [{ classId: qClassId }];
-      const classQuery = [];
-      if (mongoose.isValidObjectId(qClassId)) {
-        classQuery.push({ _id: qClassId });
-      }
-      classQuery.push({ classTrackId: qClassId });
-      classQuery.push({ name: qClassId });
+      return res.json([]);
+    }
 
-      const cls = await M.Class.findOne({ $or: classQuery }).lean();
-      if (cls) {
-        filter.$or.push({ classId: String(cls._id) });
-        if (cls.classTrackId) filter.$or.push({ classId: cls.classTrackId });
-      }
+    const filter = { ...scope.filter };
+    const studentCaller = scope.studentCaller;
+
+    // Resolve subject once upfront and filter in MongoDB
+    let targetSubjectTrackId = null;
+        if (qSubjectId && qSubjectId !== 'all') {
+      targetSubjectTrackId = qSubjectId;
+      const subMap = await getCachedSubjectMap();
+      const subObj = subMap.get(qSubjectId);
+      if (subObj && subObj.subjectTrackId) targetSubjectTrackId = subObj.subjectTrackId;
+      filter['periods.subjectTrackId'] = targetSubjectTrackId;
     }
 
     if (qDate) {
-      const start = new Date(qDate + 'T00:00:00.000Z');
-      const end = new Date(qDate + 'T23:59:59.999Z');
+      const start = getStartOfInstitutionDaySync(qDate);
+      const end = getEndOfInstitutionDaySync(qDate);
       filter.date = { $gte: start, $lte: end };
     } else if (qFrom && qTo) {
-      const start = new Date(qFrom + 'T00:00:00.000Z');
-      const end = new Date(qTo + 'T23:59:59.999Z');
+      const start = getStartOfInstitutionDaySync(qFrom);
+      const end = getEndOfInstitutionDaySync(qTo);
       filter.date = { $gte: start, $lte: end };
     }
 
-    // Query recent class attendance docs
+    // Resolve targetTeacherTrackId once upfront if effectiveTeacherId is present
+    let targetTeacherTrackId = null;
+    if (scope.effectiveTeacherId && scope.effectiveTeacherId !== 'all') {
+      targetTeacherTrackId = scope.effectiveTeacherId;
+      if (mongoose.isValidObjectId(scope.effectiveTeacherId)) {
+        const tDoc = await M.Teacher.findById(scope.effectiveTeacherId).select('trackId').lean();
+        if (tDoc && tDoc.trackId) {
+          targetTeacherTrackId = tDoc.trackId;
+        } else {
+          const uDoc = await M.User.findOne({ $or: [{ _id: scope.effectiveTeacherId }, { trackId: scope.effectiveTeacherId }] }).select('trackId').lean();
+          if (uDoc && uDoc.trackId) targetTeacherTrackId = uDoc.trackId;
+        }
+      } else {
+        const tDoc = await M.Teacher.findOne({ $or: [{ trackId: scope.effectiveTeacherId }, { employeeNo: scope.effectiveTeacherId }] }).select('trackId').lean();
+        if (tDoc && tDoc.trackId) targetTeacherTrackId = tDoc.trackId;
+      }
+      filter['periods.teacherTrackId'] = targetTeacherTrackId;
+    }
+
+    // Query recent class attendance docs (scoped)
     const classAttDocs = await M.ClassAttendance.find(filter).sort({ date: -1 }).limit(300).lean();
 
     // Collect unique student trackIds from the actual attendance records
@@ -203,6 +497,7 @@ router.get('/', authMiddleware, async (req, res) => {
 
       for (let pIdx = 0; pIdx < (doc.periods || []).length; pIdx++) {
         const period = doc.periods[pIdx];
+        if (!isPeriodAllowedForTeacher(period, doc.classId, scope)) continue;
         if (qTeacherId && period.teacherTrackId !== qTeacherId) {
           let targetTrackId = null;
           if (mongoose.isValidObjectId(qTeacherId)) {
@@ -301,7 +596,7 @@ router.get('/', authMiddleware, async (req, res) => {
 
     res.json(paginated);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    return sendError(res, err, 500, 'Failed to process attendance request');
   }
 });
 
@@ -315,35 +610,20 @@ router.get('/period-notes', authMiddleware, async (req, res) => {
     const qTeacherId = sanitizeToString(req.query.teacherId);
     const qSearch = sanitizeToString(req.query.search);
 
-    const filter = {};
-    if (req.user.role === 'student') {
-      const studentQueries = [{ trackId: req.user.trackId }, { username: req.user.username }];
-      if (typeof req.user._id === 'string' && mongoose.Types.ObjectId.isValid(req.user._id)) {
-        studentQueries.push({ _id: req.user._id });
+    // S3 fix: Enforce class/subject/author scoping for regular staff
+    const scope = await resolveAttendanceScope(req, qClassId, qTeacherId);
+    if (scope.isBlocked) {
+      if (scope.statusCode === 403) {
+        return res.status(403).json({ error: scope.blockReason });
       }
-      const studentCaller = await M.Student.findOne({ $or: studentQueries }).lean();
-      if (!studentCaller || (!studentCaller.classId && !studentCaller.class)) {
-        return res.json([]);
-      }
-      const studentClassId = studentCaller.classId || studentCaller.class;
-      const classQuery = [{ _id: studentClassId }, { classTrackId: studentClassId }, { name: studentClassId }];
-      if (mongoose.Types.ObjectId.isValid(studentClassId)) {
-        classQuery.unshift({ _id: new mongoose.Types.ObjectId(studentClassId) });
-      }
-      const cls = await M.Class.findOne({ $or: classQuery }).lean();
-      const validClassIds = [String(studentClassId)];
-      if (cls) {
-        validClassIds.push(String(cls._id));
-        if (cls.classTrackId) validClassIds.push(cls.classTrackId);
-      }
-      filter.classId = { $in: validClassIds };
-    } else if (qClassId && qClassId !== 'all') {
-      filter.classId = qClassId;
+      return res.json([]);
     }
+
+    const filter = { ...scope.filter };
     if (qFrom || qTo) {
       filter.date = {};
-      if (qFrom) filter.date.$gte = new Date(qFrom + 'T00:00:00.000Z');
-      if (qTo) filter.date.$lte = new Date(qTo + 'T23:59:59.999Z');
+      if (qFrom) filter.date.$gte = getStartOfInstitutionDaySync(qFrom);
+      if (qTo) filter.date.$lte = getEndOfInstitutionDaySync(qTo);
     }
 
     const docs = await M.ClassAttendance.find(filter).sort({ date: -1 }).lean();
@@ -379,6 +659,7 @@ router.get('/period-notes', authMiddleware, async (req, res) => {
 
       for (let pIdx = 0; pIdx < (doc.periods || []).length; pIdx++) {
         const period = doc.periods[pIdx];
+        if (!isPeriodAllowedForTeacher(period, doc.classId, scope)) continue;
         if (qSubjectId && qSubjectId !== 'all' && period.subjectTrackId !== qSubjectId) {
           continue;
         }
@@ -434,35 +715,109 @@ router.get('/period-notes', authMiddleware, async (req, res) => {
     res.json(results);
   } catch (err) {
     console.error('[Period Notes Error]:', err);
-    res.status(500).json({ error: err.message });
+    return sendError(res, err, 500, 'Failed to process attendance request');
   }
 });
 
 // PUT /api/attendance/period-notes/:docId/:periodIndex - Update period notes
-router.put('/period-notes/:docId/:periodIndex', authMiddleware, async (req, res) => {
+router.put('/period-notes/:docId/:periodIndex', authMiddleware, requireRole('teacher', 'admin'), attendanceUpdateIpLimiter, attendanceUpdateLimiter, checkAttendanceMarkGuard, async (req, res) => {
   try {
     const { docId, periodIndex } = req.params;
     const { topic, notes } = req.body;
     const pIdx = parseInt(periodIndex, 10);
+    const MAX_TOPIC_LENGTH = 500;
+    const MAX_NOTES_LENGTH = 2000;
 
     const doc = await M.ClassAttendance.findById(docId);
     if (!doc || !doc.periods || !doc.periods[pIdx]) {
       return res.status(404).json({ error: 'Period attendance record not found' });
     }
 
-    const attSettings = await getCachedSettings('attendance');
-    if (!isSudoAdmin(req.user) && attSettings.allowAttendanceEdit === false) {
-      return res.status(403).json({ error: 'Editing attendance or notes is locked by administrator.' });
+    const period = doc.periods[pIdx];
+    const isSudo = isSudoAdmin(req.user) || Boolean(req.access && req.access.flags?.isSudo);
+    const isAdmin = isSudo || hasInstitutionReach(req.user) || req.user.role === 'admin';
+
+    // Verify institutional edit lock, autoLock hours, and backdate limits
+    const attConfig = await getCachedSettings('attendance');
+    if (!isAdmin) {
+      if (attConfig.allowAttendanceEdit === false) {
+        return res.status(403).json({ error: 'Editing attendance or period notes is locked by administrator policy.' });
+      }
+
+      if (attConfig.autoLockAttendanceHours && Number(attConfig.autoLockAttendanceHours) > 0) {
+        const lockHours = Number(attConfig.autoLockAttendanceHours);
+        const recordTime = period.markedAt || doc.createdAt || doc.date;
+        if (recordTime) {
+          const recordMs = new Date(recordTime).getTime();
+          const lockMs = recordMs + (lockHours * 3600 * 1000);
+          if (Date.now() >= lockMs) {
+            return res.status(403).json({ error: `Attendance record auto-locked after ${lockHours} hour(s). Contact administrator.` });
+          }
+        }
+      }
+
+      if (attConfig.maxAttendanceBackdateDays !== undefined && attConfig.maxAttendanceBackdateDays !== null) {
+        const maxBackDays = Number(attConfig.maxAttendanceBackdateDays);
+        if (maxBackDays >= 0 && doc.date) {
+          const docDateOnly = new Date(doc.date).toISOString().slice(0, 10);
+          const minDate = new Date();
+          minDate.setDate(minDate.getDate() - maxBackDays);
+          const minDateOnly = minDate.toISOString().slice(0, 10);
+          if (docDateOnly < minDateOnly) {
+            return res.status(403).json({
+              error: `Date exceeds maximum backdate allowance of ${maxBackDays} day(s).`,
+              backdateLocked: true
+            });
+          }
+        }
+      }
+
+      // S3 Period Author / Teacher Assignment check
+      const teacherTrackId = req.user.trackId || String(req.user._id);
+      const isPeriodAuthor = period.teacherTrackId === teacherTrackId;
+      if (!isPeriodAuthor) {
+        const isAssigned = await verifyTeacherAssignment(req.user, doc.classId, period.subjectTrackId || period.subjectId);
+        if (!isAssigned) {
+          return res.status(403).json({ error: 'You are not authorized to edit notes for this attendance period.' });
+        }
+      }
     }
 
-    if (topic !== undefined) doc.periods[pIdx].topic = String(topic).trim();
-    if (notes !== undefined) doc.periods[pIdx].notes = String(notes).trim();
+    // Sanitize and cap length
+    const cleanTopic = topic !== undefined ? String(topic).trim() : (period.topic || '');
+    const cleanNotes = notes !== undefined ? String(notes).trim() : (period.notes || '');
+
+    if (cleanTopic.length > MAX_TOPIC_LENGTH) {
+      return res.status(400).json({ error: `Topic exceeds maximum length of ${MAX_TOPIC_LENGTH} characters.` });
+    }
+    if (cleanNotes.length > MAX_NOTES_LENGTH) {
+      return res.status(400).json({ error: `Notes exceed maximum length of ${MAX_NOTES_LENGTH} characters.` });
+    }
+
+    const previousTopic = period.topic || '';
+    const previousNotes = period.notes || '';
+
+    period.topic = cleanTopic;
+    period.notes = cleanNotes;
     doc.updatedAt = new Date();
     await doc.save();
 
-    res.json({ success: true, message: 'Period notes updated successfully', period: doc.periods[pIdx] });
+    // Audit log
+    await logAction(req, 'Period Notes Updated', {
+      module: 'attendance',
+      subType: 'period-notes-edit',
+      classId: doc.classId,
+      date: doc.date,
+      periodIndex: pIdx,
+      periodNumber: period.periodNumber,
+      topicChanged: previousTopic !== cleanTopic,
+      notesChanged: previousNotes !== cleanNotes
+    });
+
+    res.json({ ok: true, success: true, message: 'Period notes updated successfully', period: doc.periods[pIdx] });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('[Period Notes Edit Error]:', err);
+    return sendError(res, err, 500, 'Failed to process attendance request');
   }
 });
 
@@ -588,6 +943,10 @@ router.post('/update/:id?', authMiddleware, requireRole('teacher', 'admin'), att
         }
         if (status) rec.status = normalizeStatus(status);
         if (remarks !== undefined) rec.remarks = remarks;
+        if (req.user && (req.user.role === 'admin' || isSudoAdmin(req.user))) {
+          if (!period.source) period.source = { method: 'Admin Edit', via: 'admin' };
+          else period.source.via = 'admin';
+        }
         classAttDoc.periods[pIdx].records[rIdx] = rec;
         classAttDoc.updatedAt = new Date();
         await classAttDoc.save();
@@ -667,7 +1026,7 @@ router.post('/update/:id?', authMiddleware, requireRole('teacher', 'admin'), att
 
     return res.status(404).json({ error: 'Attendance record not found for update' });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    return sendError(res, err, 500, 'Failed to process attendance request');
   }
 });
 
@@ -677,12 +1036,28 @@ router.post('/', authMiddleware, requireRole('teacher', 'admin'), attendanceMark
     const isBatch = Array.isArray(req.body.records);
     const rawRecords = isBatch ? req.body.records : [req.body];
 
-    const classIdInput = req.body.classId || (rawRecords[0] && rawRecords[0].classId);
-    const subjectIdInput = req.body.subjectId || (rawRecords[0] && rawRecords[0].subjectId);
+    // Session resolution (Phase 8, Section 10.4)
+    let sessionDoc = null;
+    const sessionIdInput = req.body.sessionId || (rawRecords[0] && rawRecords[0].sessionId);
+    if (sessionIdInput) {
+      if (!mongoose.isValidObjectId(sessionIdInput)) {
+        return res.status(400).json({ error: 'Invalid sessionId format' });
+      }
+      sessionDoc = await M.ClassSession.findById(sessionIdInput);
+      if (!sessionDoc) {
+        return res.status(404).json({ error: 'Class session not found' });
+      }
+      if (sessionDoc.status === 'cancelled' || sessionDoc.status === 'holiday') {
+        return res.status(409).json({ error: `Cannot mark attendance for ${sessionDoc.status} session` });
+      }
+    }
+
+    const classIdInput = req.body.classId || (rawRecords[0] && rawRecords[0].classId) || (sessionDoc ? sessionDoc.classId : '');
+    const subjectIdInput = req.body.subjectId || (rawRecords[0] && rawRecords[0].subjectId) || (sessionDoc ? (sessionDoc.subjectId || sessionDoc.subjectName) : '');
     const todayDateStr = await todayInInstitutionTz();
-    const rawDateInput = req.body.date || (rawRecords[0] && rawRecords[0].date) || todayDateStr;
+    const rawDateInput = req.body.date || (rawRecords[0] && rawRecords[0].date) || (sessionDoc ? sessionDoc.date : '') || todayDateStr;
     const dateInput = String(rawDateInput).trim();
-    const periodNumInput = Number(req.body.periodNumber || req.body.period || (rawRecords[0] && rawRecords[0].periodNumber)) || 1;
+    const periodNumInput = Number(req.body.periodNumber || req.body.period || (rawRecords[0] && rawRecords[0].periodNumber) || (sessionDoc ? sessionDoc.periodNumber : 1)) || 1;
 
     if (!classIdInput || !subjectIdInput) {
       return res.status(400).json({ error: 'classId and subjectId are required' });
@@ -741,11 +1116,12 @@ router.post('/', authMiddleware, requireRole('teacher', 'admin'), attendanceMark
       }
     }
 
-    // Resolve Class - match by _id or classTrackId only (never by non-unique name)
+    // Resolve Class - match by _id, trackId, or classTrackId (never by non-unique name)
     const classQuery = [];
     if (mongoose.isValidObjectId(classIdInput)) {
       classQuery.push({ _id: classIdInput });
     }
+    classQuery.push({ trackId: classIdInput });
     classQuery.push({ classTrackId: classIdInput });
 
     const cls = await M.Class.findOne({ $or: classQuery }).lean();
@@ -753,7 +1129,7 @@ router.post('/', authMiddleware, requireRole('teacher', 'admin'), attendanceMark
       return res.status(404).json({ error: 'Class not found' });
     }
 
-    const targetClassId = cls.classTrackId || String(cls._id);
+    const targetClassId = cls.trackId || cls.classTrackId || String(cls._id);
     const batch = cls.batch || '2025-2029';
     const year = parseYearNum(cls.year) || 1;
     const sem = parseSemNum(cls.sem) || 1;
@@ -771,10 +1147,39 @@ router.post('/', authMiddleware, requireRole('teacher', 'admin'), attendanceMark
     const sub = await M.Subject.findOne({ $or: subjectQuery }).lean();
     const targetSubjectTrackId = sub ? (sub.subjectTrackId || sub.subjectCode || String(sub._id)) : subjectIdInput;
 
-    // Verify teacher assignment to this class and subject (skip for admin, permit valid substitute)
+    // Check timetable.attendanceLink feature flag (models.timetable)
+    const modelsSettings = await getSetting('models');
+    const featSettings = await getSetting('features');
+    const ttSettings = await getSetting('timetable');
+    const attendanceLinkEnabled = Boolean(
+      (modelsSettings?.timetable?.attendanceLink !== undefined)
+        ? modelsSettings.timetable.attendanceLink
+        : ((featSettings?.timetable?.attendanceLink !== undefined)
+            ? featSettings.timetable.attendanceLink
+            : ttSettings?.attendanceLink)
+    );
+
+    if (attendanceLinkEnabled && !sessionDoc) {
+      // Look up matching ClassSession for this slot
+      sessionDoc = await M.ClassSession.findOne({
+        classId: targetClassId,
+        date: dateInput,
+        periodNumber: periodNumInput
+      });
+
+      if (!sessionDoc) {
+        return res.status(409).json({ error: 'No scheduled timetable session found for this period' });
+      }
+      if (sessionDoc.status === 'cancelled' || sessionDoc.status === 'holiday') {
+        return res.status(409).json({ error: `Cannot mark attendance for ${sessionDoc.status} session` });
+      }
+    }
+
+    // Verify teacher assignment to this class and subject (skip for admin, permit valid substitute or session authority)
     const assignCheck = await verifyTeacherAssignment(req.user, targetClassId, targetSubjectTrackId, {
       date: dateInput,
-      periodNumber: periodNumInput
+      periodNumber: periodNumInput,
+      sessionId: sessionDoc?._id || undefined
     });
     if (!assignCheck.allowed) {
       return res.status(403).json({ error: assignCheck.reason });
@@ -801,6 +1206,24 @@ router.post('/', authMiddleware, requireRole('teacher', 'admin'), attendanceMark
       if (s.trackId) studentLookup.set(s.trackId, s);
     });
 
+    // Auto-mark check: detect students with approved leave or self-period absence
+    const activeLeaves = await M.LeaveRequest.find({
+      dates: dateInput,
+      status: 'Approved'
+    }).lean();
+
+    const preAbsentTrackIds = new Set();
+    activeLeaves.forEach(l => {
+      const matchPeriod = (!l.slot || l.slot === 'Full Day' || l.category === 'Leave')
+        || (l.slot === 'FN' && periodNumInput <= 4)
+        || (l.slot === 'AN' && periodNumInput >= 5)
+        || (Array.isArray(l.periods) && l.periods.includes(periodNumInput));
+      if (matchPeriod) {
+        if (l.studentTrackId) preAbsentTrackIds.add(l.studentTrackId);
+        if (l.studentId) preAbsentTrackIds.add(String(l.studentId));
+      }
+    });
+
     const formattedRecords = [];
     const affectedTrackIds = new Set();
 
@@ -808,7 +1231,11 @@ router.post('/', authMiddleware, requireRole('teacher', 'admin'), attendanceMark
       const sInput = rec.studentTrackId || rec.studentId;
       const stuObj = studentLookup.get(sInput);
       const studentTrackId = stuObj ? (stuObj.trackId || String(stuObj._id)) : sInput;
-      const status = normalizeStatus(rec.status);
+      let status = normalizeStatus(rec.status);
+      const isSelfOrLeaveAbsent = preAbsentTrackIds.has(studentTrackId) || (stuObj && (preAbsentTrackIds.has(String(stuObj._id)) || preAbsentTrackIds.has(stuObj.trackId)));
+      if (isSelfOrLeaveAbsent) {
+        status = 'absent';
+      }
       if (studentTrackId) {
         formattedRecords.push({ studentTrackId, status });
         affectedTrackIds.add(studentTrackId);
@@ -823,36 +1250,90 @@ router.post('/', authMiddleware, requireRole('teacher', 'admin'), attendanceMark
       classId: targetClassId,
       date: sessionDate
     });
+    const isNewClassAttDoc = !classAttDoc;
+
+    // Extract multi-period numbers if present, otherwise default to [periodNumInput]
+    const targetPeriodNumbers = Array.isArray(req.body.periodNumbers) && req.body.periodNumbers.length
+      ? req.body.periodNumbers.map(Number).filter(n => !isNaN(n) && n > 0)
+      : [periodNumInput];
 
     // Enforce attendance entitlement policy (OD locks Present, Leave locks Absent)
     const enforcedRecords = await enforceAttendancePolicy({
       classId: targetClassId,
       date: dateInput,
       periodNumber: periodNumInput,
+      periodNumbers: targetPeriodNumbers,
       records: formattedRecords,
       actorTrackId: teacherTrackId,
       actorRole: req.user.role
     });
 
+    // Hoist & validate captureMethod and session link (AttReg B2)
+    let captureMethod = 'Manual';
+    let sessionTrackId = '';
+    let sessionModel = '';
+
+    if (req.body.scanLiveSessionId) {
+      const liveSession = await M.ScanLiveSession.findOne({
+        sessionTrackId: req.body.scanLiveSessionId
+      }).lean();
+      if (liveSession && (req.user.role === 'admin' || isSudoAdmin(req.user) || liveSession.teacherTrackId === teacherTrackId)) {
+        captureMethod = 'Live QR';
+        sessionTrackId = liveSession.sessionTrackId;
+        sessionModel = 'ScanLiveSession';
+      }
+    } else if (req.body.quickPassSessionId) {
+      const qpSession = await M.QuickPassSession.findOne({
+        _id: mongoose.isValidObjectId(req.body.quickPassSessionId) ? req.body.quickPassSessionId : null
+      }).lean();
+      if (qpSession && (req.user.role === 'admin' || isSudoAdmin(req.user) || qpSession.teacherTrackId === teacherTrackId)) {
+        captureMethod = 'QuickPass Code';
+        sessionTrackId = String(qpSession._id);
+        sessionModel = 'QuickPassSession';
+      }
+    } else if (req.body.repShareSessionId) {
+      captureMethod = 'Rep Share';
+      sessionTrackId = String(req.body.repShareSessionId);
+      sessionModel = 'RepShareSession';
+    } else if (req.body.method && typeof req.body.method === 'string') {
+      captureMethod = req.body.method;
+    }
+
+    const via = (req.user && (req.user.role === 'admin' || isSudoAdmin(req.user)))
+      ? 'admin'
+      : (req.body.isSubstitution ? 'substitution' : 'direct');
+
     const periodObj = {
       periodNumber: periodNumInput,
-      periodNumbers: [periodNumInput],
+      periodNumbers: targetPeriodNumbers,
+      sessionId: sessionDoc ? sessionDoc._id : null,
+      slotKey: sessionDoc ? (sessionDoc.slotKey || '') : '',
+      timetableTrackId: sessionDoc?.timetableTrackId || '',
+      scheduledTeacherTrackId: sessionDoc?.scheduledTeacher?.trackId || '',
       subjectTrackId: targetSubjectTrackId,
       teacherTrackId,
       markedBy,
       markedAt: new Date(),
       topic: String(req.body.topic || '').trim(),
       notes: String(req.body.notes || '').trim(),
+      source: {
+        method: captureMethod,
+        sessionTrackId,
+        sessionModel,
+        via
+      },
       records: enforcedRecords
     };
 
     let existingPeriodIdx = -1;
     if (classAttDoc && Array.isArray(classAttDoc.periods)) {
       // Check if period for this subject and period number already exists
-      existingPeriodIdx = classAttDoc.periods.findIndex(p =>
-        (p.subjectTrackId === targetSubjectTrackId || String(p.subjectTrackId) === String(targetSubjectTrackId)) &&
-        (Number(p.periodNumber) === periodNumInput || (Array.isArray(p.periodNumbers) && p.periodNumbers.includes(periodNumInput)))
-      );
+      existingPeriodIdx = classAttDoc.periods.findIndex(p => {
+        const matchesSubject = (p.subjectTrackId === targetSubjectTrackId || String(p.subjectTrackId) === String(targetSubjectTrackId));
+        const pNums = Array.isArray(p.periodNumbers) && p.periodNumbers.length > 0 ? p.periodNumbers : [Number(p.periodNumber)];
+        const overlaps = targetPeriodNumbers.some(tn => pNums.includes(tn));
+        return matchesSubject && overlaps;
+      });
 
       if (existingPeriodIdx !== -1) {
         // Verify attendance edit permissions
@@ -882,11 +1363,17 @@ router.post('/', authMiddleware, requireRole('teacher', 'admin'), attendanceMark
     // Atomic update or upsert with array push per period (prevents duplicate documents)
     if (existingPeriodIdx !== -1) {
       // Case 1: Update the existing period in-place using arrayFilters
+      const existingPeriod = classAttDoc.periods[existingPeriodIdx];
+      const matchPeriodNum = existingPeriod.periodNumber || targetPeriodNumbers[0];
+
       classAttDoc = await M.ClassAttendance.findOneAndUpdate(
         {
           classId: targetClassId,
           date: sessionDate,
-          'periods.periodNumbers': periodNumInput
+          $or: [
+            { 'periods.periodNumbers': { $in: targetPeriodNumbers } },
+            { 'periods.periodNumber': matchPeriodNum }
+          ]
         },
         {
           $set: {
@@ -895,7 +1382,12 @@ router.post('/', authMiddleware, requireRole('teacher', 'admin'), attendanceMark
           }
         },
         {
-          arrayFilters: [{ 'elem.periodNumbers': periodNumInput }],
+          arrayFilters: [{
+            $or: [
+              { 'elem.periodNumbers': { $in: targetPeriodNumbers } },
+              { 'elem.periodNumber': matchPeriodNum }
+            ]
+          }],
           returnDocument: 'after'
         }
       );
@@ -906,6 +1398,7 @@ router.post('/', authMiddleware, requireRole('teacher', 'admin'), attendanceMark
     // Case 2: Period does not exist in the document yet (or document does not exist)
     if (!classAttDoc) {
       try {
+        if (isNewClassAttDoc) { await countService.modifyCount('attendanceRecords', 1).catch(() => {}); }
         classAttDoc = await M.ClassAttendance.findOneAndUpdate(
           { classId: targetClassId, date: sessionDate },
           {
@@ -931,7 +1424,10 @@ router.post('/', authMiddleware, requireRole('teacher', 'admin'), attendanceMark
             {
               classId: targetClassId,
               date: sessionDate,
-              'periods.periodNumbers': periodNumInput
+              $or: [
+                { 'periods.periodNumbers': { $in: targetPeriodNumbers } },
+                { 'periods.periodNumber': targetPeriodNumbers[0] }
+              ]
             },
             {
               $set: {
@@ -940,7 +1436,12 @@ router.post('/', authMiddleware, requireRole('teacher', 'admin'), attendanceMark
               }
             },
             {
-              arrayFilters: [{ 'elem.periodNumbers': periodNumInput }],
+              arrayFilters: [{
+                $or: [
+                  { 'elem.periodNumbers': { $in: targetPeriodNumbers } },
+                  { 'elem.periodNumber': targetPeriodNumbers[0] }
+                ]
+              }],
               returnDocument: 'after'
             }
           );
@@ -974,6 +1475,7 @@ router.post('/', authMiddleware, requireRole('teacher', 'admin'), attendanceMark
       const leaveCount = pRecords.filter(r => r.reason === 'leave').length;
 
       onAttendanceSaved({
+        sessionId: sessionDoc ? sessionDoc._id : undefined,
         classId: targetClassId,
         date: dateInput,
         periodNumber: periodNumInput,
@@ -1038,6 +1540,7 @@ router.post('/', authMiddleware, requireRole('teacher', 'admin'), attendanceMark
 
       const periodLogObj = {
         periodNumber: periodNumInput,
+        periodNumbers: targetPeriodNumbers,
         subjectTrackId: targetSubjectTrackId,
         subjectName: (sub && sub.name) ? `${sub.name} (${targetSubjectTrackId})` : targetSubjectTrackId,
         teacherTrackId,
@@ -1071,7 +1574,10 @@ router.post('/', authMiddleware, requireRole('teacher', 'admin'), attendanceMark
 
       if (existingDailyClassLog && existingDailyClassLog.attendanceClassDaily) {
         const periods = existingDailyClassLog.attendanceClassDaily.periods || [];
-        const existingPIdx = periods.findIndex(p => p.periodNumber === periodNumInput);
+        const existingPIdx = periods.findIndex(p =>
+          p.periodNumber === periodNumInput ||
+          (Array.isArray(p.periodNumbers) && p.periodNumbers.some(n => targetPeriodNumbers.includes(n)))
+        );
 
         if (existingPIdx >= 0) {
           // Existing period updated: calculate changes
@@ -1208,6 +1714,7 @@ router.delete('/all', authMiddleware, requirePage('control', 'delete', { tab: 'd
   try {
     const res1 = await M.ClassAttendance.deleteMany({});
     const res2 = await M.StudentAttendance.deleteMany({});
+    await countService.setCount('attendanceRecords', 0).catch(() => {});
     await logAction(
       req.user.trackId || req.user._id,
       req.user.name,
@@ -1221,7 +1728,7 @@ router.delete('/all', authMiddleware, requirePage('control', 'delete', { tab: 'd
       { module: 'teacher', subType: 'attendance' }
     );
     res.json({ deleted: res1.deletedCount + res2.deletedCount });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { return sendError(res, e, 500, 'Failed to process attendance request'); }
 });
 
 // Delete attendance records within a date range (inclusive)
@@ -1229,12 +1736,12 @@ router.delete('/clear', authMiddleware, requirePage('control', 'delete', { tab: 
   try {
     const { from, to } = req.body;
     if (!from || !to) return res.status(400).json({ error: 'from and to dates are required' });
-    const start = new Date(from);
-    const end = new Date(to);
-    end.setHours(23, 59, 59, 999);
+    const start = getStartOfInstitutionDaySync(from);
+    const end = getEndOfInstitutionDaySync(to);
     const filter = { date: { $gte: start, $lte: end } };
     const res1 = await M.ClassAttendance.deleteMany(filter);
     const res2 = await M.StudentAttendance.deleteMany(filter);
+    if (res1 && res1.deletedCount > 0) { await countService.modifyCount('attendanceRecords', -res1.deletedCount).catch(() => {}); }
     await logAction(
       req.user.trackId || req.user._id,
       req.user.name,
@@ -1248,7 +1755,7 @@ router.delete('/clear', authMiddleware, requirePage('control', 'delete', { tab: 
       { module: 'teacher', subType: 'attendance' }
     );
     res.json({ deleted: res1.deletedCount + res2.deletedCount });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { return sendError(res, e, 500, 'Failed to process attendance request'); }
 });
 
 // Delete single session/record
@@ -1264,9 +1771,10 @@ router.delete('/:id', authMiddleware, requirePage('admin', 'delete', { tab: 'rep
         expiresAt: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000)
       }).catch(err => console.warn('[UndoLog Error]:', err.message));
       await M.ClassAttendance.findByIdAndDelete(req.params.id);
+      await countService.modifyCount('attendanceRecords', -1).catch(() => {});
     }
     res.json({ deleted: true });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { return sendError(res, e, 500, 'Failed to process attendance request'); }
 });
 
 router.get('/unmarked-teachers', authMiddleware, requirePage('admin', 'view', { tab: 'reports' }), async (req, res) => {
@@ -1278,7 +1786,14 @@ router.get('/unmarked-teachers', authMiddleware, requirePage('admin', 'view', { 
     monday.setDate(today.getDate() - ((today.getDay() + 6) % 7));
     const weekDates = Array.from({ length: 5 }, (_, i) => { const d = new Date(monday); d.setDate(monday.getDate() + i); return todayIST(d); });
     const assignments = await M.Assignment.find().lean();
-    const classAttDocs = await M.ClassAttendance.find().lean();
+    const startMonday = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate());
+    const endFriday = new Date(startMonday.getTime() + 5 * 86400000);
+    const classAttDocs = await M.ClassAttendance.find({
+      $or: [
+        { date: { $gte: startMonday, $lte: endFriday } },
+        { date: { $gte: weekDates[0], $lte: weekDates[4] } }
+      ]
+    }).select('classId date periods.teacherTrackId').lean();
 
     const unmarked = [];
     for (const a of assignments) {
@@ -1298,7 +1813,7 @@ router.get('/unmarked-teachers', authMiddleware, requirePage('admin', 'view', { 
     }
     res.json(unmarked);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    return sendError(res, err, 500, 'Failed to process attendance request');
   }
 });
 

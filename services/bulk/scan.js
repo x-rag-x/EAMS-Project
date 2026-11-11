@@ -201,7 +201,7 @@ async function scanAndValidateWorkbook(type, buffer, req, { onProgress } = {}) {
 
     // Business domain validation per type
     if (type === 'student') {
-      const { fullName, registerNo, gender, academicYear, batch, courseType, branch, department: deptName, class: className, email, username, residency, password } = normalizedData;
+      const { fullName, registerNo, gender, academicYear, batch, courseType, branch, department: deptName, class: className, email, username, residency, admissionType, password } = normalizedData;
       const { firstName, lastName } = splitFirstLastName(fullName);
 
       // In-file duplicate checks
@@ -277,6 +277,7 @@ async function scanAndValidateWorkbook(type, buffer, req, { onProgress } = {}) {
             class: className,
             classId: matchedClass ? matchedClass._id : null,
             residency,
+            admissionType: (admissionType && String(admissionType).toLowerCase().includes('lateral')) ? 'Lateral Entry' : 'Regular',
             email,
             username,
             password

@@ -52,81 +52,50 @@
         </div>
       </div>
 
-      <div class="sb-navs">
-        <div class="sb-section-label">Real-Time Operations</div>
-        <button class="sb-item act" data-page="board" onclick="nav('board')">
-          <span class="sbi-ic"><re-icon icon="grid"></re-icon></span>Live Board
-          <span class="sb-badge alert-badge" id="sb-live-alert-badge" style="display:none;background:#ef4444;color:#fff;">0</span>
+            <div class="sb-navs">
+        <!-- Group 1: Real-time operations -->
+        <div class="sb-section-label">Real-time operations</div>
+        <button class="sb-item act" data-page="dashboard" onclick="nav('dashboard')">
+          <span class="sbi-ic"><re-icon icon="layout-dashboard"></re-icon></span>Dashboard
+          <span class="sb-badge alert-badge" id="sb-live-alert-badge" style="display:none;background:var(--danger);color:#fff;">0</span>
         </button>
         <button class="sb-item" data-page="inbox" onclick="nav('inbox')">
-          <span class="sbi-ic"><re-icon icon="grid"></re-icon></span>Approvals Inbox
-          <span class="sb-badge alert-badge" id="sb-inbox-badge" style="display:none;background:#6366f1;color:#fff;">0</span>
+          <span class="sbi-ic"><re-icon icon="inbox"></re-icon></span>Inbox
+          <span class="sb-badge alert-badge" id="sb-inbox-badge" style="display:none;background:var(--warn);color:#fff;">0</span>
         </button>
 
-        <div class="sb-section-label">General Oversight</div>
-        <button class="sb-item" data-page="dash" onclick="nav('dash')">
-          <span class="sbi-ic"><re-icon icon="grid"></re-icon></span>Dashboard
+        <!-- Group 2: Academics -->
+        <div class="sb-section-label">Academics</div>
+        <button class="sb-item" data-page="timetable" onclick="nav('timetable')">
+          <span class="sbi-ic"><re-icon icon="calendar-days"></re-icon></span>Timetable
+          <span class="sb-badge alert-badge" id="sb-tt-verify-badge" style="display:none;background:var(--warn);color:#fff;">0</span>
         </button>
         <button class="sb-item" data-page="attendance" onclick="nav('attendance')">
-          <span class="sbi-ic"><re-icon icon="clipboard-list"></re-icon></span>Daily Attendance
-        </button>
-        <button class="sb-item" data-page="leaves" onclick="nav('leaves')">
-          <span class="sbi-ic"><re-icon icon="file-text"></re-icon></span>Student Leaves
-          <span class="sb-badge" id="sb-leave-badge" style="display:none;">0</span>
-        </button>
-        <button class="sb-item" data-page="faculty-leave" onclick="nav('faculty-leave')">
-          <span class="sbi-ic"><re-icon icon="grid"></re-icon></span>Faculty Leave &amp; Substitutions
-          <span class="sb-badge" id="sb-fl-badge" style="display:none;background:#ef4444;color:#fff;">0</span>
-        </button>
-        <button class="sb-item" data-page="participation" onclick="nav('participation')">
-          <span class="sbi-ic"><re-icon icon="grid"></re-icon></span>Academic Participation
-          <span class="sb-badge" id="sb-part-badge" style="display:none;background:#6366f1;color:#fff;">0</span>
+          <span class="sbi-ic"><re-icon icon="clipboard-list"></re-icon></span>Attendance
         </button>
 
-        <div class="sb-section-label">Directories</div>
-        <button class="sb-item" data-page="teachers" onclick="nav('teachers')">
-          <span class="sbi-ic"><re-icon icon="teacher"></re-icon></span>Faculty Overview
-        </button>
+        <!-- Group 3: People -->
+        <div class="sb-section-label">People</div>
         <button class="sb-item" data-page="students" onclick="nav('students')">
-          <span class="sbi-ic"><re-icon icon="graduation-cap"></re-icon></span>Student Directory
+          <span class="sbi-ic"><re-icon icon="graduation-cap"></re-icon></span>Student Management
         </button>
-        <button class="sb-item" data-page="records" onclick="nav('records')">
-          <span class="sbi-ic"><re-icon icon="grid"></re-icon></span>Period Notes
+        <button class="sb-item" data-page="staff" onclick="nav('staff')">
+          <span class="sbi-ic"><re-icon icon="teacher"></re-icon></span>Staff Management
         </button>
 
-        <div class="sb-section-label">Analytics & Notices</div>
-        <button class="sb-item" data-page="defaulters" onclick="nav('defaulters')">
-          <span class="sbi-ic"><re-icon icon="user-x"></re-icon></span>Defaulters Report
-        </button>
-        <button class="sb-item" data-page="reports" onclick="nav('reports')">
-          <span class="sbi-ic"><re-icon icon="trend-up"></re-icon></span>Attendance Reports
-        </button>
+        <!-- Group 4: Communicate and govern -->
+        <div class="sb-section-label">Communicate and govern</div>
         <button class="sb-item" data-page="broadcast" onclick="nav('broadcast')">
-          <span class="sbi-ic"><re-icon icon="bullhorn"></re-icon></span>Broadcast Hub
+          <span class="sbi-ic"><re-icon icon="bullhorn"></re-icon></span>Broadcast
         </button>
-        <button class="sb-item" data-page="audit" onclick="nav('audit')">
-          <span class="sbi-ic"><re-icon icon="grid"></re-icon></span>Executive Audit Log
-        </button>
-
-        <div class="sb-section-label">Academics</div>
-        <button class="sb-item" data-page="tt-verify" id="ctrl-sn-tt-verify" onclick="nav('tt-verify')">
-          <span class="sbi-ic"><re-icon icon="clipboard-list"></re-icon></span>Timetable Verification
-          <span class="sb-badge alert-badge" id="sb-tt-verify-badge" style="display:none;background:#f59e0b;color:#fff;">0</span>
-        </button>
-        <button class="sb-item" data-page="timetable" onclick="nav('timetable')">
-          <span class="sbi-ic"><re-icon icon="calendar-days"></re-icon></span>Timetable View
-        </button>
-        <button class="sb-item" data-page="workload" onclick="nav('workload')">
-          <span class="sbi-ic"><re-icon icon="users"></re-icon></span>Faculty Workload &amp; Schedule
-        </button>
-        <button class="sb-item" data-page="calendar" onclick="nav('calendar')">
-          <span class="sbi-ic"><re-icon icon="calendar"></re-icon></span>Academic Calendar
+        <button class="sb-item" data-page="policy-audit" onclick="nav('policy-audit')">
+          <span class="sbi-ic"><re-icon icon="shield-check"></re-icon></span>Policy &amp; Audit
         </button>
 
-        <div class="sb-section-label">Configuration</div>
-        <button class="sb-item" data-page="settings" onclick="nav('settings')">
-          <span class="sbi-ic"><re-icon icon="settings"></re-icon></span>Department Policy
-        </button>
+        <!-- Hidden legacy badges for backward compatibility -->
+        <span id="sb-leave-badge" style="display:none;"></span>
+        <span id="sb-fl-badge" style="display:none;"></span>
+        <span id="sb-part-badge" style="display:none;"></span>
       </div>
 
       <div class="sb-bottom">
@@ -175,6 +144,13 @@
             </select>
           </div>
 
+                    <!-- Global Search Trigger (Ctrl+K) -->
+          <button type="button" class="ctrl-topbar-search-btn" id="ctrl-global-search-btn" onclick="openGlobalSearch()" title="Search students, faculty, or classes (Ctrl+K)">
+            <re-icon icon="search" size="14"></re-icon>
+            <span class="search-btn-text">Search...</span>
+            <kbd class="search-kbd">Ctrl K</kbd>
+          </button>
+
           <div class="profile-chip" onclick="nav('profile')">
             <div class="profile-av" id="u-av">C</div>
             <div class="profile-info">
@@ -186,7 +162,22 @@
       </header>
 
       <!-- PAGE 0: <re-icon icon="radio"></re-icon> LIVE BOARD (pg-board) [DEFAULT ACTIVE] -->
-      <section class="ctrl-page act" id="pg-board">
+      
+      <!-- PAGE 1: DASHBOARD (pg-dashboard) [DEFAULT ACTIVE] -->
+      <section class="ctrl-page act" id="pg-dashboard">
+        <!-- Needs Attention Strip -->
+        <div class="ctrl-needs-attention-strip" id="ctrl-needs-attention-strip" style="display:none;margin-bottom:16px;"></div>
+
+        <!-- Dashboard Tab Bar -->
+        <div class="ctrl-tabs" role="tablist" aria-label="Dashboard views" style="margin-bottom:16px;">
+          <button class="ctrl-tab act" role="tab" aria-selected="true" id="tab-btn-dash-board" onclick="switchDashboardTab('board')"><re-icon icon="grid" size="14"></re-icon> Live Board</button>
+          <button class="ctrl-tab" role="tab" aria-selected="false" id="tab-btn-dash-overview" onclick="switchDashboardTab('overview')"><re-icon icon="trend-up" size="14"></re-icon> Overview</button>
+          <button class="ctrl-tab" role="tab" aria-selected="false" id="tab-btn-dash-alerts" onclick="switchDashboardTab('alerts')"><re-icon icon="alert-triangle" size="14"></re-icon> Alerts</button>
+        </div>
+
+        <!-- Tab 1: Live Board -->
+        <div class="ctrl-tab-panel act" id="pg-board">
+
         <div class="page-hd">
           <div>
             <h1 class="page-title"><re-icon icon="radio"></re-icon> Real-Time Live Board</h1>
@@ -339,46 +330,28 @@
             </div>
           </div>
         </div>
-      </section>
- 
-      <!-- PAGE: APPROVALS INBOX (pg-inbox) (C7 §11) -->
-      <section class="ctrl-page" id="pg-inbox">
-        <div class="page-hd">
-          <div>
-            <h1 class="page-title"><re-icon icon="download"></re-icon> Approvals &amp; Action Inbox</h1>
-            <p class="page-sub">Unified chronological queue of pending faculty leaves, student ODs, overdue evidence, and attendance unlocks.</p>
-          </div>
-          <div class="page-actions">
-            <button class="btn btn-sec" onclick="loadInboxData()"><re-icon icon="refresh" size="14"></re-icon> Refresh Queue</button>
-          </div>
+      
         </div>
 
-        <!-- Filter bar -->
-        <div class="card" style="margin-bottom:14px;padding:12px 16px;">
-          <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
-            <div style="display:flex;gap:6px;flex-wrap:wrap;" id="inbox-filter-chips">
-              <button class="filter-chip act" onclick="filterInbox('all', this)">All Items (<span id="inbox-count-all">0</span>)</button>
-              <button class="filter-chip" onclick="filterInbox('faculty_leave', this)">Faculty Leaves (<span id="inbox-count-faculty_leave">0</span>)</button>
-              <button class="filter-chip" onclick="filterInbox('student_od', this)">Student OD (<span id="inbox-count-student_od">0</span>)</button>
-              <button class="filter-chip" onclick="filterInbox('attendance_unlock', this)">Attendance Unlocks (<span id="inbox-count-attendance_unlock">0</span>)</button>
-              <button class="filter-chip" onclick="filterInbox('unresolved_substitution', this)">Unresolved Subs (<span id="inbox-count-unresolved_substitution">0</span>)</button>
-              <button class="filter-chip" onclick="filterInbox('evidence_overdue', this)">Evidence Overdue (<span id="inbox-count-evidence_overdue">0</span>)</button>
-              <button class="filter-chip" onclick="filterInbox('role_access', this)">Sub-Admin Roles (<span id="inbox-count-role_access">0</span>)</button>
-              <button class="filter-chip" onclick="filterInbox('timetable_verification', this)">Timetable (<span id="inbox-count-timetable_verification">0</span>)</button>
+        <!-- Tab 2: Overview (Dash KPIs) -->
+        <div class="ctrl-tab-panel" id="pg-dash">
+
+        
+        <!-- Needs Attention Executive Strip -->
+        <div class="ctrl-attention-strip" id="ctrl-needs-attention-strip" style="display:none;margin-bottom:18px;">
+          <div class="card" style="padding:12px 18px;border-left:4px solid #dc2626;background:var(--bg2,#f8fafc);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+              <span style="font-weight:700;font-size:13px;color:var(--td);display:inline-flex;align-items:center;gap:6px;">
+                <re-icon icon="alert-circle" size="16" style="color:#dc2626;"></re-icon> Needs Immediate Attention:
+              </span>
+              <div id="ctrl-attention-pills" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;"></div>
             </div>
-            <div style="font-size:12px;color:var(--tmu);font-weight:600;">Oldest First (FIFO)</div>
+            <button type="button" class="btn btn-sm btn-sec" onclick="nav('inbox')" style="font-size:12px;padding:4px 10px;">
+              Go to Inbox <re-icon icon="arrow-right" size="12"></re-icon>
+            </button>
           </div>
         </div>
-
-        <!-- Inbox list -->
-        <div id="inbox-items-container" style="display:flex;flex-direction:column;gap:10px;">
-          <div style="text-align:center;padding:40px;color:var(--tmu);">Loading approvals queue…</div>
-        </div>
-      </section>
-
-      <!-- PAGE 1: DASHBOARD (pg-dash) -->
-      <section class="ctrl-page" id="pg-dash">
-        <div class="page-hd">
+<div class="page-hd">
           <div>
             <h1 class="page-title" id="dash-title">Executive Dashboard</h1>
             <p class="page-sub" id="dash-subtitle">Real-time attendance metrics, departmental indicators, and operational trends.</p>
@@ -506,10 +479,325 @@
             </table>
           </div>
         </div>
+      
+        </div>
+
+        <!-- Tab 3: Alerts Focus Panel -->
+        <div class="ctrl-tab-panel" id="tab-dash-alerts">
+          <div class="card" style="padding:20px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+              <div>
+                <h3 style="font-size:16px;font-weight:700;color:var(--td);margin:0;"><re-icon icon="alert-triangle"></re-icon> Active Operational Alerts</h3>
+                <p style="font-size:12px;color:var(--tmu);margin:3px 0 0;">Real-time notifications and anomaly warnings requiring controller review.</p>
+              </div>
+              <button class="btn btn-sm btn-sec" onclick="loadLiveAlertsRail()"><re-icon icon="refresh" size="13"></re-icon> Refresh Alerts</button>
+            </div>
+            <div id="full-alerts-container">
+              <div style="text-align:center;padding:30px;color:var(--tmu);">Loading alerts…</div>
+            </div>
+          </div>
+        </div>
       </section>
 
-      <!-- PAGE 2: DAILY ATTENDANCE OVERVIEW (pg-attendance) -->
+
+      <!-- PAGE 2: APPROVALS INBOX (pg-inbox) -->
+      <section class="ctrl-page" id="pg-inbox">
+        <div class="page-hd">
+          <div>
+            <h1 class="page-title"><re-icon icon="download"></re-icon> Approvals &amp; Action Inbox</h1>
+            <p class="page-sub">Unified chronological queue of pending faculty leaves, student leaves, ODs, overdue evidence, and attendance unlocks.</p>
+          </div>
+          <div class="page-actions">
+            <button class="btn btn-sec" onclick="loadInboxData()"><re-icon icon="refresh" size="14"></re-icon> Refresh Queue</button>
+          </div>
+        </div>
+
+        <!-- Filter bar -->
+        <div class="card" style="margin-bottom:14px;padding:12px 16px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
+            <div style="display:flex;gap:6px;flex-wrap:wrap;" id="inbox-filter-chips">
+              <button class="filter-chip act" onclick="filterInbox('all', this)">All Items (<span id="inbox-count-all">0</span>)</button>
+              <button class="filter-chip" onclick="filterInbox('faculty_leave', this)">Faculty Leaves (<span id="inbox-count-faculty_leave">0</span>)</button>
+              <button class="filter-chip" onclick="filterInbox('student_leave', this)">Student Leaves (<span id="inbox-count-student_leave">0</span>)</button>
+              <button class="filter-chip" onclick="filterInbox('student_od', this)">Student OD (<span id="inbox-count-student_od">0</span>)</button>
+              <button class="filter-chip" onclick="filterInbox('attendance_unlock', this)">Unlocks (<span id="inbox-count-attendance_unlock">0</span>)</button>
+              <button class="filter-chip" onclick="filterInbox('unresolved_substitution', this)">Substitutions (<span id="inbox-count-unresolved_substitution">0</span>)</button>
+              <button class="filter-chip" onclick="filterInbox('evidence_overdue', this)">Evidence Overdue (<span id="inbox-count-evidence_overdue">0</span>)</button>
+              <button class="filter-chip" onclick="filterInbox('role_access', this)">Sub-Admin (<span id="inbox-count-role_access">0</span>)</button>
+              <button class="filter-chip" onclick="filterInbox('timetable_verification', this)">Timetable (<span id="inbox-count-timetable_verification">0</span>)</button>
+              <button class="filter-chip chip-escalation" id="chip-inbox-escalations" style="display:none;" onclick="filterInbox('escalations', this)">⚠️ Escalations (<span id="inbox-count-escalations">0</span>)</button>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span style="font-size:12px;color:var(--tmu);font-weight:600;">Sort:</span>
+              <button type="button" class="btn btn-sm btn-sec" id="inbox-sort-toggle-btn" onclick="toggleInboxSortOrder()" title="Toggle sort order">
+                <re-icon icon="arrow-down-up" size="12"></re-icon> <span id="inbox-sort-label">Urgent First</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Master-Detail Split Shell -->
+        <div class="ctrl-inbox-shell" id="ctrl-inbox-shell">
+          <!-- Left Column: Master List (380px) -->
+          <div class="ctrl-inbox-list-pane" id="ctrl-inbox-list-pane">
+            <div id="inbox-items-container" class="ctrl-inbox-items-container">
+              <div style="text-align:center;padding:40px;color:var(--tmu);">Loading approvals queue…</div>
+            </div>
+          </div>
+
+          <!-- Right Column: Detail Pane (Flexible) -->
+          <div class="ctrl-inbox-detail-pane" id="ctrl-inbox-detail-pane">
+            <div class="ctrl-inbox-detail-empty" id="ctrl-inbox-detail-empty">
+              <div style="text-align:center;padding:60px 20px;color:var(--tmu);">
+                <re-icon icon="inbox" size="36" style="opacity:0.35;margin-bottom:12px;display:block;margin:0 auto 12px;"></re-icon>
+                <div style="font-size:15px;font-weight:600;color:var(--td);">Select an item to review details</div>
+                <div style="font-size:12.5px;color:var(--tmu);margin-top:4px;">Use keyboard <kbd style="padding:2px 6px;border:1px solid var(--br);border-radius:4px;background:var(--gP);">j</kbd> and <kbd style="padding:2px 6px;border:1px solid var(--br);border-radius:4px;background:var(--gP);">k</kbd> to move through the queue</div>
+              </div>
+            </div>
+            <div class="ctrl-inbox-detail-content" id="ctrl-inbox-detail-content" style="display:none;"></div>
+          </div>
+        </div>
+      </section>
+
+
+      <!-- PAGE 3: TIMETABLE (pg-timetable) -->
+      <section class="ctrl-page" id="pg-timetable">
+        <!-- Timetable Tab Bar -->
+        <div class="ctrl-tabs" role="tablist" aria-label="Timetable views" style="margin-bottom:16px;">
+          <button class="ctrl-tab act" role="tab" aria-selected="true" id="tab-btn-tt-view" onclick="switchTimetableTab('view')"><re-icon icon="calendar-days" size="14"></re-icon> Class View</button>
+          <button class="ctrl-tab" role="tab" aria-selected="false" id="tab-btn-tt-verify" onclick="switchTimetableTab('verify')"><re-icon icon="clipboard-list" size="14"></re-icon> Verification <span class="badge" id="tt-verify-tab-badge" style="display:none;background:var(--warn);color:#fff;margin-left:4px;">0</span></button>
+          <button class="ctrl-tab" role="tab" aria-selected="false" id="tab-btn-tt-calendar" onclick="switchTimetableTab('calendar')"><re-icon icon="calendar" size="14"></re-icon> Academic Calendar</button>
+        </div>
+
+        <div class="ctrl-tab-panel act" id="tab-tt-view">
+
+        <div class="page-hd">
+          <div>
+            <h1 class="page-title">Class Timetable View</h1>
+            <p class="page-sub">Weekly master schedules, allocated periods, and faculty course assignments (View-Only).</p>
+          </div>
+          <div class="page-actions" style="display:flex;align-items:center;gap:10px;">
+            <button type="button" class="btn btn-out" onclick="nav('tt-verify')" style="font-size:12px;color:#d97706;border-color:#fde68a;">
+              <re-icon icon="clipboard-list" size="14"></re-icon> Verification Queue <span id="ctrl-tt-view-badge" class="badge" style="display:none;background:#f59e0b;color:#fff;margin-left:4px;">0</span>
+            </button>
+            <select id="tt-class-select" class="form-input form-select-sm" onchange="renderClassTimetable(this.value)">
+              <option value="">Select Class / Section…</option>
+            </select>
+            <button type="button" class="btn btn-out" onclick="nav('workload')" style="font-size:12px;">
+              <re-icon icon="users" size="14"></re-icon> Faculty Workload &amp; Schedule
+            </button>
+          </div>
+        </div>
+
+        <!-- Pending draft notification banner -->
+        <div id="ctrl-tt-pending-alert" style="display:none;margin-bottom:14px;padding:12px 16px;background:#fffbeb;border:1px solid #fde68a;border-radius:10px;display:flex;align-items:center;justify-content:space-between;gap:12px;">
+          <div style="display:flex;align-items:center;gap:10px;">
+            <span style="font-size:20px;color:#d97706;"><re-icon icon="alert-triangle"></re-icon></span>
+            <div>
+              <strong style="font-size:13px;color:#92400e;">Timetable Draft Awaiting HoD Verification</strong>
+              <div style="font-size:12px;color:#b45309;" id="ctrl-tt-pending-alert-msg">A timetable coordinator submitted a new schedule draft for review.</div>
+            </div>
+          </div>
+          <button type="button" class="btn btn-pri" onclick="nav('tt-verify')" style="background:#d97706;border-color:#b45309;font-size:12px;padding:6px 14px;white-space:nowrap;">
+            <re-icon icon="clipboard-list" size="14"></re-icon> Review &amp; Verify Now
+          </button>
+        </div>
+
+        <div class="card">
+          <div class="card-hd">
+            <div class="card-title" id="tt-view-title">Class Master Schedule</div>
+            <span class="card-badge">7-Period Day Roster</span>
+          </div>
+          <div class="table-responsive">
+            <table class="timetable-grid-table" id="timetable-display-table">
+              <thead>
+                <tr>
+                  <th>Day</th>
+                  <th>Period 1</th>
+                  <th>Period 2</th>
+                  <th>Period 3</th>
+                  <th>Period 4</th>
+                  <th>Period 5</th>
+                  <th>Period 6</th>
+                  <th>Period 7</th>
+                </tr>
+              </thead>
+              <tbody id="timetable-display-tbody">
+                <tr><td colspan="8" class="text-center">Select a class section from the dropdown above to view its timetable.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      
+        </div>
+
+        <div class="ctrl-tab-panel" id="pg-tt-verify">
+
+        <div class="page-hd">
+          <div>
+            <h1 class="page-title"><re-icon icon="clipboard-list"></re-icon> Timetable Verification &amp; Approvals</h1>
+            <p class="page-sub">Review submitted class schedules for your department, inspect full schedule matrices, verify atomic diffs, and approve or reject.</p>
+          </div>
+          <div class="page-actions" style="display:flex;align-items:center;gap:8px;">
+            <button type="button" class="btn btn-out" onclick="loadCtrlTimetableVerificationPage()">
+              <re-icon icon="refresh" size="14"></re-icon> Refresh Queue
+            </button>
+            <button type="button" class="btn btn-pri" onclick="nav('timetable')">
+              <re-icon icon="calendar-days" size="14"></re-icon> Master Timetable View
+            </button>
+          </div>
+        </div>
+
+        <!-- KPI SUMMARY CARDS -->
+        <div class="stats-row" style="display:grid;grid-template-columns:repeat(auto-fit, minmax(220px, 1fr));gap:14px;margin-bottom:20px;">
+          <div class="card t-stat-mini">
+            <div class="t-stat-icon amber">
+              <re-icon icon="hourglass" size="20"></re-icon>
+            </div>
+            <div>
+              <div class="t-stat-val" id="ctrl-tt-kpi-pending">0</div>
+              <div class="t-stat-label">Pending HoD Review</div>
+            </div>
+          </div>
+          <div class="card t-stat-mini">
+            <div class="t-stat-icon green">
+              <re-icon icon="check" size="20"></re-icon>
+            </div>
+            <div>
+              <div class="t-stat-val" id="ctrl-tt-kpi-approved">0</div>
+              <div class="t-stat-label">Approved Schedules</div>
+            </div>
+          </div>
+          <div class="card t-stat-mini">
+            <div class="t-stat-icon blue">
+              <re-icon icon="rocket" size="20"></re-icon>
+            </div>
+            <div>
+              <div class="t-stat-val" id="ctrl-tt-kpi-published">0</div>
+              <div class="t-stat-label">Live in Production</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- TABLE CONTAINER -->
+        <div class="card" style="padding:0;overflow:hidden;">
+          <div style="padding:14px 18px;border-bottom:1px solid var(--br);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;background:var(--bg2,#f8faf8);">
+            <div style="display:flex;align-items:center;gap:10px;">
+              <span style="font-weight:700;font-size:13px;color:var(--td);">Department Timetable Verification Requests</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <button type="button" class="sched-tab act" id="ctrl-tt-filter-pending" onclick="filterCtrlTtRequests('pending')">Pending Review</button>
+              <button type="button" class="sched-tab" id="ctrl-tt-filter-all" onclick="filterCtrlTtRequests('all')">All Requests</button>
+            </div>
+          </div>
+          <div id="ctrl-tt-table-container" style="overflow-x:auto;">
+            <div style="text-align:center;padding:36px;color:var(--tmu);font-size:13px;">Loading verification requests…</div>
+          </div>
+        </div>
+      
+        </div>
+
+        <div class="ctrl-tab-panel" id="pg-calendar">
+
+        <div class="page-hd">
+          <div>
+            <h1 class="page-title">Academic Calendar</h1>
+            <p class="page-sub">View-only institutional calendar, college working days, exam windows, and declared holidays.</p>
+          </div>
+          <div class="page-actions">
+            <button class="btn btn-sec" onclick="loadAcademicCalendar()"><re-icon icon="refresh" size="14"></re-icon> Refresh Calendar</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="table-responsive">
+            <table class="data-table" id="calendar-table">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Day</th>
+                  <th>Day Order</th>
+                  <th>Type / Classification</th>
+                  <th>Description / Event</th>
+                  <th>Working Status</th>
+                </tr>
+              </thead>
+              <tbody id="calendar-tbody">
+                <tr><td colspan="6" class="text-center">Loading academic calendar…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      
+        </div>
+      </section>
+
+
+      <!-- PAGE 4: ATTENDANCE (pg-attendance) -->
       <section class="ctrl-page" id="pg-attendance">
+        <!-- Attendance Tab Bar -->
+        <div class="ctrl-tabs" role="tablist" aria-label="Attendance views" style="margin-bottom:16px;">
+          <button class="ctrl-tab act" role="tab" aria-selected="true" id="tab-btn-att-overview" onclick="switchAttendanceTab('overview')"><re-icon icon="trend-up" size="14"></re-icon> Overview</button>
+          <button class="ctrl-tab" role="tab" aria-selected="false" id="tab-btn-att-daily" onclick="switchAttendanceTab('daily')"><re-icon icon="clipboard-list" size="14"></re-icon> Daily Rosters</button>
+          <button class="ctrl-tab" role="tab" aria-selected="false" id="tab-btn-att-defaulters" onclick="switchAttendanceTab('defaulters')"><re-icon icon="user-x" size="14"></re-icon> Defaulters</button>
+          <button class="ctrl-tab" role="tab" aria-selected="false" id="tab-btn-att-records" onclick="switchAttendanceTab('records')"><re-icon icon="file-text" size="14"></re-icon> Period Records</button>
+          <button class="ctrl-tab" role="tab" aria-selected="false" id="tab-btn-att-reports" onclick="switchAttendanceTab('reports')"><re-icon icon="bar-chart-2" size="14"></re-icon> Reports</button>
+        </div>
+
+        <!-- TAB 1: Trend Overview -->
+        <div class="ctrl-tab-panel act" id="tab-att-overview">
+          <div class="page-hd">
+            <div>
+              <h1 class="page-title"><re-icon icon="trend-up"></re-icon> Attendance Trends &amp; Institutional Analytics</h1>
+              <p class="page-sub">Periodic attendance percentages, trend charts with benchmark thresholds, and class rankings.</p>
+            </div>
+            <div class="page-actions">
+              <div class="ctrl-segmented-ctrl" id="att-scope-toggle" role="group" aria-label="Time period scope">
+                <button type="button" class="ctrl-seg-btn act" onclick="setAttendanceOverviewScope('daily', this)">Daily</button>
+                <button type="button" class="ctrl-seg-btn" onclick="setAttendanceOverviewScope('weekly', this)">Weekly</button>
+                <button type="button" class="ctrl-seg-btn" onclick="setAttendanceOverviewScope('monthly', this)">Monthly</button>
+                <button type="button" class="ctrl-seg-btn" onclick="setAttendanceOverviewScope('semester', this)">Semester</button>
+              </div>
+              <button class="btn btn-sec" onclick="loadAttendanceOverview()"><re-icon icon="refresh" size="14"></re-icon> Refresh</button>
+            </div>
+          </div>
+
+          <div class="card" style="margin-bottom:16px;padding:20px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
+              <div>
+                <div style="font-size:12px;font-weight:600;color:var(--tmu);text-transform:uppercase;">Overall Attendance Rate</div>
+                <div style="font-size:28px;font-weight:700;color:var(--gD);" id="att-overview-headline">—%</div>
+                <div style="font-size:12px;color:var(--tmu);" id="att-overview-delta">Compared to previous period</div>
+              </div>
+              <div style="display:flex;gap:16px;align-items:center;">
+                <div class="badge" style="background:var(--gLt);color:var(--gD);font-size:12.5px;padding:8px 14px;border:1px solid var(--gLr);">
+                  Benchmark: <strong id="att-overview-threshold">75%</strong> (Institutional Minimum)
+                </div>
+                <button type="button" class="btn btn-sm btn-sec" id="att-chart-view-toggle" onclick="toggleAttendanceChartView()"><re-icon icon="table" size="13"></re-icon> View as Table</button>
+              </div>
+            </div>
+            <div id="att-overview-chart-wrap" style="margin-top:20px;height:240px;position:relative;">
+              <svg id="att-overview-svg" width="100%" height="240" viewBox="0 0 800 240" preserveAspectRatio="none" style="overflow:visible;"></svg>
+            </div>
+            <div id="att-overview-table-wrap" style="display:none;margin-top:20px;" class="table-responsive">
+              <table class="data-table" id="att-overview-table">
+                <thead><tr><th>Period / Date</th><th>Held</th><th>Attended</th><th>Percentage</th><th>Standing</th></tr></thead>
+                <tbody id="att-overview-tbody"><tr><td colspan="5" class="text-center">Loading trend data…</td></tr></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="card" style="padding:20px;">
+            <h3 style="font-size:15px;font-weight:700;color:var(--td);margin:0 0 14px;">Class Performance Ranking</h3>
+            <div id="att-class-ranking-container" style="display:flex;flex-direction:column;gap:10px;">
+              <div style="text-align:center;padding:20px;color:var(--tmu);">Loading rankings…</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB 2: Daily Rosters -->
+        <div class="ctrl-tab-panel" id="tab-att-daily">
+
         <div class="page-hd">
           <div>
             <h1 class="page-title">Daily Attendance Overview</h1>
@@ -563,67 +851,411 @@
             </table>
           </div>
         </div>
-      </section>
+      
+        </div>
 
-      <!-- PAGE 3: LEAVE APPROVALS (pg-leaves) -->
-      <section class="ctrl-page" id="pg-leaves">
+        <!-- TAB 3: Defaulters -->
+        <div class="ctrl-tab-panel" id="pg-defaulters">
+
         <div class="page-hd">
           <div>
-            <h1 class="page-title">Leave &amp; Permission Approvals</h1>
-            <p class="page-sub">Review, endorse, and bulk-approve student and faculty leave requests.</p>
+            <h1 class="page-title">Attendance Defaulters Report</h1>
+            <p class="page-sub">Students below institutional attendance policy threshold with condonation bands and official letterhead warnings.</p>
           </div>
-          <div class="page-actions">
-            <button class="btn btn-sec" onclick="loadLeavesData()"><re-icon icon="refresh" size="14"></re-icon> Refresh</button>
+          <div class="page-actions" style="display:flex;gap:8px;align-items:center;">
+            <button class="btn btn-sec btn-sm" onclick="exportDefaultersCsv()"><re-icon icon="download" size="14"></re-icon> Export CSV</button>
+            <button class="btn btn-danger btn-sm" onclick="openMeetDefaultersModal()"><re-icon icon="bell" size="14"></re-icon> Bulk "Meet Me" Notice</button>
           </div>
         </div>
 
-        <!-- Sub Tabs -->
-        <div class="ctrl-tabs">
-          <button class="ctrl-tab act" id="tab-btn-student-leaves" onclick="switchLeaveTab('student')"><re-icon icon="graduation-cap" size="14"></re-icon> Student Leave Requests</button>
-          <button class="ctrl-tab" id="tab-btn-teacher-leaves" onclick="switchLeaveTab('teacher')"><re-icon icon="teacher" size="14"></re-icon> Faculty Leave Requests</button>
+        <div class="ctrl-tabs" style="margin-bottom:14px;">
+          <button class="ctrl-tab act" id="tab-def-all" onclick="filterDefaulterBand('all')">All Defaulters (<span id="count-def-all">0</span>)</button>
+          <button class="ctrl-tab" id="tab-def-condonation" onclick="filterDefaulterBand('condonation')">Condonation: 65%–75% (<span id="count-def-cond">0</span>)</button>
+          <button class="ctrl-tab" id="tab-def-critical" onclick="filterDefaulterBand('critical')">Critical: &lt;65% (<span id="count-def-crit">0</span>)</button>
         </div>
 
-        <!-- Filter & Bulk Action Toolbar -->
-        <div class="card" style="margin-top:16px;">
-          <div class="toolbar-flex">
-            <div class="filter-pills">
-              <button class="pill-btn act" onclick="filterLeaves('all', this)">All Requests</button>
-              <button class="pill-btn" onclick="filterLeaves('pending', this)">Pending Approval</button>
-              <button class="pill-btn" onclick="filterLeaves('approved', this)">Approved</button>
-              <button class="pill-btn" onclick="filterLeaves('rejected', this)">Rejected</button>
-            </div>
-            <div class="bulk-actions" id="leave-bulk-actions">
-              <button class="btn btn-sm btn-pri" onclick="handleBulkLeaveAction('approve')"><re-icon icon="check-circle" size="14"></re-icon> Bulk Approve Selected</button>
-              <button class="btn btn-sm btn-danger" onclick="handleBulkLeaveAction('reject')"><re-icon icon="x-circle" size="14"></re-icon> Bulk Reject Selected</button>
-            </div>
+        <div class="card">
+          <div class="card-hd">
+            <div class="card-title">Defaulter Students (<span id="defaulter-threshold-lbl">&lt; 75%</span>)</div>
+            <span class="card-badge" id="defaulter-count-badge">0 Defaulters Found</span>
           </div>
-
-          <div class="table-responsive" style="margin-top:14px;">
-            <table class="data-table" id="leaves-data-table">
+          <div class="table-responsive">
+            <table class="data-table" id="defaulters-table">
               <thead>
                 <tr>
-                  <th style="width:40px;"><input type="checkbox" id="leave-select-all" onchange="toggleSelectAllLeaves(this)"></th>
-                  <th>Applicant</th>
-                  <th>Class / Dept</th>
-                  <th>Type &amp; Category</th>
-                  <th>Date Range</th>
-                  <th>Days</th>
-                  <th>Reason</th>
-                  <th>Urgency</th>
-                  <th>Status</th>
-                  <th>Actions</th>
+                  <th style="width:40px;"><input type="checkbox" id="defaulter-select-all" onchange="toggleSelectAllDefaulters(this)"></th>
+                  <th>Register No</th>
+                  <th>Student Name</th>
+                  <th>Class / Section</th>
+                  <th>Department</th>
+                  <th>Classes Held</th>
+                  <th>Attended</th>
+                  <th>Attendance %</th>
+                  <th>Standing Band</th>
+                  <th>Classes Needed</th>
+                  <th>Action</th>
                 </tr>
               </thead>
-              <tbody id="leaves-tbody">
-                <tr><td colspan="10" class="text-center">Loading leave requests…</td></tr>
+              <tbody id="defaulters-tbody">
+                <tr><td colspan="11" class="text-center">Loading defaulters list…</td></tr>
               </tbody>
             </table>
           </div>
         </div>
+      
+        </div>
+
+        <!-- TAB 4: Period Records -->
+        <div class="ctrl-tab-panel" id="pg-records">
+
+        <div class="page-hd">
+          <div>
+            <h1 class="page-title">Period Records &amp; Teaching Notes</h1>
+            <p class="page-sub">Audit trail of syllabus topics covered, faculty notes, and period attendance.</p>
+          </div>
+          <div class="page-actions">
+            <input type="text" id="records-search-input" class="form-input form-input-sm" placeholder="Search topics, notes, faculty…" oninput="filterPeriodRecords(this.value)" style="min-width:200px;">
+            <input type="date" id="records-date-picker" class="form-input form-input-sm" onchange="loadPeriodRecords()">
+            <button class="btn btn-sm btn-pri" onclick="loadPeriodRecords()">Inspect Date</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="table-responsive">
+            <table class="data-table" id="records-table">
+              <thead>
+                <tr>
+                  <th>Class</th>
+                  <th>Period #</th>
+                  <th>Subject</th>
+                  <th>Handling Faculty</th>
+                  <th>Topic Covered</th>
+                  <th>Faculty Notes</th>
+                  <th>Present / Total</th>
+                  <th>Timestamp</th>
+                </tr>
+              </thead>
+              <tbody id="records-tbody">
+                <tr><td colspan="8" class="text-center">Select a date to audit period teaching records.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      
+        </div>
+
+        <!-- TAB 5: Reports -->
+        <div class="ctrl-tab-panel" id="pg-reports">
+
+        <div class="page-hd">
+          <div>
+            <h1 class="page-title">Attendance Analytics &amp; Reports</h1>
+            <p class="page-sub">Exportable monthly attendance registries and semester-wise subject metrics.</p>
+          </div>
+          <div class="page-actions">
+            <button class="btn btn-sec" onclick="exportReportToCsv()"><re-icon icon="download" size="14"></re-icon> Export to CSV / Excel</button>
+          </div>
+        </div>
+
+        <div class="ctrl-tabs">
+          <button class="ctrl-tab act" id="tab-btn-daily-rpt" onclick="switchReportTab('daily')"><re-icon icon="grid" size="14"></re-icon> Daily 17:30 Roll-up</button>
+          <button class="ctrl-tab" id="tab-btn-punct-rpt" onclick="switchReportTab('punctuality')"><re-icon icon="timer" size="14"></re-icon> ️ Faculty Punctuality &amp; Coverage</button>
+          <button class="ctrl-tab" id="tab-btn-heat-rpt" onclick="switchReportTab('heatmap')"><re-icon icon="sparkles" size="14"></re-icon> Presence Heatmap</button>
+          <button class="ctrl-tab" id="tab-btn-monthly-rpt" onclick="switchReportTab('monthly')"><re-icon icon="calendar" size="14"></re-icon> Monthly Summary Report</button>
+          <button class="ctrl-tab" id="tab-btn-sem-rpt" onclick="switchReportTab('semester')"><re-icon icon="book-open" size="14"></re-icon> Semester Subject Report</button>
+        </div>
+
+        <!-- Daily Roll-up Section (C7 §12) -->
+        <div class="card" id="rpt-daily-sec" style="margin-top:16px;">
+          <div class="toolbar-flex" style="margin-bottom:14px;">
+            <div style="display:flex;align-items:center;gap:10px;">
+              <label for="rpt-daily-picker">Date:</label>
+              <input type="date" id="rpt-daily-picker" class="form-input form-input-sm" onchange="loadDailyReport()">
+            </div>
+            <div style="display:flex;gap:8px;">
+              <button class="btn btn-sm btn-pri" onclick="loadDailyReport()">Generate Report</button>
+              <button class="btn btn-sm btn-sec" onclick="exportDailyReportCsv()"><re-icon icon="download" size="14"></re-icon> Export CSV</button>
+            </div>
+          </div>
+
+          <!-- KPI Cards -->
+          <div class="dash-kpi-grid stats-row" style="grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));gap:14px;margin-bottom:18px;">
+            <div class="kpi-card t-stat-mini">
+              <div class="t-stat-icon blue"><re-icon icon="calendar" size="20"></re-icon></div>
+              <div>
+                <div class="kpi-val t-stat-val" id="dr-scheduled">0</div>
+                <div class="kpi-label t-stat-label">Scheduled</div>
+              </div>
+            </div>
+            <div class="kpi-card t-stat-mini">
+              <div class="t-stat-icon green"><re-icon icon="check" size="20"></re-icon></div>
+              <div>
+                <div class="kpi-val t-stat-val" id="dr-held" style="color:#059669;">0</div>
+                <div class="kpi-label t-stat-label">Held</div>
+              </div>
+            </div>
+            <div class="kpi-card t-stat-mini">
+              <div class="t-stat-icon green"><re-icon icon="check-circle" size="20"></re-icon></div>
+              <div>
+                <div class="kpi-val t-stat-val" id="dr-ontime" style="color:#2563eb;">0%</div>
+                <div class="kpi-label t-stat-label">Marked &le; 10m</div>
+              </div>
+            </div>
+            <div class="kpi-card t-stat-mini">
+              <div class="t-stat-icon amber"><re-icon icon="hourglass" size="20"></re-icon></div>
+              <div>
+                <div class="kpi-val t-stat-val" id="dr-late" style="color:#d97706;">0</div>
+                <div class="kpi-label t-stat-label">Marked Late</div>
+              </div>
+            </div>
+            <div class="kpi-card t-stat-mini">
+              <div class="t-stat-icon red"><re-icon icon="alert-triangle" size="20"></re-icon></div>
+              <div>
+                <div class="kpi-val t-stat-val" id="dr-overdue" style="color:#dc2626;">0</div>
+                <div class="kpi-label t-stat-label">Overdue</div>
+              </div>
+            </div>
+            <div class="kpi-card t-stat-mini">
+              <div class="t-stat-icon purple"><re-icon icon="trend-up" size="20"></re-icon></div>
+              <div>
+                <div class="kpi-val t-stat-val" id="dr-presence" style="color:#1e3a8a;">0%</div>
+                <div class="kpi-label t-stat-label">Avg Presence</div>
+              </div>
+            </div>
+          </div>
+
+          <div id="dr-insights-box" style="display:none;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:12px 14px;margin-bottom:14px;font-size:12.5px;color:#1e40af;"></div>
+
+          <div class="table-responsive">
+            <table class="data-table" id="daily-rpt-table">
+              <thead id="daily-rpt-thead">
+                <tr><th>Section / Class</th><th>Scheduled</th><th>Held</th><th>On Time (&le;10m)</th><th>Late</th><th>Present %</th></tr>
+              </thead>
+              <tbody id="daily-rpt-tbody">
+                <tr><td colspan="6" class="text-center">Select date to load daily operations roll-up.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Faculty Punctuality Section (C7 §12) -->
+        <div class="card" id="rpt-punct-sec" style="display:none;margin-top:16px;">
+          <div class="toolbar-flex" style="margin-bottom:14px;">
+            <div style="font-weight:700;font-size:14px;">Faculty Start-Class &amp; Attendance Punctuality Compliance</div>
+            <button class="btn btn-sm btn-sec" onclick="exportPunctualityCsv()"><re-icon icon="download" size="14"></re-icon> Export CSV</button>
+          </div>
+          <div class="table-responsive">
+            <table class="data-table" id="punct-rpt-table">
+              <thead>
+                <tr>
+                  <th>Faculty Member</th>
+                  <th>Dept</th>
+                  <th>Assigned Periods</th>
+                  <th>Conducted</th>
+                  <th>Start Tap Rate %</th>
+                  <th>On-Time Rate (&le;10m)</th>
+                  <th>Median Minutes to Mark</th>
+                  <th>Subs Conducted</th>
+                </tr>
+              </thead>
+              <tbody id="punct-rpt-tbody">
+                <tr><td colspan="8" class="text-center">Loading faculty punctuality metrics…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Presence Heatmap Section (C7 §12) -->
+        <div class="card" id="rpt-heat-sec" style="display:none;margin-top:16px;">
+          <div class="toolbar-flex" style="margin-bottom:14px;">
+            <div>
+              <div style="font-weight:700;font-size:14px;">Institutional Presence Heatmap (Weekday &times; Period)</div>
+              <div style="font-size:12px;color:var(--tmu);">Color gradient indicates average attendance percentage across all scheduled class periods.</div>
+            </div>
+          </div>
+          <div class="table-responsive">
+            <table class="heatmap-table" id="heatmap-grid-table">
+              <thead>
+                <tr>
+                  <th>Weekday</th>
+                  <th>Period 1</th><th>Period 2</th><th>Period 3</th><th>Period 4</th>
+                  <th>Period 5</th><th>Period 6</th><th>Period 7</th><th>Period 8</th>
+                </tr>
+              </thead>
+              <tbody id="heatmap-grid-tbody">
+                <tr><td colspan="9" class="text-center">Loading attendance heatmap…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Monthly Report Section -->
+        <div class="card" id="rpt-monthly-sec" style="display:none;margin-top:16px;">
+          <div class="toolbar-flex" style="margin-bottom:14px;">
+            <div style="display:flex;align-items:center;gap:10px;">
+              <label for="rpt-month-picker">Select Month:</label>
+              <input type="month" id="rpt-month-picker" class="form-input form-input-sm" onchange="loadMonthlyReport()">
+            </div>
+            <button class="btn btn-sm btn-pri" onclick="loadMonthlyReport()">Generate Monthly Report</button>
+          </div>
+
+          <div class="table-responsive">
+            <table class="data-table" id="monthly-rpt-table">
+              <thead>
+                <tr>
+                  <th>Class / Section</th>
+                  <th>Department</th>
+                  <th>Year / Sem</th>
+                  <th>Days Conducted</th>
+                  <th>Total Present</th>
+                  <th>Total Absent</th>
+                  <th>Attendance %</th>
+                </tr>
+              </thead>
+              <tbody id="monthly-rpt-tbody">
+                <tr><td colspan="7" class="text-center">Select month and click generate.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Semester Report Section -->
+        <div class="card" id="rpt-semester-sec" style="display:none;margin-top:16px;">
+          <div class="toolbar-flex" style="margin-bottom:14px;">
+            <div style="display:flex;align-items:center;gap:10px;">
+              <label for="rpt-sem-select">Select Semester:</label>
+              <select id="rpt-sem-select" class="form-input form-select-sm" onchange="loadSemesterReport()">
+                <option value="1">Semester 1</option>
+                <option value="2">Semester 2</option>
+                <option value="3">Semester 3</option>
+                <option value="4">Semester 4</option>
+                <option value="5">Semester 5</option>
+                <option value="6">Semester 6</option>
+                <option value="7">Semester 7</option>
+                <option value="8">Semester 8</option>
+              </select>
+            </div>
+            <button class="btn btn-sm btn-pri" onclick="loadSemesterReport()">Generate Semester Report</button>
+          </div>
+
+          <div class="table-responsive">
+            <table class="data-table" id="sem-rpt-table">
+              <thead>
+                <tr>
+                  <th>Subject Code</th>
+                  <th>Subject Name</th>
+                  <th>Department</th>
+                  <th>Semester</th>
+                  <th>Classes Held</th>
+                  <th>Classes Attended</th>
+                  <th>Attendance %</th>
+                </tr>
+              </thead>
+              <tbody id="sem-rpt-tbody">
+                <tr><td colspan="7" class="text-center">Select semester and click generate.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      
+        </div>
       </section>
- 
-      <!-- PAGE: ACADEMIC PARTICIPATION (pg-participation, Phase L6 = C8) -->
-      <section class="ctrl-page" id="pg-participation">
+
+
+      <!-- PAGE 5: STUDENT MANAGEMENT (pg-students) -->
+      <section class="ctrl-page" id="pg-students">
+        <!-- Student Tab Bar -->
+        <div class="ctrl-tabs" role="tablist" aria-label="Student management views" style="margin-bottom:16px;">
+          <button class="ctrl-tab act" role="tab" aria-selected="true" id="tab-btn-stu-directory" onclick="switchStudentTab('directory')"><re-icon icon="graduation-cap" size="14"></re-icon> Directory</button>
+          <button class="ctrl-tab" role="tab" aria-selected="false" id="tab-btn-stu-participation" onclick="switchStudentTab('participation')"><re-icon icon="award" size="14"></re-icon> Participation &amp; OD</button>
+          <button class="ctrl-tab" role="tab" aria-selected="false" id="tab-btn-stu-leaves" onclick="switchStudentTab('leaves')"><re-icon icon="file-text" size="14"></re-icon> Leave History</button>
+        </div>
+
+        <div class="ctrl-tab-panel act" id="tab-stu-directory">
+
+        <div class="page-hd">
+          <div>
+            <h1 class="page-title"><re-icon icon="graduation-cap"></re-icon> Student Directory</h1>
+            <p class="page-sub">Departmental and institutional student roster, attendance standing, residency, and academic records.</p>
+          </div>
+          <div class="page-actions">
+            <button class="btn btn-sec" onclick="loadStudentsData()"><re-icon icon="refresh" size="14"></re-icon> Refresh</button>
+          </div>
+        </div>
+
+        <!-- Filter Bar -->
+        <div class="card student-dir-filter-bar">
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;flex:1;min-width:260px;">
+            <div style="position:relative;flex:1;min-width:200px;max-width:320px;">
+              <re-icon icon="search" size="14" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--tmu);"></re-icon>
+              <input type="text" id="student-search-input" class="form-input form-input-sm" style="padding-left:30px;width:100%;" placeholder="Search name, roll, reg no..." oninput="onStudentSearchInput(this.value)">
+            </div>
+            <select id="stu-filter-entry" class="form-input form-input-sm" style="width:auto;" onchange="onStudentFilterChange('entryType', this.value)">
+              <option value="">All Entry Types</option>
+              <option value="regular">Regular</option>
+              <option value="lateral">Lateral Entry</option>
+            </select>
+            <select id="stu-filter-residency" class="form-input form-input-sm" style="width:auto;" onchange="onStudentFilterChange('residency', this.value)">
+              <option value="">All Residencies</option>
+              <option value="dayscholar">Dayscholar</option>
+              <option value="hostel">Hostel</option>
+            </select>
+            <select id="stu-filter-gender" class="form-input form-input-sm" style="width:auto;" onchange="onStudentFilterChange('gender', this.value)">
+              <option value="">All Genders</option>
+              <option value="Male">Male</option>
+              <option value="Female">Female</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span style="font-size:12px;color:var(--tmu);font-weight:600;">Sort:</span>
+            <select id="stu-filter-sort" class="form-input form-input-sm" style="width:auto;" onchange="onStudentSortChange(this.value)">
+              <option value="registerNo:asc">Register No (A-Z)</option>
+              <option value="name:asc">Name (A-Z)</option>
+              <option value="attendancePct:desc">Attendance (High → Low)</option>
+              <option value="attendancePct:asc">Attendance (Low → High)</option>
+            </select>
+            <button type="button" class="btn btn-sm btn-sec" onclick="resetStudentFilters()" title="Reset Filters"><re-icon icon="rotate-ccw" size="12"></re-icon></button>
+          </div>
+        </div>
+
+        <div class="card" style="padding:0;overflow:hidden;">
+          <div class="table-responsive">
+            <table class="data-table student-dir-table" id="students-table" style="margin-bottom:0;">
+              <thead>
+                <tr>
+                  <th class="sticky-col" style="min-width:130px;">Register No</th>
+                  <th style="min-width:180px;">Student Name</th>
+                  <th>Class / Sec</th>
+                  <th>Department</th>
+                  <th>Entry Type</th>
+                  <th>Residency</th>
+                  <th>Gender</th>
+                  <th>Classes</th>
+                  <th>Attendance %</th>
+                  <th style="text-align:right;">Action</th>
+                </tr>
+              </thead>
+              <tbody id="students-tbody">
+                <tr><td colspan="10" class="text-center" style="padding:30px;"><div class="spin" style="margin:0 auto 10px;"></div>Loading student records…</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <!-- Server Pagination Bar -->
+          <div class="stu-pagination-bar" id="stu-pagination-bar">
+            <div id="stu-pagination-info">Showing 0 of 0 students</div>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <button type="button" class="btn btn-sm btn-sec" id="stu-prev-btn" onclick="changeStudentPage(-1)" disabled><re-icon icon="chevron-left" size="12"></re-icon> Previous</button>
+              <span id="stu-page-indicator" style="font-weight:600;font-size:12px;color:var(--td);">Page 1 of 1</span>
+              <button type="button" class="btn btn-sm btn-sec" id="stu-next-btn" onclick="changeStudentPage(1)" disabled>Next <re-icon icon="chevron-right" size="12"></re-icon></button>
+            </div>
+          </div>
+        </div>
+      
+        </div>
+
+        <div class="ctrl-tab-panel" id="pg-participation">
+
         <div class="page-hd">
           <div>
             <h1 class="page-title"><re-icon icon="trophy"></re-icon> Academic Participation Command Centre</h1>
@@ -874,10 +1506,136 @@
             </div>
           </div>
         </div>
+      
+        </div>
+
+        <div class="ctrl-tab-panel" id="pg-leaves">
+
+        <div class="page-hd">
+          <div>
+            <h1 class="page-title">Leave &amp; Permission Approvals</h1>
+            <p class="page-sub">Review, endorse, and bulk-approve student and faculty leave requests.</p>
+          </div>
+          <div class="page-actions">
+            <button class="btn btn-sec" onclick="loadLeavesData()"><re-icon icon="refresh" size="14"></re-icon> Refresh</button>
+          </div>
+        </div>
+
+        <!-- Sub Tabs -->
+        <div class="ctrl-tabs">
+          <button class="ctrl-tab act" id="tab-btn-student-leaves" onclick="switchLeaveTab('student')"><re-icon icon="graduation-cap" size="14"></re-icon> Student Leave Requests</button>
+          <button class="ctrl-tab" id="tab-btn-teacher-leaves" onclick="switchLeaveTab('teacher')"><re-icon icon="teacher" size="14"></re-icon> Faculty Leave Requests</button>
+        </div>
+
+        <!-- Filter & Bulk Action Toolbar -->
+        <div class="card" style="margin-top:16px;">
+          <div class="toolbar-flex">
+            <div class="filter-pills">
+              <button class="pill-btn act" onclick="filterLeaves('all', this)">All Requests</button>
+              <button class="pill-btn" onclick="filterLeaves('pending', this)">Pending Approval</button>
+              <button class="pill-btn" onclick="filterLeaves('approved', this)">Approved</button>
+              <button class="pill-btn" onclick="filterLeaves('rejected', this)">Rejected</button>
+            </div>
+            <div class="bulk-actions" id="leave-bulk-actions">
+              <button class="btn btn-sm btn-pri" onclick="handleBulkLeaveAction('approve')"><re-icon icon="check-circle" size="14"></re-icon> Bulk Approve Selected</button>
+              <button class="btn btn-sm btn-danger" onclick="handleBulkLeaveAction('reject')"><re-icon icon="x-circle" size="14"></re-icon> Bulk Reject Selected</button>
+            </div>
+          </div>
+
+          <div class="table-responsive" style="margin-top:14px;">
+            <table class="data-table" id="leaves-data-table">
+              <thead>
+                <tr>
+                  <th style="width:40px;"><input type="checkbox" id="leave-select-all" onchange="toggleSelectAllLeaves(this)"></th>
+                  <th>Applicant</th>
+                  <th>Class / Dept</th>
+                  <th>Type &amp; Category</th>
+                  <th>Date Range</th>
+                  <th>Days</th>
+                  <th>Reason</th>
+                  <th>Urgency</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="leaves-tbody">
+                <tr><td colspan="10" class="text-center">Loading leave requests…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      
+        </div>
       </section>
 
-      <!-- PAGE: FACULTY LEAVE & SUBSTITUTIONS (pg-faculty-leave, Stage 6 = C9) -->
-      <section class="ctrl-page" id="pg-faculty-leave">
+
+      <!-- PAGE 6: STAFF MANAGEMENT (pg-staff) -->
+      <section class="ctrl-page" id="pg-staff">
+        <!-- Staff Tab Bar -->
+        <div class="ctrl-tabs" role="tablist" aria-label="Staff management views" style="margin-bottom:16px;">
+          <button class="ctrl-tab act" role="tab" aria-selected="true" id="tab-btn-staff-directory" onclick="switchStaffTab('directory')"><re-icon icon="teacher" size="14"></re-icon> Directory &amp; Roles</button>
+          <button class="ctrl-tab" role="tab" aria-selected="false" id="tab-btn-staff-workload" onclick="switchStaffTab('workload')"><re-icon icon="users" size="14"></re-icon> Workload</button>
+          <button class="ctrl-tab" role="tab" aria-selected="false" id="tab-btn-staff-leaves" onclick="switchStaffTab('leaves')"><re-icon icon="calendar-x" size="14"></re-icon> Leave &amp; Substitutions</button>
+          <button class="ctrl-tab" role="tab" aria-selected="false" id="tab-btn-staff-compliance" onclick="switchStaffTab('compliance')"><re-icon icon="check-circle" size="14"></re-icon> Compliance &amp; Coverage</button>
+        </div>
+
+        <div class="ctrl-tab-panel act" id="pg-teachers">
+
+        <div class="page-hd">
+          <div>
+            <h1 class="page-title">Faculty Directory &amp; Compliance</h1>
+            <p class="page-sub">Department faculty directory, special roles, and today's attendance marking completion.</p>
+          </div>
+          <div class="page-actions">
+            <input type="text" id="faculty-search-input" class="form-input form-input-sm" placeholder="Search faculty…" oninput="filterFacultyTable(this.value)">
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="table-responsive">
+            <table class="data-table" id="faculty-table">
+              <thead>
+                <tr>
+                  <th>Employee ID</th>
+                  <th>Faculty Name</th>
+                  <th>Designation</th>
+                  <th>Department</th>
+                  <th>Special Designations</th>
+                  <th>Today's Marking</th>
+                  <th>Email</th>
+                </tr>
+              </thead>
+              <tbody id="faculty-tbody">
+                <tr><td colspan="7" class="text-center">Loading faculty directory…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      
+        </div>
+
+        <div class="ctrl-tab-panel" id="pg-workload">
+
+        <div class="page-hd">
+          <div>
+            <h1 class="page-title">Faculty Workload &amp; Schedule</h1>
+            <p class="page-sub">Faculty weekly teaching loads, timetable schedule grids, and curriculum balance across courses.</p>
+          </div>
+          <div class="page-actions" style="display:flex;align-items:center;gap:10px;">
+            <select id="ctrl-workload-dept-select" class="form-input form-select-sm" style="display:none;" onchange="WorkloadShared.setDepartment(this.value)">
+              <option value="">All Departments (College-wide)</option>
+            </select>
+            <button type="button" class="btn btn-out" onclick="WorkloadShared.exportWorkloadCSV()">
+              <re-icon icon="download" size="14"></re-icon> Export Workload (CSV)
+            </button>
+          </div>
+        </div>
+        <div id="ctrl-workload-container"></div>
+      
+        </div>
+
+        <div class="ctrl-tab-panel" id="pg-faculty-leave">
+
         <div class="page-hd">
           <div>
             <h1 class="page-title"><re-icon icon="teacher"></re-icon> Faculty Leave &amp; Substitutions Command Centre</h1>
@@ -1015,379 +1773,47 @@
             </div>
           </div>
         </div>
-      </section>
-
-      <!-- PAGE 4: FACULTY OVERVIEW (pg-teachers) -->
-      <section class="ctrl-page" id="pg-teachers">
-        <div class="page-hd">
-          <div>
-            <h1 class="page-title">Faculty Directory &amp; Compliance</h1>
-            <p class="page-sub">Department faculty directory, special roles, and today's attendance marking completion.</p>
-          </div>
-          <div class="page-actions">
-            <input type="text" id="faculty-search-input" class="form-input form-input-sm" placeholder="Search faculty…" oninput="filterFacultyTable(this.value)">
-          </div>
+      
         </div>
 
-        <div class="card">
-          <div class="table-responsive">
-            <table class="data-table" id="faculty-table">
-              <thead>
-                <tr>
-                  <th>Employee ID</th>
-                  <th>Faculty Name</th>
-                  <th>Designation</th>
-                  <th>Department</th>
-                  <th>Special Designations</th>
-                  <th>Today's Marking</th>
-                  <th>Email</th>
-                </tr>
-              </thead>
-              <tbody id="faculty-tbody">
-                <tr><td colspan="7" class="text-center">Loading faculty directory…</td></tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </section>
-
-      <!-- PAGE 5: STUDENT DIRECTORY (pg-students) -->
-      <section class="ctrl-page" id="pg-students">
-        <div class="page-hd">
-          <div>
-            <h1 class="page-title">Student Directory</h1>
-            <p class="page-sub">Enrolled students, academic records, and cumulative attendance percentages.</p>
-          </div>
-          <div class="page-actions">
-            <input type="text" id="student-search-input" class="form-input form-input-sm" placeholder="Search by name or reg no…" oninput="filterStudentsTable(this.value)">
-          </div>
-        </div>
-
-        <div class="card">
-          <div class="table-responsive">
-            <table class="data-table" id="students-table">
-              <thead>
-                <tr>
-                  <th>Register No</th>
-                  <th>Student Name</th>
-                  <th>Class / Section</th>
-                  <th>Department</th>
-                  <th>Batch / Year</th>
-                  <th>Classes Attended</th>
-                  <th>Attendance %</th>
-                  <th>Standing</th>
-                </tr>
-              </thead>
-              <tbody id="students-tbody">
-                <tr><td colspan="8" class="text-center">Loading student records…</td></tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </section>
-
-      <!-- PAGE 6: PERIOD RECORDS & TEACHING NOTES (pg-records) -->
-      <section class="ctrl-page" id="pg-records">
-        <div class="page-hd">
-          <div>
-            <h1 class="page-title">Period Records &amp; Teaching Notes</h1>
-            <p class="page-sub">Audit trail of syllabus topics covered, faculty notes, and period attendance.</p>
-          </div>
-          <div class="page-actions">
-            <input type="text" id="records-search-input" class="form-input form-input-sm" placeholder="Search topics, notes, faculty…" oninput="filterPeriodRecords(this.value)" style="min-width:200px;">
-            <input type="date" id="records-date-picker" class="form-input form-input-sm" onchange="loadPeriodRecords()">
-            <button class="btn btn-sm btn-pri" onclick="loadPeriodRecords()">Inspect Date</button>
-          </div>
-        </div>
-
-        <div class="card">
-          <div class="table-responsive">
-            <table class="data-table" id="records-table">
-              <thead>
-                <tr>
-                  <th>Class</th>
-                  <th>Period #</th>
-                  <th>Subject</th>
-                  <th>Handling Faculty</th>
-                  <th>Topic Covered</th>
-                  <th>Faculty Notes</th>
-                  <th>Present / Total</th>
-                  <th>Timestamp</th>
-                </tr>
-              </thead>
-              <tbody id="records-tbody">
-                <tr><td colspan="8" class="text-center">Select a date to audit period teaching records.</td></tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </section>
-
-      <!-- PAGE 7: DEFAULTERS REPORT (pg-defaulters) -->
-      <section class="ctrl-page" id="pg-defaulters">
-        <div class="page-hd">
-          <div>
-            <h1 class="page-title">Attendance Defaulters Report</h1>
-            <p class="page-sub">Students below institutional attendance policy threshold with condonation bands and official letterhead warnings.</p>
-          </div>
-          <div class="page-actions" style="display:flex;gap:8px;align-items:center;">
-            <button class="btn btn-sec btn-sm" onclick="exportDefaultersCsv()"><re-icon icon="download" size="14"></re-icon> Export CSV</button>
-            <button class="btn btn-danger btn-sm" onclick="openMeetDefaultersModal()"><re-icon icon="bell" size="14"></re-icon> Bulk "Meet Me" Notice</button>
-          </div>
-        </div>
-
-        <div class="ctrl-tabs" style="margin-bottom:14px;">
-          <button class="ctrl-tab act" id="tab-def-all" onclick="filterDefaulterBand('all')">All Defaulters (<span id="count-def-all">0</span>)</button>
-          <button class="ctrl-tab" id="tab-def-condonation" onclick="filterDefaulterBand('condonation')">Condonation: 65%–75% (<span id="count-def-cond">0</span>)</button>
-          <button class="ctrl-tab" id="tab-def-critical" onclick="filterDefaulterBand('critical')">Critical: &lt;65% (<span id="count-def-crit">0</span>)</button>
-        </div>
-
-        <div class="card">
-          <div class="card-hd">
-            <div class="card-title">Defaulter Students (<span id="defaulter-threshold-lbl">&lt; 75%</span>)</div>
-            <span class="card-badge" id="defaulter-count-badge">0 Defaulters Found</span>
-          </div>
-          <div class="table-responsive">
-            <table class="data-table" id="defaulters-table">
-              <thead>
-                <tr>
-                  <th style="width:40px;"><input type="checkbox" id="defaulter-select-all" onchange="toggleSelectAllDefaulters(this)"></th>
-                  <th>Register No</th>
-                  <th>Student Name</th>
-                  <th>Class / Section</th>
-                  <th>Department</th>
-                  <th>Classes Held</th>
-                  <th>Attended</th>
-                  <th>Attendance %</th>
-                  <th>Standing Band</th>
-                  <th>Classes Needed</th>
-                  <th>Action</th>
-                </tr>
-              </thead>
-              <tbody id="defaulters-tbody">
-                <tr><td colspan="11" class="text-center">Loading defaulters list…</td></tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </section>
-
-      <!-- PAGE 8: ATTENDANCE REPORTS (pg-reports) -->
-      <section class="ctrl-page" id="pg-reports">
-        <div class="page-hd">
-          <div>
-            <h1 class="page-title">Attendance Analytics &amp; Reports</h1>
-            <p class="page-sub">Exportable monthly attendance registries and semester-wise subject metrics.</p>
-          </div>
-          <div class="page-actions">
-            <button class="btn btn-sec" onclick="exportReportToCsv()"><re-icon icon="download" size="14"></re-icon> Export to CSV / Excel</button>
-          </div>
-        </div>
-
-        <div class="ctrl-tabs">
-          <button class="ctrl-tab act" id="tab-btn-daily-rpt" onclick="switchReportTab('daily')"><re-icon icon="grid" size="14"></re-icon> Daily 17:30 Roll-up</button>
-          <button class="ctrl-tab" id="tab-btn-punct-rpt" onclick="switchReportTab('punctuality')"><re-icon icon="timer" size="14"></re-icon> ️ Faculty Punctuality &amp; Coverage</button>
-          <button class="ctrl-tab" id="tab-btn-heat-rpt" onclick="switchReportTab('heatmap')"><re-icon icon="sparkles" size="14"></re-icon> Presence Heatmap</button>
-          <button class="ctrl-tab" id="tab-btn-monthly-rpt" onclick="switchReportTab('monthly')"><re-icon icon="calendar" size="14"></re-icon> Monthly Summary Report</button>
-          <button class="ctrl-tab" id="tab-btn-sem-rpt" onclick="switchReportTab('semester')"><re-icon icon="book-open" size="14"></re-icon> Semester Subject Report</button>
-        </div>
-
-        <!-- Daily Roll-up Section (C7 §12) -->
-        <div class="card" id="rpt-daily-sec" style="margin-top:16px;">
-          <div class="toolbar-flex" style="margin-bottom:14px;">
-            <div style="display:flex;align-items:center;gap:10px;">
-              <label for="rpt-daily-picker">Date:</label>
-              <input type="date" id="rpt-daily-picker" class="form-input form-input-sm" onchange="loadDailyReport()">
-            </div>
-            <div style="display:flex;gap:8px;">
-              <button class="btn btn-sm btn-pri" onclick="loadDailyReport()">Generate Report</button>
-              <button class="btn btn-sm btn-sec" onclick="exportDailyReportCsv()"><re-icon icon="download" size="14"></re-icon> Export CSV</button>
-            </div>
-          </div>
-
-          <!-- KPI Cards -->
-          <div class="dash-kpi-grid stats-row" style="grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));gap:14px;margin-bottom:18px;">
-            <div class="kpi-card t-stat-mini">
-              <div class="t-stat-icon blue"><re-icon icon="calendar" size="20"></re-icon></div>
-              <div>
-                <div class="kpi-val t-stat-val" id="dr-scheduled">0</div>
-                <div class="kpi-label t-stat-label">Scheduled</div>
-              </div>
-            </div>
-            <div class="kpi-card t-stat-mini">
-              <div class="t-stat-icon green"><re-icon icon="check" size="20"></re-icon></div>
-              <div>
-                <div class="kpi-val t-stat-val" id="dr-held" style="color:#059669;">0</div>
-                <div class="kpi-label t-stat-label">Held</div>
-              </div>
-            </div>
-            <div class="kpi-card t-stat-mini">
-              <div class="t-stat-icon green"><re-icon icon="check-circle" size="20"></re-icon></div>
-              <div>
-                <div class="kpi-val t-stat-val" id="dr-ontime" style="color:#2563eb;">0%</div>
-                <div class="kpi-label t-stat-label">Marked &le; 10m</div>
-              </div>
-            </div>
-            <div class="kpi-card t-stat-mini">
-              <div class="t-stat-icon amber"><re-icon icon="hourglass" size="20"></re-icon></div>
-              <div>
-                <div class="kpi-val t-stat-val" id="dr-late" style="color:#d97706;">0</div>
-                <div class="kpi-label t-stat-label">Marked Late</div>
-              </div>
-            </div>
-            <div class="kpi-card t-stat-mini">
-              <div class="t-stat-icon red"><re-icon icon="alert-triangle" size="20"></re-icon></div>
-              <div>
-                <div class="kpi-val t-stat-val" id="dr-overdue" style="color:#dc2626;">0</div>
-                <div class="kpi-label t-stat-label">Overdue</div>
-              </div>
-            </div>
-            <div class="kpi-card t-stat-mini">
-              <div class="t-stat-icon purple"><re-icon icon="trend-up" size="20"></re-icon></div>
-              <div>
-                <div class="kpi-val t-stat-val" id="dr-presence" style="color:#1e3a8a;">0%</div>
-                <div class="kpi-label t-stat-label">Avg Presence</div>
-              </div>
-            </div>
-          </div>
-
-          <div id="dr-insights-box" style="display:none;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:12px 14px;margin-bottom:14px;font-size:12.5px;color:#1e40af;"></div>
-
-          <div class="table-responsive">
-            <table class="data-table" id="daily-rpt-table">
-              <thead id="daily-rpt-thead">
-                <tr><th>Section / Class</th><th>Scheduled</th><th>Held</th><th>On Time (&le;10m)</th><th>Late</th><th>Present %</th></tr>
-              </thead>
-              <tbody id="daily-rpt-tbody">
-                <tr><td colspan="6" class="text-center">Select date to load daily operations roll-up.</td></tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        <!-- Faculty Punctuality Section (C7 §12) -->
-        <div class="card" id="rpt-punct-sec" style="display:none;margin-top:16px;">
-          <div class="toolbar-flex" style="margin-bottom:14px;">
-            <div style="font-weight:700;font-size:14px;">Faculty Start-Class &amp; Attendance Punctuality Compliance</div>
-            <button class="btn btn-sm btn-sec" onclick="exportPunctualityCsv()"><re-icon icon="download" size="14"></re-icon> Export CSV</button>
-          </div>
-          <div class="table-responsive">
-            <table class="data-table" id="punct-rpt-table">
-              <thead>
-                <tr>
-                  <th>Faculty Member</th>
-                  <th>Dept</th>
-                  <th>Assigned Periods</th>
-                  <th>Conducted</th>
-                  <th>Start Tap Rate %</th>
-                  <th>On-Time Rate (&le;10m)</th>
-                  <th>Median Minutes to Mark</th>
-                  <th>Subs Conducted</th>
-                </tr>
-              </thead>
-              <tbody id="punct-rpt-tbody">
-                <tr><td colspan="8" class="text-center">Loading faculty punctuality metrics…</td></tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        <!-- Presence Heatmap Section (C7 §12) -->
-        <div class="card" id="rpt-heat-sec" style="display:none;margin-top:16px;">
-          <div class="toolbar-flex" style="margin-bottom:14px;">
+        <div class="ctrl-tab-panel" id="tab-staff-compliance">
+          <div class="page-hd">
             <div>
-              <div style="font-weight:700;font-size:14px;">Institutional Presence Heatmap (Weekday &times; Period)</div>
-              <div style="font-size:12px;color:var(--tmu);">Color gradient indicates average attendance percentage across all scheduled class periods.</div>
+              <h1 class="page-title"><re-icon icon="check-circle"></re-icon> Faculty Marking Compliance &amp; Coverage Analysis</h1>
+              <p class="page-sub">Punctuality metrics over the last 30 days and structural institutional coverage gaps.</p>
+            </div>
+            <div class="page-actions">
+              <button class="btn btn-sec" onclick="loadStaffCompliance()"><re-icon icon="refresh" size="14"></re-icon> Refresh</button>
             </div>
           </div>
-          <div class="table-responsive">
-            <table class="heatmap-table" id="heatmap-grid-table">
-              <thead>
-                <tr>
-                  <th>Weekday</th>
-                  <th>Period 1</th><th>Period 2</th><th>Period 3</th><th>Period 4</th>
-                  <th>Period 5</th><th>Period 6</th><th>Period 7</th><th>Period 8</th>
-                </tr>
-              </thead>
-              <tbody id="heatmap-grid-tbody">
-                <tr><td colspan="9" class="text-center">Loading attendance heatmap…</td></tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        <!-- Monthly Report Section -->
-        <div class="card" id="rpt-monthly-sec" style="display:none;margin-top:16px;">
-          <div class="toolbar-flex" style="margin-bottom:14px;">
-            <div style="display:flex;align-items:center;gap:10px;">
-              <label for="rpt-month-picker">Select Month:</label>
-              <input type="month" id="rpt-month-picker" class="form-input form-input-sm" onchange="loadMonthlyReport()">
+          <div class="card" id="staff-coverage-gaps-card" style="margin-bottom:16px;padding:16px;border-left:4px solid var(--warn);">
+            <div style="font-size:14px;font-weight:700;color:var(--td);margin-bottom:8px;">Operational Role &amp; Coverage Gaps</div>
+            <div id="staff-coverage-gaps-list" style="display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--tmu);">
+              <div>Evaluating class advisors and coordinator assignments…</div>
             </div>
-            <button class="btn btn-sm btn-pri" onclick="loadMonthlyReport()">Generate Monthly Report</button>
           </div>
-
-          <div class="table-responsive">
-            <table class="data-table" id="monthly-rpt-table">
-              <thead>
-                <tr>
-                  <th>Class / Section</th>
-                  <th>Department</th>
-                  <th>Year / Sem</th>
-                  <th>Days Conducted</th>
-                  <th>Total Present</th>
-                  <th>Total Absent</th>
-                  <th>Attendance %</th>
-                </tr>
-              </thead>
-              <tbody id="monthly-rpt-tbody">
-                <tr><td colspan="7" class="text-center">Select month and click generate.</td></tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        <!-- Semester Report Section -->
-        <div class="card" id="rpt-semester-sec" style="display:none;margin-top:16px;">
-          <div class="toolbar-flex" style="margin-bottom:14px;">
-            <div style="display:flex;align-items:center;gap:10px;">
-              <label for="rpt-sem-select">Select Semester:</label>
-              <select id="rpt-sem-select" class="form-input form-select-sm" onchange="loadSemesterReport()">
-                <option value="1">Semester 1</option>
-                <option value="2">Semester 2</option>
-                <option value="3">Semester 3</option>
-                <option value="4">Semester 4</option>
-                <option value="5">Semester 5</option>
-                <option value="6">Semester 6</option>
-                <option value="7">Semester 7</option>
-                <option value="8">Semester 8</option>
-              </select>
+          <div class="card" style="padding:20px;">
+            <div class="table-responsive">
+              <table class="data-table" id="staff-compliance-table">
+                <thead><tr><th>Faculty Member</th><th>Department</th><th>Periods Assigned (30d)</th><th>Marked in Window</th><th>Punctuality Rate</th><th>Standing</th></tr></thead>
+                <tbody id="staff-compliance-tbody"><tr><td colspan="6" class="text-center">Loading compliance metrics…</td></tr></tbody>
+              </table>
             </div>
-            <button class="btn btn-sm btn-pri" onclick="loadSemesterReport()">Generate Semester Report</button>
-          </div>
-
-          <div class="table-responsive">
-            <table class="data-table" id="sem-rpt-table">
-              <thead>
-                <tr>
-                  <th>Subject Code</th>
-                  <th>Subject Name</th>
-                  <th>Department</th>
-                  <th>Semester</th>
-                  <th>Classes Held</th>
-                  <th>Classes Attended</th>
-                  <th>Attendance %</th>
-                </tr>
-              </thead>
-              <tbody id="sem-rpt-tbody">
-                <tr><td colspan="7" class="text-center">Select semester and click generate.</td></tr>
-              </tbody>
-            </table>
           </div>
         </div>
       </section>
 
-      <!-- PAGE 9: BROADCAST HUB (pg-broadcast) -->
+
+      <!-- PAGE 7: BROADCAST (pg-broadcast) -->
       <section class="ctrl-page" id="pg-broadcast">
+        <!-- Broadcast Tab Bar -->
+        <div class="ctrl-tabs" role="tablist" aria-label="Broadcast views" style="margin-bottom:16px;">
+          <button class="ctrl-tab act" role="tab" aria-selected="true" id="tab-btn-bc-compose" onclick="switchBroadcastTab('compose')"><re-icon icon="edit-3" size="14"></re-icon> Compose Notice</button>
+          <button class="ctrl-tab" role="tab" aria-selected="false" id="tab-btn-bc-history" onclick="switchBroadcastTab('history')"><re-icon icon="clock" size="14"></re-icon> Notice History</button>
+        </div>
+
+        <div class="ctrl-tab-panel act" id="tab-bc-compose">
+
         <div class="page-hd">
           <div>
             <h1 class="page-title">Broadcast Hub</h1>
@@ -1443,292 +1869,21 @@
             </div>
           </div>
         </div>
-      </section>
-
-      <!-- PAGE 10: ACADEMIC CALENDAR (pg-calendar) -->
-      <section class="ctrl-page" id="pg-calendar">
-        <div class="page-hd">
-          <div>
-            <h1 class="page-title">Academic Calendar</h1>
-            <p class="page-sub">View-only institutional calendar, college working days, exam windows, and declared holidays.</p>
-          </div>
-          <div class="page-actions">
-            <button class="btn btn-sec" onclick="loadAcademicCalendar()"><re-icon icon="refresh" size="14"></re-icon> Refresh Calendar</button>
-          </div>
-        </div>
-
-        <div class="card">
-          <div class="table-responsive">
-            <table class="data-table" id="calendar-table">
-              <thead>
-                <tr>
-                  <th>Date</th>
-                  <th>Day</th>
-                  <th>Day Order</th>
-                  <th>Type / Classification</th>
-                  <th>Description / Event</th>
-                  <th>Working Status</th>
-                </tr>
-              </thead>
-              <tbody id="calendar-tbody">
-                <tr><td colspan="6" class="text-center">Loading academic calendar…</td></tr>
-              </tbody>
-            </table>
-          </div>
+      
         </div>
       </section>
 
-      <!-- PAGE: TIMETABLE VERIFICATION & APPROVALS (pg-tt-verify) -->
-      <section class="ctrl-page" id="pg-tt-verify">
-        <div class="page-hd">
-          <div>
-            <h1 class="page-title"><re-icon icon="clipboard-list"></re-icon> Timetable Verification &amp; Approvals</h1>
-            <p class="page-sub">Review submitted class schedules for your department, inspect full schedule matrices, verify atomic diffs, and approve or reject.</p>
-          </div>
-          <div class="page-actions" style="display:flex;align-items:center;gap:8px;">
-            <button type="button" class="btn btn-out" onclick="loadCtrlTimetableVerificationPage()">
-              <re-icon icon="refresh" size="14"></re-icon> Refresh Queue
-            </button>
-            <button type="button" class="btn btn-pri" onclick="nav('timetable')">
-              <re-icon icon="calendar-days" size="14"></re-icon> Master Timetable View
-            </button>
-          </div>
+
+      <!-- PAGE 8: POLICY & AUDIT (pg-policy-audit) -->
+      <section class="ctrl-page" id="pg-policy-audit">
+        <!-- Policy & Audit Tab Bar -->
+        <div class="ctrl-tabs" role="tablist" aria-label="Policy and audit views" style="margin-bottom:16px;">
+          <button class="ctrl-tab act" role="tab" aria-selected="true" id="tab-btn-pa-policy" onclick="switchPolicyAuditTab('policy')"><re-icon icon="settings" size="14"></re-icon> Department Policy</button>
+          <button class="ctrl-tab" role="tab" aria-selected="false" id="tab-btn-pa-audit" onclick="switchPolicyAuditTab('audit')"><re-icon icon="shield-check" size="14"></re-icon> Executive Audit Log</button>
         </div>
 
-        <!-- KPI SUMMARY CARDS -->
-        <div class="stats-row" style="display:grid;grid-template-columns:repeat(auto-fit, minmax(220px, 1fr));gap:14px;margin-bottom:20px;">
-          <div class="card t-stat-mini">
-            <div class="t-stat-icon amber">
-              <re-icon icon="hourglass" size="20"></re-icon>
-            </div>
-            <div>
-              <div class="t-stat-val" id="ctrl-tt-kpi-pending">0</div>
-              <div class="t-stat-label">Pending HoD Review</div>
-            </div>
-          </div>
-          <div class="card t-stat-mini">
-            <div class="t-stat-icon green">
-              <re-icon icon="check" size="20"></re-icon>
-            </div>
-            <div>
-              <div class="t-stat-val" id="ctrl-tt-kpi-approved">0</div>
-              <div class="t-stat-label">Approved Schedules</div>
-            </div>
-          </div>
-          <div class="card t-stat-mini">
-            <div class="t-stat-icon blue">
-              <re-icon icon="rocket" size="20"></re-icon>
-            </div>
-            <div>
-              <div class="t-stat-val" id="ctrl-tt-kpi-published">0</div>
-              <div class="t-stat-label">Live in Production</div>
-            </div>
-          </div>
-        </div>
+        <div class="ctrl-tab-panel act" id="pg-settings">
 
-        <!-- TABLE CONTAINER -->
-        <div class="card" style="padding:0;overflow:hidden;">
-          <div style="padding:14px 18px;border-bottom:1px solid var(--br);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;background:var(--bg2,#f8faf8);">
-            <div style="display:flex;align-items:center;gap:10px;">
-              <span style="font-weight:700;font-size:13px;color:var(--td);">Department Timetable Verification Requests</span>
-            </div>
-            <div style="display:flex;align-items:center;gap:8px;">
-              <button type="button" class="sched-tab act" id="ctrl-tt-filter-pending" onclick="filterCtrlTtRequests('pending')">Pending Review</button>
-              <button type="button" class="sched-tab" id="ctrl-tt-filter-all" onclick="filterCtrlTtRequests('all')">All Requests</button>
-            </div>
-          </div>
-          <div id="ctrl-tt-table-container" style="overflow-x:auto;">
-            <div style="text-align:center;padding:36px;color:var(--tmu);font-size:13px;">Loading verification requests…</div>
-          </div>
-        </div>
-      </section>
-
-      <!-- PAGE 11: TIMETABLE VIEW (pg-timetable) -->
-      <section class="ctrl-page" id="pg-timetable">
-        <div class="page-hd">
-          <div>
-            <h1 class="page-title">Class Timetable View</h1>
-            <p class="page-sub">Weekly master schedules, allocated periods, and faculty course assignments (View-Only).</p>
-          </div>
-          <div class="page-actions" style="display:flex;align-items:center;gap:10px;">
-            <button type="button" class="btn btn-out" onclick="nav('tt-verify')" style="font-size:12px;color:#d97706;border-color:#fde68a;">
-              <re-icon icon="clipboard-list" size="14"></re-icon> Verification Queue <span id="ctrl-tt-view-badge" class="badge" style="display:none;background:#f59e0b;color:#fff;margin-left:4px;">0</span>
-            </button>
-            <select id="tt-class-select" class="form-input form-select-sm" onchange="renderClassTimetable(this.value)">
-              <option value="">Select Class / Section…</option>
-            </select>
-            <button type="button" class="btn btn-out" onclick="nav('workload')" style="font-size:12px;">
-              <re-icon icon="users" size="14"></re-icon> Faculty Workload &amp; Schedule
-            </button>
-          </div>
-        </div>
-
-        <!-- Pending draft notification banner -->
-        <div id="ctrl-tt-pending-alert" style="display:none;margin-bottom:14px;padding:12px 16px;background:#fffbeb;border:1px solid #fde68a;border-radius:10px;display:flex;align-items:center;justify-content:space-between;gap:12px;">
-          <div style="display:flex;align-items:center;gap:10px;">
-            <span style="font-size:20px;color:#d97706;"><re-icon icon="alert-triangle"></re-icon></span>
-            <div>
-              <strong style="font-size:13px;color:#92400e;">Timetable Draft Awaiting HoD Verification</strong>
-              <div style="font-size:12px;color:#b45309;" id="ctrl-tt-pending-alert-msg">A timetable coordinator submitted a new schedule draft for review.</div>
-            </div>
-          </div>
-          <button type="button" class="btn btn-pri" onclick="nav('tt-verify')" style="background:#d97706;border-color:#b45309;font-size:12px;padding:6px 14px;white-space:nowrap;">
-            <re-icon icon="clipboard-list" size="14"></re-icon> Review &amp; Verify Now
-          </button>
-        </div>
-
-        <div class="card">
-          <div class="card-hd">
-            <div class="card-title" id="tt-view-title">Class Master Schedule</div>
-            <span class="card-badge">7-Period Day Roster</span>
-          </div>
-          <div class="table-responsive">
-            <table class="timetable-grid-table" id="timetable-display-table">
-              <thead>
-                <tr>
-                  <th>Day</th>
-                  <th>Period 1</th>
-                  <th>Period 2</th>
-                  <th>Period 3</th>
-                  <th>Period 4</th>
-                  <th>Period 5</th>
-                  <th>Period 6</th>
-                  <th>Period 7</th>
-                </tr>
-              </thead>
-              <tbody id="timetable-display-tbody">
-                <tr><td colspan="8" class="text-center">Select a class section from the dropdown above to view its timetable.</td></tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </section>
-
-      <!-- PAGE 11b: FACULTY WORKLOAD & SCHEDULE (pg-workload) -->
-      <section class="ctrl-page" id="pg-workload">
-        <div class="page-hd">
-          <div>
-            <h1 class="page-title">Faculty Workload &amp; Schedule</h1>
-            <p class="page-sub">Faculty weekly teaching loads, timetable schedule grids, and curriculum balance across courses.</p>
-          </div>
-          <div class="page-actions" style="display:flex;align-items:center;gap:10px;">
-            <select id="ctrl-workload-dept-select" class="form-input form-select-sm" style="display:none;" onchange="WorkloadShared.setDepartment(this.value)">
-              <option value="">All Departments (College-wide)</option>
-            </select>
-            <button type="button" class="btn btn-out" onclick="WorkloadShared.exportWorkloadCSV()">
-              <re-icon icon="download" size="14"></re-icon> Export Workload (CSV)
-            </button>
-          </div>
-        </div>
-        <div id="ctrl-workload-container"></div>
-      </section>
-
-      <!-- PAGE 12: MY PROFILE (pg-profile) -->
-      <section class="ctrl-page" id="pg-profile">
-        <div class="page-hd">
-          <div>
-            <h1 class="page-title">My Controller Profile</h1>
-            <p class="page-sub">Executive credentials, active privileges, and session authentication details.</p>
-          </div>
-        </div>
-
-        <div class="card profile-card-wrap">
-          <div class="profile-hero-row">
-            <div class="profile-hero-av" id="prof-hero-av">C</div>
-            <div>
-              <h2 class="profile-hero-name" id="prof-hero-name">Loading…</h2>
-              <div class="profile-hero-role" id="prof-hero-role">Executive Controller</div>
-              <div class="profile-hero-dept" id="prof-hero-dept">Institutional Administration</div>
-            </div>
-          </div>
-
-          <div class="profile-details-grid">
-            <div class="profile-field">
-              <label>System Username</label>
-              <div id="prof-username">—</div>
-            </div>
-            <div class="profile-field">
-              <label>Registered Email</label>
-              <div id="prof-email">—</div>
-            </div>
-            <div class="profile-field">
-              <label>Executive Scope</label>
-              <div id="prof-scope">—</div>
-            </div>
-            <div class="profile-field">
-              <label>Department Jurisdiction</label>
-              <div id="prof-dept-jurisdiction">—</div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <!-- PAGE: EXECUTIVE AUDIT LOG (pg-audit) (C7 §16) -->
-      <section class="ctrl-page" id="pg-audit">
-        <div class="page-hd">
-          <div>
-            <h1 class="page-title"><re-icon icon="file-text"></re-icon> Executive Audit Log</h1>
-            <p class="page-sub">Tamper-evident, decrypted audit stream of all controller actions, overrides, and security events.</p>
-          </div>
-          <div class="page-actions">
-            <button class="btn btn-sec" onclick="loadAuditLogData()"><re-icon icon="refresh" size="14"></re-icon> Refresh Audit Stream</button>
-          </div>
-        </div>
-
-        <div class="card" style="margin-bottom:14px;padding:12px 16px;">
-          <div class="toolbar-flex" style="flex-wrap:wrap;gap:10px;">
-            <div style="display:flex;align-items:center;gap:8px;flex:1;min-width:240px;">
-              <input type="text" id="audit-search-input" class="form-input form-input-sm" placeholder="Search by action, actor, track ID…" oninput="handleAuditSearch(this.value)">
-            </div>
-            <div style="display:flex;align-items:center;gap:8px;">
-              <select id="audit-severity-select" class="form-input form-select-sm" onchange="loadAuditLogData()">
-                <option value="">All Severities</option>
-                <option value="info">Info</option>
-                <option value="warning">Warning</option>
-                <option value="critical">Critical</option>
-              </select>
-              <select id="audit-module-select" class="form-input form-select-sm" onchange="loadAuditLogData()">
-                <option value="">All Modules</option>
-                <option value="controller">Controller</option>
-                <option value="attendance">Attendance</option>
-                <option value="academic">Academic</option>
-                <option value="security">Security</option>
-              </select>
-            </div>
-          </div>
-        </div>
-
-        <div class="card">
-          <div class="table-responsive">
-            <table class="data-table audit-table" id="audit-log-table">
-              <thead>
-                <tr>
-                  <th>Timestamp</th>
-                  <th>Actor / Track ID</th>
-                  <th>Role</th>
-                  <th>Action</th>
-                  <th>Severity</th>
-                  <th>Decrypted Operational Details</th>
-                  <th>IP Address</th>
-                </tr>
-              </thead>
-              <tbody id="audit-log-tbody">
-                <tr><td colspan="7" class="text-center">Loading executive audit logs…</td></tr>
-              </tbody>
-            </table>
-          </div>
-          <div id="audit-pagination-bar" style="display:flex;align-items:center;justify-content:space-between;padding:14px 4px 4px;border-top:1px solid #f1f5f9;margin-top:12px;">
-            <div id="audit-pagination-info" style="font-size:12px;color:var(--tmu);">Showing 0 logs</div>
-            <div style="display:flex;gap:6px;">
-              <button class="btn btn-sm btn-sec" id="audit-prev-btn" onclick="changeAuditPage(-1)" disabled>&larr; Prev</button>
-              <button class="btn btn-sm btn-sec" id="audit-next-btn" onclick="changeAuditPage(1)" disabled>Next &rarr;</button>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <!-- PAGE: DEPARTMENT SETTINGS & LEAVE POLICY (pg-settings) -->
-      <section class="ctrl-page" id="pg-settings">
         <div class="page-hd">
           <div>
             <h1 class="page-title"><re-icon icon="settings"></re-icon> Department Leave Policy &amp; Faculty Rules</h1>
@@ -1880,7 +2035,120 @@
             </table>
           </div>
         </div>
+      
+        </div>
+
+        <div class="ctrl-tab-panel" id="pg-audit">
+
+        <div class="page-hd">
+          <div>
+            <h1 class="page-title"><re-icon icon="file-text"></re-icon> Executive Audit Log</h1>
+            <p class="page-sub">Tamper-evident, decrypted audit stream of all controller actions, overrides, and security events.</p>
+          </div>
+          <div class="page-actions">
+            <button class="btn btn-sec" onclick="loadAuditLogData()"><re-icon icon="refresh" size="14"></re-icon> Refresh Audit Stream</button>
+          </div>
+        </div>
+
+        <div class="card" style="margin-bottom:14px;padding:12px 16px;">
+          <div class="toolbar-flex" style="flex-wrap:wrap;gap:10px;">
+            <div style="display:flex;align-items:center;gap:8px;flex:1;min-width:240px;">
+              <input type="text" id="audit-search-input" class="form-input form-input-sm" placeholder="Search by action, actor, track ID…" oninput="handleAuditSearch(this.value)">
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <select id="audit-severity-select" class="form-input form-select-sm" onchange="loadAuditLogData()">
+                <option value="">All Severities</option>
+                <option value="info">Info</option>
+                <option value="warning">Warning</option>
+                <option value="critical">Critical</option>
+              </select>
+              <select id="audit-module-select" class="form-input form-select-sm" onchange="loadAuditLogData()">
+                <option value="">All Modules</option>
+                <option value="controller">Controller</option>
+                <option value="attendance">Attendance</option>
+                <option value="academic">Academic</option>
+                <option value="security">Security</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="table-responsive">
+            <table class="data-table audit-table" id="audit-log-table">
+              <thead>
+                <tr>
+                  <th>Timestamp</th>
+                  <th>Actor / Track ID</th>
+                  <th>Role</th>
+                  <th>Action</th>
+                  <th>Severity</th>
+                  <th>Decrypted Operational Details</th>
+                  <th>IP Address</th>
+                </tr>
+              </thead>
+              <tbody id="audit-log-tbody">
+                <tr><td colspan="7" class="text-center">Loading executive audit logs…</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div id="audit-pagination-bar" style="display:flex;align-items:center;justify-content:space-between;padding:14px 4px 4px;border-top:1px solid #f1f5f9;margin-top:12px;">
+            <div id="audit-pagination-info" style="font-size:12px;color:var(--tmu);">Showing 0 logs</div>
+            <div style="display:flex;gap:6px;">
+              <button class="btn btn-sm btn-sec" id="audit-prev-btn" onclick="changeAuditPage(-1)" disabled>&larr; Prev</button>
+              <button class="btn btn-sm btn-sec" id="audit-next-btn" onclick="changeAuditPage(1)" disabled>Next &rarr;</button>
+            </div>
+          </div>
+        </div>
+      
+        </div>
       </section>
+
+
+      <!-- PAGE 9: PROFILE (pg-profile) -->
+      <section class="ctrl-page" id="pg-profile">
+
+        <div class="page-hd">
+          <div>
+            <h1 class="page-title">My Controller Profile</h1>
+            <p class="page-sub">Executive credentials, active privileges, and session authentication details.</p>
+          </div>
+        </div>
+
+        <div class="card profile-card-wrap">
+          <div class="profile-hero-row">
+            <div class="profile-hero-av" id="prof-hero-av">C</div>
+            <div>
+              <h2 class="profile-hero-name" id="prof-hero-name">Loading…</h2>
+              <div class="profile-hero-role" id="prof-hero-role">Executive Controller</div>
+              <div class="profile-hero-dept" id="prof-hero-dept">Institutional Administration</div>
+            </div>
+          </div>
+
+          <div class="profile-details-grid">
+            <div class="profile-field">
+              <label>System Username</label>
+              <div id="prof-username">—</div>
+            </div>
+            <div class="profile-field">
+              <label>Registered Email</label>
+              <div id="prof-email">—</div>
+            </div>
+            <div class="profile-field">
+              <label>Executive Scope</label>
+              <div id="prof-scope">—</div>
+            </div>
+            <div class="profile-field">
+              <label>Department Jurisdiction</label>
+              <div id="prof-dept-jurisdiction">—</div>
+            </div>
+          </div>
+        </div>
+      
+      </section>
+
+
+
 
     </div>
   </div>
@@ -2492,6 +2760,21 @@
   <script src="js/shared/hod.js"></script>
   <script src="js/shared/workload.shared.js"></script>
   <script src="js/pages/controller.page.js"></script>
+
+  <!-- GLOBAL SEARCH MODAL (Ctrl+K) -->
+  <div id="m-global-search" class="modal-backdrop" onclick="if(event.target===this)closeGlobalSearch()">
+    <div class="modal-box ctrl-search-modal-box" role="dialog" aria-modal="true" aria-labelledby="global-search-title">
+      <div class="ctrl-search-header">
+        <re-icon icon="search" size="16"></re-icon>
+        <input type="text" id="global-search-input" class="ctrl-search-input" placeholder="Search students, faculty, or classes… (Esc to close)" autocomplete="off">
+        <button type="button" class="ctrl-search-close-btn" onclick="closeGlobalSearch()" aria-label="Close search"><re-icon icon="x" size="14"></re-icon></button>
+      </div>
+      <div class="ctrl-search-results" id="global-search-results">
+        <div class="ctrl-search-hint">Type at least 2 characters to search across your institutional directory.</div>
+      </div>
+    </div>
+  </div>
+
 </body>
 
 </html>

@@ -6,6 +6,9 @@ const { logAction } = require('../utils/logAction');
 const { checkModuleGuard } = require('../middleware/portalGuard');
 const { sanitizeToString } = require('../utils/sanitizeQuery');
 
+// Guard all grievance endpoints against modelGrievances setting
+router.use(authMiddleware, checkModuleGuard('modelGrievances', 'Grievances'));
+
 // ── GET /api/grievances — List Grievances ──
 router.get('/', authMiddleware, async (req, res) => {
   try {

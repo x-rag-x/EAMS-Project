@@ -473,6 +473,42 @@
   "copy": {
     "O": "<rect x=\"9\" y=\"9\" width=\"13\" height=\"13\" rx=\"2\" ry=\"2\" stroke=\"currentColor\" stroke-width=\"1.5\" fill=\"none\"/><path d=\"M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1\" stroke=\"currentColor\" stroke-width=\"1.5\" fill=\"none\"/>",
     "F": "<rect x=\"9\" y=\"9\" width=\"13\" height=\"13\" rx=\"2\" ry=\"2\" fill=\"currentColor\"/><path d=\"M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1\" stroke=\"currentColor\" stroke-width=\"1.5\" fill=\"none\"/>"
+  },
+  "more-horizontal": {
+    "O": "<circle cx=\"12\" cy=\"12\" r=\"1.5\" fill=\"currentColor\"/><circle cx=\"19\" cy=\"12\" r=\"1.5\" fill=\"currentColor\"/><circle cx=\"5\" cy=\"12\" r=\"1.5\" fill=\"currentColor\"/>",
+    "F": "<circle cx=\"12\" cy=\"12\" r=\"2\" fill=\"currentColor\"/><circle cx=\"19\" cy=\"12\" r=\"2\" fill=\"currentColor\"/><circle cx=\"5\" cy=\"12\" r=\"2\" fill=\"currentColor\"/>"
+  },
+  "columns": {
+    "O": "<rect width=\"18\" height=\"18\" x=\"3\" y=\"3\" rx=\"2\" stroke=\"currentColor\" stroke-width=\"1.5\" fill=\"none\"/><path d=\"M12 3v18\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\"/>",
+    "F": "<path fill-rule=\"evenodd\" clip-rule=\"evenodd\" d=\"M3 5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5zm8 0H5v14h6V5zm2 0v14h6V5h-6z\" fill=\"currentColor\"/>"
+  },
+  "play": {
+    "O": "<polygon points=\"6 3 20 12 6 21 6 3\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\" fill=\"none\"/>",
+    "F": "<polygon points=\"6 3 20 12 6 21 6 3\" fill=\"currentColor\"/>"
+  },
+  "square": {
+    "O": "<rect width=\"16\" height=\"16\" x=\"4\" y=\"4\" rx=\"2\" stroke=\"currentColor\" stroke-width=\"1.5\" fill=\"none\"/>",
+    "F": "<rect width=\"16\" height=\"16\" x=\"4\" y=\"4\" rx=\"2\" fill=\"currentColor\"/>"
+  },
+  "git-pull-request": {
+    "O": "<circle cx=\"18\" cy=\"18\" r=\"3\" stroke=\"currentColor\" stroke-width=\"1.5\" fill=\"none\"/><circle cx=\"6\" cy=\"6\" r=\"3\" stroke=\"currentColor\" stroke-width=\"1.5\" fill=\"none\"/><path d=\"M13 6h3a2 2 0 0 1 2 2v7\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\" fill=\"none\"/><line x1=\"6\" y1=\"9\" x2=\"6\" y2=\"21\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\"/>",
+    "F": "<circle cx=\"18\" cy=\"18\" r=\"3\" fill=\"currentColor\"/><circle cx=\"6\" cy=\"6\" r=\"3\" fill=\"currentColor\"/><path d=\"M13 6h3a2 2 0 0 1 2 2v7\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" fill=\"none\"/><line x1=\"6\" y1=\"9\" x2=\"6\" y2=\"21\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\"/>"
+  },
+  "git-branch": {
+    "O": "<line x1=\"6\" y1=\"3\" x2=\"6\" y2=\"15\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\"/><circle cx=\"18\" cy=\"9\" r=\"3\" stroke=\"currentColor\" stroke-width=\"1.5\" fill=\"none\"/><circle cx=\"6\" cy=\"18\" r=\"3\" stroke=\"currentColor\" stroke-width=\"1.5\" fill=\"none\"/><path d=\"M18 9a9 9 0 0 1-9 9\" stroke=\"currentColor\" stroke-width=\"1.5\" fill=\"none\"/>",
+    "F": "<line x1=\"6\" y1=\"3\" x2=\"6\" y2=\"15\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\"/><circle cx=\"18\" cy=\"9\" r=\"3\" fill=\"currentColor\"/><circle cx=\"6\" cy=\"18\" r=\"3\" fill=\"currentColor\"/><path d=\"M18 9a9 9 0 0 1-9 9\" stroke=\"currentColor\" stroke-width=\"2\" fill=\"none\"/>"
+  },
+  "bookmark": {
+    "O": "<path d=\"M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\" fill=\"none\"/>",
+    "F": "<path d=\"M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z\" fill=\"currentColor\"/>"
+  },
+  "arrow-right-circle": {
+    "O": "<circle cx=\"12\" cy=\"12\" r=\"9\" stroke=\"currentColor\" stroke-width=\"1.5\" fill=\"none\"/><path d=\"M12 8l4 4-4 4M8 12h8\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/>",
+    "F": "<circle cx=\"12\" cy=\"12\" r=\"10\" fill=\"currentColor\"/><path d=\"M12 8l4 4-4 4M8 12h8\" stroke=\"#ffffff\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/>"
+  },
+  "filter": {
+    "O": "<polygon points=\"22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\" fill=\"none\"/>",
+    "F": "<polygon points=\"22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3\" fill=\"currentColor\"/>"
   }
 };
 
@@ -543,7 +579,34 @@
     'file-spreadsheet': 'file-text',
     'hard-drive': 'database',
     'log-out': 'arrow-door-in',
-    'upload-cloud': 'upload'
+    'upload-cloud': 'upload',
+    'dots-horizontal': 'more-horizontal',
+    'ellipsis': 'more-horizontal',
+    'more': 'more-horizontal',
+    'columns-2': 'columns',
+    'split-view': 'columns',
+    'diff': 'columns',
+    'stop': 'square',
+    'chevron-down': 'arrow-right',
+    'chevron-left': 'arrow-left',
+    'layout-dashboard': 'grid',
+    'bar-chart-2': 'trend-up',
+    'line-chart': 'trend-up',
+    'repeat': 'refresh',
+    'book': 'book-open',
+    'notebook': 'book-open',
+    'briefcase': 'package',
+    'calendar-check': 'calendar',
+    'calendar-x': 'calendar',
+    'plus-circle': 'plus',
+    'unlock': 'lock-open',
+    'git-commit': 'check-circle',
+    'paperclip': 'tag',
+    'cloud-off': 'cloud',
+    'star': 'trophy',
+    'arrow-down-up': 'refresh',
+    'arrow-down-circle': 'arrow-right-circle',
+    'bus': 'building'
   };
 
   /**

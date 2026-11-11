@@ -2,8 +2,10 @@ const express = require('express');
 const router = express.Router();
 
 // Require all route files
+const adminRoutes = require('./admin.routes');
 const assignmentRoutes = require('./assignments.routes');
 const attendanceRoutes = require('./attendance.routes');
+const attendanceRecordsRoutes = require('./attendanceRecords.routes');
 const authRoutes = require('./auth.routes');
 const calendarRoutes = require('./calendar.routes');
 const classRoutes = require('./classes.routes');
@@ -22,6 +24,7 @@ const subjectRoutes = require('./subjects.routes');
 const systemRoutes = require('./system.routes');
 const teacherRoutes = require('./teachers.routes');
 const timetableRoutes = require('./timetable.routes');
+const timetableWorkspaceRoutes = require('./timetableWorkspace.routes');
 const timetableImportRoutes = require('./timetableImport.routes');
 const undoRoutes = require('./undo.routes');
 const userRoutes = require('./users.routes');
@@ -47,10 +50,17 @@ const accessRequestRoutes = require('./accessRequest.routes');
 const manageAdminRoutes = require('./manageAdmins.routes');
 const deviceRoutes = require('./device.routes');
 const trustRoutes = require('./trust.routes');
+const responsibilityRoutes = require('./responsibility.routes');
+const workloadPolicyRoutes = require('./workloadPolicy.routes');
+const semesterSubjectSetRoutes = require('./semesterSubjectSet.routes');
+const autoGenRoutes = require('./autoGen.routes');
+const hallShiftRoutes = require('./hallShift.routes');
 
 // Mount routes
+router.use('/admin',            adminRoutes);
 router.use('/assignments',      assignmentRoutes);
 router.use('/attendance',       attendanceRoutes);
+router.use('/attendance-records', attendanceRecordsRoutes);
 router.use('/auth',             authRoutes);
 router.use('/bootstrap',        bootstrapRoutes);
 router.use('/bulk',             bulkRoutes);
@@ -85,7 +95,9 @@ router.use('/students',         studentRoutes);
 router.use('/subjects',         subjectRoutes);
 router.use('/system',           systemRoutes);
 router.use('/teachers',         teacherRoutes);
+router.use('/teacher',          teacherRoutes);
 router.use('/timetable/import',  timetableImportRoutes);
+router.use('/timetable',        timetableWorkspaceRoutes);
 router.use('/timetable',        timetableRoutes);
 router.use('/recycle-bin',      undoRoutes);
 router.use('/undo',             (req, res) => res.redirect(308, `/api/recycle-bin${req.url === '/' ? '' : req.url}`));
@@ -96,6 +108,11 @@ router.use('/access-requests',  accessRequestRoutes);
 router.use('/manage-admins',    manageAdminRoutes);
 router.use('/trust',            trustRoutes);
 router.use('/year',             yearRoutes);
+router.use('/responsibilities', responsibilityRoutes);
+router.use('/workload-policy',  workloadPolicyRoutes);
+router.use('/semester-sets',    semesterSubjectSetRoutes);
+router.use('/autogen',          autoGenRoutes);
+router.use('/hall-shifts',      hallShiftRoutes);
 
 // 404 Fallback for undefined /api routes (preserves EAMS JSON contract)
 router.use((req, res) => {

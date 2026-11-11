@@ -6,6 +6,7 @@ const M = require('../models');
 const { authMiddleware } = require('../middleware/auth');
 const { liveSessionMarkLimiter, liveSessionMarkIpLimiter } = require('../utils/rateLimiters');
 const { checkLiveSessionGuard } = require('../middleware/portalGuard');
+const { getSetting } = require('../utils/settingsCache');
 const { verifyTeacherAssignment, verifySessionOwner } = require('../utils/assignmentAuth');
 const { isCampusIpAllowed } = require('../utils/ipCheck');
 const { logAction } = require('../utils/logAction');
@@ -30,6 +31,10 @@ router.post('/start', authMiddleware, checkLiveSessionGuard, async (req, res) =>
 
   try {
     const { classId, subjectId, date, periodNumber = 1 } = req.body;
+    const targetPeriodNumbers = Array.isArray(req.body.periodNumbers) && req.body.periodNumbers.length
+      ? req.body.periodNumbers.map(Number).filter(n => !isNaN(n) && n > 0)
+      : [Number(periodNumber) || 1];
+    const targetPeriodNumber = targetPeriodNumbers[0] || (Number(periodNumber) || 1);
     if (!classId || !subjectId || !date) {
       return res.status(400).json({ error: 'Class, Subject, and Date are required' });
     }
@@ -53,7 +58,8 @@ router.post('/start', authMiddleware, checkLiveSessionGuard, async (req, res) =>
     // Verify teacher assignment (A3, permit valid substitute)
     const assignCheck = await verifyTeacherAssignment(req.user, targetClassId, targetSubjectId, {
       date,
-      periodNumber
+      periodNumber: targetPeriodNumber,
+      periodNumbers: targetPeriodNumbers
     });
     if (!assignCheck.allowed) {
       return res.status(403).json({ error: assignCheck.reason });
@@ -84,7 +90,8 @@ router.post('/start', authMiddleware, checkLiveSessionGuard, async (req, res) =>
       classId: targetClassId,
       subjectId: targetSubjectId,
       date,
-      periodNumber: Number(periodNumber) || 1,
+      periodNumber: targetPeriodNumber,
+      periodNumbers: targetPeriodNumbers,
       rotationCount,
       rotationTimeSec,
       currentRotation: 1,
@@ -366,6 +373,17 @@ router.post('/mark', authMiddleware, liveSessionMarkIpLimiter, liveSessionMarkLi
     }
 
     // Evaluate Device Trust & Risk Gate (§7, §9, T2.1-T2.5)
+    const attSettings = await getSetting('attendance').catch(() => ({}));
+    const enforceGeofence = attSettings.enforceAttendanceGeofence !== false;
+    const maxAccuracyM = Number(attSettings.attendanceMaxAccuracyM) || 100;
+    let isClassroomRadiusOk = true;
+    let isLocationOk = true;
+
+    if (enforceGeofence && locationAccuracy !== undefined && !isNaN(Number(locationAccuracy)) && Number(locationAccuracy) > maxAccuracyM) {
+      isClassroomRadiusOk = false;
+      isLocationOk = false;
+    }
+
     const trustEval = await evaluateDeviceTrust({
       student,
       deviceProof,
@@ -374,8 +392,8 @@ router.post('/mark', authMiddleware, liveSessionMarkIpLimiter, liveSessionMarkLi
         latitude: latitude !== undefined ? Number(latitude) : undefined,
         longitude: longitude !== undefined ? Number(longitude) : undefined,
         accuracy: locationAccuracy !== undefined ? Number(locationAccuracy) : undefined,
-        isClassroomRadiusOk: true,
-        locationOk: true
+        isClassroomRadiusOk,
+        locationOk: isLocationOk
       },
       ip: req.ip,
       deviceId: effectiveDeviceId
@@ -406,6 +424,7 @@ router.post('/mark', authMiddleware, liveSessionMarkIpLimiter, liveSessionMarkLi
       locationAccuracy: locationAccuracy ? Number(locationAccuracy) : undefined,
       ipAddress: req.ip || '',
       deviceId: effectiveDeviceId,
+      deviceSessionId: req.user?.sessionId || '',
       userAgent: req.headers['user-agent'] || '',
       status: recordStatus,
       security: trustEval.security

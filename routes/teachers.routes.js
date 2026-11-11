@@ -6,10 +6,42 @@ const M = require('../models');
 const cfg = require('../config');
 const { authMiddleware, requirePage, scopeFilter, assertInScope, isSudo } = require('../middleware/auth');
 const { logAction } = require('../utils/logAction');
+const countService = require('../services/countService');
 const { isSudoAdmin, isSuperAdmin, isSubAdmin, sanitizeTeacherPrivileges, hasSpecial } = require('../utils/access');
 const { assertNotLastSudoAdmin } = require('../utils/adminGuards');
 const { sanitizeToString } = require('../utils/sanitizeQuery');
 const { sanitizeFullName, splitFirstLastName } = require('../utils/nameFormat');
+const crypto = require('crypto');
+const { getTeacherIdentity, resolveTeacherRange } = require('../utils/teacherSchedule');
+const { todayInInstitutionTz } = require('../utils/institutionTime');
+
+// Compute next available Employee ID (e.g. EMP-001, EMP-002, ...)
+router.get('/next-emp-id', authMiddleware, async (req, res) => {
+  try {
+    const teachers = await M.Teacher.find({}, 'employeeNo trackId').lean();
+    let maxNum = 0;
+    for (const t of teachers) {
+      const raw = (t.employeeNo || t.trackId || '').trim();
+      const empMatch = raw.match(/EMP[-_]?(\d+)/i);
+      if (empMatch) {
+        const n = parseInt(empMatch[1], 10);
+        if (n > maxNum && n < 100000) maxNum = n;
+      } else {
+        const numMatch = raw.match(/\b(\d+)\b/);
+        if (numMatch) {
+          const n = parseInt(numMatch[1], 10);
+          if (n > maxNum && n < 100000) maxNum = n;
+        }
+      }
+    }
+    const nextNum = maxNum + 1;
+    const nextEmpId = `EMP-${String(nextNum).padStart(3, '0')}`;
+    const nextTrackId = `TR-${nextEmpId}`;
+    return res.json({ ok: true, data: { nextEmpId, nextTrackId, maxNum, nextNum } });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
 
 router.get('/trackid/:trackId', authMiddleware, async (req, res) => {
   try {
@@ -18,10 +50,189 @@ router.get('/trackid/:trackId', authMiddleware, async (req, res) => {
       'fullName specials trackId'
     ).lean();
     if (!teacher) return res.status(404).json({ error: 'TrackID not found' });
+
+    let respLoad = 0;
+    if (Array.isArray(teacher.responsibilities)) {
+      respLoad = teacher.responsibilities.reduce((s, r) => s + (Number(r && r.workloadPeriodsPerWeek) || 0), 0);
+    }
+    let baseLoad = 24;
+    let floorLoad = 10;
+    if (teacher.deptId) {
+      try {
+        const policy = await M.WorkloadPolicy.findOne({ deptId: teacher.deptId }).lean();
+        if (policy && Array.isArray(policy.designationRules)) {
+          const match = policy.designationRules.find(r => (r.designation || '').toLowerCase() === (teacher.designation || '').toLowerCase()) ||
+                        policy.designationRules.find(r => (r.designation || '').toLowerCase() === 'default');
+          if (match) {
+            baseLoad = match.maxPerWeek || 24;
+            floorLoad = match.floorLoad || 10;
+          }
+        }
+      } catch (_) {}
+    }
+    const allowedLoad = Math.max(floorLoad, baseLoad - respLoad);
+
     const isHodVal = teacher.specials?.some(s => s.option === 'isHod');
     res.json({ fullName: teacher.fullName, isHod: isHodVal, trackId: teacher.trackId });
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/teacher/me/roster or /api/teachers/me/roster
+// Returns classes, subjects, students and today's slots with ETag support
+router.get('/me/roster', authMiddleware, async (req, res) => {
+  try {
+    if (!['teacher', 'admin'].includes(req.user?.role)) {
+      return res.status(403).json({ error: 'Access denied. Teacher or admin role required.' });
+    }
+
+    const idn = await getTeacherIdentity(req.user);
+    if (!idn) {
+      return res.status(404).json({ error: 'Teacher record not found for the current identity.' });
+    }
+
+    const myTeacherIds = [
+      String(idn._id || ''),
+      String(idn.trackId || ''),
+      String(idn.employeeNo || '')
+    ].filter(Boolean);
+
+    // 1. Fetch this teacher's assignments
+    const assignments = await M.Assignment.find({
+      teacherId: { $in: myTeacherIds }
+    }).lean();
+
+    const classIdsSet = new Set();
+    const subjectIdsSet = new Set();
+    assignments.forEach(a => {
+      if (a.classId) classIdsSet.add(String(a.classId));
+      if (a.subjectId) subjectIdsSet.add(String(a.subjectId));
+    });
+
+    // Also include classes where this teacher is advisor or subjectTeacher
+    const advisedClasses = await M.Class.find({
+      $or: [
+        { advisorTeacherId: { $in: myTeacherIds.filter(id => mongoose.isValidObjectId(id)) } },
+        { advisorTeacherTrackId: { $in: myTeacherIds } },
+        { 'subjectTeachers.teacherId': { $in: myTeacherIds.filter(id => mongoose.isValidObjectId(id)) } },
+        { 'subjectTeachers.teacherTrackId': { $in: myTeacherIds } }
+      ]
+    }).select('_id classTrackId name department deptCode section year semester batch batchTrackId').lean();
+
+    advisedClasses.forEach(c => {
+      classIdsSet.add(String(c._id));
+      if (c.classTrackId) classIdsSet.add(c.classTrackId);
+    });
+
+    const classIds = Array.from(classIdsSet);
+    const subjectIds = Array.from(subjectIdsSet);
+
+    // 2. Resolve Class documents
+    const classObjIds = classIds.filter(id => mongoose.isValidObjectId(id));
+    const classes = await M.Class.find({
+      $or: [
+        { _id: { $in: classObjIds } },
+        { classTrackId: { $in: classIds } },
+        { name: { $in: classIds } }
+      ]
+    }).select('_id classTrackId name department deptCode section year semester batch batchTrackId').lean();
+
+    const allValidClassIds = new Set();
+    const classNames = new Set();
+    classes.forEach(c => {
+      allValidClassIds.add(String(c._id));
+      if (c.classTrackId) allValidClassIds.add(c.classTrackId);
+      if (c.name) classNames.add(c.name);
+    });
+    classIds.forEach(id => allValidClassIds.add(id));
+
+    // 3. Resolve Subject documents
+    const subjectObjIds = subjectIds.filter(id => mongoose.isValidObjectId(id));
+    const subjects = await M.Subject.find({
+      $or: [
+        { _id: { $in: subjectObjIds } },
+        { subjectTrackId: { $in: subjectIds } },
+        { subjectCode: { $in: subjectIds } },
+        { name: { $in: subjectIds } }
+      ]
+    }).select('_id subjectTrackId subjectCode name deptId').lean();
+
+    // 4. Resolve Students for all assigned/advised classes
+    const validStudentClassObjIds = Array.from(allValidClassIds).filter(id => mongoose.isValidObjectId(id));
+    const studentQuery = [];
+    if (validStudentClassObjIds.length > 0) {
+      studentQuery.push({ classId: { $in: validStudentClassObjIds } });
+    }
+    const rawClassStrings = Array.from(allValidClassIds);
+    if (rawClassStrings.length > 0) {
+      studentQuery.push({ class: { $in: rawClassStrings } });
+    }
+    if (classNames.size > 0) {
+      studentQuery.push({ class: { $in: Array.from(classNames) } });
+    }
+
+    const studentDocs = studentQuery.length > 0
+      ? await M.Student.find({ $or: studentQuery }).select('-password').lean()
+      : [];
+
+    const studentTrackIds = studentDocs.map(s => s.trackId).filter(Boolean);
+    const shadowUsers = studentTrackIds.length
+      ? await M.User.find({ trackId: { $in: studentTrackIds } }).select('trackId status').lean()
+      : [];
+    const shadowMap = new Map(shadowUsers.map(u => [u.trackId, u]));
+
+    const students = studentDocs.map(s => {
+      const shadow = shadowMap.get(s.trackId);
+      return {
+        ...s,
+        id: String(s._id),
+        name: s.fullName,
+        regNo: s.registerNo,
+        deptName: s.department,
+        academicYear: s.admissionYear,
+        className: s.class,
+        gender: s.gender || 'Male',
+        residency: s.residency || 'dayscholar',
+        admissionType: s.admissionType || 'Regular',
+        active: shadow ? shadow.status === 'active' : true,
+        status: shadow ? shadow.status : 'active'
+      };
+    });
+
+    // 5. Resolve today's slots
+    let todaySlots = [];
+    try {
+      const todayStr = await todayInInstitutionTz();
+      const days = await resolveTeacherRange(idn, todayStr, todayStr);
+      todaySlots = (days && days[0] && Array.isArray(days[0].slots)) ? days[0].slots : [];
+    } catch (schedErr) {
+      console.warn('[teacher/me/roster] Failed resolving today slots:', schedErr.message);
+    }
+
+    const payload = {
+      ok: true,
+      data: {
+        classes,
+        subjects,
+        students,
+        todaySlots
+      }
+    };
+
+    const body = JSON.stringify(payload);
+    const etag = `"${crypto.createHash('sha1').update(body).digest('hex')}"`;
+    res.setHeader('ETag', etag);
+    res.setHeader('Cache-Control', 'private, must-revalidate');
+
+    if (req.headers['if-none-match'] === etag) {
+      return res.status(304).end();
+    }
+
+    res.setHeader('Content-Type', 'application/json');
+    return res.status(200).send(body);
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
   }
 });
 
@@ -30,10 +241,10 @@ router.get('/:id', authMiddleware, async (req, res) => {
     const id = req.params.id;
     let teacher = null;
     if (mongoose.isValidObjectId(id)) {
-      teacher = await M.Teacher.findById(id, '-password').lean();
+      teacher = await M.Teacher.findById(id, '-password').populate('responsibilities').lean();
     }
     if (!teacher) {
-      teacher = await M.Teacher.findOne({ trackId: id }, '-password').lean();
+      teacher = await M.Teacher.findOne({ trackId: id }, '-password').populate('responsibilities').lean();
     }
     if (!teacher) return res.status(404).json({ error: 'Teacher not found' });
     const activeAssignments = await M.RoleAssignment.find({
@@ -425,6 +636,8 @@ router.post('/', authMiddleware, requirePage('admin', 'create', { tab: 'teachers
     );
 
     const { password: _, ...teacherData } = teacher.toObject();
+    await countService.modifyCount('teachers', 1).catch(() => {});
+    await countService.modifyCount('activeTeachers', 1).catch(() => {});
     await logAction(
       req.user.trackId || req.user._id,
       req.user.name,
@@ -489,6 +702,7 @@ router.put('/:id', authMiddleware, requirePage('admin', 'edit', { tab: 'teachers
     if (deptCode !== undefined) teacher.deptCode = deptCode || '';
     if (desig !== undefined) teacher.designation = desig;
     if (email !== undefined) teacher.email = (email || '').replace(/\s+/g, '').toLowerCase();
+    if (req.body.joiningDate !== undefined) teacher.joiningDate = req.body.joiningDate ? new Date(req.body.joiningDate) : null;
     if (username) {
       const newUsername = (username || '').replace(/\s+/g, '').toLowerCase();
       if (newUsername.startsWith('sb-') || newUsername.startsWith('tr-')) {
@@ -616,6 +830,8 @@ router.delete('/:id', authMiddleware, requirePage('admin', 'delete', { tab: 'tea
     });
     
     await M.Teacher.findByIdAndDelete(teacher._id);
+    await countService.modifyCount('teachers', -1).catch(() => {});
+    await countService.modifyCount('activeTeachers', -1).catch(() => {});
     
     // Also delete shadow user
     await M.User.deleteOne({ username: teacher.username, role: 'teacher' });

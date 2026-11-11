@@ -4,12 +4,16 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>EAMS – Teacher Portal</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
-  <script src="js/core/escape.js"></script>
-  <script src="js/core/icons.js"></script>
+  <script src="js/core/escape.js" defer></script>
+  <script src="js/core/icons.js" defer></script>
   <link rel="stylesheet" href="css/base.css">
   <link rel="stylesheet" href="css/teacher.css">
-  <link rel="stylesheet" href="css/workload.shared.css">
+  <link rel="stylesheet" href="css/control.attendance.css">
+
+  <link rel="stylesheet" href="css/requestTracker.css">
 </head>
 <body>
 
@@ -22,27 +26,41 @@
     <div class="sb-brand">EAMS<small>Teacher Portal</small></div>
   </div>
   <div class="navs">
+    <!-- TODAY GROUP -->
+    <div class="sb-group-label">Today</div>
     <button class="sb-item act" id="sn-dash" onclick="nav('dash')"><span class="ic"><re-icon icon="grid"></re-icon></span>Dashboard</button>
     <button class="sb-item" id="sn-sched" onclick="nav('sched')"><span class="ic"><re-icon icon="calendar-days"></re-icon></span>My Schedule</button>
     <button class="sb-item" id="sn-att" onclick="nav('att')"><span class="ic"><re-icon icon="bolt"></re-icon></span>Take Attendance</button>
-    <button class="sb-item" style="cursor:default;color:var(--td);font-weight:600;pointer-events:none;"><span class="ic"><re-icon icon="trend-up"></re-icon></span>Report</button>
-    <div style="overflow:hidden;">
-      <button class="ss" id="sn-stu" onclick="nav('rep-stu')"><re-icon icon="users" size="14"></re-icon> Student List</button>
-      <button class="ss" id="sn-ratt" onclick="nav('rep-att')"><re-icon icon="clipboard-list" size="14"></re-icon> Attendance Record</button>
-      <button class="ss" id="sn-rdef" onclick="nav('rep-def')"><re-icon icon="user-x" size="14"></re-icon> Defaulters List</button>
-      <button class="ss" id="sn-insights" onclick="nav('rep-insights')"><re-icon icon="grid" size="14"></re-icon> Attendance Insights</button>
-      <button class="ss" id="sn-export" onclick="window.location.href='export.html'"><re-icon icon="download" size="14"></re-icon> Export Center</button>
+    <button class="sb-item" id="sn-my-classes" onclick="nav('my-classes')"><span class="ic"><re-icon icon="users"></re-icon></span>My Classes</button>
+
+    <!-- APPROVALS GROUP -->
+    <button class="sb-item" id="sn-approvals" onclick="nav('approvals')"><span class="ic"><re-icon icon="clipboard-check"></re-icon></span>Approvals Inbox<span class="sb-badge" id="sn-appr-total-badge" style="display:none;background:var(--accent,#10b981);">0</span></button>
+
+    <!-- CLASS ADVISOR GROUP -->
+    <div id="sb-group-advisor" style="display:none;">
+      <div class="sb-group-label" id="sb-advisor-label">Class Advisor</div>
+      <button class="sb-item" id="sn-roster" onclick="nav('roster')"><span class="ic"><re-icon icon="calendar"></re-icon></span>Attendance Roster<span class="sb-badge" style="margin-left:auto;font-size:10px;font-weight:700;padding:2px 6px;border-radius:10px;background:var(--gD,#16a34a);color:#fff;">ADV</span></button>
+      <button class="sb-item" id="sn-registry" onclick="nav('registry')"><span class="ic"><re-icon icon="table"></re-icon></span>Attendance Registry<span class="sb-badge" style="margin-left:auto;font-size:10px;font-weight:700;padding:2px 6px;border-radius:10px;background:var(--gD,#16a34a);color:#fff;">ADV</span></button>
     </div>
-    <button class="sb-item" id="sn-tt" style="display:none;" onclick="goToTimetable()"><span class="ic"><re-icon icon="calendar-days"></re-icon></span>Timetable<span id="sn-tt-badge" style="display:none;margin-left:auto;font-size:9px;font-weight:700;padding:2px 7px;border-radius:10px;background:var(--gM);color:#fff;">COORD</span></button>
-    <button class="sb-item" id="sn-fac-workload" style="display:none;" onclick="nav('workload')"><span class="ic"><re-icon icon="users"></re-icon></span>Faculty Workload<span id="sn-workload-badge" style="margin-left:auto;font-size:9px;font-weight:700;padding:2px 7px;border-radius:10px;background:var(--gM);color:#fff;">HOD</span></button>
-    <button class="sb-item" id="sn-tt-verify" style="display:none;" onclick="nav('tt-verify')"><span class="ic"><re-icon icon="clipboard-list"></re-icon></span>Timetable Verification<span id="sn-tt-verify-badge" style="display:none;margin-left:auto;font-size:9px;font-weight:700;padding:2px 7px;border-radius:10px;background:#f59e0b;color:#fff;">0</span></button>
-    <button class="sb-item" id="sn-my-leaves" onclick="nav('my-leaves')"><span class="ic"><re-icon icon="plane"></re-icon></span>My Leaves &amp; Subs</button>
-    <button class="sb-item" id="sn-leaves" onclick="nav('leaves')"><span class="ic"><re-icon icon="file-text"></re-icon></span>Leave Requests<span class="sb-badge" id="sn-leave-badge" style="display:none;">0</span></button>
-    <button class="sb-item" id="sn-od" onclick="nav('od')"><span class="ic"><re-icon icon="trophy"></re-icon></span>OD Approvals<span class="sb-badge" id="sn-od-badge" style="display:none;background:#0284c7;">0</span></button>
-    <button class="sb-item" id="sn-device-verify" style="display:none;" onclick="nav('device-verify')"><span class="ic"><re-icon icon="smartphone"></re-icon></span>Device Verification<span id="sn-device-badge" style="margin-left:auto;font-size:9px;font-weight:700;padding:2px 7px;border-radius:10px;background:var(--gM);color:#fff;">ADVISOR</span></button>
-    <button class="sb-item" id="sn-controller" style="display:none;" onclick="window.location.href='controller.html'"><span class="ic"><re-icon icon="radio"></re-icon></span>Controller<span id="sn-controller-badge" style="margin-left:auto;font-size:9px;font-weight:700;padding:2px 7px;border-radius:10px;background:#4f46e5;color:#fff;">HOD</span></button>
-    <button class="sb-item" id="sn-admin-hub" style="display:none;" onclick="window.location.href='selector.html'"><span class="ic"><re-icon icon="shield-lock"></re-icon></span>Admin Hub<span style="margin-left:auto;font-size:9px;font-weight:700;padding:2px 7px;border-radius:10px;background:var(--purple);color:#fff;">ADMIN</span></button>
-    <button class="sb-item" id="sn-griev" onclick="nav('griev')"><span class="ic"><re-icon icon="ticket"></re-icon></span>Grievance</button>
+
+    <!-- ME GROUP -->
+    <div class="sb-group-label">Me</div>
+    <button class="sb-item" id="sn-my-leaves" data-feature="leave" onclick="nav('my-leaves')"><span class="ic"><re-icon icon="plane"></re-icon></span>My Leaves &amp; Subs</button>
+    <button class="sb-item" id="sn-griev" data-feature="grievances" onclick="nav('griev')"><span class="ic"><re-icon icon="ticket"></re-icon></span>Grievance</button>
+
+    <!-- ROLE TOOLS GROUP (§8.2, §10.1: Grouped under Role tools) -->
+    <div id="sb-group-role-tools" style="display:none;">
+      <div class="sb-group-label sb-role-tools-hdr" onclick="toggleRoleToolsGroup()" style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;">
+        <span>Role Tools</span>
+        <span class="sb-chevron" id="sb-role-chevron" style="transition:transform 0.2s;"><re-icon icon="chevron-down" size="12"></re-icon></span>
+      </div>
+      <div id="sb-sub-role-tools" style="overflow:hidden;">
+        <button class="sb-item" id="sn-tt" style="display:none;" onclick="goToTimetable()"><span class="ic"><re-icon icon="calendar-days"></re-icon></span>Timetable<span id="sn-tt-badge" style="display:none;margin-left:auto;font-size:11px;font-weight:700;padding:2px 7px;border-radius:10px;background:var(--gM);color:#fff;">COORD</span></button>
+        <button class="sb-item" id="sn-fac-workload" style="display:none;" onclick="nav('workload')"><span class="ic"><re-icon icon="users"></re-icon></span>Faculty Workload<span id="sn-workload-badge" style="margin-left:auto;font-size:11px;font-weight:700;padding:2px 7px;border-radius:10px;background:var(--gM);color:#fff;">HOD</span></button>
+        <button class="sb-item" id="sn-controller" style="display:none;" onclick="window.location.href='controller.html'"><span class="ic"><re-icon icon="radio"></re-icon></span>Controller<span id="sn-controller-badge" style="margin-left:auto;font-size:11px;font-weight:700;padding:2px 7px;border-radius:10px;background:#4f46e5;color:#fff;">HOD</span></button>
+        <button class="sb-item" id="sn-admin-hub" style="display:none;" onclick="window.location.href='selector.html'"><span class="ic"><re-icon icon="shield-lock"></re-icon></span>Admin Hub<span style="margin-left:auto;font-size:11px;font-weight:700;padding:2px 7px;border-radius:10px;background:var(--purple);color:#fff;">ADMIN</span></button>
+      </div>
+    </div>
   </div>
   <div class="sb-bottom">
     <button class="sb-logout-btn" onclick="doLogout('manual', 'success', '7000')" title="Logout">
@@ -56,8 +74,8 @@
 
 <div class="mc" id="maincontent">
 <div id="overdue-banner" style="display:none;background:#b91c1c;color:#fff;padding:10px 16px;text-align:center;font-size:13px;font-weight:600;position:sticky;top:0;z-index:9000;box-shadow:0 2px 8px rgba(0,0,0,0.2);">
-  <re-icon icon="alert-triangle"></re-icon> ATTENDANCE OVERDUE: You have an unmarked period exceeding the 10-minute window.
-  <button onclick="HardOverduePrompt.takeAttendanceNow()" style="background:#fff;color:#b91c1c;border:none;border-radius:4px;padding:3px 12px;font-weight:700;margin-left:12px;cursor:pointer;">Take Attendance Now <re-icon icon="arrow-right"></re-icon></button>
+  <re-icon icon="alert-triangle"></re-icon> <span id="overdue-banner-text">ATTENDANCE OVERDUE: You have an unmarked period exceeding the deadline window.</span>
+  <button type="button" onclick="HardOverduePrompt.takeAttendanceNow()" style="background:#fff;color:#b91c1c;border:none;border-radius:4px;padding:3px 12px;font-weight:700;margin-left:12px;cursor:pointer;">Take Attendance Now <re-icon icon="arrow-right"></re-icon></button>
 </div>
 <!-- TOPBAR -->
 <div class="topbar">
@@ -66,10 +84,25 @@
     <div style="font-size:11px;color:var(--tmu);background:var(--gLt);padding:4px 12px;border-radius:11px;border:1px solid var(--br);font-weight:500;white-space:nowrap;" id="datelbl"></div>
   </div>
   <div style="display:flex;align-items:center;gap:10px;">
-    <div class="tb-icon" style="position:relative;" onclick="togNotif()"><re-icon icon="bell"></re-icon>
+    <div class="tb-icon" style="position:relative;" onclick="togNotif(event)" role="button" tabindex="0" aria-label="Open notifications panel" onkeydown="if(event.key==='Enter'||event.key===' '){togNotif(event);event.preventDefault();}">
+      <re-icon icon="bell"></re-icon>
       <div class="tb-badge" id="nbadge">0</div>
-      <div class="ndrop" id="ndrop">
-        <div class="ndh"><div class="ndht">Notifications</div><div class="ndhc" onclick="clearNotifs(event)">Mark all read</div></div>
+      <div class="ndrop" id="ndrop" onclick="event.stopPropagation()" role="region" aria-label="Notifications Center">
+        <div class="nd-header">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <div class="ndht">Notifications</div>
+            <span class="nd-unread-pill" id="nd-unread-count-pill" style="display:none;">0 unread</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;">
+            <button type="button" class="btn-ghost btn-sm" onclick="clearNotifs(event)" style="font-size:11.5px;padding:4px 8px;color:var(--accent,#10b981);font-weight:600;">Mark all read</button>
+            <button type="button" class="btn-ghost btn-sm" onclick="togNotif(event)" style="padding:4px 6px;color:var(--tmu);" aria-label="Close notifications"><re-icon icon="x" size="14"></re-icon></button>
+          </div>
+        </div>
+        <div class="nd-filter-strip">
+          <button type="button" class="nd-filter-btn act" data-filter="all" onclick="filterNotifications('all', event)">All</button>
+          <button type="button" class="nd-filter-btn" data-filter="approvals" onclick="filterNotifications('approvals', event)">Approvals <span class="badge" id="notif-badge-approvals" style="display:none;font-size:11px;padding:1px 5px;background:#10b981;color:#fff;border-radius:10px;margin-left:3px;">0</span></button>
+          <button type="button" class="nd-filter-btn" data-filter="alerts" onclick="filterNotifications('alerts', event)">Alerts <span class="badge" id="notif-badge-alerts" style="display:none;font-size:11px;padding:1px 5px;background:#f59e0b;color:#fff;border-radius:10px;margin-left:3px;">0</span></button>
+        </div>
         <div class="ndl" id="ndlist"></div>
       </div>
     </div>
@@ -87,6 +120,41 @@
     <div class="page-actions">
       <button class="btn-pri" onclick="nav('att')"><re-icon icon="bolt" size="16"></re-icon> Take Attendance</button>
       <button class="btn-out" onclick="nav('sched')"><re-icon icon="calendar-days" size="16"></re-icon> My Schedule</button>
+    </div>
+  </div>
+
+  <!-- NOW & NEXT HERO CARD (C4) -->
+  <div id="now-next-hero-container"></div>
+
+  <!-- KPI STRIP (C4) -->
+  <div class="dash-kpi-strip" id="dash-kpi-strip">
+    <div class="kpi-card">
+      <div class="kpi-icon green"><re-icon icon="calendar-check"></re-icon></div>
+      <div>
+        <div class="kpi-val" id="kpi-classes-today">—</div>
+        <div class="kpi-lbl">Classes Today</div>
+      </div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-icon green"><re-icon icon="trend-up"></re-icon></div>
+      <div>
+        <div class="kpi-val" id="kpi-avg-rate">—</div>
+        <div class="kpi-lbl">Today's Attendance</div>
+      </div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-icon amber"><re-icon icon="user-x"></re-icon></div>
+      <div>
+        <div class="kpi-val" id="kpi-defaulters-cnt">—</div>
+        <div class="kpi-lbl">Defaulters (&lt;75%)</div>
+      </div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-icon purple"><re-icon icon="clipboard-list"></re-icon></div>
+      <div>
+        <div class="kpi-val" id="kpi-pending-approvals">—</div>
+        <div class="kpi-lbl">Pending Approvals</div>
+      </div>
     </div>
   </div>
   <!-- ROW 1: Today Schedule | Calendar -->
@@ -136,7 +204,7 @@
       </div>
     </div>
     <div class="card">
-      <div class="card-hd"><div class="card-title"><re-icon icon="user-x" size="16"></re-icon> Defaulters</div><span id="defcnt" style="font-size:10px;font-weight:700;background:rgba(239,68,68,.1);color:#dc2626;padding:2px 8px;border-radius:10px;">0</span></div>
+      <div class="card-hd"><div class="card-title"><re-icon icon="user-x" size="16"></re-icon> Defaulters</div><span id="defcnt" style="font-size:11px;font-weight:700;background:rgba(239,68,68,.1);color:#dc2626;padding:2px 8px;border-radius:10px;">0</span></div>
       <div class="card-body" style="padding-top:0;max-height:360px;overflow-y:auto;" id="defmini"><div class="est"><span class="ei"><re-icon icon="confetti"></re-icon></span><p style="font-size:14px;">No defaulters!</p></div></div>
       <div style="padding:10px 18px;border-top:1px solid var(--brl);"><button class="btno bsm" style="width:100%;justify-content:center;" onclick="nav('rep-def')">View All <re-icon icon="arrow-right" size="14"></re-icon></button></div>
     </div>
@@ -145,53 +213,102 @@
 
 <!-- MY SCHEDULE -->
 <div class="pg" id="pg-sched">
-  <div class="page-hd">
-    <div><div class="page-title"><re-icon icon="calendar-days" size="20"></re-icon> My Schedule</div><div class="page-sub">View your week, day, and manage your timetable.</div></div>
-    <div class="page-actions"><button class="btn-pri" id="btn-coord-edit-tt" style="display:none;" onclick="goToTimetable()"><re-icon icon="edit" size="14"></re-icon> Edit in Timetable</button></div>
-  </div>
-
-  <!-- Schedule View Tabs -->
-  <div style="display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap;align-items:center;">
-    <button class="sched-tab act" id="stab-week" onclick="switchSchedTab('week')"><re-icon icon="calendar-days" size="16"></re-icon> Week View</button>
-    <button class="sched-tab" id="stab-day" onclick="switchSchedTab('day')"><re-icon icon="calendar" size="16"></re-icon> Day View</button>
-    <button class="sched-tab" id="stab-tt" onclick="switchSchedTab('tt')"><re-icon icon="clipboard-list" size="16"></re-icon> My Timetable</button>
-    <div style="margin-left:auto;display:flex;align-items:center;gap:8px;" id="sched-nav-controls">
-      <button class="btno bsm" onclick="schedNav(-1)"><re-icon icon="arrow-left" size="14"></re-icon> Prev</button>
-      <div style="font-size:13px;font-weight:700;color:var(--td);min-width:160px;text-align:center;" id="weeklbl">—</div>
-      <button class="btno bsm" onclick="schedNav(1)">Next <re-icon icon="arrow-right" size="14"></re-icon></button>
-      <button class="btnp bsm" onclick="scheduleWeekOffset=0;renderSchedulePage()">Today</button>
+  <!-- Page Header with [Timetable | Day] Segmented Toggle -->
+  <div class="sched-header-row">
+    <div>
+      <div class="sched-date-badge" id="sched-today-badge"><re-icon icon="calendar" size="13"></re-icon> <span id="sched-today-badge-text">Today</span></div>
+      <div class="page-title" style="margin-top:8px;">My Schedule</div>
+      <div class="page-sub">Your published timetable for the week. Click any session for details.</div>
     </div>
-    <div style="margin-left:auto;display:none;align-items:center;gap:8px;" id="sched-day-nav-controls">
-      <button class="btno bsm" onclick="dayNavStep(-1)"><re-icon icon="arrow-left" size="14"></re-icon> Prev Day</button>
-      <div style="font-size:13px;font-weight:700;color:var(--td);min-width:160px;text-align:center;" id="daylbl">—</div>
-      <button class="btno bsm" onclick="dayNavStep(1)">Next Day <re-icon icon="arrow-right" size="14"></re-icon></button>
-      <button class="btnp bsm" onclick="dayOffset=0;renderDayView()">Today</button>
+    <div class="sched-header-actions">
+      <div class="sched-toggle-pill" role="tablist" aria-label="Schedule View">
+        <button type="button" class="sched-toggle-btn" id="stab-tt" onclick="switchSchedTab('tt')" role="tab" aria-selected="false">Timetable</button>
+        <button type="button" class="sched-toggle-btn act" id="stab-week" onclick="switchSchedTab('week')" role="tab" aria-selected="true">Week</button>
+        <button type="button" class="sched-toggle-btn" id="stab-day" onclick="switchSchedTab('day')" role="tab" aria-selected="false">Day</button>
+      </div>
+      <button class="btn-pri" id="btn-coord-edit-tt" style="display:none;" onclick="goToTimetable()">
+        <re-icon icon="edit" size="14"></re-icon> Edit in Timetable
+      </button>
     </div>
   </div>
 
-  <!-- Week View -->
+  <!-- Navigation & Status Controls Bar -->
+  <div class="sched-ctrls-bar">
+    <div class="sched-ctrls-nav" id="sched-nav-controls">
+      <button type="button" class="sched-btn-nav" id="sched-btn-prev" onclick="schedNavigateStep(-1)">
+        <re-icon icon="arrow-left" size="13"></re-icon> <span id="sched-prev-text">Prev</span>
+      </button>
+      <div class="sched-date-range-label" id="sched-range-label">—</div>
+      <!-- Hidden legacy label targets for backward compatibility -->
+      <span id="weeklbl" style="display:none;"></span>
+      <span id="daylbl" style="display:none;"></span>
+      <button type="button" class="sched-btn-nav" id="sched-btn-next" onclick="schedNavigateStep(1)">
+        <span id="sched-next-text">Next</span> <re-icon icon="arrow-right" size="13"></re-icon>
+      </button>
+      <button type="button" class="sched-btn-today" onclick="schedGoToday()">Today</button>
+    </div>
+    <div class="sched-ctrls-meta">
+      <span class="sched-status-badge" id="sched-badge-marked"><re-icon icon="check-circle" size="13"></re-icon> <span id="sched-marked-text">0/1 slots marked</span></span>
+      <span class="sched-status-badge" id="sched-badge-health"><re-icon icon="shield-check" size="13"></re-icon> <span id="sched-health-text">All slots regular &amp; active</span></span>
+      <button type="button" class="sched-btn-export" id="sched-btn-export" onclick="exportTeacherTimetablePDF()">
+        <re-icon icon="download" size="13"></re-icon> Export PDF
+      </button>
+    </div>
+  </div>
+
+  <!-- Schedule Health Strip (§8.2) -->
+  <div id="schedule-health-strip" class="sched-health-strip" style="display:none;"></div>
+
+  <!-- VIEW 1: TIMETABLE VIEW -->
+  <div id="sched-tt-view" style="display:none;">
+    <!-- Stat Cards Row (Hero Slot + 3 Metrics) -->
+    <div class="sched-stats-grid" id="sched-stats-grid">
+      <!-- Injected dynamically via renderScheduleStatCards() -->
+    </div>
+
+    <!-- Timetable Matrix Card -->
+    <div class="sched-matrix-card card">
+      <div id="tt-grid"></div>
+    </div>
+  </div>
+
+  <!-- VIEW 2: WEEK VIEW (Default) -->
   <div id="sched-week-view">
     <div class="week-grid" id="schedbyday"></div>
   </div>
 
-  <!-- Day View -->
+  <!-- VIEW 3: DAY VIEW -->
   <div id="sched-day-view" style="display:none;">
-    <div id="dayschedcont"></div>
-  </div>
+    <!-- 6-Day Horizontal Selector Strip (Mon - Sat) -->
+    <div class="sched-day-strip" id="sched-day-strip">
+      <!-- Injected dynamically via renderDaySelectorStrip() -->
+    </div>
 
-  <!-- My Timetable (Adaptive Matrix Grid) -->
-  <div id="sched-tt-view" style="display:none;">
-    <div class="tt-teacher-card card">
-      <div class="tt-teacher-top">
-        <div>
-          <div class="tt-card-title"><re-icon icon="clipboard-list" size="16"></re-icon> My Weekly Timetable</div>
-          <div class="tt-card-sub">Published institutional timetable &mdash; click any slot to view details.</div>
+    <!-- Two-Column Day Layout (Timeline + Right Glance) -->
+    <div class="sched-day-layout">
+      <!-- Left: Day Timeline Card -->
+      <div class="sched-timeline-card card">
+        <div class="sched-timeline-header">
+          <div class="sched-timeline-title" id="sched-timeline-title">Saturday timeline</div>
+          <div class="sched-timeline-badge" id="sched-timeline-badge">Showing Set 2 timings</div>
         </div>
-        <div class="tt-top-actions">
-          <button class="btno bsm" onclick="exportTeacherTimetablePDF()"><re-icon icon="download" size="14"></re-icon> Export PDF</button>
+        <div class="sched-timeline-body" id="dayschedcont">
+          <!-- Injected dynamically via renderDayTimeline() -->
         </div>
       </div>
-      <div id="tt-grid"></div>
+
+      <!-- Right: Sidebar Cards -->
+      <div class="sched-day-sidebar">
+        <!-- Today at a Glance Card -->
+        <div class="sched-glance-card card" id="sched-glance-card">
+          <!-- Injected dynamically via renderDayGlanceCard() -->
+        </div>
+
+        <!-- Earlier this Week Card -->
+        <div class="sched-history-card card" id="sched-history-card">
+          <!-- Injected dynamically via renderEarlierThisWeekCard() -->
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -200,18 +317,9 @@
 <div class="pg" id="pg-att">
   <div class="page-hd"><div><div class="page-title"><re-icon icon="bolt" size="20"></re-icon> Take Attendance</div><div class="page-sub">Select class and subject to mark attendance.</div></div></div>
 
-  <!-- ZONE 1: SELECTION & METHODS (State 1) -->
+  <!-- ZONE 1: SELECTION & METHODS-->
   <div class="att-selector-zone asel" id="att-selector-zone">
-    <!-- TODAY'S CLASSES CHIP STRIP (Phase 4) -->
-    <div class="today-chips-wrap" id="today-classes-chips" style="display:none;margin-bottom:14px;">
-      <div style="font-size:11.5px;font-weight:700;color:var(--tdi);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;display:flex;align-items:center;gap:6px;">
-        <span><re-icon icon="bolt"></re-icon> Today's Classes</span>
-        <span style="font-size:11px;font-weight:500;color:var(--tmu);text-transform:none;">(Click to quick-fill)</span>
-      </div>
-      <div class="today-chips-list" id="today-chips-list"></div>
-    </div>
-
-    <!-- TIMETABLE MISMATCH SOFT WARNING BANNER (Phase 4) -->
+    <!-- TIMETABLE MISMATCH SOFT WARNING BANNER -->
     <div id="att-tt-warn" class="att-tt-warn-banner" style="display:none;margin-bottom:14px;background:#fffbeb;border:1px solid #fde68a;color:#b45309;padding:10px 14px;border-radius:10px;font-size:12.5px;font-weight:600;align-items:center;justify-content:space-between;gap:8px;">
       <div style="display:flex;align-items:center;gap:8px;">
         <span style="font-size:16px;"><re-icon icon="alert-triangle"></re-icon></span>
@@ -229,12 +337,22 @@
       <div id="att-tt-active-pill" style="display:none;font-size:11px;font-weight:700;padding:3px 8px;border-radius:12px;background:#dcfce7;color:#15803d;border:1px solid #86efac;white-space:nowrap;">Active Slot</div>
     </div>
 
+    <!-- ATTENDANCE POLICY NOTICES (GLOBAL SWITCH / EDIT LOCK) -->
+    <div id="att-policy-banner" style="display:none;margin-bottom:14px;padding:12px 16px;border-radius:10px;font-size:12.5px;font-weight:600;align-items:center;gap:10px;background:#fef2f2;border:1px solid #fecaca;color:#991b1b;">
+      <re-icon icon="shield-alert" size="18"></re-icon>
+      <div id="att-policy-banner-text">Attendance marking is currently locked by administrator.</div>
+    </div>
+
     <div class="aselrow">
       <div class="fg fg-class"><label class="fl">Class</label><select class="fc" id="attcls" onchange="attLoadSubs()"><option value="">— Select —</option></select></div>
       <div class="fg fg-subject"><label class="fl">Subject</label><select class="fc" id="attsub"><option value="">— Select —</option></select></div>
-      <div class="fg fg-date"><label class="fl">Date</label><input type="date" class="fc" id="attdate" onchange="handleAttendanceDateChange()"></div>
+      <div class="fg fg-date">
+        <label class="fl">Date</label>
+        <input type="date" class="fc" id="attdate" onchange="handleAttendanceDateChange()">
+        <div id="att-date-policy-hint" style="font-size:11px;color:var(--tmu);margin-top:3px;display:none;"></div>
+      </div>
       <div class="fg fg-period"><label class="fl">Period</label><select class="fc" id="attperiod" onchange="handleAttendancePeriodChange()"><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option></select></div>
-      <button class="btn-pri" onclick="loadAttendanceSheet()" style="white-space:nowrap;height:38px;"><re-icon icon="clipboard-list" size="14"></re-icon> Load Students</button>
+      <button type="button" class="btn-pri" id="btn-load-students" onclick="loadAttendanceSheet()" style="white-space:nowrap;height:38px;"><re-icon icon="clipboard-list" size="14"></re-icon> Load Students</button>
     </div>
 
     <!-- METHOD CARDS (Select class/subject first) -->
@@ -244,40 +362,74 @@
         <span style="font-size:11px;font-weight:500;color:#15803d;text-transform:none;">Requires Class &amp; Subject selection</span>
       </div>
       <div class="att-method-cards">
-        <div class="att-method-card" id="card-quick-pass" onclick="triggerAttendanceMethod('code')">
+        <button type="button" class="att-method-card" id="card-quick-pass" onclick="triggerAttendanceMethod('code')">
           <div class="amc-icon" style="color:#b45309;background:#fef3c7;"><re-icon icon="hashtag"></re-icon></div>
           <div class="amc-body">
             <div class="amc-title">Quick Pass</div>
             <div class="amc-eta" id="eta-quick-pass">2 min session</div>
+            <span class="amc-reason-chip" id="reason-quick-pass" style="display:none;"></span>
           </div>
           <div class="amc-arrow"><re-icon icon="arrow-right"></re-icon></div>
-        </div>
-        <div class="att-method-card" id="card-scan-live" onclick="triggerAttendanceMethod('qr')">
+        </button>
+        <button type="button" class="att-method-card" id="card-scan-live" onclick="triggerAttendanceMethod('qr')">
           <div class="amc-icon" style="color:#4f46e5;background:#e0e7ff;"><re-icon icon="camera"></re-icon></div>
           <div class="amc-body">
             <div class="amc-title">Scan Live</div>
             <div class="amc-eta" id="eta-scan-live">2 min QR code</div>
+            <span class="amc-reason-chip" id="reason-scan-live" style="display:none;"></span>
           </div>
           <div class="amc-arrow"><re-icon icon="arrow-right"></re-icon></div>
-        </div>
-        <div class="att-method-card" id="card-rep-share" onclick="triggerAttendanceMethod('rep')">
+        </button>
+        <button type="button" class="att-method-card" id="card-rep-share" onclick="triggerAttendanceMethod('rep')">
           <div class="amc-icon" style="color:#15803d;background:#dcfce7;"><re-icon icon="users"></re-icon></div>
           <div class="amc-body">
             <div class="amc-title">Rep Share</div>
             <div class="amc-eta" id="eta-rep-share">Draft by class rep</div>
+            <span class="amc-reason-chip" id="reason-rep-share" style="display:none;"></span>
           </div>
           <div class="amc-arrow"><re-icon icon="arrow-right"></re-icon></div>
-        </div>
+        </button>
       </div>
     </div>
   </div>
 
   <!-- ZONE 2: ATTENDANCE SHEET & SUMMARY (State 2) -->
   <div class="att-sheet-zone" id="attsheet" style="display:none;">
+    <!-- STICKY HEADER DOCK WITH LIVE COUNTERS & UNDO (C3) -->
+    <div class="att-sticky-dock" id="att-sticky-dock">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+        <button type="button" class="btn-out bsm" onclick="resetAttendanceView()" style="display:inline-flex;align-items:center;gap:5px;font-weight:600;">
+          <re-icon icon="arrow-left" size="14"></re-icon> Change
+        </button>
+        <div style="font-size:12.5px;font-weight:700;color:var(--td);display:flex;align-items:center;gap:6px;">
+          <span id="dock-cls-sub">—</span>
+          <span style="color:var(--tdi);">·</span>
+          <span id="dock-period-date" style="color:var(--tmu);font-weight:500;">—</span>
+        </div>
+      </div>
+
+      <!-- LIVE COUNTERS STRIP (C3) -->
+      <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+        <span class="att-counter-pill total"><re-icon icon="users" size="12"></re-icon> Total <b id="dock-cnt-total">0</b></span>
+        <span class="att-counter-pill present"><re-icon icon="check" size="12"></re-icon> Present <b id="dock-cnt-pres">0</b></span>
+        <span class="att-counter-pill absent"><re-icon icon="x" size="12"></re-icon> Absent <b id="dock-cnt-abs">0</b></span>
+        <span class="att-counter-pill unmarked" id="dock-pill-unmarked" style="display:none;"><re-icon icon="alert-circle" size="12"></re-icon> Unmarked <b id="dock-cnt-unm">0</b></span>
+      </div>
+
+      <!-- ACTIONS & SAVED STATE CHIP -->
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+        <button type="button" class="btn-att-undo" id="btn-att-undo" onclick="undoAttendanceChange()" disabled title="Undo last attendance mark">
+          <re-icon icon="rotate-ccw" size="13"></re-icon> Undo
+        </button>
+        <button type="button" class="btno bsm" onclick="markAll('present')" title="Mark all present">All P</button>
+        <button type="button" class="btno bsm" onclick="markAll('absent')" title="Mark all absent">All A</button>
+        <div id="dock-saved-chip" style="font-size:11px;font-weight:700;padding:3px 10px;border-radius:12px;background:#fef3c7;color:#b45309;border:1px solid #fde68a;display:inline-flex;align-items:center;gap:4px;">
+          <span class="savebar-unsaved-dot"></span> <span id="dock-saved-text">NOT SAVED</span>
+        </div>
+      </div>
+    </div>
+
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;gap:8px;flex-wrap:wrap;">
-      <button class="btn-out" onclick="resetAttendanceView()" style="font-size:12px;padding:6px 14px;display:inline-flex;align-items:center;gap:6px;font-weight:600;">
-        <span><re-icon icon="arrow-left"></re-icon></span> Change Selection
-      </button>
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
         <div id="att-method-indicator" style="display:none;font-size:12px;font-weight:700;padding:4px 12px;border-radius:20px;background:#f0fdf4;border:1px solid #bbf7d0;color:#166534;">
           <!-- Dynamic badge e.g. "Method: Quick Pass" -->
@@ -287,11 +439,11 @@
     </div>
 
     <div class="ainfobar">
-      <div><div style="font-size:9px;font-weight:700;color:var(--tdi);text-transform:uppercase;">Class</div><div style="font-size:12.5px;font-weight:700;" id="ainfc">—</div></div>
-      <div><div style="font-size:9px;font-weight:700;color:var(--tdi);text-transform:uppercase;">Subject</div><div style="font-size:12.5px;font-weight:700;" id="ainfs">—</div></div>
-      <div><div style="font-size:9px;font-weight:700;color:var(--tdi);text-transform:uppercase;">Date</div><div style="font-size:12.5px;font-weight:700;" id="ainfd">—</div></div>
-      <div><div style="font-size:9px;font-weight:700;color:var(--tdi);text-transform:uppercase;">Period</div><div style="font-size:12.5px;font-weight:700;" id="ainfp">—</div></div>
-      <div><div style="font-size:9px;font-weight:700;color:var(--tdi);text-transform:uppercase;">Students</div><div style="font-size:12.5px;font-weight:700;" id="ainft">—</div></div>
+      <div><div style="font-size:11px;font-weight:700;color:var(--tdi);text-transform:uppercase;">Class</div><div style="font-size:12.5px;font-weight:700;" id="ainfc">—</div></div>
+      <div><div style="font-size:11px;font-weight:700;color:var(--tdi);text-transform:uppercase;">Subject</div><div style="font-size:12.5px;font-weight:700;" id="ainfs">—</div></div>
+      <div><div style="font-size:11px;font-weight:700;color:var(--tdi);text-transform:uppercase;">Date</div><div style="font-size:12.5px;font-weight:700;" id="ainfd">—</div></div>
+      <div><div style="font-size:11px;font-weight:700;color:var(--tdi);text-transform:uppercase;">Period</div><div style="font-size:12.5px;font-weight:700;" id="ainfp">—</div></div>
+      <div><div style="font-size:11px;font-weight:700;color:var(--tdi);text-transform:uppercase;">Students</div><div style="font-size:12.5px;font-weight:700;" id="ainft">—</div></div>
     </div>
 
     <!-- SAVED / NOT SAVED DATABASE STATUS CARD -->
@@ -301,6 +453,7 @@
         <div>
           <div id="att-saved-title" style="font-size:13.5px;font-weight:700;color:#92400e;">Attendance Not Saved in Database</div>
           <div id="att-saved-desc" style="font-size:11.5px;color:#b45309;margin-top:2px;">This is an unsaved fresh roster. Click Save Attendance to persist to MongoDB.</div>
+          <div id="att-lock-countdown" style="display:none;font-size:11px;font-weight:700;padding:2px 8px;border-radius:10px;background:#fee2e2;color:#b91c1c;border:1px solid #fecaca;margin-top:4px;"></div>
         </div>
       </div>
       <div id="att-saved-badge" style="font-size:11px;font-weight:800;padding:4px 12px;border-radius:20px;text-transform:uppercase;letter-spacing:0.5px;background:#fef3c7;color:#b45309;border:1px solid #fde68a;">NOT SAVED</div>
@@ -316,7 +469,7 @@
     <div id="att-notes-section" style="background:var(--card, #ffffff); border:1.5px solid var(--br, #e2e8f0); border-radius:12px; padding:14px 16px; margin-bottom:14px; box-shadow:0 1px 3px rgba(0,0,0,0.04);">
       <div style="font-size:13px; font-weight:700; color:var(--td, #1e293b); margin-bottom:10px; display:flex; align-items:center; gap:8px;">
         <span><re-icon icon="file-text"></re-icon> Period Notes &amp; Topic Covered</span>
-        <span id="att-topic-req" style="display:none; font-size:10px; font-weight:800; color:#dc2626; background:#fee2e2; padding:2px 8px; border-radius:10px; text-transform:uppercase; letter-spacing:0.5px;">REQUIRED</span>
+        <span id="att-topic-req" style="display:none; font-size:11px; font-weight:800; color:#dc2626; background:#fee2e2; padding:2px 8px; border-radius:10px; text-transform:uppercase; letter-spacing:0.5px;">REQUIRED</span>
       </div>
       <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;" class="att-notes-grid">
         <div class="fg" style="margin-bottom:0;">
@@ -334,7 +487,7 @@
       <button class="btn-out" onclick="markAll('present')"><re-icon icon="check-circle" size="16"></re-icon> Mark All Present</button>
       <button class="btn-out" onclick="markAll('absent')"><re-icon icon="x-circle" size="16"></re-icon> Mark All Absent</button>
       <div style="flex:1;"></div>
-      <button class="btn-pri" onclick="submitAtt()"><re-icon icon="save" size="16"></re-icon> Save Attendance</button>
+      <button id="btn-save-attendance" class="btn-pri" onclick="submitAtt()"><re-icon icon="save" size="16"></re-icon> Save Attendance</button>
     </div>
     <div class="card" style="overflow:auto;">
       <table class="tbl">
@@ -342,6 +495,145 @@
         <tbody id="atttbody"></tbody>
       </table>
     </div>
+
+    <!-- STICKY SAVE BAR (C3) -->
+    <div class="att-sticky-savebar" id="att-sticky-savebar">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <span class="savebar-unsaved-dot" id="savebar-dot"></span>
+        <div>
+          <div id="savebar-status-title" style="font-size:13px;font-weight:700;color:var(--td);">Unsaved Changes</div>
+          <div id="savebar-status-sub" style="font-size:11.5px;color:var(--tmu);">Review counts before saving to database</div>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <button type="button" class="btn-out bsm" onclick="resetAttendanceView()">Change Selection</button>
+        <button type="button" id="btn-save-attendance-sticky" class="btn-pri" onclick="submitAtt()" style="padding:8px 20px;font-size:13.5px;font-weight:700;box-shadow:0 4px 12px rgba(22,101,52,0.2);">
+          <re-icon icon="save" size="16"></re-icon> Save Attendance
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- UNIFIED "MY CLASSES" VIEW (C5) -->
+<div class="pg" id="pg-my-classes">
+  <div class="page-hd">
+    <div>
+      <div class="page-title"><re-icon icon="users" size="20"></re-icon> My Classes &amp; Reports</div>
+      <div class="page-sub">Centralized directory, attendance records, defaulters tracking, and analytics.</div>
+    </div>
+    <div class="page-actions" id="mc-page-actions">
+      <button type="button" class="btn-out" id="mc-btn-export" onclick="exportMyClassesActiveTab()"><re-icon icon="download" size="16"></re-icon> Export CSV</button>
+      <button type="button" class="btn-pri" id="mc-btn-refresh" onclick="refreshMyClassesActiveTab()"><re-icon icon="refresh" size="14"></re-icon> Refresh</button>
+    </div>
+  </div>
+
+  <!-- TABS SWITCHER (C5) -->
+  <div class="classes-tabs-bar" id="my-classes-tabs">
+    <button type="button" class="classes-tab-btn act" id="mctab-stu" onclick="switchMyClassesTab('stu')">
+      <re-icon icon="users" size="15"></re-icon> Student Directory
+    </button>
+    <button type="button" class="classes-tab-btn" id="mctab-att" onclick="switchMyClassesTab('att')">
+      <re-icon icon="clipboard-list" size="15"></re-icon> Attendance Record
+    </button>
+    <button type="button" class="classes-tab-btn" id="mctab-def" onclick="switchMyClassesTab('def')">
+      <re-icon icon="user-x" size="15"></re-icon> Defaulters List
+    </button>
+    <button type="button" class="classes-tab-btn" id="mctab-insights" onclick="switchMyClassesTab('insights')">
+      <re-icon icon="grid" size="15"></re-icon> Attendance Insights
+    </button>
+  </div>
+
+  <!-- SHARED FILTER DOCK (C5) -->
+  <div class="classes-shared-filter" id="my-classes-shared-filter">
+    <div class="fg" style="margin-bottom:0;min-width:180px;flex:1;">
+      <label class="fl">Class</label>
+      <select class="fc" id="mc-filter-class" onchange="syncMyClassesFilter('class')"><option value="">All My Assigned Classes</option></select>
+    </div>
+    <div class="fg" style="margin-bottom:0;min-width:180px;flex:1;" id="mc-fg-subject">
+      <label class="fl">Subject</label>
+      <select class="fc" id="mc-filter-subject" onchange="syncMyClassesFilter('subject')"><option value="">All Subjects</option></select>
+    </div>
+    <div class="fg" style="margin-bottom:0;min-width:140px;" id="mc-fg-from">
+      <label class="fl">From</label>
+      <input type="date" class="fc" id="mc-filter-from" onchange="syncMyClassesFilter('from')">
+    </div>
+    <div class="fg" style="margin-bottom:0;min-width:140px;" id="mc-fg-to">
+      <label class="fl">To</label>
+      <input type="date" class="fc" id="mc-filter-to" onchange="syncMyClassesFilter('to')">
+    </div>
+    <div class="fg" style="margin-bottom:0;min-width:140px;display:none;" id="mc-fg-threshold">
+      <label class="fl">Threshold</label>
+      <select class="fc" id="mc-filter-threshold" onchange="syncMyClassesFilter('threshold')">
+        <option value="75">Below 75%</option>
+        <option value="50">Below 50%</option>
+        <option value="85">Below 85%</option>
+      </select>
+    </div>
+    <div class="fg" style="margin-bottom:0;min-width:170px;" id="mc-fg-search">
+      <label class="fl">Search</label>
+      <input type="text" class="fc" id="mc-filter-search" placeholder="Name or Reg No…" oninput="syncMyClassesFilter('search')">
+    </div>
+  </div>
+
+  <!-- TAB PANELS -->
+  <!-- 1. Student Directory Panel -->
+  <div class="classes-tab-panel" id="mc-panel-stu">
+    <div class="card" style="overflow:auto;">
+      <table class="tbl">
+        <thead><tr><th>#</th><th>Reg No</th><th>Student Name</th><th>Class</th><th>Section</th><th>Department</th></tr></thead>
+        <tbody id="stutbody-mc"></tbody>
+      </table>
+      <div class="rep-pagination" id="mc-stu-pagination" style="display:flex;align-items:center;justify-content:space-between;padding:12px 18px;border-top:1px solid var(--brl);font-size:12.5px;">
+        <div id="mc-stu-info" style="color:var(--tmu);font-weight:600;">Showing 0 students</div>
+        <div style="display:flex;gap:8px;">
+          <button type="button" class="btno bsm" id="mc-stu-prev" onclick="changeMyClassesPage('stu', -1)" disabled><re-icon icon="arrow-left" size="13"></re-icon> Prev</button>
+          <span id="mc-stu-page-lbl" style="padding:4px 10px;font-weight:700;color:var(--td);">1</span>
+          <button type="button" class="btno bsm" id="mc-stu-next" onclick="changeMyClassesPage('stu', 1)" disabled>Next <re-icon icon="arrow-right" size="13"></re-icon></button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2. Attendance Record Panel -->
+  <div class="classes-tab-panel" id="mc-panel-att" style="display:none;">
+    <div class="card" style="overflow:auto;">
+      <table class="tbl">
+        <thead><tr><th>#</th><th>Student Name</th><th>Reg No</th><th>Class</th><th>Subject</th><th>Total Hours</th><th>Present Hours</th><th>Attendance %</th></tr></thead>
+        <tbody id="attrec-mc"></tbody>
+      </table>
+      <div class="rep-pagination" id="mc-att-pagination" style="display:flex;align-items:center;justify-content:space-between;padding:12px 18px;border-top:1px solid var(--brl);font-size:12.5px;">
+        <div id="mc-att-info" style="color:var(--tmu);font-weight:600;">Showing 0 records</div>
+        <div style="display:flex;gap:8px;">
+          <button type="button" class="btno bsm" id="mc-att-prev" onclick="changeMyClassesPage('att', -1)" disabled><re-icon icon="arrow-left" size="13"></re-icon> Prev</button>
+          <span id="mc-att-page-lbl" style="padding:4px 10px;font-weight:700;color:var(--td);">1</span>
+          <button type="button" class="btno bsm" id="mc-att-next" onclick="changeMyClassesPage('att', 1)" disabled>Next <re-icon icon="arrow-right" size="13"></re-icon></button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3. Defaulters Panel -->
+  <div class="classes-tab-panel" id="mc-panel-def" style="display:none;">
+    <div class="card" style="overflow:auto;">
+      <table class="tbl">
+        <thead><tr><th>#</th><th>Student</th><th>Reg No</th><th>Class</th><th>Subject</th><th>Present</th><th>Total</th><th>%</th></tr></thead>
+        <tbody id="deftbody-mc"></tbody>
+      </table>
+      <div class="rep-pagination" id="mc-def-pagination" style="display:flex;align-items:center;justify-content:space-between;padding:12px 18px;border-top:1px solid var(--brl);font-size:12.5px;">
+        <div id="mc-def-info" style="color:var(--tmu);font-weight:600;">Showing 0 defaulters</div>
+        <div style="display:flex;gap:8px;">
+          <button type="button" class="btno bsm" id="mc-def-prev" onclick="changeMyClassesPage('def', -1)" disabled><re-icon icon="arrow-left" size="13"></re-icon> Prev</button>
+          <span id="mc-def-page-lbl" style="padding:4px 10px;font-weight:700;color:var(--td);">1</span>
+          <button type="button" class="btno bsm" id="mc-def-next" onclick="changeMyClassesPage('def', 1)" disabled>Next <re-icon icon="arrow-right" size="13"></re-icon></button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 4. Insights Panel -->
+  <div class="classes-tab-panel" id="mc-panel-insights" style="display:none;">
+    <div id="mc-insights-content"></div>
   </div>
 </div>
 
@@ -349,7 +641,7 @@
 <div class="pg" id="pg-rep-att">
   <div class="page-hd">
     <div><div class="page-title"><re-icon icon="clipboard-list" size="20"></re-icon> Attendance Record</div><div class="page-sub">Student-wise attendance for selected date range.</div></div>
-    <button class="btn-out" onclick="exportAttCSV()"><re-icon icon="download" size="16"></re-icon> Export CSV</button>
+    <button class="btn-out" data-feature="exportSheet" onclick="exportAttCSV()"><re-icon icon="download" size="16"></re-icon> Export CSV</button>
   </div>
   <div class="card" style="margin-bottom:14px;">
     <div class="fwrap" style="padding-top:14px;padding-bottom:14px;">
@@ -369,7 +661,7 @@
 <div class="pg" id="pg-rep-def">
   <div class="page-hd">
     <div><div class="page-title"><re-icon icon="user-x" size="20"></re-icon> Defaulters List</div><div class="page-sub">Students below attendance threshold.</div></div>
-    <button class="btn-out" onclick="exportDefCSV()"><re-icon icon="download" size="16"></re-icon> Export CSV</button>
+    <button class="btn-out" data-feature="exportSheet" onclick="exportDefCSV()"><re-icon icon="download" size="16"></re-icon> Export CSV</button>
   </div>
   <div class="card" style="margin-bottom:14px;">
     <div class="fwrap" style="padding-top:14px;padding-bottom:14px;grid-template-columns:1fr 1fr 1fr;">
@@ -466,7 +758,7 @@
       <div id="ins-period-chart" style="display:flex;align-items:flex-end;justify-content:space-between;height:140px;padding:10px 4px 0;gap:6px;">
         <!-- Dynamically rendered vertical bars for Period 1 to Period 9 -->
       </div>
-      <div style="text-align:center;font-size:10.5px;color:var(--tmu);margin-top:10px;" id="ins-period-insight">
+      <div style="text-align:center;font-size:11px;color:var(--tmu);margin-top:10px;" id="ins-period-insight">
         Comparing student turnout across teaching periods
       </div>
     </div>
@@ -502,26 +794,169 @@
   </div>
 </div>
 
-<!-- STUDENT LIST -->
+<!-- STUDENT LIST & CLASS REGISTER (§8.2) -->
 <div class="pg" id="pg-rep-stu">
   <div class="page-hd">
-    <div><div class="page-title"><re-icon icon="users" size="20"></re-icon> Student List</div><div class="page-sub">Students in your assigned classes.</div></div>
-    <button class="btn-out" onclick="exportStuCSV()"><re-icon icon="download" size="16"></re-icon> Export CSV</button>
-  </div>
-  <div class="card" style="margin-bottom:14px;">
-    <div class="fwrap" style="padding-top:14px;padding-bottom:14px;grid-template-columns:1fr 1fr;">
-      <div class="fg"><label class="fl">Class</label><select class="fc" id="slc" onchange="renderStuList()"><option value="">All</option></select></div>
-      <div class="fg"><label class="fl">Search</label><input type="text" class="fc" id="slq" placeholder="Name or Reg No…" oninput="renderStuList()"></div>
+    <div>
+      <div class="page-title" style="display:flex;align-items:center;gap:8px;">
+        <re-icon icon="users" size="20"></re-icon> My Class Register &amp; Roster
+      </div>
+      <div class="page-sub" id="stu-list-subtitle">Scoped student directory and forensic attendance register for your assigned classes.</div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <button class="btn-out" data-feature="exportSheet" onclick="exportStuCSV()"><re-icon icon="download" size="15"></re-icon> Export Roster CSV</button>
+      <button class="btn-pri" data-feature="exportSheet" onclick="exportClassRegisterCSV()" style="font-size:12px;"><re-icon icon="clipboard-list" size="15"></re-icon> Export Register CSV</button>
     </div>
   </div>
+
+  <!-- Register Mode Tabs -->
+  <div style="display:flex;gap:8px;margin-bottom:14px;align-items:center;">
+    <button class="sched-tab act" id="tab-reg-forensic" onclick="switchRegisterTab('forensic')"><re-icon icon="clipboard-list" size="14"></re-icon> Class Register (Forensic Attendance)</button>
+    <button class="sched-tab" id="tab-reg-roster" onclick="switchRegisterTab('roster')"><re-icon icon="users" size="14"></re-icon> Student Directory</button>
+  </div>
+
+  <div class="card" style="margin-bottom:14px;">
+    <div class="fwrap" style="padding-top:14px;padding-bottom:14px;grid-template-columns:1fr 1fr;">
+      <div class="fg"><label class="fl">Class Assignment</label><select class="fc" id="slc" onchange="renderStuList()"><option value="">All Assigned Classes</option></select></div>
+      <div class="fg"><label class="fl">Search Student</label><input type="text" class="fc" id="slq" placeholder="Search by name, reg no or roll no…" oninput="renderStuList()"></div>
+    </div>
+  </div>
+
+  <!-- Forensic Register Summary Strip -->
+  <div id="register-summary-strip" style="display:grid;grid-template-columns:repeat(auto-fit, minmax(140px, 1fr));gap:10px;margin-bottom:14px;">
+    <div class="card" style="padding:12px 14px;text-align:center;">
+      <div style="font-size:11px;color:var(--tmu);font-weight:700;text-transform:uppercase;">Class Strength</div>
+      <div style="font-size:18px;font-weight:800;color:var(--td);" id="reg-stat-total">0</div>
+    </div>
+    <div class="card" style="padding:12px 14px;text-align:center;">
+      <div style="font-size:11px;color:#166534;font-weight:700;text-transform:uppercase;">Safe (&gt;= 75%)</div>
+      <div style="font-size:18px;font-weight:800;color:#166534;" id="reg-stat-safe">0</div>
+    </div>
+    <div class="card" style="padding:12px 14px;text-align:center;">
+      <div style="font-size:11px;color:#b45309;font-weight:700;text-transform:uppercase;">Condonation (65-75%)</div>
+      <div style="font-size:18px;font-weight:800;color:#b45309;" id="reg-stat-cond">0</div>
+    </div>
+    <div class="card" style="padding:12px 14px;text-align:center;">
+      <div style="font-size:11px;color:#b91c1c;font-weight:700;text-transform:uppercase;">Defaulters (&lt; 65%)</div>
+      <div style="font-size:18px;font-weight:800;color:#b91c1c;" id="reg-stat-def">0</div>
+    </div>
+  </div>
+
+  <!-- Table Container -->
   <div class="card"><div class="tw">
-    <table class="tbl"><thead><tr><th>#</th><th>Reg No</th><th>Name</th><th>Class</th><th>Section</th><th>Department</th></tr></thead>
-    <tbody id="stutbody"></tbody></table>
+    <table class="tbl" id="register-table">
+      <thead id="reg-thead">
+        <tr><th>#</th><th>Reg No</th><th>Name</th><th>Class</th><th>Section</th><th>Department</th></tr>
+      </thead>
+      <tbody id="stutbody"></tbody>
+    </table>
   </div></div>
 </div>
 
 <!-- LEAVE & PERMISSION MANAGEMENT -->
-<div class="pg" id="pg-leaves">
+
+<!-- ══ UNIFIED APPROVALS INBOX (C6) ══ -->
+<div class="pg" id="pg-approvals">
+  <div class="page-hd">
+    <div>
+      <div class="page-title" style="display:flex;align-items:center;gap:10px;">
+        <span style="display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:10px;background:rgba(16,185,129,0.12);color:var(--accent,#10b981);">
+          <re-icon icon="clipboard-check" size="20"></re-icon>
+        </span>
+        Approvals &amp; Action Inbox
+      </div>
+      <div class="page-sub">Centralized triage queue for student leaves, OD authorizations, device verifications, and timetable reviews.</div>
+    </div>
+    <div class="page-actions" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+      <button type="button" class="btn btn-out btn-sm" onclick="ApprovalsInbox.refreshCurrentQueue()">
+        <re-icon icon="refresh" size="14"></re-icon> Refresh Queue
+      </button>
+      <button type="button" class="btn btn-pri btn-sm" onclick="ApprovalsInbox.openQuickCreate()">
+        <re-icon icon="plus" size="14"></re-icon> Quick File
+      </button>
+    </div>
+  </div>
+
+  <!-- Keyboard Triage Hint Pill (C6) -->
+  <div class="appr-triage-hint">
+    <span class="appr-triage-icon"><re-icon icon="sparkles" size="14"></re-icon> Keyboard Triage</span>
+    <span class="appr-kbd-pill"><kbd>J</kbd> Next</span>
+    <span class="appr-kbd-pill"><kbd>K</kbd> Prev</span>
+    <span class="appr-kbd-pill"><kbd>A</kbd> Approve</span>
+    <span class="appr-kbd-pill"><kbd>R</kbd> Reject</span>
+    <span class="appr-kbd-pill"><kbd>X</kbd> Select</span>
+    <span class="appr-kbd-hint-note">Select card and press key for instant action</span>
+  </div>
+
+  <!-- Role-Aware Tabs Strip (C6) -->
+  <div class="appr-tabs-bar" role="tablist">
+    <button type="button" role="tab" class="appr-tab-btn act" id="appr-tab-leaves" onclick="ApprovalsInbox.switchTab('leaves')">
+      <re-icon icon="file-text" size="14"></re-icon> Leave Requests
+      <span class="appr-tab-badge" id="appr-badge-leaves" style="display:none;">0</span>
+    </button>
+    <button type="button" role="tab" class="appr-tab-btn" id="appr-tab-od" onclick="ApprovalsInbox.switchTab('od')">
+      <re-icon icon="trophy" size="14"></re-icon> OD Approvals
+      <span class="appr-tab-badge" id="appr-badge-od" style="display:none;">0</span>
+    </button>
+    <button type="button" role="tab" class="appr-tab-btn" id="appr-tab-devices" onclick="ApprovalsInbox.switchTab('devices')" style="display:none;">
+      <re-icon icon="smartphone" size="14"></re-icon> Device Verification
+      <span class="appr-tab-badge" id="appr-badge-devices" style="display:none;">0</span>
+    </button>
+    <button type="button" role="tab" class="appr-tab-btn" id="appr-tab-timetable" onclick="ApprovalsInbox.switchTab('timetable')" style="display:none;">
+      <re-icon icon="clipboard-list" size="14"></re-icon> Timetable Verification
+      <span class="appr-tab-badge" id="appr-badge-timetable" style="display:none;">0</span>
+    </button>
+  </div>
+
+  <!-- Shared Filter & Search Bar -->
+  <div class="card appr-filter-bar" style="margin-bottom:14px;padding:12px 18px;">
+    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;justify-content:space-between;">
+      <div style="display:flex;align-items:center;gap:10px;flex:1;min-width:240px;">
+        <div style="position:relative;flex:1;">
+          <input type="search" class="fc" id="appr-search" placeholder="Search applicant, reg no, class, or reason…" oninput="ApprovalsInbox.onSearch(this.value)" style="height:38px;padding-left:34px;font-size:12.5px;">
+          <span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--tdi);pointer-events:none;">
+            <re-icon icon="search" size="14"></re-icon>
+          </span>
+        </div>
+        <select class="fc" id="appr-status-filter" onchange="ApprovalsInbox.onStatusFilter(this.value)" style="height:38px;width:auto;min-width:130px;font-size:12.5px;">
+          <option value="pending" selected>Pending Action</option>
+          <option value="all">All Records</option>
+          <option value="approved">Approved</option>
+          <option value="rejected">Rejected</option>
+        </select>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <button type="button" class="btn btn-out btn-sm" onclick="ApprovalsInbox.resetFilters()" style="height:38px;font-size:12px;">Reset</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bulk Action Floating / Sticky Bar (C6) -->
+  <div class="appr-bulk-bar" id="appr-bulk-bar" style="display:none;">
+    <div style="display:flex;align-items:center;gap:10px;">
+      <input type="checkbox" id="appr-select-all" onchange="ApprovalsInbox.toggleSelectAll(this.checked)" class="appr-cb" title="Select all items in queue">
+      <span id="appr-selected-count" style="font-weight:600;font-size:13px;color:var(--td);">0 selected</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;">
+      <button type="button" class="btn btn-pri btn-sm" onclick="ApprovalsInbox.bulkApproveSelected()" style="background:#16a34a;">
+        <re-icon icon="check" size="14"></re-icon> Bulk Approve
+      </button>
+      <button type="button" class="btn btn-danger btn-sm" onclick="ApprovalsInbox.bulkRejectSelected()">
+        <re-icon icon="x" size="14"></re-icon> Bulk Reject
+      </button>
+      <button type="button" class="btn btn-ghost btn-sm" onclick="ApprovalsInbox.clearSelection()" style="color:var(--tmu);">
+        Cancel
+      </button>
+    </div>
+  </div>
+
+  <!-- Unified Approvals List Container -->
+  <div class="appr-list" id="appr-list" role="feed" aria-label="Approval queue items">
+    <!-- Rendered dynamically -->
+  </div>
+</div>
+
+<div class="pg" id="pg-leaves" data-feature="leave">
   <div class="page-hd">
     <div>
       <div class="page-title" style="display:flex;align-items:center;gap:8px;">
@@ -618,19 +1053,17 @@
       <table class="tbl" style="width:100%;margin:0;">
         <thead>
           <tr>
-            <th>Applied On</th>
-            <th>Student</th>
-            <th>Class</th>
+            <th class="apr-sort" data-sort="date" style="cursor:pointer;user-select:none;" onclick="toggleLeaveSort()">Applied On <re-icon icon="arrow-down" size="12"></re-icon></th>
+            <th>Register No</th>
+            <th>Student Name</th>
             <th>Category / Type</th>
-            <th>Dates / Slot</th>
-            <th>Days</th>
-            <th>Reason</th>
+            <th>Total Days</th>
             <th>Status</th>
             <th>Action / Remarks</th>
           </tr>
         </thead>
         <tbody id="lh-table-body">
-          <tr><td colspan="9" style="text-align:center;padding:32px;color:var(--tdi);">Loading leave records…</td></tr>
+          <tr><td colspan="7" style="text-align:center;padding:32px;color:var(--tdi);">Loading leave records…</td></tr>
         </tbody>
       </table>
     </div>
@@ -644,7 +1077,7 @@
       <div class="page-title" style="display:flex;align-items:center;gap:8px;">
         <span><re-icon icon="trophy"></re-icon></span> Student On-Duty (OD) Management
       </div>
-      <div class="page-sub">Multi-stage review queue (Advisor <re-icon icon="arrow-right"></re-icon> Mentor <re-icon icon="arrow-right"></re-icon> HOD <re-icon icon="arrow-right"></re-icon> Principal) and post-event verification.</div>
+      <div class="page-sub">Multi-stage review queue (Mentor <re-icon icon="arrow-right"></re-icon> Advisor <re-icon icon="arrow-right"></re-icon> HOD) and post-event verification.</div>
     </div>
     <div class="page-actions">
       <button class="btn-pri" onclick="openFacultyGroupODModal()" style="font-size:12px;background:#0284c7;"><re-icon icon="users" size="14"></re-icon> Create Group OD</button>
@@ -686,8 +1119,8 @@
 
   <!-- SUB TABS -->
   <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;">
-    <button class="sched-tab act" id="tab-od-pending" onclick="switchTeacherODTab('pending')"><re-icon icon="hourglass" size="14"></re-icon> Pending Approvals <span class="badge" id="badge-tab-od-pending" style="display:none;margin-left:4px;font-size:10px;padding:2px 6px;border-radius:10px;background:#f59e0b;color:#fff;">0</span></button>
-    <button class="sched-tab" id="tab-od-verify" onclick="switchTeacherODTab('verify')"><re-icon icon="trophy" size="14"></re-icon> Outcome Verification <span class="badge" id="badge-tab-od-verify" style="display:none;margin-left:4px;font-size:10px;padding:2px 6px;border-radius:10px;background:#8b5cf6;color:#fff;">0</span></button>
+    <button class="sched-tab act" id="tab-od-pending" onclick="switchTeacherODTab('pending')"><re-icon icon="hourglass" size="14"></re-icon> Pending Approvals <span class="badge" id="badge-tab-od-pending" style="display:none;margin-left:4px;font-size:11px;padding:2px 6px;border-radius:10px;background:#f59e0b;color:#fff;">0</span></button>
+    <button class="sched-tab" id="tab-od-verify" onclick="switchTeacherODTab('verify')"><re-icon icon="trophy" size="14"></re-icon> Outcome Verification <span class="badge" id="badge-tab-od-verify" style="display:none;margin-left:4px;font-size:11px;padding:2px 6px;border-radius:10px;background:#8b5cf6;color:#fff;">0</span></button>
     <button class="sched-tab" id="tab-od-history" onclick="switchTeacherODTab('history')"><re-icon icon="clipboard-list" size="14"></re-icon> All Approved &amp; Completed ODs</button>
   </div>
 
@@ -697,19 +1130,17 @@
       <table class="tbl" style="width:100%;margin:0;">
         <thead>
           <tr>
-            <th>Applied On</th>
-            <th>Student</th>
-            <th>Class</th>
-            <th>Event &amp; Level</th>
-            <th>Dates &amp; Coverage</th>
-            <th>Mentor</th>
-            <th>Current Stage</th>
-            <th>Evidence</th>
-            <th>Action</th>
+            <th class="apr-sort" data-sort="date" style="cursor:pointer;user-select:none;" onclick="toggleODSort()">Applied On <re-icon icon="arrow-down" size="12"></re-icon></th>
+            <th>Register No</th>
+            <th>Student Name</th>
+            <th>Category / Type</th>
+            <th>Total Days</th>
+            <th>Status</th>
+            <th>Action / Remarks</th>
           </tr>
         </thead>
         <tbody id="od-pending-tbody">
-          <tr><td colspan="9" style="text-align:center;padding:32px;color:var(--tdi);">Loading pending OD approvals…</td></tr>
+          <tr><td colspan="7" style="text-align:center;padding:32px;color:var(--tdi);">Loading pending OD approvals…</td></tr>
         </tbody>
       </table>
     </div>
@@ -768,7 +1199,7 @@
 </div>
 
 <!-- MY LEAVES & SUBSTITUTIONS (PLAN 4) -->
-<div class="pg" id="pg-my-leaves">
+<div class="pg" id="pg-my-leaves" data-feature="leave">
   <div class="page-hd">
     <div>
       <div class="page-title"><re-icon icon="plane" size="20"></re-icon> My Leaves &amp; Substitutions</div>
@@ -804,8 +1235,8 @@
   <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;">
     <button class="sched-tab act" id="tab-tl-apps" onclick="switchTeacherLeaveSubTab('apps')"><re-icon icon="plane" size="14"></re-icon> My Leave Requests</button>
     <button class="sched-tab" id="tab-tl-duties" onclick="switchTeacherLeaveSubTab('duties')"><re-icon icon="refresh" size="14"></re-icon> My Substitution Duties</button>
-    <button class="sched-tab" id="tab-tl-sub-inbox" onclick="switchTeacherLeaveSubTab('sub-inbox')"><re-icon icon="download" size="14"></re-icon> Substitution Requests <span class="badge" id="tl-sub-inbox-badge" style="display:none;margin-left:4px;font-size:10px;padding:2px 6px;border-radius:10px;background:#ef4444;color:#fff;">0</span></button>
-    <button class="sched-tab" id="tab-tl-hod-pending" onclick="switchTeacherLeaveSubTab('hod-pending')" style="display:none;"><re-icon icon="scale" size="14"></re-icon> ️ Dept Faculty Approvals <span class="badge" id="tl-hod-badge" style="display:none;margin-left:4px;font-size:10px;padding:2px 6px;border-radius:10px;background:#f59e0b;color:#fff;">0</span></button>
+    <button class="sched-tab" id="tab-tl-sub-inbox" onclick="switchTeacherLeaveSubTab('sub-inbox')"><re-icon icon="download" size="14"></re-icon> Substitution Requests <span class="badge" id="tl-sub-inbox-badge" style="display:none;margin-left:4px;font-size:11px;padding:2px 6px;border-radius:10px;background:#ef4444;color:#fff;">0</span></button>
+    <button class="sched-tab" id="tab-tl-hod-pending" onclick="switchTeacherLeaveSubTab('hod-pending')" style="display:none;"><re-icon icon="scale" size="14"></re-icon> ️ Dept Faculty Approvals <span class="badge" id="tl-hod-badge" style="display:none;margin-left:4px;font-size:11px;padding:2px 6px;border-radius:10px;background:#f59e0b;color:#fff;">0</span></button>
   </div>
 
   <!-- TABLE: Leave Requests -->
@@ -999,7 +1430,7 @@
 </div>
 
 <!-- GRIEVANCE -->
-<div class="pg" id="pg-griev">
+<div class="pg" id="pg-griev" data-feature="grievances">
   <div class="page-hd">
     <div>
       <div class="page-title" style="display:flex;align-items:center;gap:8px;">
@@ -1132,6 +1563,54 @@
       </div>
     </div>
 
+    <!-- Academic Competencies & Strong Subjects -->
+    <div class="prof-section">
+      <div class="prof-section-hd"><div class="prof-section-title"><re-icon icon="book-open"></re-icon> Academic Specializations &amp; Strong Subjects</div></div>
+      <div class="prof-section-body">
+        <div style="font-size:12px;color:var(--tmu);margin-bottom:12px;">Select subjects from the catalog where you possess primary subject matter expertise. The timetable engine factors this into quality allocation scoring.</div>
+        <div id="prof-strong-chips" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;"></div>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+          <select id="prof-strong-subj-select" class="fc2" style="max-width:320px;font-size:13px;">
+            <option value="">Select subject to add…</option>
+          </select>
+          <button type="button" class="btn-out" onclick="addStrongSubject()"><re-icon icon="plus" size="13"></re-icon> Add Subject</button>
+          <button type="button" class="btn-form-pri" onclick="saveStrongSubjects()"><re-icon icon="save" size="13"></re-icon> Save Strong Subjects</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Unavailable Slots -->
+    <div class="prof-section">
+      <div class="prof-section-hd"><div class="prof-section-title"><re-icon icon="calendar-x"></re-icon> Unavailable Scheduling Slots</div></div>
+      <div class="prof-section-body">
+        <div style="font-size:12px;color:var(--tmu);margin-bottom:12px;">Specify days and periods when you are unavailable due to research or institutional duties. Slots require HOD approval before being enforced.</div>
+        <div id="prof-unavail-slots-list" style="margin-bottom:12px;"></div>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;background:var(--bg2,#f8fafc);padding:12px;border-radius:8px;">
+          <select id="prof-unavail-day" class="fc2" style="max-width:140px;">
+            <option value="Mon">Monday</option>
+            <option value="Tue">Tuesday</option>
+            <option value="Wed">Wednesday</option>
+            <option value="Thu">Thursday</option>
+            <option value="Fri">Friday</option>
+            <option value="Sat">Saturday</option>
+          </select>
+          <select id="prof-unavail-period" class="fc2" style="max-width:140px;">
+            <option value="1">Period 1</option>
+            <option value="2">Period 2</option>
+            <option value="3">Period 3</option>
+            <option value="4">Period 4</option>
+            <option value="5">Period 5</option>
+            <option value="6">Period 6</option>
+            <option value="7">Period 7</option>
+            <option value="8">Period 8</option>
+            <option value="9">Period 9</option>
+          </select>
+          <input type="text" id="prof-unavail-reason" class="fc2" placeholder="Reason (e.g. Research Lab)" style="flex:1;min-width:180px;">
+          <button type="button" class="btn-form-pri" onclick="addUnavailableSlot()"><re-icon icon="plus" size="13"></re-icon> Request Slot</button>
+        </div>
+      </div>
+    </div>
+
     <div class="prof-section">
       <div class="prof-section-hd"><div class="prof-section-title"><re-icon icon="shield-lock"></re-icon> Change Password</div></div>
       <div class="prof-section-body">
@@ -1171,7 +1650,7 @@
     </div>
     <div class="page-actions" style="display:flex;align-items:center;gap:10px;">
       <button class="btn-sm btn-pri" id="dv-btn-subtab-devices" onclick="DeviceVerificationAdvisor.switchSubtab('devices')" style="padding:6px 14px;">📱 Devices</button>
-      <button class="btn-sm btn-out" id="dv-btn-subtab-disputes" onclick="DeviceVerificationAdvisor.switchSubtab('disputes')" style="padding:6px 14px;">⚖️ Disputes <span id="dv-disputes-badge" style="display:none;background:#ef4444;color:#fff;padding:1px 6px;border-radius:10px;font-size:10px;margin-left:4px;">0</span></button>
+      <button class="btn-sm btn-out" id="dv-btn-subtab-disputes" onclick="DeviceVerificationAdvisor.switchSubtab('disputes')" style="padding:6px 14px;">⚖️ Disputes <span id="dv-disputes-badge" style="display:none;background:#ef4444;color:#fff;padding:1px 6px;border-radius:10px;font-size:11px;margin-left:4px;">0</span></button>
       <div id="dv-window-badge" style="padding:6px 14px;border-radius:12px;font-size:12px;font-weight:600;border:1px solid var(--br);display:inline-flex;align-items:center;background:#f8fafc;color:var(--td);">
         Checking window…
       </div>
@@ -1255,6 +1734,111 @@
 <!-- ADVISOR DISPUTE REVIEW MODAL (§12) -->
 <div id="dv-dispute-modal" style="display:none;position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.5);z-index:9999;align-items:center;justify-content:center;padding:16px;">
   <div class="card" style="max-width:560px;width:100%;box-shadow:0 12px 36px rgba(0,0,0,0.25);border-radius:14px;padding:22px;max-height:90vh;overflow-y:auto;" id="dv-dispute-modal-body">
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════════════
+     PAGE: ATTENDANCE ROSTER (Advisor View)
+══════════════════════════════════════════════════════════════════════════ -->
+<div class="pg" id="pg-roster">
+  <div class="page-hd">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+      <div>
+        <div class="page-title"><re-icon icon="calendar"></re-icon> Attendance Roster</div>
+        <div class="page-sub">Day view &amp; period forensics joined to LoginHistory and device trust heuristics.</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <button class="btn btn-sm btn-out" onclick="window.print()"><re-icon icon="printer" size="13"></re-icon> Print Day</button>
+        <button class="btn btn-sm btn-out" onclick="fetchRoster()"><re-icon icon="refresh-cw" size="13"></re-icon> Refresh</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Controls Bar -->
+  <div class="att-controls-bar">
+    <div class="att-controls-left">
+      <div class="att-select-group">
+        <label for="roster-dept-sel">Dept</label>
+        <select id="roster-dept-sel" class="att-select"><option value="">All</option></select>
+      </div>
+      <div class="att-select-group">
+        <label for="roster-class-sel">Class</label>
+        <select id="roster-class-sel" class="att-select"><option value="">Select Class...</option></select>
+      </div>
+      <div class="att-select-group">
+        <label for="roster-date-input">Date</label>
+        <input type="date" id="roster-date-input" class="att-input-date">
+      </div>
+    </div>
+    <div class="att-controls-right">
+      <div class="att-search-box">
+        <re-icon icon="search" size="14" class="att-search-icon"></re-icon>
+        <input type="text" id="roster-search" class="att-search-input" placeholder="Search student (/)..." autocomplete="off">
+      </div>
+    </div>
+  </div>
+
+  <!-- Content Area (KPI Strip + Period Strip + Table) -->
+  <div id="roster-content-area"></div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════════════
+     PAGE: ATTENDANCE REGISTRY (Advisor View)
+══════════════════════════════════════════════════════════════════════════ -->
+<div class="pg" id="pg-registry">
+  <div class="page-hd">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+      <div>
+        <div class="page-title"><re-icon icon="table"></re-icon> Attendance Registry</div>
+        <div class="page-sub">Spreadsheet-style attendance register: 2-level date bands over periods, live formulas, shortage alerts, and Excel/PDF export.</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <button class="btn btn-sm btn-out" onclick="fetchRegistry()"><re-icon icon="refresh-cw" size="13"></re-icon> Refresh</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Controls Bar -->
+  <div class="att-controls-bar">
+    <div class="att-controls-left">
+      <div class="att-select-group">
+        <label for="reg-dept-sel">Dept</label>
+        <select id="reg-dept-sel" class="att-select"><option value="">All</option></select>
+      </div>
+      <div class="att-select-group">
+        <label for="reg-class-sel">Class</label>
+        <select id="reg-class-sel" class="att-select"><option value="">Select Class...</option></select>
+      </div>
+      <div class="att-select-group">
+        <label>Range</label>
+        <input type="date" id="reg-from-input" class="att-input-date" style="padding:4px 6px;font-size:12px;">
+        <span style="color:var(--tmu);font-size:12px;">to</span>
+        <input type="date" id="reg-to-input" class="att-input-date" style="padding:4px 6px;font-size:12px;">
+      </div>
+      <div style="display:flex;gap:4px;">
+        <button class="btn btn-sm btn-out" style="padding:3px 8px;font-size:11px;" onclick="setRegistryPreset('this-week')">Week</button>
+        <button class="btn btn-sm btn-out" style="padding:3px 8px;font-size:11px;" onclick="setRegistryPreset('this-month')">Month</button>
+        <button class="btn btn-sm btn-out" style="padding:3px 8px;font-size:11px;" onclick="setRegistryPreset('last-month')">Last Mo</button>
+        <button class="btn btn-sm btn-out" style="padding:3px 8px;font-size:11px;" onclick="setRegistryPreset('semester')">Sem</button>
+      </div>
+    </div>
+    <div class="att-controls-right">
+      <label style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:var(--td);cursor:pointer;margin-right:6px;">
+        <input type="checkbox" id="reg-shortage-chk" style="accent-color:#dc2626;"> ⚠ Shortage (&lt;75%)
+      </label>
+      <div class="att-search-box">
+        <re-icon icon="search" size="14" class="att-search-icon"></re-icon>
+        <input type="text" id="reg-search" class="att-search-input" placeholder="Search student..." autocomplete="off">
+      </div>
+    </div>
+  </div>
+
+  <!-- Header Strip (Class title, Advisor, View Toggles & Exports) -->
+  <div id="reg-header-strip"></div>
+
+  <!-- Main Content Area (Grid + Legend) -->
+  <div id="reg-content-area">
+    <div id="reg-grid-container"></div>
   </div>
 </div>
 
@@ -1349,7 +1933,7 @@
 
 <!-- LEAVE / PERMISSION REVIEW MODAL -->
 <div class="modal-bg" id="m-leave-review">
-  <div class="modal modal-md" style="max-width:580px;border-radius:18px;">
+  <div class="modal modal-md" style="max-width:640px;border-radius:18px;">
     <div class="modal-hd">
       <div>
         <div class="modal-title" style="display:flex;align-items:center;gap:8px;">
@@ -1359,19 +1943,23 @@
       </div>
       <div class="modal-close" onclick="closeModalBg('m-leave-review')"><re-icon icon="x" size="18"></re-icon></div>
     </div>
-    <div class="mbody">
-    <div class="lr-stats" style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px;">
+    <div class="mbody" style="max-height:75vh;overflow-y:auto;">
+    <div class="lr-stats" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px;">
       <div style="background:var(--gP);border-radius:12px;padding:12px 10px;text-align:center;border:1px solid var(--brl);">
         <div id="lr-stat-pct" style="font-size:22px;font-weight:800;color:var(--gD);">—%</div>
-        <div style="font-size:10px;font-weight:700;color:var(--tdi);text-transform:uppercase;margin-top:2px;">Attendance</div>
+        <div style="font-size:11px;font-weight:700;color:var(--tdi);text-transform:uppercase;margin-top:2px;">Attendance</div>
       </div>
       <div style="background:var(--gP);border-radius:12px;padding:12px 10px;text-align:center;border:1px solid var(--brl);">
         <div id="lr-stat-classes" style="font-size:20px;font-weight:800;color:var(--td);">— / —</div>
-        <div style="font-size:10px;font-weight:700;color:var(--tdi);text-transform:uppercase;margin-top:2px;">Attended / Held</div>
+        <div style="font-size:11px;font-weight:700;color:var(--tdi);text-transform:uppercase;margin-top:2px;">Attended / Held</div>
       </div>
       <div style="background:var(--gP);border-radius:12px;padding:12px 10px;text-align:center;border:1px solid var(--brl);">
         <div id="lr-stat-past-leaves" style="font-size:20px;font-weight:800;color:#d97706;">—</div>
-        <div style="font-size:10px;font-weight:700;color:var(--tdi);text-transform:uppercase;margin-top:2px;">Past Leaves</div>
+        <div style="font-size:11px;font-weight:700;color:var(--tdi);text-transform:uppercase;margin-top:2px;">Leaves Taken</div>
+      </div>
+      <div style="background:var(--gP);border-radius:12px;padding:12px 10px;text-align:center;border:1px solid var(--brl);">
+        <div id="lr-stat-od-taken" style="font-size:20px;font-weight:800;color:#7c3aed;">—</div>
+        <div style="font-size:11px;font-weight:700;color:var(--tdi);text-transform:uppercase;margin-top:2px;">OD Taken</div>
       </div>
     </div>
     <div style="background:linear-gradient(135deg,rgba(46,125,50,0.06),rgba(46,125,50,0.01));border:1.5px solid rgba(46,125,50,0.18);border-radius:12px;padding:14px 16px;margin-bottom:14px;">
@@ -1382,12 +1970,21 @@
       <div style="font-size:13px;font-weight:700;color:var(--td);margin-bottom:6px;" id="lr-dates-display"><re-icon icon="calendar"></re-icon> Date: —</div>
       <div style="font-size:12px;color:var(--tmu);line-height:1.5;background:#fff;border-radius:8px;padding:10px 12px;border:1px solid var(--brl);" id="lr-reason-display">"Reason"</div>
     </div>
-    <div style="margin-bottom:16px;">
+    <!-- Approval Trail (Tracker) -->
+    <div id="lr-tracker-panel" style="margin-bottom:14px;"></div>
+    <div id="lr-remarks-section" style="margin-bottom:16px;">
       <label class="fl" style="font-size:12px;font-weight:700;color:var(--td);margin-bottom:5px;display:block;">Class Advisor Remarks (Optional)</label>
       <input type="text" class="fc2" id="lr-remarks" placeholder="Add remarks or instructions for the student…" style="font-size:12.5px;">
     </div>
+    <!-- Student History -->
+    <div id="lr-history-section" style="display:none;margin-bottom:12px;">
+      <div style="font-size:12px;font-weight:700;color:var(--td);margin-bottom:8px;display:flex;align-items:center;gap:6px;">
+        <re-icon icon="history"></re-icon> Student Request History
+      </div>
+      <div id="lr-history-list" style="max-height:180px;overflow-y:auto;border:1px solid var(--brl);border-radius:10px;"></div>
     </div>
-    <div class="modal-actions">
+    </div>
+    <div class="modal-actions" id="lr-action-buttons">
       <button class="btn-form-ghost" onclick="closeModalBg('m-leave-review')" style="font-size:12px;">Close</button>
       <button class="btn-form-del" id="lr-reject-btn" onclick="submitLeaveAction('Rejected')" style="margin-right:0;font-size:12px;font-weight:700;"><span><re-icon icon="x-circle"></re-icon> Reject Request</span></button>
       <button class="btn-form-pri" id="lr-approve-btn" onclick="submitLeaveAction('Approved')" style="font-size:12px;font-weight:700;background:#16a34a;"><span><re-icon icon="check-circle"></re-icon> Approve Leave</span></button>
@@ -1396,7 +1993,7 @@
 </div>
 
 <!-- MODAL: TEACHER APPLY LEAVE & ASSIGN SUBSTITUTES (PLAN 4) -->
-<div class="modal-bg" id="m-teacher-apply-leave">
+<div class="modal-bg no-dirty-confirm" id="m-teacher-apply-leave" data-no-dirty-confirm="true">
   <div class="modal modal-md" style="max-width:680px;border-radius:18px;">
     <div class="modal-hd">
       <div>
@@ -1405,25 +2002,25 @@
         </div>
         <div class="modal-sub">Submit your leave request, check balances, appoint acting roles, and arrange substitutions.</div>
       </div>
-      <div class="modal-close" onclick="closeModalBg('m-teacher-apply-leave')"><re-icon icon="x" size="18"></re-icon></div>
+      <div class="modal-close" onclick="closeModalBg('m-teacher-apply-leave', true)"><re-icon icon="x" size="18"></re-icon></div>
     </div>
     <div class="mbody" style="max-height:72vh;overflow-y:auto;padding-right:8px;">
       <!-- LIVE BALANCE & ALLOWANCE CARDS -->
       <div id="tl-balance-banner" style="display:grid;grid-template-columns:repeat(auto-fit, minmax(130px, 1fr));gap:8px;margin-bottom:14px;background:var(--gP);padding:10px 14px;border-radius:12px;border:1px solid var(--brl);">
         <div style="text-align:center;">
-          <div style="font-size:10px;text-transform:uppercase;color:var(--tmu);font-weight:700;">Casual Leave (CL)</div>
+          <div style="font-size:11px;text-transform:uppercase;color:var(--tmu);font-weight:700;">Casual Leave (CL)</div>
           <div style="font-size:15px;font-weight:800;color:#16a34a;" id="tl-bal-cl">—</div>
         </div>
         <div style="text-align:center;">
-          <div style="font-size:10px;text-transform:uppercase;color:var(--tmu);font-weight:700;">Medical Leave (ML)</div>
+          <div style="font-size:11px;text-transform:uppercase;color:var(--tmu);font-weight:700;">Medical Leave (ML)</div>
           <div style="font-size:15px;font-weight:800;color:#2563eb;" id="tl-bal-ml">—</div>
         </div>
         <div style="text-align:center;">
-          <div style="font-size:10px;text-transform:uppercase;color:var(--tmu);font-weight:700;">Earned Leave (EL)</div>
+          <div style="font-size:11px;text-transform:uppercase;color:var(--tmu);font-weight:700;">Earned Leave (EL)</div>
           <div style="font-size:15px;font-weight:800;color:#7c3aed;" id="tl-bal-el">—</div>
         </div>
         <div style="text-align:center;">
-          <div style="font-size:10px;text-transform:uppercase;color:var(--tmu);font-weight:700;">Period Leaves</div>
+          <div style="font-size:11px;text-transform:uppercase;color:var(--tmu);font-weight:700;">Period Leaves</div>
           <div style="font-size:15px;font-weight:800;color:#d97706;" id="tl-bal-periods">—</div>
         </div>
       </div>
@@ -1431,6 +2028,18 @@
       <!-- AUTOMATIC LOP SPLIT NOTIFICATION BANNER (LD6) -->
       <div id="tl-lop-alert" style="display:none;margin-bottom:14px;padding:10px 14px;background:#fef3c7;border:1.5px solid #f59e0b;border-radius:10px;color:#92400e;font-size:12px;font-weight:600;">
         <span id="tl-lop-alert-text"></span>
+      </div>
+
+      <!-- LIVE FACULTY POLICY METER (§8.2) -->
+      <div id="tl-policy-meter" class="policy-meter-wrap" style="display:none;">
+        <div class="pm-header">
+          <span style="display:inline-flex;align-items:center;gap:6px;color:var(--td);font-weight:700;"><re-icon icon="shield" size="14"></re-icon> Policy Compliance &amp; Quota Check</span>
+          <span id="pm-consec-label" style="font-weight:700;color:var(--tmu);">0 / 3 Days Consecutive</span>
+        </div>
+        <div class="pm-bar-bg">
+          <div id="pm-bar-fill" class="pm-bar-fill safe" style="width: 0%;"></div>
+        </div>
+        <div id="pm-notice" class="pm-notice info" style="display:none;"></div>
       </div>
 
       <div class="fr fr3">
@@ -1523,7 +2132,7 @@
       </div>
 
       <div style="margin-bottom:14px;display:flex;align-items:center;gap:10px;">
-        <input type="checkbox" id="tl-emergency" style="width:16px;height:16px;cursor:pointer;">
+        <input type="checkbox" id="tl-emergency" onchange="onTeacherEmergencyToggled()" style="width:16px;height:16px;cursor:pointer;">
         <label for="tl-emergency" style="font-size:12.5px;font-weight:600;color:var(--td);cursor:pointer;">
           <re-icon icon="siren"></re-icon> Emergency Leave (Urgent queue processing; substitutes can be directly assigned)
         </label>
@@ -1545,7 +2154,7 @@
       </div>
     </div>
     <div class="modal-actions" style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
-      <button class="btn-form-ghost" onclick="closeModalBg('m-teacher-apply-leave')">Cancel</button>
+      <button class="btn-form-ghost" onclick="closeModalBg('m-teacher-apply-leave', true)">Cancel</button>
       <div style="display:flex;gap:8px;">
         <button class="btno" onclick="submitTeacherLeaveApplication(true)" style="padding:8px 14px;font-size:12px;"><re-icon icon="save" size="14"></re-icon> Save Draft</button>
         <button class="btn-form-pri" onclick="submitTeacherLeaveApplication(false)"><re-icon icon="upload" size="14"></re-icon> Submit Leave Application</button>
@@ -1621,7 +2230,7 @@
     <!-- Modal Header -->
     <div style="background:#0f172a;color:#ffffff;padding:18px 24px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;">
       <div style="text-align:left;">
-        <div style="display:inline-flex;align-items:center;gap:6px;background:rgba(234,179,8,0.2);border:1px solid rgba(234,179,8,0.4);padding:2px 10px;border-radius:12px;font-size:10px;font-weight:700;color:#fde047;text-transform:uppercase;">
+        <div style="display:inline-flex;align-items:center;gap:6px;background:rgba(234,179,8,0.2);border:1px solid rgba(234,179,8,0.4);padding:2px 10px;border-radius:12px;font-size:11px;font-weight:700;color:#fde047;text-transform:uppercase;">
           <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#eab308;box-shadow:0 0 8px #eab308;animation:pulse 1.5s infinite;"></span>
           LIVE QUICK PASS • <span id="qp-rotation-badge">ROTATION 1/2</span>
         </div>
@@ -1671,7 +2280,7 @@
       <div style="border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;background:#fff;margin-bottom:10px;">
         <div style="padding:8px 12px;background:#f8fafc;border-bottom:1px solid #e2e8f0;font-size:11.5px;font-weight:700;color:#475569;text-align:left;display:flex;justify-content:space-between;align-items:center;">
           <span>Live Check-in Feed</span>
-          <span style="font-size:10px;font-weight:600;color:#94a3b8;">Refreshes every 3s</span>
+          <span style="font-size:11px;font-weight:600;color:#94a3b8;">Refreshes every 3s</span>
         </div>
         <div style="max-height:160px;overflow-y:auto;">
           <table class="tbl" style="width:100%;font-size:11.5px;margin:0;">
@@ -1731,10 +2340,10 @@
   <div style="background:#ffffff;border-radius:24px;width:100%;max-width:540px;box-shadow:0 25px 50px -12px rgba(0,0,0,0.5);overflow:hidden;text-align:center;position:relative;">
     <div style="background:#0f172a;color:#ffffff;padding:18px 24px;display:flex;align-items:center;justify-content:space-between;">
       <div style="text-align:left;">
-        <div style="display:inline-flex;align-items:center;gap:6px;background:rgba(99,102,241,0.25);border:1px solid rgba(99,102,241,0.5);padding:2px 8px;border-radius:12px;font-size:10px;font-weight:700;color:#a5b4fc;text-transform:uppercase;">
+        <div style="display:inline-flex;align-items:center;gap:6px;background:rgba(99,102,241,0.25);border:1px solid rgba(99,102,241,0.5);padding:2px 8px;border-radius:12px;font-size:11px;font-weight:700;color:#a5b4fc;text-transform:uppercase;">
           <span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#22c55e;animation:pulse 1.5s infinite;"></span>
           LIVE ROTATING QR
-          <span id="qr-rotation-badge" style="background:#4f46e5;color:#fff;padding:1px 6px;border-radius:8px;font-size:9.5px;margin-left:4px;">Rotation 1 / 2</span>
+          <span id="qr-rotation-badge" style="background:#4f46e5;color:#fff;padding:1px 6px;border-radius:8px;font-size:11px;margin-left:4px;">Rotation 1 / 2</span>
         </div>
         <div style="font-size:16px;font-weight:700;margin-top:4px;" id="qr-modal-title">Live Attendance Session</div>
       </div>
@@ -1749,8 +2358,8 @@
       <!-- DEV MODE: QR URL DISPLAY -->
       <div id="qr-dev-url-box" style="display:none;width:100%;max-width:380px;margin:0 auto 12px auto;background:#f8fafc;border:1.5px dashed #94a3b8;border-radius:10px;padding:8px 12px;text-align:left;">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
-          <span style="font-size:10px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:0.5px;"><re-icon icon="settings"></re-icon> Dev Mode • QR Attendance URL</span>
-          <button onclick="copyQrDevUrl()" style="background:#e2e8f0;border:none;border-radius:4px;padding:2px 8px;font-size:10.5px;font-weight:600;color:#1e293b;cursor:pointer;"><re-icon icon="clipboard-list" size="14"></re-icon> Copy</button>
+          <span style="font-size:11px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:0.5px;"><re-icon icon="settings"></re-icon> Dev Mode • QR Attendance URL</span>
+          <button onclick="copyQrDevUrl()" style="background:#e2e8f0;border:none;border-radius:4px;padding:2px 8px;font-size:11px;font-weight:600;color:#1e293b;cursor:pointer;"><re-icon icon="clipboard-list" size="14"></re-icon> Copy</button>
         </div>
         <a id="qr-dev-url-link" href="#" target="_blank" style="font-size:11px;font-family:monospace;color:#2563eb;word-break:break-all;text-decoration:underline;display:block;">—</a>
       </div>
@@ -1780,15 +2389,76 @@
   </div>
 </div>
 
-<div id="forcePwModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:9999;align-items:center;justify-content:center;">
-  <div style="background:#fff;border-radius:14px;padding:36px 32px;width:380px;max-width:95vw;box-shadow:0 8px 40px rgba(0,0,0,0.25);text-align:center;">
-    <div style="font-size:2.2rem;margin-bottom:8px;"><re-icon icon="shield-lock"></re-icon></div><h2 style="margin:0 0 6px;font-size:1.3rem;color:#1a237e;">Change Your Password</h2><p style="color:#666;font-size:0.88rem;margin-bottom:20px;">You are using the default password. Please set a new password to continue.</p><div id="forcePwErr" style="display:none;background:#fdecea;color:#c62828;border-radius:8px;padding:10px;margin-bottom:14px;font-size:0.85rem;"></div><input id="forcePwCur" type="password" placeholder="Current password" style="width:100%;box-sizing:border-box;padding:10px 14px;border:1px solid #ddd;border-radius:8px;margin-bottom:10px;font-size:0.95rem;" /><input id="forcePwNew" type="password" placeholder="New password (min 6 chars)" style="width:100%;box-sizing:border-box;padding:10px 14px;border:1px solid #ddd;border-radius:8px;margin-bottom:10px;font-size:0.95rem;" /><input id="forcePwConf" type="password" placeholder="Confirm new password" style="width:100%;box-sizing:border-box;padding:10px 14px;border:1px solid #ddd;border-radius:8px;margin-bottom:18px;font-size:0.95rem;" /><button onclick="submitForcePw()" style="width:100%;padding:12px;background:#1a237e;color:#fff;border:none;border-radius:8px;font-size:1rem;font-weight:600;cursor:pointer;">Update Password</button>
+<div id="forcePwModal" class="modal-bg no-escape-close no-backdrop-close" role="dialog" aria-modal="true" aria-labelledby="fpw-title" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,0.65);backdrop-filter:blur(4px);z-index:9999;align-items:center;justify-content:center;">
+  <div class="modal" style="background:#fff;border-radius:18px;padding:36px 32px;width:400px;max-width:95vw;box-shadow:0 25px 60px rgba(0,0,0,0.3);text-align:center;border:1px solid rgba(0,0,0,0.06);animation:slideUpFade 0.25s var(--ease-spring);">
+    <div style="width:54px;height:54px;border-radius:16px;background:rgba(16,185,129,0.12);color:var(--gD,#065f46);display:inline-flex;align-items:center;justify-content:center;margin-bottom:14px;">
+      <re-icon icon="key" size="26"></re-icon>
+    </div>
+    <h2 id="fpw-title" style="margin:0 0 6px;font-size:19px;font-weight:700;color:var(--td,#0f172a);">Change Your Password</h2>
+    <p style="color:var(--tmu,#385a38);font-size:13px;line-height:1.45;margin-bottom:20px;">You are currently using the default system password. Please set a new personal password to secure your account.</p>
+    <div id="forcePwErr" style="display:none;background:#fef2f2;color:#991b1b;border:1px solid #fecaca;border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:12px;font-weight:600;text-align:left;"></div>
+    <div style="display:flex;flex-direction:column;gap:12px;margin-bottom:20px;text-align:left;">
+      <div>
+        <label for="forcePwCur" style="font-size:11px;font-weight:700;color:var(--tdi);text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:4px;">Current Password</label>
+        <div style="position:relative;">
+          <input id="forcePwCur" type="password" placeholder="Enter current temporary password" class="fc" style="height:42px;font-size:13px;border-radius:10px;padding-right:40px;width:100%;box-sizing:border-box;" autocomplete="current-password" />
+          <button type="button" onclick="togglePwVisibility('forcePwCur', this)" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--tdi);padding:6px;display:flex;align-items:center;" aria-label="Toggle password visibility">
+            <re-icon icon="eye" size="16"></re-icon>
+          </button>
+        </div>
+      </div>
+      <div>
+        <label for="forcePwNew" style="font-size:11px;font-weight:700;color:var(--tdi);text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:4px;">New Password</label>
+        <div style="position:relative;">
+          <input id="forcePwNew" type="password" placeholder="At least 6 characters" class="fc" style="height:42px;font-size:13px;border-radius:10px;padding-right:40px;width:100%;box-sizing:border-box;" autocomplete="new-password" />
+          <button type="button" onclick="togglePwVisibility('forcePwNew', this)" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--tdi);padding:6px;display:flex;align-items:center;" aria-label="Toggle password visibility">
+            <re-icon icon="eye" size="16"></re-icon>
+          </button>
+        </div>
+      </div>
+      <div>
+        <label for="forcePwConf" style="font-size:11px;font-weight:700;color:var(--tdi);text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:4px;">Confirm New Password</label>
+        <div style="position:relative;">
+          <input id="forcePwConf" type="password" placeholder="Re-enter new password" class="fc" style="height:42px;font-size:13px;border-radius:10px;padding-right:40px;width:100%;box-sizing:border-box;" autocomplete="new-password" />
+          <button type="button" onclick="togglePwVisibility('forcePwConf', this)" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--tdi);padding:6px;display:flex;align-items:center;" aria-label="Toggle password visibility">
+            <re-icon icon="eye" size="16"></re-icon>
+          </button>
+        </div>
+      </div>
+    </div>
+    <button type="button" class="btn btn-pri" onclick="submitForcePw()" style="width:100%;height:44px;font-size:13.5px;font-weight:700;border-radius:10px;display:inline-flex;align-items:center;justify-content:center;gap:6px;">
+      <re-icon icon="lock" size="15"></re-icon> Update Password
+    </button>
   </div>
 </div>
 
-<div id="changePwModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9998;align-items:center;justify-content:center;">
-  <div style="background:#fff;border-radius:14px;padding:36px 32px;width:380px;max-width:95vw;box-shadow:0 8px 40px rgba(0,0,0,0.25);text-align:center;">
-    <div style="font-size:2rem;margin-bottom:8px;"><re-icon icon="key"></re-icon></div><h2 style="margin:0 0 6px;font-size:1.3rem;color:#1a237e;">Change Password</h2><p style="color:#666;font-size:0.88rem;margin-bottom:20px;">Enter your current password and choose a new one.</p><div id="changePwErr" style="display:none;background:#fdecea;color:#c62828;border-radius:8px;padding:10px;margin-bottom:14px;font-size:0.85rem;"></div><div id="changePwOk" style="display:none;background:#e8f5e9;color:#2e7d32;border-radius:8px;padding:10px;margin-bottom:14px;font-size:0.85rem;"></div><input id="changePwCur" type="password" placeholder="Current password" style="width:100%;box-sizing:border-box;padding:10px 14px;border:1px solid #ddd;border-radius:8px;margin-bottom:10px;font-size:0.95rem;" /><input id="changePwNew" type="password" placeholder="New password (min 6 chars)" style="width:100%;box-sizing:border-box;padding:10px 14px;border:1px solid #ddd;border-radius:8px;margin-bottom:10px;font-size:0.95rem;" /><input id="changePwConf" type="password" placeholder="Confirm new password" style="width:100%;box-sizing:border-box;padding:10px 14px;border:1px solid #ddd;border-radius:8px;margin-bottom:18px;font-size:0.95rem;" /><div style="display:flex;gap:10px;"><button onclick="closeChangePwModal()" style="flex:1;padding:12px;background:#f5f5f5;color:#333;border:none;border-radius:8px;font-size:0.95rem;cursor:pointer;">Cancel</button><button onclick="submitChangePw()" style="flex:1;padding:12px;background:#1a237e;color:#fff;border:none;border-radius:8px;font-size:1rem;font-weight:600;cursor:pointer;">Update</button></div>
+<div id="changePwModal" class="modal-bg" role="dialog" aria-modal="true" aria-labelledby="cpw-title" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,0.6);backdrop-filter:blur(4px);z-index:9998;align-items:center;justify-content:center;">
+  <div class="modal" style="background:#fff;border-radius:18px;padding:32px 28px;width:380px;max-width:95vw;box-shadow:0 25px 60px rgba(0,0,0,0.3);text-align:center;border:1px solid rgba(0,0,0,0.06);animation:slideUpFade 0.25s var(--ease-spring);">
+    <div style="width:50px;height:50px;border-radius:14px;background:rgba(16,185,129,0.12);color:var(--gD,#065f46);display:inline-flex;align-items:center;justify-content:center;margin-bottom:12px;">
+      <re-icon icon="key" size="24"></re-icon>
+    </div>
+    <h2 id="cpw-title" style="margin:0 0 6px;font-size:18px;font-weight:700;color:var(--td,#0f172a);">Change Password</h2>
+    <p style="color:var(--tmu,#475569);font-size:13px;line-height:1.4;margin-bottom:18px;">Enter your current password and choose a new one.</p>
+    <div id="changePwErr" style="display:none;background:#fef2f2;color:#991b1b;border:1px solid #fecaca;border-radius:10px;padding:10px 14px;margin-bottom:12px;font-size:12px;font-weight:600;text-align:left;"></div>
+    <div id="changePwOk" style="display:none;background:#f0fdf4;color:#166534;border:1px solid #bbf7d0;border-radius:10px;padding:10px 14px;margin-bottom:12px;font-size:12px;font-weight:600;text-align:left;"></div>
+    <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:18px;text-align:left;">
+      <div style="position:relative;">
+        <input id="changePwCur" type="password" placeholder="Current password" class="fc" style="height:40px;font-size:13px;border-radius:8px;padding-right:38px;width:100%;box-sizing:border-box;" autocomplete="current-password" />
+        <button type="button" onclick="togglePwVisibility('changePwCur', this)" style="position:absolute;right:6px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--tdi);padding:6px;display:flex;align-items:center;" aria-label="Toggle password visibility"><re-icon icon="eye" size="15"></re-icon></button>
+      </div>
+      <div style="position:relative;">
+        <input id="changePwNew" type="password" placeholder="New password (min 6 chars)" class="fc" style="height:40px;font-size:13px;border-radius:8px;padding-right:38px;width:100%;box-sizing:border-box;" autocomplete="new-password" />
+        <button type="button" onclick="togglePwVisibility('changePwNew', this)" style="position:absolute;right:6px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--tdi);padding:6px;display:flex;align-items:center;" aria-label="Toggle password visibility"><re-icon icon="eye" size="15"></re-icon></button>
+      </div>
+      <div style="position:relative;">
+        <input id="changePwConf" type="password" placeholder="Confirm new password" class="fc" style="height:40px;font-size:13px;border-radius:8px;padding-right:38px;width:100%;box-sizing:border-box;" autocomplete="new-password" />
+        <button type="button" onclick="togglePwVisibility('changePwConf', this)" style="position:absolute;right:6px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--tdi);padding:6px;display:flex;align-items:center;" aria-label="Toggle password visibility"><re-icon icon="eye" size="15"></re-icon></button>
+      </div>
+    </div>
+    <div style="display:flex;gap:10px;">
+      <button type="button" onclick="closeChangePwModal()" class="btn btn-out" style="flex:1;height:40px;font-size:13px;border-radius:8px;">Cancel</button>
+      <button type="button" onclick="submitChangePw()" class="btn btn-pri" style="flex:1;height:40px;font-size:13px;border-radius:8px;"><re-icon icon="save" size="14"></re-icon> Update</button>
+    </div>
   </div>
 </div>
 
@@ -1806,7 +2476,7 @@
       <!-- class · subject · role badge · student count -->
     </div>
     <div class="modal-actions" style="flex-wrap:wrap;gap:8px;">
-      <button type="button" class="btn-form-pri" onclick="LiveSlotPrompt.startClass()" id="mls-start" style="background:#059669;color:#fff;"><re-icon icon="rocket" size="14"></re-icon> Start Class (<re-icon icon="pin"></re-icon>)</button>
+      <button type="button" class="btn-form-pri" onclick="LiveSlotPrompt.startClass()" id="mls-start" style="background:#059669;color:#fff;display:inline-flex;align-items:center;gap:6px;"><re-icon icon="rocket" size="14"></re-icon> Start Class <span style="font-size:11px;opacity:0.9;display:inline-flex;align-items:center;gap:2px;">(<re-icon icon="pin" size="11"></re-icon> GPS)</span></button>
       <button type="button" class="btn-form-ghost" onclick="LiveSlotPrompt.close('snooze')"><re-icon icon="timer" size="14"></re-icon> Remind in 5 min</button>
       <button type="button" class="btn-form-ghost" onclick="LiveSlotPrompt.method('rep')" id="mls-rep"><re-icon icon="users" size="14"></re-icon> Rep Share</button>
       <button type="button" class="btn-form-ghost" onclick="LiveSlotPrompt.method('qr')" id="mls-qr"><re-icon icon="camera" size="14"></re-icon> Scan Live</button>
@@ -1843,7 +2513,7 @@
       </div>
     </div>
     <div class="modal-actions" style="background:#f8fafc;padding:14px 20px;border-top:1px solid #f1f5f9;display:flex;gap:10px;justify-content:flex-end;">
-      <button type="button" class="btn btn-sec" id="btn-hard-report" onclick="HardOverduePrompt.toggleReport()"><re-icon icon="alert-triangle" size="14"></re-icon> ️ Report a Problem</button>
+      <button type="button" class="btn btn-sec" id="btn-hard-report" onclick="HardOverduePrompt.toggleReport()"><re-icon icon="alert-triangle" size="14"></re-icon> Report a Problem</button>
       <button type="button" class="btn btn-pri" style="background:#dc2626;color:#fff;border:none;padding:10px 16px;border-radius:6px;font-weight:700;cursor:pointer;" onclick="HardOverduePrompt.takeAttendanceNow()"><re-icon icon="clipboard-list" size="14"></re-icon> Take Attendance Now</button>
     </div>
   </div>
@@ -1852,7 +2522,8 @@
 <!-- ══ MODAL: ADVISOR FILE LEAVE FOR STUDENT (LD4) ══ -->
 <div class="modal-bg" id="m-advisor-file-leave">
   <div class="modal" style="max-width:520px;padding:24px;">
-    <div class="modal-hd" style="margin-bottom:14px;">
+    <div class="modal-hd">
+      <div>
       <div class="modal-title" style="font-size:17px;display:flex;align-items:center;gap:8px;">
         <span><re-icon icon="file-text"></re-icon></span> File Leave on Behalf of Student
       </div>
@@ -1916,39 +2587,116 @@
 
 <!-- ══ MODAL: OD STAGE REVIEW (L3) ══ -->
 <div class="modal-bg" id="m-od-stage-review">
-  <div class="modal" style="max-width:560px;padding:24px;">
-    <div class="modal-hd" style="margin-bottom:14px;">
-      <div class="modal-title" style="font-size:17px;display:flex;align-items:center;gap:8px;">
-        <span><re-icon icon="trophy"></re-icon></span> Review Student OD Request
+  <div class="modal modal-md" style="max-width:660px;border-radius:20px;">
+    <div class="modal-hd">
+      <div>
+        <div class="modal-title" style="display:flex;align-items:center;gap:8px;">
+          <span><re-icon icon="trophy"></re-icon></span> <span id="odr-modal-title">Review Student OD Request</span>
+        </div>
+        <div class="modal-sub" id="odr-student-sub">Multi-stage review queue: Mentor → Advisor → HOD</div>
       </div>
       <div class="modal-close" onclick="closeModal('m-od-stage-review')"><re-icon icon="x" size="18"></re-icon></div>
     </div>
 
-    <!-- OD Verification Score breakdown (Phase L5 §5.12) -->
-    <div id="odr-verification-score" style="display:none;margin-bottom:12px;"></div>
+    <div class="mbody" style="padding:18px 22px;overflow-y:auto;flex:1;">
+      <!-- OD Verification Score breakdown  -->
+      <div id="odr-verification-score" style="display:none;margin-bottom:12px;"></div>
 
-    <div style="background:#f8fafc;border:1px solid var(--br);border-radius:12px;padding:14px;margin-bottom:16px;display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:12.5px;">
-      <div><span style="color:var(--tmu);">Student:</span> <strong id="odr-student-name" style="color:var(--td);">—</strong></div>
-      <div><span style="color:var(--tmu);">Register No:</span> <strong id="odr-student-reg" style="color:var(--td);">—</strong></div>
-      <div><span style="color:var(--tmu);">Event Title:</span> <strong id="odr-event-title" style="color:var(--td);">—</strong></div>
-      <div><span style="color:var(--tmu);">Level &amp; Type:</span> <strong id="odr-event-level" style="color:var(--td);">—</strong></div>
-      <div><span style="color:var(--tmu);">Dates:</span> <strong id="odr-dates" style="color:var(--td);">—</strong></div>
-      <div><span style="color:var(--tmu);">Coverage:</span> <strong id="odr-coverage" style="color:var(--td);">—</strong></div>
-      <div style="grid-column:span 2;"><span style="color:var(--tmu);">Evidence:</span> <span id="odr-evidence-link">—</span></div>
-      <div style="grid-column:span 2;"><span style="color:var(--tmu);">Purpose / Reason:</span> <span id="odr-reason" style="font-style:italic;">—</span></div>
+      <!-- Student Stats (Attendance %, Leaves Taken, OD Taken) -->
+      <div id="odr-stats-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px;">
+        <div style="background:var(--gP);border-radius:12px;padding:10px;text-align:center;border:1px solid var(--brl);">
+          <div id="odr-stat-pct" style="font-size:20px;font-weight:800;color:var(--gD);">—%</div>
+          <div style="font-size:11px;font-weight:700;color:var(--tdi);text-transform:uppercase;margin-top:2px;">Attendance</div>
+        </div>
+        <div style="background:var(--gP);border-radius:12px;padding:10px;text-align:center;border:1px solid var(--brl);">
+          <div id="odr-stat-leaves" style="font-size:20px;font-weight:800;color:#d97706;">—</div>
+          <div style="font-size:11px;font-weight:700;color:var(--tdi);text-transform:uppercase;margin-top:2px;">Leaves Taken</div>
+        </div>
+        <div style="background:var(--gP);border-radius:12px;padding:10px;text-align:center;border:1px solid var(--brl);">
+          <div id="odr-stat-od" style="font-size:20px;font-weight:800;color:#7c3aed;">—</div>
+          <div style="font-size:11px;font-weight:700;color:var(--tdi);text-transform:uppercase;margin-top:2px;">OD Taken</div>
+        </div>
+      </div>
+
+      <!-- Request Overview Card -->
+      <div style="background:linear-gradient(135deg,rgba(46,125,50,0.05),rgba(46,125,50,0.01));border:1.5px solid rgba(46,125,50,0.18);border-radius:14px;padding:14px 16px;margin-bottom:14px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid rgba(0,0,0,0.06);">
+          <div>
+            <div style="font-size:14px;font-weight:800;color:var(--td);" id="odr-student-name">—</div>
+            <div style="font-size:11.5px;color:var(--tmu);font-weight:600;" id="odr-student-reg">—</div>
+          </div>
+          <div style="text-align:right;">
+            <span id="odr-coverage" style="background:#e0f2fe;color:#0369a1;font-size:11px;font-weight:800;padding:3px 9px;border-radius:8px;">Full Day</span>
+            <div style="font-size:11.5px;font-weight:700;color:var(--td);margin-top:2px;" id="odr-days-count">—</div>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 12px;font-size:12px;margin-bottom:10px;">
+          <div>
+            <span style="color:var(--tmu);font-size:11px;display:block;">Event Title:</span>
+            <strong id="odr-event-title" style="color:var(--td);">—</strong>
+          </div>
+          <div>
+            <span style="color:var(--tmu);font-size:11px;display:block;">Level &amp; Type:</span>
+            <strong id="odr-event-level" style="color:var(--td);">—</strong>
+          </div>
+          <div style="grid-column:span 2;">
+            <span style="color:var(--tmu);font-size:11px;display:block;">Dates / Duration:</span>
+            <strong id="odr-dates" style="color:var(--td);line-height:1.4;">—</strong>
+          </div>
+          <div style="grid-column:span 2;">
+            <span style="color:var(--tmu);font-size:11px;display:block;">Attached Document:</span>
+            <span id="odr-evidence-link">—</span>
+          </div>
+        </div>
+
+        <div>
+          <span style="color:var(--tmu);font-size:11px;display:block;margin-bottom:3px;">Purpose / Reason:</span>
+          <div id="odr-reason" style="font-size:12px;color:var(--td);background:#fff;border-radius:8px;padding:8px 12px;border:1px solid var(--brl);font-style:italic;">—</div>
+        </div>
+      </div>
+
+      <!-- Outcome & Completion Details (shown when event completed / outcome submitted) -->
+      <div id="odr-outcome-details" style="display:none;background:#f0fdf4;border:1.5px solid #86efac;border-radius:14px;padding:12px 16px;margin-bottom:14px;">
+        <div style="font-size:12px;font-weight:800;color:#166534;margin-bottom:8px;display:flex;align-items:center;gap:6px;">
+          <re-icon icon="trophy" size="14"></re-icon> Event Outcome &amp; Completion Evidence
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12px;">
+          <div><span style="color:var(--tmu);font-size:11px;display:block;">Primary Outcome:</span> <strong id="odr-outcome-primary" style="color:#166534;">—</strong></div>
+          <div><span style="color:var(--tmu);font-size:11px;display:block;">Certificates Earned:</span> <strong id="odr-outcome-certs" style="color:var(--td);">—</strong></div>
+          <div style="grid-column:span 2;"><span style="color:var(--tmu);font-size:11px;display:block;">Certificate / Evidence Document:</span> <span id="odr-outcome-evidence-link">—</span></div>
+        </div>
+      </div>
+
+      <!-- Approval Trail (Tracker) -->
+      <div style="margin-bottom:14px;">
+        <div style="font-size:12px;font-weight:700;color:var(--td);margin-bottom:8px;display:flex;align-items:center;gap:6px;">
+          <re-icon icon="git-commit" size="14"></re-icon> Approval Progress
+        </div>
+        <div id="odr-tracker-panel"></div>
+      </div>
+
+      <div class="fg" style="margin-bottom:14px;" id="odr-remarks-section">
+        <label class="fl" style="font-size:12px;font-weight:700;color:var(--td);margin-bottom:4px;display:block;">Review Remarks (Optional)</label>
+        <input type="text" class="fc2" id="odr-remarks" placeholder="Enter remarks or approval notes…" style="font-size:12.5px;">
+      </div>
+
+      <!-- Student History -->
+      <div id="odr-history-section" style="display:none;margin-bottom:10px;">
+        <div style="font-size:12px;font-weight:700;color:var(--td);margin-bottom:8px;display:flex;align-items:center;gap:6px;">
+          <re-icon icon="history" size="14"></re-icon> Student Request History
+        </div>
+        <div id="odr-history-list" style="max-height:160px;overflow-y:auto;border:1px solid var(--brl);border-radius:10px;"></div>
+      </div>
     </div>
 
-    <div class="fg" style="margin-bottom:16px;">
-      <label class="fl">Review Remarks (Optional)</label>
-      <input type="text" class="fc2" id="odr-remarks" placeholder="Enter remarks or approval notes…">
-    </div>
-
-    <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;">
-      <button type="button" class="btn-out" onclick="closeModal('m-od-stage-review')">Cancel</button>
-      <button type="button" class="btn-danger" onclick="submitODStageAction('reject')" style="background:#ef4444;color:#fff;"><re-icon icon="x" size="14"></re-icon> Reject</button>
-      <button type="button" class="btn-warn" onclick="submitODStageAction('return')" style="background:#f59e0b;color:#fff;">↩ Return</button>
-      <button type="button" class="btn-out" id="btn-odr-principal" onclick="submitODStageAction('request-principal')" style="display:none;color:#4f46e5;border-color:#c7d2fe;"><re-icon icon="building2" size="14"></re-icon> ️ Request Principal</button>
-      <button type="button" class="btn-pri" onclick="submitODStageAction('approve')" style="background:#16a34a;"><re-icon icon="check" size="14"></re-icon> Approve Stage</button>
+    <div class="modal-actions" id="odr-action-buttons">
+      <button type="button" class="btn-form-ghost" id="btn-odr-cancel" onclick="closeModal('m-od-stage-review')" style="font-size:12.5px;padding:8px 16px;">Cancel</button>
+      <button type="button" class="btn-form-del" id="btn-odr-reject" onclick="submitODStageAction('reject')" style="font-size:12.5px;padding:8px 16px;font-weight:700;display:inline-flex;align-items:center;gap:4px;"><re-icon icon="x" size="14"></re-icon> Reject</button>
+      <button type="button" class="btn-form-ghost" id="btn-odr-return" onclick="submitODStageAction('return')" style="font-size:12.5px;padding:8px 16px;color:#d97706;border-color:#fde68a;background:#fffbeb;font-weight:700;">↩ Return</button>
+      <button type="button" class="btn-out" id="btn-odr-principal" onclick="submitODStageAction('request-principal')" style="display:none;font-size:12.5px;padding:8px 16px;color:#4f46e5;border-color:#c7d2fe;font-weight:700;"><re-icon icon="building2" size="14"></re-icon> Request Principal</button>
+      <button type="button" class="btn-form-pri" id="btn-odr-approve" onclick="submitODStageAction('approve')" style="font-size:12.5px;padding:8px 20px;font-weight:700;background:#16a34a;display:inline-flex;align-items:center;gap:4px;"><re-icon icon="check" size="14"></re-icon> Approve Stage</button>
+      <button type="button" class="btn-pri" id="btn-odr-close" onclick="closeModal('m-od-stage-review')" style="display:none;font-size:12.5px;padding:8px 24px;font-weight:700;"><re-icon icon="check" size="14"></re-icon> Close</button>
     </div>
   </div>
 </div>
@@ -1956,7 +2704,8 @@
 <!-- ══ MODAL: OD OUTCOME VERIFICATION (L4) ══ -->
 <div class="modal-bg" id="m-od-outcome-verify">
   <div class="modal" style="max-width:540px;padding:24px;">
-    <div class="modal-hd" style="margin-bottom:14px;">
+    <div class="modal-hd">
+      <div>
       <div class="modal-title" style="font-size:17px;display:flex;align-items:center;gap:8px;">
         <span><re-icon icon="trophy"></re-icon></span> Verify OD Completion Outcome
       </div>
@@ -1991,84 +2740,198 @@
 </div>
 
 <!-- ══ MODAL: FACULTY CREATE GROUP OD ══ -->
-<div class="modal-bg" id="m-faculty-group-od">
-  <div class="modal" style="max-width:560px;padding:24px;">
-    <div class="modal-hd" style="margin-bottom:14px;">
-      <div class="modal-title" style="font-size:17px;display:flex;align-items:center;gap:8px;">
-        <span><re-icon icon="users"></re-icon></span> Create Group On-Duty (OD)
+<div class="modal-bg" id="m-faculty-group-od" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;align-items:center;justify-content:center;">
+  <div class="modal" style="max-width:620px;width:95vw;max-height:90vh;display:flex;flex-direction:column;background:#fff;border-radius:18px;overflow:hidden;box-shadow:0 24px 60px rgba(0,0,0,0.22);">
+    <div class="modal-hd" style="padding:16px 20px;border-bottom:1px solid var(--brl);display:flex;align-items:center;justify-content:space-between;background:#f8fafc;">
+      <div>
+        <div class="modal-title" style="font-size:16px;font-weight:700;display:flex;align-items:center;gap:8px;color:var(--td);">
+          <span><re-icon icon="users" style="color:#0284c7;"></re-icon></span> Group On-Duty (OD) Request
+        </div>
+        <div class="modal-sub" style="font-size:11px;color:var(--tmu);margin-top:2px;">Select Team Head, invite student lead to add team details, or submit directly.</div>
       </div>
-      <div class="modal-close" onclick="closeModal('m-faculty-group-od')"><re-icon icon="x" size="18"></re-icon></div>
+      <div class="modal-close" onclick="closeModal('m-faculty-group-od')" style="cursor:pointer;padding:4px;"><re-icon icon="x" size="18"></re-icon></div>
     </div>
 
-    <form id="form-faculty-group-od" onsubmit="submitFacultyGroupOD(event)">
-      <div class="fg" style="margin-bottom:12px;">
-        <label class="fl">Event Title <span style="color:#ef4444;">*</span></label>
-        <input type="text" class="fc2" id="god-event-title" placeholder="e.g. Anna University Symposium 2026" required>
+    <div class="modal-body" style="padding:18px 20px;overflow-y:auto;flex:1;">
+      <!-- PENDING DRAFTS FROM STUDENT HEADS (IF ANY) -->
+      <div id="god-pending-drafts-wrap" style="display:none;margin-bottom:16px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;padding:12px;">
+        <div style="font-size:12px;font-weight:700;color:#166534;display:flex;align-items:center;gap:6px;margin-bottom:8px;">
+          <re-icon icon="sparkles" size="14"></re-icon> Student Head Submitted Drafts Awaiting Final Submission:
+        </div>
+        <div id="god-pending-drafts-list" style="display:flex;flex-direction:column;gap:8px;"></div>
       </div>
 
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
-        <div>
-          <label class="fl">Category</label>
-          <select class="fc2" id="god-type">
-            <option value="Academic">Academic</option>
-            <option value="Sports">Sports</option>
-            <option value="Cultural">Cultural</option>
-            <option value="Institutional">Institutional</option>
+      <!-- STEP 1: SELECT TEAM HEAD -->
+      <div class="fg" style="margin-bottom:14px;">
+        <label class="fl" style="font-size:12px;font-weight:700;color:var(--td);display:flex;justify-content:space-between;">
+          <span>Select Team Head (Student) <span style="color:#ef4444;">*</span></span>
+          <span style="font-size:11px;color:var(--tmu);font-weight:normal;">Search by name, reg no, or class</span>
+        </label>
+        <div style="position:relative;">
+          <input type="text" class="fc2" id="god-head-search" placeholder="Type to search all students..." autocomplete="off" oninput="filterGroupODHeadStudents(this.value)" style="margin-bottom:6px;">
+          <select class="fc2" id="god-head-select" size="4" onchange="onSelectGroupODHead(this)" style="max-height:130px;overflow-y:auto;display:none;width:100%;">
+            <option value="">Select Team Head Student...</option>
           </select>
         </div>
-        <div>
-          <label class="fl">Level</label>
-          <select class="fc2" id="god-level">
-            <option value="department">Department</option>
-            <option value="college">College</option>
-            <option value="inter-collegiate">Inter-Collegiate</option>
-            <option value="university">University</option>
-            <option value="state">State</option>
-            <option value="national">National</option>
+        <div id="god-head-selected-badge" style="display:none;margin-top:6px;background:#e0f2fe;border:1px solid #bae6fd;border-radius:8px;padding:6px 12px;align-items:center;justify-content:space-between;">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <re-icon icon="user-check" size="16" style="color:#0284c7;"></re-icon>
+            <div>
+              <div id="god-head-name" style="font-size:12px;font-weight:700;color:#0369a1;">-</div>
+              <div id="god-head-meta" style="font-size:11px;color:#0284c7;">-</div>
+            </div>
+          </div>
+          <button type="button" class="btn-sm btn-out" style="padding:2px 8px;font-size:11px;color:#ef4444;border-color:#fca5a5;" onclick="clearGroupODHead()">Change</button>
+        </div>
+      </div>
+
+      <!-- STEP 2: CHOOSE WORKFLOW PATH -->
+      <div style="margin-bottom:14px;">
+        <label class="fl" style="font-size:12px;font-weight:700;color:var(--td);">Select Submission Method</label>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:6px;">
+          <button type="button" id="tab-god-invite" class="btn-pri" onclick="switchGroupODTab('invite')" style="font-size:11.5px;padding:9px;background:#0284c7;border-radius:8px;display:flex;align-items:center;justify-content:center;gap:6px;">
+            <re-icon icon="mail" size="14"></re-icon> 1. Send Invite to Student Head
+          </button>
+          <button type="button" id="tab-god-direct" class="btn-out" onclick="switchGroupODTab('direct')" style="font-size:11.5px;padding:9px;border-radius:8px;display:flex;align-items:center;justify-content:center;gap:6px;">
+            <re-icon icon="edit-3" size="14"></re-icon> 2. Fill Details &amp; Send Now
+          </button>
+        </div>
+      </div>
+
+      <!-- ── TAB 1: SEND INVITE TO STUDENT HEAD ── -->
+      <div id="panel-god-invite" style="display:block;background:#f8fafc;border:1px solid var(--br);border-radius:12px;padding:14px;">
+        <div style="font-size:11.5px;color:var(--td);line-height:1.45;margin-bottom:12px;">
+          <re-icon icon="info" size="13" style="color:#0284c7;"></re-icon>
+          <strong>Workflow:</strong> An invite will be dispatched to the Team Head. The student head logs in, enters event details and team members, and returns the request to you for final authorization.
+        </div>
+        <div class="fg" style="margin-bottom:10px;">
+          <label class="fl">Event Title / Topic (Optional)</label>
+          <input type="text" class="fc2" id="god-invite-title" placeholder="e.g. Smart India Hackathon 2026">
+        </div>
+        <div class="fg" style="margin-bottom:14px;">
+          <label class="fl">Instructions / Notes to Team Head (Optional)</label>
+          <textarea class="fc2" id="god-invite-notes" rows="2" placeholder="e.g. Please add all 4 project members from your class and submit before Friday..."></textarea>
+        </div>
+        <button type="button" class="btn-pri" onclick="submitGroupODInvite()" style="width:100%;background:#0284c7;padding:10px;font-size:12.5px;font-weight:700;">
+          <re-icon icon="send" size="14"></re-icon> Send Invite to Student Head
+        </button>
+      </div>
+
+      <!-- ── TAB 2: TEACHER DIRECTLY FILLS DETAILS & SENDS ── -->
+      <div id="panel-god-direct" style="display:none;background:#f8fafc;border:1px solid var(--br);border-radius:12px;padding:14px;">
+        <div style="font-size:11.5px;color:var(--td);line-height:1.45;margin-bottom:12px;">
+          <re-icon icon="info" size="13" style="color:#16a34a;"></re-icon>
+          <strong>Direct Submission:</strong> Request will be submitted immediately on behalf of all selected students into the approval workflow (<strong>Mentor <re-icon icon="arrow-right" size="10"></re-icon> Advisor <re-icon icon="arrow-right" size="10"></re-icon> HOD</strong>).
+        </div>
+
+        <div class="fg" style="margin-bottom:10px;">
+          <label class="fl">Event Title <span style="color:#ef4444;">*</span></label>
+          <input type="text" class="fc2" id="god-direct-title" placeholder="e.g. National Level Technical Symposium 2026">
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+          <div>
+            <label class="fl">Category</label>
+            <select class="fc2" id="god-direct-type">
+              <option value="Technical">Technical</option>
+              <option value="Academic">Academic</option>
+              <option value="Sports">Sports</option>
+              <option value="Cultural">Cultural</option>
+              <option value="Institutional">Institutional</option>
+            </select>
+          </div>
+          <div>
+            <label class="fl">Level</label>
+            <select class="fc2" id="god-direct-level">
+              <option value="Inter-Collegiate">Inter-Collegiate</option>
+              <option value="Department">Department</option>
+              <option value="College">College</option>
+              <option value="University">University</option>
+              <option value="State">State</option>
+              <option value="National">National</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+          <div>
+            <label class="fl">From Date <span style="color:#ef4444;">*</span></label>
+            <input type="date" class="fc2" id="god-direct-from">
+          </div>
+          <div>
+            <label class="fl">To Date <span style="color:#ef4444;">*</span></label>
+            <input type="date" class="fc2" id="god-direct-to">
+          </div>
+        </div>
+
+        <div class="fg" style="margin-bottom:10px;">
+          <label class="fl">Host College / Venue</label>
+          <input type="text" class="fc2" id="god-direct-venue" placeholder="e.g. Anna University, Chennai">
+        </div>
+
+        <!-- ADDITIONAL TEAM MEMBERS -->
+        <div class="fg" style="margin-bottom:10px;">
+          <label class="fl" style="display:flex;justify-content:space-between;">
+            <span>Additional Team Members</span>
+            <span style="font-size:11px;color:var(--tmu);font-weight:normal;">Team head is auto-included</span>
+          </label>
+          <div style="display:flex;gap:6px;margin-bottom:6px;">
+            <input type="text" class="fc2" id="god-member-search" placeholder="Type student name / reg no to add..." oninput="filterGroupODMemberStudents(this.value)">
+          </div>
+          <select class="fc2" id="god-member-select" size="3" onchange="addGroupODMember(this)" style="max-height:100px;display:none;width:100%;margin-bottom:6px;">
+            <option value="">Select student to add as member...</option>
           </select>
+          <div id="god-members-chips" style="display:flex;flex-wrap:wrap;gap:6px;min-height:30px;padding:6px;background:#fff;border:1px solid var(--br);border-radius:8px;">
+            <span style="font-size:11px;color:var(--tdi);padding:2px 4px;">No additional members added yet.</span>
+          </div>
         </div>
-      </div>
 
-      <div class="fg" style="margin-bottom:12px;">
-        <label class="fl">Student Register Numbers (Comma-separated) <span style="color:#ef4444;">*</span></label>
-        <textarea class="fc2" id="god-reg-nos" rows="2" placeholder="e.g. 21CS001, 21CS002, 21CS003" required></textarea>
-      </div>
-
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
-        <div>
-          <label class="fl">From Date <span style="color:#ef4444;">*</span></label>
-          <input type="date" class="fc2" id="god-from-date" required>
+        <div class="fg" style="margin-bottom:14px;">
+          <label class="fl">Event Purpose / Description <span style="color:#ef4444;">*</span></label>
+          <textarea class="fc2" id="god-direct-desc" rows="2" placeholder="Description of student participation..."></textarea>
         </div>
-        <div>
-          <label class="fl">To Date <span style="color:#ef4444;">*</span></label>
-          <input type="date" class="fc2" id="god-to-date" required>
-        </div>
-      </div>
 
-      <div class="fg" style="margin-bottom:16px;">
-        <label class="fl">Purpose / Event Details <span style="color:#ef4444;">*</span></label>
-        <textarea class="fc2" id="god-reason" rows="2" placeholder="Group participation in college sports / symposium..." required></textarea>
+        <button type="button" class="btn-pri" onclick="submitFacultyGroupODDirect()" style="width:100%;background:#16a34a;padding:10px;font-size:12.5px;font-weight:700;">
+          <re-icon icon="check-circle" size="14"></re-icon> Submit Group OD Request (Mentor &rarr; Advisor &rarr; HOD)
+        </button>
       </div>
+    </div>
 
-      <div style="display:flex;gap:10px;">
-        <button type="button" class="btn-out" onclick="closeModal('m-faculty-group-od')" style="flex:1;">Cancel</button>
-        <button type="submit" class="btn-pri" id="btn-submit-god" style="flex:2;background:#0284c7;"><re-icon icon="plus" size="14"></re-icon> Create Group OD</button>
-      </div>
-    </form>
+    <div class="modal-ft" style="padding:12px 20px;border-top:1px solid var(--brl);display:flex;justify-content:flex-end;background:#f8fafc;">
+      <button type="button" class="btn-out" onclick="closeModal('m-faculty-group-od')" style="font-size:12px;">Close</button>
+    </div>
   </div>
 </div>
 
-<script src="js/core/session.js"></script>
-<script src="js/core/api.js"></script>
-<script src="js/core/toast.js"></script>
-<script src="js/core/modal.js"></script>
-<script src="js/core/popup.js"></script>
-<script src="js/core/guard.js"></script>
-<script src="js/core/qrCodeHelper.js"></script>
-<script src="js/shared/workload.shared.js"></script>
-<script src="js/core/searchableDropdown.js?v=20261018"></script>
-<script src="js/pages/teacherTimetable.module.js"></script>
-<script src="js/pages/teacher.page.js?v=20261018b"></script>
-<script src="js/pages/deviceVerification.teacher.js"></script>
+<script src="js/core/session.js" defer></script>
+<script src="js/core/api.js" defer></script>
+<script src="js/core/toast.js" defer></script>
+<script src="js/core/modal.js" defer></script>
+<script src="js/core/popup.js" defer></script>
+<script src="js/core/guard.js" defer></script>
+<script src="js/core/qrCodeHelper.js" defer></script>
+
+<script src="js/shared/requestTracker.js" defer></script>
+<script src="js/core/searchableDropdown.js" defer></script>
+<script src="js/pages/teacherTimetable.module.js" defer></script>
+<script src="js/pages/teacher.page.js" defer></script>
+<script src="js/pages/deviceVerification.teacher.js" defer></script>
+<script src="js/pages/control.roster.js" defer></script>
+<script src="js/pages/control.registry.js" defer></script>
+
+<!-- Roster Student Forensic Drawer -->
+<div class="att-drawer-overlay" id="roster-drawer-overlay"></div>
+<div class="att-drawer" id="roster-drawer">
+  <div class="att-drawer-hd">
+    <div>
+      <div class="att-drawer-title" id="roster-drawer-title">Student Forensic Dossier</div>
+      <div class="att-drawer-sub" id="roster-drawer-sub">Live session forensics &amp; device trust breakdown</div>
+    </div>
+    <button class="btn btn-sm btn-ghost" onclick="closeStudentDrawer()"><re-icon icon="x" size="16"></re-icon></button>
+  </div>
+  <div class="att-drawer-bd" id="roster-drawer-content">
+    <!-- Injected by control.roster.js -->
+  </div>
+</div>
 </body>
 </html>

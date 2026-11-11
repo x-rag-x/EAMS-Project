@@ -73,6 +73,15 @@
             <div class="room-badge-building" id="buildingName">Resolving Location…</div>
           </div>
         </div>
+
+        <!-- LINKED CLASS BADGE -->
+        <div class="class-badge" id="classBadge" style="display:none;">
+          <span class="class-badge-icon"><re-icon icon="users"></re-icon></span>
+          <div>
+            <div class="class-badge-name" id="boardClassName">--</div>
+            <div class="class-badge-sub" id="boardClassSub">Linked Class</div>
+          </div>
+        </div>
       </div>
 
       <div class="topbar-right">
@@ -113,6 +122,15 @@
           <div class="subject-kicker" id="subjectKicker">Academic Timetable Slot</div>
           <h1 class="subject-title" id="subjectTitle">Synchronizing Timetable…</h1>
           <div class="subject-type-pill" id="subjectType">Course Details</div>
+        </div>
+
+        <!-- Class Day Schedule Timeline Strip -->
+        <div class="schedule-timeline-wrap" id="scheduleTimelineWrap" style="display:none;">
+          <div class="schedule-timeline-header">
+            <span class="timeline-title"><re-icon icon="calendar"></re-icon> Class Day Schedule</span>
+            <span class="timing-set-label" id="timingSetLabel">Timing: Default</span>
+          </div>
+          <div class="schedule-timeline" id="scheduleTimeline"></div>
         </div>
 
         <!-- Faculty Details Row -->

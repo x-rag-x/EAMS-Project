@@ -1,3 +1,6 @@
+const timetableCommitModels = require('./timetableCommit.model');
+const timetableWorkspaceModels = require('./timetableWorkspace.model');
+const timetablePhase4Models = require('./timetablePhase4.model');
 const userModels = require('./user.model');
 const departmentModels = require('./department.model');
 const classModels = require('./class.model');
@@ -42,9 +45,24 @@ const trustDisputeModels = require('./trustDispute.model');
 const attendanceAdjustmentModels = require('./attendanceAdjustment.model');
 const deviceShareCaseModels = require('./deviceShareCase.model');
 const bulkImportBatchModels = require('./bulkImportBatch.model');
+const responsibilityModels = require('./responsibility.model');
+const workloadPolicyModels = require('./workloadPolicy.model');
+const autoGenModels = require('./autoGen.model');
+const semesterSubjectSetModels = require('./semesterSubjectSet.model');
+const userTimetableScratchpadModels = require('./userTimetableScratchpad.model');
+const aggregatedCountModels = require('./aggregatedCount.model');
 
 module.exports = {
+  ...timetableCommitModels,
+  ...timetableWorkspaceModels,
+  ...timetablePhase4Models,
+  ...aggregatedCountModels,
+  ...userTimetableScratchpadModels,
   ...bulkImportBatchModels,
+  ...responsibilityModels,
+  ...workloadPolicyModels,
+  ...autoGenModels,
+  ...semesterSubjectSetModels,
   ...userModels,
   ...departmentModels,
   ...classModels,

@@ -191,6 +191,28 @@ const columns = [
     }
   },
   {
+    key: 'admissionType',
+    label: 'AdmissionType',
+    required: false,
+    aliases: ['admissiontype', 'entrytype', 'admission', 'entry', 'regularorlateral', 'lateralentry'],
+    example: 'Regular',
+    help: 'Regular or Lateral Entry (defaults to Regular)',
+    normalize: (v) => {
+      const s = String(v || '').toLowerCase().trim();
+      if (s.includes('lateral')) return 'Lateral Entry';
+      return 'Regular';
+    },
+    validate: (v, raw) => {
+      if (raw) {
+        const s = String(raw).toLowerCase().trim();
+        if (!s.includes('lateral') && !s.includes('regular')) {
+          return `AdmissionType "${raw}" invalid: must be Regular or Lateral Entry`;
+        }
+      }
+      return null;
+    }
+  },
+  {
     key: 'password',
     label: 'Password',
     required: false,

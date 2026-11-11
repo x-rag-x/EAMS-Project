@@ -1,378 +1,528 @@
-<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>EAMS · Timetable Workspace</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&family=Playfair+Display:wght@700&family=DM+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-  <script src="js/core/escape.js"></script>
-  <script src="js/core/icons.js"></script>
-  <link rel="stylesheet" href="css/base.css?v=2.5.6">
-  <link rel="stylesheet" href="css/timetable.css?v=2.5.7">
-  <script>
-    (function() {
-      try {
-        var token = sessionStorage.getItem('token') || sessionStorage.getItem('eams_token');
-        var user = null;
-        try { user = JSON.parse(sessionStorage.getItem('user') || sessionStorage.getItem('eams_user')); } catch (e) {}
-        var canAccess = user && (
-          user.isSudoAdmin === true ||
-          user.isSuperAdmin === true ||
-          user.isSubAdmin === true ||
-          user.isAdmin === true ||
-          ['sudoAdmin', 'superAdmin', 'subAdmin', 'admin'].includes(user.accessRole) ||
-          user.role === 'admin' ||
-          user.role === 'sudo' ||
-          user.isTimeTableCoordinator === true ||
-          user.isHod === true ||
-          user.isPrincipal === true ||
-          (user.pages && Boolean(user.pages.timetable)) ||
-          (user.access && (user.access.level === 'full' || user.access.level === 'sudo' || (Array.isArray(user.access.pages) && user.access.pages.includes('timetable')) || (user.access.pages && user.access.pages.timetable))) ||
-          (Array.isArray(user.pageRights) && user.pageRights.some(function(p) { return p && p.enabled !== false && (p.page === '*' || p.page === 'timetable'); })) ||
-          (Array.isArray(user.specials) && user.specials.some(function(s) { return s && (s.option === 'isAdmin' || s.option === 'isHod' || s.option === 'isTimeTableCoordinator'); }))
-        );
-        if (!token || !canAccess) {
-          var ret = encodeURIComponent((window.location.pathname.split('/').pop() || 'timetable.html') + window.location.search);
-          window.location.replace('index.html?returnUrl=' + ret + '&verify=true');
-        }
-      } catch (e) {}
-    })();
-  </script>
-</head>
-<body>
-
-  <!-- AUTH GATE -->
-  <div id="auth-gate" style="display:none">
-    <div class="ag-icon"><re-icon icon="lock"></re-icon></div>
-    <div style="font-size:22px;font-weight:800;color:var(--td)">Access Denied</div>
-    <div style="font-size:14px;color:var(--tmu)">You don't have permission to view or manage timetables.</div>
-    <button class="btn-out" onclick="goHome()" style="margin-top:16px;"><re-icon icon="arrow-left"></re-icon> Back to Dashboard</button>
-  </div>
-
-  <!-- EAMS THREE-BODY PAGE LOADER -->
-  <div id="page-loader">
-    <div class="loader-brand">🌿 EAMS Timetable Workspace</div>
-    <div class="three-body">
-      <div class="three-body__dot"></div>
-      <div class="three-body__dot"></div>
-      <div class="three-body__dot"></div>
-    </div>
-    <div class="loader-msg" id="loader-msg">Loading Timetable Workspace…</div>
-    <div class="loader-eta" id="loader-eta"></div>
-    <div class="loader-steps">
-      <div class="loader-step active" id="lstep-0"></div>
-      <div class="loader-step" id="lstep-1"></div>
-      <div class="loader-step" id="lstep-2"></div>
-      <div class="loader-step" id="lstep-3"></div>
-    </div>
-  </div>
-
-  <!-- APP SHELL -->
-  <div class="app-shell" id="app-shell" style="display:none">
-    
-    <!-- SIDEBAR -->
-    <aside class="sb" id="sidebar">
-      <div class="sb-logo">
-        <div class="sb-brand">🌿 EAMS</div>
-        <div class="sb-sub">Timetable Workspace</div>
-        <span class="badge" id="ws-role">Coordinator</span>
-      </div>
-
-      <div class="sb-nav" id="main-nav">
-        <div class="sb-section-label">Workspace Views</div>
-        <button class="sb-item act" data-view="dashboard"><span class="sbi-ic"><re-icon icon="grid"></re-icon></span>Dashboard</button>
-        <button class="sb-item" data-view="grid"><span class="sbi-ic"><re-icon icon="calendar"></re-icon></span>Timetable Matrix</button>
-        <button class="sb-item" data-view="workload"><span class="sbi-ic"><re-icon icon="users"></re-icon></span>Faculty Workload &amp; Schedule</button>
-        <button class="sb-item" data-view="free"><span class="sbi-ic"><re-icon icon="search"></re-icon></span>Free Slots Finder</button>
-        <button class="sb-item" data-view="rooms"><span class="sbi-ic"><re-icon icon="arrow-door-in"></re-icon></span>Room Allocations</button>
-        <button class="sb-item" data-view="overview"><span class="sbi-ic"><re-icon icon="layout"></re-icon></span>Department Overview</button>
-        <button class="sb-item" data-view="exports"><span class="sbi-ic"><re-icon icon="download"></re-icon></span>Export Center</button>
-
-        <div class="sb-section-label">Management &amp; Audit</div>
-        <button class="sb-item" data-view="subjects"><span class="sbi-ic"><re-icon icon="book-open"></re-icon></span>Subjects</button>
-        <button class="sb-item" data-view="approvals"><span class="sbi-ic"><re-icon icon="check-circle"></re-icon></span>Conflict &amp; Approvals<span class="sb-badge alert" id="approval-count"></span></button>
-        <button class="sb-item" data-view="history"><span class="sbi-ic"><re-icon icon="history"></re-icon></span>Version History</button>
-        <button class="sb-item" data-view="attendance"><span class="sbi-ic"><re-icon icon="trend-up"></re-icon></span>Attendance Insights</button>
-        <button class="sb-item" onclick="window.location.href='rooms.html'"><span class="sbi-ic"><re-icon icon="building2"></re-icon></span>Rooms &amp; Facilities</button>
-      </div>
-
-      <div class="sb-bottom">
-        <div class="sb-user">
-          <div class="sb-uav" id="user-avatar">?</div>
-          <div class="sb-uinfo">
-            <div class="sb-uname" id="user-name">—</div>
-            <div class="sb-urole" id="user-role">—</div>
-          </div>
-        </div>
-
-        <button class="sb-back-btn" onclick="goHome()"><re-icon icon="arrow-left"></re-icon> Back to Dashboard</button>
-        
-        <button class="sb-logout-btn" onclick="doLogout()" title="Logout">
-          <div class="logout-sign">
-            <svg viewBox="0 0 512 512">
-              <path d="M377.9 105.9L500.7 228.7c7.2 7.2 11.3 17.1 11.3 27.3s-4.1 20.1-11.3 27.3L377.9 406.1c-6.4 6.4-15 9.9-24 9.9c-18.7 0-33.9-15.2-33.9-33.9l0-62.1-128 0c-17.7 0-32-14.3-32-32l0-64c0-17.7 14.3-32 32-32l128 0 0-62.1c0-18.7 15.2-33.9 33.9-33.9c9 0 17.6 3.6 24 9.9zM160 96L96 96c-17.7 0-32 14.3-32 32l0 256c0 17.7 14.3 32 32 32l64 0c17.7 0 32 14.3 32 32s-14.3 32-32 32l-64 0c-53 0-96-43-96-96L0 128C0 75 43 32 96 32l64 0c17.7 0 32 14.3 32 32s-14.3 32-32 32z"></path>
-            </svg>
-          </div>
-          <div class="logout-text">Logout</div>
-        </button>
-      </div>
-    </aside>
-
-    <!-- MAIN CONTENT -->
-    <main class="mc tt-workspace" data-tt-mode="development">
-      <header class="topbar">
-        <div class="topbar-left">
-          <h2 class="topbar-view-title" id="crumb-current">Timetable Matrix</h2>
-          <div id="envToggleWrapper" class="env-toggle-wrapper" title="Switch workspace between Live Production and Development Drafts">
-            <div class="mode-toggle" id="envToggle" role="group" aria-label="Timetable environment selector">
-              <span class="mode-thumb" aria-hidden="true"></span>
-              <button type="button" class="mode active" data-mode="development" aria-pressed="true">
-                <span class="mode-ic"><re-icon icon="settings"></re-icon></span>
-                <span class="mode-lbl">Development</span>
-              </button>
-              <button type="button" class="mode" data-mode="production" aria-pressed="false">
-                <span class="mode-ic"><re-icon icon="check-circle"></re-icon></span>
-                <span class="mode-lbl">Production</span>
-              </button>
-            </div>
-          </div>
-          <span class="mode-status-chip" id="mode-status-chip" aria-live="polite">
-            <span class="mode-status-dot"></span>
-            <span class="mode-status-text">Draft — unpublished</span>
-          </span>
-          <span class="tt-sync-badge status-loading" id="tt-live-sync-status" aria-live="polite" title="Database Sync State">
-            <span class="tt-sync-dot"></span>
-            <span class="tt-sync-text" id="tt-sync-text">Loading..</span>
-          </span>
-        </div>
-
-        <div class="topbar-right">          
-          <div class="profile-chip" onclick="openUserProfile()" title="My Profile" style="cursor:pointer;">
-            <div class="profile-av" id="topbar-avatar">?</div>
-            <div class="profile-info">
-              <span class="profile-name" id="topbar-name">—</span>
-              <span class="profile-role" id="topbar-role">—</span>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      <!-- TABSTRIP WORKSPACE BAR (Milestone 1) -->
-      <div class="tt-tabstrip-bar" id="tt-tabstrip-bar">
-        <div class="tt-tabstrip-scroll-wrap" id="tt-tabstrip-scroll-wrap">
-          <nav class="tt-tabstrip" id="tt-tabstrip" role="tablist" aria-label="Open Timetable Views"></nav>
-        </div>
-        <div class="tt-tabstrip-actions">
-          <button type="button" class="tt-action-btn" id="tt-new-tab-btn" title="Open New View (Alt + T)" aria-label="New Tab">+</button>
-          <button type="button" class="tt-action-btn" id="tt-overflow-btn" title="Open Tabs List" aria-label="Open Tabs List" style="display:none;">
-            ▾ <span class="tt-overflow-badge" id="tt-overflow-badge">0</span>
-          </button>
-          <button type="button" class="tt-action-btn" id="tt-split-btn" title="Toggle Split Comparison View (Alt + S)" aria-label="Split Screen">⧉ Split</button>
-        </div>
-
-        <!-- Quick Launcher Popover Menu (Class Timetable Tabs) -->
-        <div class="tt-tab-launcher" id="tt-tab-launcher" style="display:none;" role="menu" aria-label="Open Class Tab">
-          <div class="tt-launcher-hd">Open Class Tab</div>
-          <button type="button" class="tt-launcher-item" data-launcher="main-matrix" data-section="" title="Go to Select Class Tab">
-            <span class="tt-launcher-icon"><re-icon icon="layout"></re-icon></span>
-            <div class="tt-launcher-text">
-              <div class="tt-launcher-title">Class Matrix Launcher</div>
-              <div class="tt-launcher-sub">Select class from dropdowns</div>
-            </div>
-          </button>
-          <button type="button" class="tt-launcher-item" data-launcher="section" data-section="" title="Open Next Available Class Tab">
-            <span class="tt-launcher-icon"><re-icon icon="plus"></re-icon></span>
-            <div class="tt-launcher-text">
-              <div class="tt-launcher-title">Next Available Class</div>
-              <div class="tt-launcher-sub">Open next unopened section in new tab</div>
-            </div>
-          </button>
-          <div class="tt-launcher-search-box">
-            <input type="text" class="tt-launcher-search-input" id="tt-launcher-search" placeholder="Filter class / section..." autocomplete="off">
-          </div>
-          <div class="tt-launcher-section-list" id="tt-launcher-section-list">
-            <!-- Dynamically populated with class sections -->
-          </div>
-        </div>
-
-        <!-- Overflow Dropdown Menu -->
-        <div class="tt-overflow-menu" id="tt-overflow-menu" style="display:none;" role="menu" aria-label="All Open Tabs"></div>
-      </div>
-
-      <!-- INSTITUTIONAL PRINT HEADER -->
-      <div class="print-header" id="print-header">
-        <div class="ph-brand">🌿 EAMS · Educational Attendance Management System</div>
-        <div class="ph-title">Institutional Academic Timetable</div>
-        <div class="ph-meta" id="print-meta">Official Class Schedule &amp; Allocations</div>
-      </div>
-
-      <!-- RETAINED DOM VIEWPORT CONTAINER (Class Tabs) & FULL PAGE CONTAINER (Sidebar Menus) -->
-      <section class="page" id="page-content">
-        <div class="tt-viewport-container" id="viewport-container"></div>
-        <div class="tt-full-page-container" id="tt-full-page-container" style="display:none;"></div>
-      </section>
-    </main>
-  </div>
-
-  <!-- FLOATING SIDEBAR TOGGLE BUTTON (Below 1600px Split Mode) -->
-  <button type="button" class="sb-float-toggle" id="sb-float-toggle" style="display:none;" title="Expand Sidebar" aria-label="Toggle Sidebar"><re-icon icon="menu" size="16"></re-icon></button>
-
-  <!-- TOAST -->
-  <div class="toast" id="toast"></div>
-
-  <!-- ENTRY MODAL (EAMS STANDARD MODAL) -->
-  <div class="modal-bg" id="slot-modal">
-    <div class="modal modal-lg">
-      <div class="modal-hd">
-        <div>
-          <span class="modal-eyebrow">TIMETABLE ENTRY</span>
-          <h2 class="modal-title" id="modal-title">Add Timetable Entry</h2>
-          <div class="modal-sub">Allocate teaching faculty, room, and period duration for the selected section.</div>
-        </div>
-        <button type="button" class="modal-close close-modal" aria-label="Close dialog"><re-icon icon="x" size="18"></re-icon></button>
-      </div>
-      <div class="modal-body form-grid"></div>
-      <div class="modal-note">
-        ℹ Changes are saved to the server draft. Production remains read-only until a validated draft is published.
-      </div>
-      <div class="modal-ft">
-        <button type="button" class="btn-out close-modal">Cancel</button>
-        <button type="button" class="btn-out" id="delete-slot" style="color:var(--red,#dc2626);border-color:rgba(220,38,38,0.3);">Delete</button>
-        <button type="button" class="btn-out" id="copy-slot" style="display:none;"><re-icon icon="copy" size="14"></re-icon> Copy</button>
-        <button type="button" class="btn-pri" id="save-slot">Save Entry</button>
-      </div>
-    </div>
-  </div>
-
-
-  <!-- SLOT COMMENT POPUP MODAL -->
-  <div class="modal-bg" id="comment-modal">
-    <div class="modal modal-comment">
-      <div class="modal-hd">
-        <div>
-          <span class="modal-eyebrow">SLOT REMARK</span>
-          <h2 class="modal-title">Slot Comment</h2>
-          <div class="modal-sub" id="comment-modal-sub">Add remarks, lab requirements, or substitute instructions.</div>
-        </div>
-        <button type="button" class="modal-close" id="close-comment-modal" aria-label="Close dialog"><re-icon icon="x" size="18"></re-icon></button>
-      </div>
-      <div class="modal-body" style="padding-top:14px;">
-        <div class="fg" style="margin-bottom:0;">
-          <label class="fl" id="comment-modal-label" for="slot-comment-input" style="font-weight:600;font-size:12.5px;color:var(--td);display:block;margin-bottom:8px;">
-            Comment for this timetable slot:
-          </label>
-          <textarea id="slot-comment-input" rows="3" placeholder="e.g. Special lab session, guest lecture, bring laptops…" style="width:100%;resize:vertical;font-family:inherit;padding:10px 12px;border-radius:10px;border:1px solid var(--br);background:var(--bg);color:var(--td);font-size:13px;outline:none;box-sizing:border-box;line-height:1.45;"></textarea>
-        </div>
-      </div>
-      <div class="modal-ft" style="display:flex;justify-content:flex-end;gap:10px;margin-top:18px;">
-        <button type="button" class="btn-out" id="cancel-comment-btn">Cancel</button>
-        <button type="button" class="btn-pri" id="save-comment-btn">Save Comment</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- ACTION / DELETE CONFIRMATION POPUP MODAL -->
-  <div class="modal-bg" id="confirm-modal">
-    <div class="modal modal-confirm">
-      <div class="modal-hd">
-        <div>
-          <span class="modal-eyebrow" id="confirm-modal-eyebrow" style="color:var(--red,#dc2626);">DELETE CONFIRMATION</span>
-          <h2 class="modal-title" id="confirm-modal-title">Delete Timetable Slot</h2>
-          <div class="modal-sub" id="confirm-modal-sub">This action will modify your timetable draft.</div>
-        </div>
-        <button type="button" class="modal-close" id="close-confirm-modal" aria-label="Close dialog"><re-icon icon="x" size="18"></re-icon></button>
-      </div>
-      <div class="modal-body" style="padding:16px 0 6px 0;">
-        <div style="display:flex;gap:14px;align-items:flex-start;">
-          <div class="confirm-icon-box" id="confirm-modal-icon">
-            <re-icon icon="trash2"></re-icon>
-          </div>
-          <div style="flex:1;">
-            <div class="confirm-msg" id="confirm-modal-message">
-              Delete Data Structures and Algorithms on Thursday P3?
-            </div>
-            <div class="confirm-hint" id="confirm-modal-hint">
-              This slot will be removed from your timetable draft.
-            </div>
-          </div>
-        </div>
-      </div>
-      <div class="modal-ft" style="display:flex;justify-content:flex-end;gap:10px;margin-top:20px;">
-        <button type="button" class="btn-out" id="cancel-confirm-btn">Cancel</button>
-        <button type="button" class="btn-pri" id="accept-confirm-btn" style="background:#dc2626;border-color:#dc2626;color:#ffffff;">Delete Slot</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- SUBJECT ADD / EDIT MODAL (TIMETABLE WORKSPACE) -->
-  <div class="modal-bg" id="tt-subject-modal">
-    <div class="modal modal-sm" style="max-width:520px;">
-      <div class="modal-hd">
-        <div>
-          <span class="modal-eyebrow">ACADEMIC CURRICULUM</span>
-          <h2 class="modal-title" id="tt-subj-modal-title"><re-icon icon="book-open"></re-icon> Add Department Subject</h2>
-          <div class="modal-sub">Define course code, name, credits and regulation protocol.</div>
-        </div>
-        <button type="button" class="modal-close" onclick="closeTtSubjectModal()" aria-label="Close dialog"><re-icon icon="x" size="18"></re-icon></button>
-      </div>
-      <div class="modal-body" style="padding-top:12px;">
-        <input type="hidden" id="tt-subj-id">
-        <div class="fg" style="margin-bottom:10px;">
-          <label class="fl">Department *</label>
-          <select class="fc2" id="tt-subj-dept" style="width:100%"></select>
-        </div>
-        <div class="fg" style="margin-bottom:10px;">
-          <label class="fl">Subject Name *</label>
-          <input type="text" class="fc2" id="tt-subj-name" placeholder="e.g. Data Structures and Algorithms" style="width:100%">
-        </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
-          <div class="fg">
-            <label class="fl">Subject Code *</label>
-            <input type="text" class="fc2" id="tt-subj-code" placeholder="e.g. 25CSS322" style="width:100%">
-          </div>
-          <div class="fg">
-            <label class="fl">Short Code *</label>
-            <input type="text" class="fc2" id="tt-subj-shortcode" placeholder="e.g. DSA" maxlength="10" style="width:100%">
-          </div>
-        </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:10px;">
-          <div class="fg">
-            <label class="fl">Regulation *</label>
-            <select class="fc2" id="tt-subj-reg" style="width:100%"></select>
-          </div>
-          <div class="fg">
-            <label class="fl">Type *</label>
-            <select class="fc2" id="tt-subj-type" style="width:100%">
-              <option value="Theory">Theory</option>
-              <option value="Lab">Lab</option>
-              <option value="Project">Project</option>
-            </select>
-          </div>
-          <div class="fg">
-            <label class="fl">Credits *</label>
-            <input type="number" class="fc2" id="tt-subj-credits" value="3" min="1" max="10" style="width:100%">
-          </div>
-        </div>
-      </div>
-      <div class="modal-ft" style="display:flex;justify-content:flex-end;gap:10px;margin-top:14px;">
-        <button type="button" class="btn-out" onclick="closeTtSubjectModal()">Cancel</button>
-        <button type="button" class="btn-pri" id="tt-subj-save-btn" onclick="saveTtSubject()"><re-icon icon="save" size="14"></re-icon> Save Subject</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Shared EAMS runtime: session -> api -> toast -> modal -> tabWorkspace -> timetable.page.js -->
-  <script src="js/core/session.js"></script>
-  <script src="js/core/api.js"></script>
-  <script src="js/core/toast.js"></script>
-  <script src="js/core/modal.js"></script>
-  <script src="js/core/popup.js"></script>
-  <script src="js/core/guard.js"></script>
-  <script src="js/core/tabWorkspace.js"></script>
-  <script src="js/core/searchableDropdown.js"></script>
-  <script src="js/pages/teacherTimetable.module.js"></script>
-  <script src="js/pages/timetable.page.js?v=2.5.6"></script>
-</body>
-</html>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>EAMS · Timetable</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&family=Playfair+Display:wght@700&family=DM+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <script src="js/core/escape.js"></script>
+  <script src="js/core/icons.js?v=2.6.2"></script>
+  <link rel="stylesheet" href="css/base.css?v=2.5.6">
+  <link rel="stylesheet" href="css/timetable.tokens.css?v=1.0.0">
+  <link rel="stylesheet" href="css/timetable.css?v=2.6.2">
+  <link rel="stylesheet" href="css/timetable.mobile.css?v=1.0.0">
+  <link rel="stylesheet" href="css/timetableScratchpad.css?v=1.0.0">
+  <script>
+    (function() {
+      try {
+        var token = sessionStorage.getItem('token') || sessionStorage.getItem('eams_token');
+        var user = null;
+        try { user = JSON.parse(sessionStorage.getItem('user') || sessionStorage.getItem('eams_user')); } catch (e) {}
+        var canAccess = user && (
+          user.isSudoAdmin === true ||
+          user.isSuperAdmin === true ||
+          user.isSubAdmin === true ||
+          user.isAdmin === true ||
+          ['sudoAdmin', 'superAdmin', 'subAdmin', 'admin'].includes(user.accessRole) ||
+          user.role === 'admin' ||
+          user.role === 'sudo' ||
+          user.isTimeTableCoordinator === true ||
+          user.isHod === true ||
+          user.isPrincipal === true ||
+          (user.pages && Boolean(user.pages.timetable)) ||
+          (user.access && (user.access.level === 'full' || user.access.level === 'sudo' || (Array.isArray(user.access.pages) && user.access.pages.includes('timetable')) || (user.access.pages && user.access.pages.timetable))) ||
+          (Array.isArray(user.pageRights) && user.pageRights.some(function(p) { return p && p.enabled !== false && (p.page === '*' || p.page === 'timetable'); })) ||
+          (Array.isArray(user.specials) && user.specials.some(function(s) { return s && (s.option === 'isAdmin' || s.option === 'isHod' || s.option === 'isTimeTableCoordinator'); }))
+        );
+        if (!token || !canAccess) {
+          var ret = encodeURIComponent((window.location.pathname.split('/').pop() || 'timetable.html') + window.location.search);
+          window.location.replace('index.html?returnUrl=' + ret + '&verify=true');
+        }
+      } catch (e) {}
+    })();
+  </script>
+</head>
+<body>
+
+  <!-- LIVE ANNOUNCEMENT REGION FOR SCREEN READERS -->
+  <div id="tt-live-region" class="sr-only" aria-live="polite" aria-atomic="true"></div>
+
+  <!-- AUTH GATE -->
+  <div id="auth-gate" style="display:none">
+    <div class="ag-icon"><re-icon icon="lock"></re-icon></div>
+    <div style="font-size:22px;font-weight:800;color:var(--td)">Access Denied</div>
+    <div style="font-size:14px;color:var(--tmu)">You don't have permission to view or manage timetables.</div>
+    <button class="btn-out" onclick="goHome()" style="margin-top:16px;"><re-icon icon="arrow-left"></re-icon> Back to Dashboard</button>
+  </div>
+
+  <!-- EAMS THREE-BODY PAGE LOADER -->
+  <div id="page-loader">
+    <div class="loader-brand">🌿 EAMS Timetable</div>
+    <div class="three-body">
+      <div class="three-body__dot"></div>
+      <div class="three-body__dot"></div>
+      <div class="three-body__dot"></div>
+    </div>
+    <div class="loader-msg" id="loader-msg">Loading Timetable…</div>
+    <div class="loader-eta" id="loader-eta"></div>
+    <div class="loader-steps">
+      <div class="loader-step active" id="lstep-0"></div>
+      <div class="loader-step" id="lstep-1"></div>
+      <div class="loader-step" id="lstep-2"></div>
+      <div class="loader-step" id="lstep-3"></div>
+    </div>
+  </div>
+
+  <!-- APP SHELL -->
+  <div class="app-shell" id="app-shell" style="display:none">
+    
+    <!-- SIDEBAR -->
+    <aside class="sb" id="sidebar">
+      <div class="sb-logo">
+        <div class="sb-brand">🌿 EAMS</div>
+        <div class="sb-sub">Timetable</div>
+        <span class="badge" id="ws-role">Coordinator</span>
+      </div>
+
+      <div class="sb-nav" id="main-nav">
+        <div class="sb-section-label">Workspace Views</div>
+        <button class="sb-item" data-view="hub" id="sb-nav-hub"><span class="sbi-ic"><re-icon icon="folder"></re-icon></span>Workspaces Hub</button>
+        <button class="sb-item act" data-view="dashboard"><span class="sbi-ic"><re-icon icon="grid"></re-icon></span>Dashboard</button>
+        <button class="sb-item" data-view="grid"><span class="sbi-ic"><re-icon icon="calendar"></re-icon></span>Timetable Matrix</button>
+        <button class="sb-item" data-view="workload"><span class="sbi-ic"><re-icon icon="users"></re-icon></span>Faculty Workload &amp; Schedule</button>
+        <button class="sb-item" data-view="free"><span class="sbi-ic"><re-icon icon="search"></re-icon></span>Free Slots Finder</button>
+        <button class="sb-item" data-view="rooms"><span class="sbi-ic"><re-icon icon="arrow-door-in"></re-icon></span>Room Allocations</button>
+        <button class="sb-item" data-view="overview"><span class="sbi-ic"><re-icon icon="layout"></re-icon></span>Department Overview</button>
+        <button class="sb-item" data-view="exports"><span class="sbi-ic"><re-icon icon="download"></re-icon></span>Export Center</button>
+        <button class="sb-item" data-view="autogen" id="sb-nav-autogen"><span class="sbi-ic"><re-icon icon="sparkles"></re-icon></span>Auto Gen <span class="sb-badge live" style="margin-left:auto;">Dev</span></button>
+
+        <div class="sb-section-label">Management &amp; Audit</div>
+        <button class="sb-item" data-view="subjects"><span class="sbi-ic"><re-icon icon="book-open"></re-icon></span>Subjects</button>
+        <button class="sb-item" data-view="approvals" id="sb-nav-approvals"><span class="sbi-ic"><re-icon icon="check-circle"></re-icon></span>Conflict &amp; Approvals<span class="sb-badge alert" id="approval-count"></span></button>
+        <button class="sb-item" data-view="history"><span class="sbi-ic"><re-icon icon="history"></re-icon></span>Version History</button>
+        <button class="sb-item" data-view="attendance"><span class="sbi-ic"><re-icon icon="trend-up"></re-icon></span>Attendance Insights</button>
+        <button class="sb-item" onclick="window.location.href='rooms.html'"><span class="sbi-ic"><re-icon icon="building2"></re-icon></span>Rooms &amp; Facilities</button>
+      </div>
+
+      <div class="sb-bottom">
+        <div class="sb-user">
+          <div class="sb-uav" id="user-avatar">?</div>
+          <div class="sb-uinfo">
+            <div class="sb-uname" id="user-name">—</div>
+            <div class="sb-urole" id="user-role">—</div>
+          </div>
+        </div>
+
+        <button class="sb-back-btn" onclick="goHome()"><re-icon icon="arrow-left"></re-icon> Back to Dashboard</button>
+        
+        <button class="sb-logout-btn" onclick="doLogout()" title="Logout">
+          <div class="logout-sign">
+            <svg viewBox="0 0 512 512">
+              <path d="M377.9 105.9L500.7 228.7c7.2 7.2 11.3 17.1 11.3 27.3s-4.1 20.1-11.3 27.3L377.9 406.1c-6.4 6.4-15 9.9-24 9.9c-18.7 0-33.9-15.2-33.9-33.9l0-62.1-128 0c-17.7 0-32-14.3-32-32l0-64c0-17.7 14.3-32 32-32l128 0 0-62.1c0-18.7 15.2-33.9 33.9-33.9c9 0 17.6 3.6 24 9.9zM160 96L96 96c-17.7 0-32 14.3-32 32l0 256c0 17.7 14.3 32 32 32l64 0c17.7 0 32 14.3 32 32s-14.3 32-32 32l-64 0c-53 0-96-43-96-96L0 128C0 75 43 32 96 32l64 0c17.7 0 32 14.3 32 32s-14.3 32-32 32z"></path>
+            </svg>
+          </div>
+          <div class="logout-text">Logout</div>
+        </button>
+      </div>
+    </aside>
+
+    <!-- MAIN CONTENT -->
+    <main class="mc tt-workspace" data-tt-mode="development">
+      <header class="topbar">
+        <div class="topbar-left">
+          <h2 class="topbar-view-title" id="crumb-current">Timetable Matrix</h2>
+          <div id="envToggleWrapper" class="env-toggle-wrapper" title="Switch workspace between Live Production and Development Drafts">
+            <div class="mode-toggle" id="envToggle" role="group" aria-label="Timetable environment selector">
+              <span class="mode-thumb" aria-hidden="true"></span>
+              <button type="button" class="mode active" data-mode="development" aria-pressed="true">
+                <span class="mode-ic"><re-icon icon="settings"></re-icon></span>
+                <span class="mode-lbl">Development</span>
+              </button>
+              <button type="button" class="mode" data-mode="production" aria-pressed="false">
+                <span class="mode-ic"><re-icon icon="check-circle"></re-icon></span>
+                <span class="mode-lbl">Production</span>
+              </button>
+            </div>
+          </div>
+          <span class="mode-status-chip" id="mode-status-chip" aria-live="polite">
+            <span class="mode-status-dot"></span>
+            <span class="mode-status-text">Draft — unpublished</span>
+          </span>
+          <span class="tt-sync-badge status-loading" id="tt-live-sync-status" aria-live="polite" title="Database Sync State">
+            <span class="tt-sync-dot"></span>
+            <span class="tt-sync-text" id="tt-sync-text">Loading..</span>
+            <button type="button" class="tt-force-save-btn" id="tt-topbar-force-save-btn" title="Force push changes directly to database">⚡ Force Save</button>
+          </span>
+        </div>
+
+        <div class="topbar-right">          
+          <div class="profile-chip" onclick="openUserProfile()" title="My Profile" style="cursor:pointer;">
+            <div class="profile-av" id="topbar-avatar">?</div>
+            <div class="profile-info">
+              <span class="profile-name" id="topbar-name">—</span>
+              <span class="profile-role" id="topbar-role">—</span>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <!-- TABSTRIP WORKSPACE BAR (Milestone 1) -->
+      <div class="tt-tabstrip-bar" id="tt-tabstrip-bar">
+        <div class="tt-tabstrip-scroll-wrap" id="tt-tabstrip-scroll-wrap">
+          <nav class="tt-tabstrip" id="tt-tabstrip" role="tablist" aria-label="Open Timetable Views"></nav>
+        </div>
+        <div class="tt-tabstrip-actions">
+          <button type="button" class="tt-action-btn" id="tt-new-tab-btn" title="Open New View (Alt + T)" aria-label="New Tab">+</button>
+          <button type="button" class="tt-action-btn" id="tt-overflow-btn" title="Open Tabs List" aria-label="Open Tabs List" style="display:none;">
+            ▾ <span class="tt-overflow-badge" id="tt-overflow-badge">0</span>
+          </button>
+          <button type="button" class="tt-action-btn" id="tt-split-btn" title="Toggle Split Comparison View (Alt + S)" aria-label="Split Screen">⧉ Split</button>
+        </div>
+
+        <!-- Quick Launcher Popover Menu (Class Timetable Tabs) -->
+        <div class="tt-tab-launcher" id="tt-tab-launcher" style="display:none;" role="menu" aria-label="Open Class Tab">
+          <div class="tt-launcher-hd">Open Class Tab</div>
+          <button type="button" class="tt-launcher-item" data-launcher="main-matrix" data-section="" title="Go to Select Class Tab">
+            <span class="tt-launcher-icon"><re-icon icon="layout"></re-icon></span>
+            <div class="tt-launcher-text">
+              <div class="tt-launcher-title">Class Matrix Launcher</div>
+              <div class="tt-launcher-sub">Select class from dropdowns</div>
+            </div>
+          </button>
+          <button type="button" class="tt-launcher-item" data-launcher="section" data-section="" title="Open Next Available Class Tab">
+            <span class="tt-launcher-icon"><re-icon icon="plus"></re-icon></span>
+            <div class="tt-launcher-text">
+              <div class="tt-launcher-title">Next Available Class</div>
+              <div class="tt-launcher-sub">Open next unopened section in new tab</div>
+            </div>
+          </button>
+          <div class="tt-launcher-search-box">
+            <input type="text" class="tt-launcher-search-input" id="tt-launcher-search" placeholder="Filter class / section..." autocomplete="off">
+          </div>
+          <div class="tt-launcher-section-list" id="tt-launcher-section-list">
+            <!-- Dynamically populated with class sections -->
+          </div>
+        </div>
+
+        <!-- Overflow Dropdown Menu -->
+        <div class="tt-overflow-menu" id="tt-overflow-menu" style="display:none;" role="menu" aria-label="All Open Tabs"></div>
+      </div>
+
+      <!-- INSTITUTIONAL PRINT HEADER -->
+      <div class="print-header" id="print-header">
+        <div class="ph-brand">🌿 EAMS · Educational Attendance Management System</div>
+        <div class="ph-title">Institutional Academic Timetable</div>
+        <div class="ph-meta" id="print-meta">Official Class Schedule &amp; Allocations</div>
+      </div>
+
+      <!-- RETAINED DOM VIEWPORT CONTAINER (Class Tabs) & FULL PAGE CONTAINER (Sidebar Menus) -->
+      <section class="page" id="page-content">
+        <div class="tt-viewport-container" id="viewport-container"></div>
+        <div class="tt-full-page-container" id="tt-full-page-container" style="display:none;"></div>
+      </section>
+    </main>
+  </div>
+
+  <!-- FLOATING SIDEBAR TOGGLE BUTTON (Below 1600px Split Mode) -->
+  <button type="button" class="sb-float-toggle" id="sb-float-toggle" style="display:none;" title="Expand Sidebar" aria-label="Toggle Sidebar"><re-icon icon="menu" size="16"></re-icon></button>
+
+  <!-- TOAST -->
+  <div class="toast" id="toast"></div>
+
+  <!-- ENTRY MODAL (EAMS STANDARD MODAL) -->
+  <div class="modal-bg" id="slot-modal">
+    <div class="modal modal-lg">
+      <div class="modal-hd">
+        <div>
+          <span class="modal-eyebrow">TIMETABLE ENTRY</span>
+          <h2 class="modal-title" id="modal-title">Add Timetable Entry</h2>
+          <div class="modal-sub">Allocate teaching faculty, room, and period duration for the selected section.</div>
+        </div>
+        <button type="button" class="modal-close close-modal" aria-label="Close dialog"><re-icon icon="x" size="18"></re-icon></button>
+      </div>
+      <div class="modal-body form-grid"></div>
+      <div class="modal-note">
+        ℹ Changes are saved to the server draft. Production remains read-only until a validated draft is published.
+      </div>
+      <div class="modal-ft">
+        <button type="button" class="btn-out close-modal">Cancel</button>
+        <button type="button" class="btn-out" id="delete-slot" style="color:var(--red,#dc2626);border-color:rgba(220,38,38,0.3);">Delete</button>
+        <button type="button" class="btn-out" id="stash-slot" style="display:none;"><re-icon icon="bookmark" size="14"></re-icon> Save to Stash</button>
+        <button type="button" class="btn-out" id="copy-slot" style="display:none;"><re-icon icon="copy" size="14"></re-icon> Copy</button>
+        <button type="button" class="btn-pri" id="save-slot">Save Entry</button>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- SLOT COMMENT POPUP MODAL -->
+  <div class="modal-bg" id="comment-modal">
+    <div class="modal modal-comment">
+      <div class="modal-hd">
+        <div>
+          <span class="modal-eyebrow">SLOT REMARK</span>
+          <h2 class="modal-title">Slot Comment</h2>
+          <div class="modal-sub" id="comment-modal-sub">Add remarks, lab requirements, or substitute instructions.</div>
+        </div>
+        <button type="button" class="modal-close" id="close-comment-modal" aria-label="Close dialog"><re-icon icon="x" size="18"></re-icon></button>
+      </div>
+      <div class="modal-body" style="padding-top:14px;">
+        <div class="fg" style="margin-bottom:0;">
+          <label class="fl" id="comment-modal-label" for="slot-comment-input" style="font-weight:600;font-size:12.5px;color:var(--td);display:block;margin-bottom:8px;">
+            Comment for this timetable slot:
+          </label>
+          <textarea id="slot-comment-input" rows="3" placeholder="e.g. Special lab session, guest lecture, bring laptops…" style="width:100%;resize:vertical;font-family:inherit;padding:10px 12px;border-radius:10px;border:1px solid var(--br);background:var(--bg);color:var(--td);font-size:13px;outline:none;box-sizing:border-box;line-height:1.45;"></textarea>
+        </div>
+      </div>
+      <div class="modal-ft" style="display:flex;justify-content:flex-end;gap:10px;margin-top:18px;">
+        <button type="button" class="btn-out" id="cancel-comment-btn">Cancel</button>
+        <button type="button" class="btn-pri" id="save-comment-btn">Save Comment</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ACTION / DELETE CONFIRMATION POPUP MODAL -->
+  <div class="modal-bg" id="confirm-modal">
+    <div class="modal modal-confirm">
+      <div class="modal-hd">
+        <div>
+          <span class="modal-eyebrow" id="confirm-modal-eyebrow" style="color:var(--red,#dc2626);">DELETE CONFIRMATION</span>
+          <h2 class="modal-title" id="confirm-modal-title">Delete Timetable Slot</h2>
+          <div class="modal-sub" id="confirm-modal-sub">This action will modify your timetable draft.</div>
+        </div>
+        <button type="button" class="modal-close" id="close-confirm-modal" aria-label="Close dialog"><re-icon icon="x" size="18"></re-icon></button>
+      </div>
+      <div class="modal-body" style="padding:16px 0 6px 0;">
+        <div style="display:flex;gap:14px;align-items:flex-start;">
+          <div class="confirm-icon-box" id="confirm-modal-icon">
+            <re-icon icon="trash2"></re-icon>
+          </div>
+          <div style="flex:1;">
+            <div class="confirm-msg" id="confirm-modal-message">
+              Delete Data Structures and Algorithms on Thursday P3?
+            </div>
+            <div class="confirm-hint" id="confirm-modal-hint">
+              This slot will be removed from your timetable draft.
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-ft" style="display:flex;justify-content:flex-end;gap:10px;margin-top:20px;">
+        <button type="button" class="btn-out" id="cancel-confirm-btn">Cancel</button>
+        <button type="button" class="btn-pri" id="accept-confirm-btn" style="background:#dc2626;border-color:#dc2626;color:#ffffff;">Delete Slot</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- FACULTY CONFLICT & TEACHER TIMETABLE DETAIL MODAL -->
+  <div class="modal-bg" id="faculty-conflict-modal" style="z-index:800;">
+    <div class="modal modal-lg" style="max-width:920px;border-radius:20px;padding:24px 26px;">
+      <!-- Modal Header -->
+      <div class="modal-hd" style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid var(--brl, #e5e7eb);">
+        <div>
+          <span class="modal-eyebrow" style="color:#b91c1c;background:#fee2e2;border:1px solid #fca5a5;padding:3px 9px;border-radius:6px;font-size:11px;font-weight:700;letter-spacing:0.5px;display:inline-flex;align-items:center;gap:5px;margin-bottom:5px;">
+            <re-icon icon="alert-circle" size="13"></re-icon> FACULTY DOUBLE-BOOKING DETECTED
+          </span>
+          <h2 class="modal-title" id="fcm-title" style="font-size:19px;font-weight:800;color:var(--td);margin:2px 0;">Faculty Schedule Conflict</h2>
+          <div class="modal-sub" id="fcm-subtitle" style="font-size:12.5px;color:var(--tmu);line-height:1.4;">Teacher is already assigned in another class during this period.</div>
+        </div>
+        <button type="button" class="modal-close" onclick="closeFacultyConflictModal()" aria-label="Close dialog" style="background:none;border:none;cursor:pointer;padding:6px;border-radius:8px;color:var(--tdi);">
+          <re-icon icon="x" size="20"></re-icon>
+        </button>
+      </div>
+
+      <div class="modal-body" style="padding:0;max-height:calc(85vh - 160px);overflow-y:auto;">
+        <!-- Conflict Comparison Summary Banner -->
+        <div id="fcm-comparison" style="margin-bottom:16px;"></div>
+
+        <!-- Teacher Weekly Timetable Grid Section -->
+        <div style="background:var(--gLt, #f9fafb);border:1px solid var(--brl, #e5e7eb);border-radius:14px;padding:16px;margin-bottom:16px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px;">
+            <div style="font-size:13.5px;font-weight:700;color:var(--td);display:flex;align-items:center;gap:6px;">
+              <re-icon icon="calendar" size="15" style="color:var(--gD, #1b5e20);"></re-icon>
+              <span id="fcm-teacher-tt-header">Faculty Weekly Timetable View</span>
+            </div>
+            <div id="fcm-legend" style="display:flex;gap:12px;font-size:11px;font-weight:600;align-items:center;">
+              <span style="display:inline-flex;align-items:center;gap:5px;"><span style="width:10px;height:10px;border-radius:3px;background:#ef4444;display:inline-block;"></span> Conflict Slot</span>
+              <span style="display:inline-flex;align-items:center;gap:5px;"><span style="width:10px;height:10px;border-radius:3px;background:#3b82f6;display:inline-block;"></span> Scheduled Class</span>
+              <span style="display:inline-flex;align-items:center;gap:5px;"><span style="width:10px;height:10px;border-radius:3px;background:#22c55e;display:inline-block;"></span> Free / Available</span>
+            </div>
+          </div>
+
+          <!-- Weekly TT Table Container -->
+          <div id="fcm-tt-container" style="overflow-x:auto;border-radius:10px;border:1px solid var(--brl, #e5e7eb);background:#fff;max-height:300px;">
+            <div style="text-align:center;padding:28px;color:var(--tdi);font-size:12px;">Loading teacher timetable…</div>
+          </div>
+        </div>
+
+        <!-- Free Periods & Smart Recommendations -->
+        <div id="fcm-suggestions" style="margin-bottom:10px;"></div>
+      </div>
+
+      <!-- Modal Footer -->
+      <div class="modal-ft" style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding-top:14px;margin-top:14px;border-top:1px solid var(--brl, #e5e7eb);">
+        <div id="fcm-footer-hint" style="font-size:12px;color:var(--tmu);">
+          Select a free period from above or choose another available faculty member.
+        </div>
+        <div style="display:flex;gap:10px;align-items:center;">
+          <button type="button" class="btn-out" onclick="closeFacultyConflictModal()" style="font-size:12.5px;padding:7px 16px;border-radius:8px;">Close</button>
+          <button type="button" class="btn-pri" id="fcm-apply-action-btn" style="display:none;font-size:12.5px;padding:7px 16px;border-radius:8px;background:#16a34a;color:#fff;">Apply Selection</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SUBJECT ADD / EDIT MODAL (TIMETABLE WORKSPACE) -->
+  <div class="modal-bg" id="tt-subject-modal">
+    <div class="modal" style="max-width:580px;width:95vw;max-height:92vh;overflow-y:auto;">
+      <div class="modal-hd">
+        <div>
+          <span class="modal-eyebrow">ACADEMIC CURRICULUM</span>
+          <h2 class="modal-title" id="tt-subj-modal-title"><re-icon icon="book-open"></re-icon> Add Department Subject</h2>
+          <div class="modal-sub">Define course code, name, credits and regulation protocol.</div>
+        </div>
+        <button type="button" class="modal-close" onclick="closeTtSubjectModal()" aria-label="Close dialog"><re-icon icon="x" size="18"></re-icon></button>
+      </div>
+      <div class="modal-body" style="padding-top:12px;">
+        <input type="hidden" id="tt-subj-id">
+        <div class="fg" style="margin-bottom:10px;">
+          <label class="fl">Department *</label>
+          <select class="fc2" id="tt-subj-dept" style="width:100%"></select>
+        </div>
+        <div class="fg" style="margin-bottom:10px;">
+          <label class="fl">Subject Name *</label>
+          <input type="text" class="fc2" id="tt-subj-name" placeholder="e.g. Data Structures and Algorithms" style="width:100%" oninput="onTtSubjNameChange()">
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+          <div class="fg">
+            <label class="fl">Subject / Course Code *</label>
+            <input type="text" class="fc2" id="tt-subj-code" placeholder="e.g. 25CSC321" style="width:100%" oninput="onTtSubjCodeChange()">
+          </div>
+          <div class="fg">
+            <label class="fl">Short Code *</label>
+            <input type="text" class="fc2" id="tt-subj-shortcode" placeholder="e.g. ADSA" maxlength="15" style="width:100%" oninput="onTtSubjShortCodeChange()">
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:10px;">
+          <div class="fg">
+            <label class="fl">Regulation *</label>
+            <select class="fc2" id="tt-subj-reg" style="width:100%"></select>
+          </div>
+          <div class="fg">
+            <label class="fl">Type *</label>
+            <select class="fc2" id="tt-subj-type" style="width:100%" onchange="onTtSubjTypeChange()">
+              <option value="Theory">Theory</option>
+              <option value="Lab">Lab</option>
+              <option value="Project">Project</option>
+            </select>
+          </div>
+          <div class="fg">
+            <label class="fl">Credits *</label>
+            <input type="number" class="fc2" id="tt-subj-credits" value="3" min="1" max="10" style="width:100%">
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+          <div class="fg">
+            <label class="fl">Category</label>
+            <select class="fc2" id="tt-subj-category" style="width:100%">
+              <option value="easy">Easy</option>
+              <option value="important">Important</option>
+              <option value="hard">Hard</option>
+            </select>
+          </div>
+          <div class="fg">
+            <label class="fl">Block Length (Periods)</label>
+            <input type="number" class="fc2" id="tt-subj-block-length" value="1" min="1" max="4" style="width:100%">
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:12px;">
+          <div class="fg">
+            <label class="fl">Min Classes / Wk</label>
+            <input type="number" class="fc2" id="tt-subj-slots-min" value="4" min="1" max="15" style="width:100%" onchange="validateTtSlotsOrder('min')">
+          </div>
+          <div class="fg">
+            <label class="fl">Target Classes / Wk *</label>
+            <input type="number" class="fc2" id="tt-subj-slots-target" value="5" min="1" max="15" style="width:100%" onchange="validateTtSlotsOrder('target')">
+          </div>
+          <div class="fg">
+            <label class="fl">Max Classes / Wk</label>
+            <input type="number" class="fc2" id="tt-subj-slots-max" value="7" min="1" max="15" style="width:100%" onchange="validateTtSlotsOrder('max')">
+          </div>
+        </div>
+        <div class="fg" style="margin-bottom:10px;">
+          <label style="display:flex;align-items:center;gap:8px;font-size:12.5px;font-weight:600;cursor:pointer;color:var(--td);">
+            <input type="checkbox" id="tt-subj-blend-toggle" onchange="toggleBlendFields(this.checked)">
+            <span>Blend Subject (Theory + Lab Component)</span>
+          </label>
+        </div>
+        <div id="tt-subj-blend-fields" style="display:none;background:#faf5ff;border:1px solid #e9d5ff;padding:12px 14px;border-radius:10px;margin-bottom:12px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+            <div style="font-size:12px;font-weight:700;color:#7e22ce;display:flex;align-items:center;gap:6px;">
+              <re-icon icon="git-merge" size="14"></re-icon>
+              <span>Blend Components</span>
+            </div>
+            <span style="font-size:11px;font-family:monospace;background:#f3e8ff;color:#7e22ce;padding:1px 6px;border-radius:4px;font-weight:700;" id="tt-subj-blend-code-badge">Shared Code</span>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:8px;">
+            <div class="fg">
+              <label class="fl" style="font-size:11.5px;">Theory Component Classes</label>
+              <input type="number" class="fc2" id="tt-subj-blend-theory" value="4" min="0" max="12" style="width:100%" oninput="onTtBlendSlotsChange()">
+            </div>
+            <div class="fg">
+              <label class="fl" style="font-size:11.5px;">Lab Component Classes</label>
+              <input type="number" class="fc2" id="tt-subj-blend-lab" value="2" min="0" max="12" style="width:100%" oninput="onTtBlendSlotsChange()">
+            </div>
+          </div>
+          <div id="tt-subj-blend-calc-hint" style="font-size:11.5px;color:#7e22ce;margin-bottom:8px;font-weight:500;">
+            Total: 6 classes/week (4 Theory + 2 Lab)
+          </div>
+
+          <!-- Mapped Counterpart Component Area -->
+          <div id="tt-subj-blend-mapping-wrap" style="margin-top:6px;">
+            <!-- Dynamically populated: Shows mapped Lab component if found, or option to auto-create with same course code -->
+          </div>
+        </div>
+      </div>
+      <div class="modal-ft" style="display:flex;justify-content:flex-end;gap:10px;margin-top:14px;">
+        <button type="button" class="btn-out" onclick="closeTtSubjectModal()">Cancel</button>
+        <button type="button" class="btn-pri" id="tt-subj-save-btn" onclick="saveTtSubject()"><re-icon icon="save" size="14"></re-icon> Save Subject</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Shared EAMS runtime: session -> api -> toast -> modal -> tabWorkspace -> timetable.page.js -->
+  <script src="js/core/session.js"></script>
+  <script src="js/core/api.js"></script>
+  <script src="js/core/toast.js"></script>
+  <script src="js/core/modal.js"></script>
+  <script src="js/core/popup.js"></script>
+  <script src="js/core/guard.js"></script>
+  <script src="js/core/tabWorkspace.js"></script>
+  <script src="js/core/searchableDropdown.js"></script>
+  <script src="js/pages/teacherTimetable.module.js"></script>
+  <script src="js/pages/timetableScratchpad.module.js?v=1.0.0"></script>
+  <script src="js/modules/deploy.module.js"></script>
+  <script src="js/modules/hub.module.js"></script>
+  <script src="js/modules/history.module.js"></script>
+  <script src="js/modules/roomPicker.module.js?v=2.0.0"></script>
+  <script src="js/modules/autogenGate.module.js"></script>
+  <script src="js/modules/share.module.js"></script>
+  <script src="js/shared/ttConflicts.shared.js"></script>
+  <script src="js/modules/compare.module.js"></script>
+  <script src="js/modules/approvals.module.js"></script>
+  <script src="js/modules/net.module.js"></script>
+  <script src="js/modules/offline.module.js"></script>
+  <script src="js/pages/timetable.page.js?v=2.5.8"></script>
+  <script>
+    if ('serviceWorker' in navigator && (window.location.protocol === 'https:' || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
+      window.addEventListener('load', function() {
+        navigator.serviceWorker.register('/tt-sw.js').catch(function(err) {
+          console.warn('[SW Registration failed]:', err);
+        });
+      });
+    }
+  </script>
+</body>
+</html>

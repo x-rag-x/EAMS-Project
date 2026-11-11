@@ -140,6 +140,34 @@ body::before {
   color: var(--text-muted);
 }
 
+.class-badge {
+  background: rgba(33, 150, 243, 0.12);
+  border: 1px solid rgba(59, 130, 246, 0.35);
+  padding: 8px 18px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.class-badge-icon {
+  font-size: 18px;
+  color: #60a5fa;
+}
+
+.class-badge-name {
+  font-size: 16px;
+  font-weight: 700;
+  color: #93c5fd;
+  letter-spacing: 0.5px;
+}
+
+.class-badge-sub {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
 /* Digital Clock */
 .topbar-right {
   display: flex;
@@ -331,6 +359,179 @@ body::before {
   border-radius: 999px;
   text-transform: uppercase;
   letter-spacing: 1px;
+}
+
+/* Class Schedule Timeline Strip */
+.schedule-timeline-wrap {
+  margin: 20px 0;
+  background: rgba(10, 28, 13, 0.6);
+  border: 1px solid var(--border-glass);
+  border-radius: 16px;
+  padding: 12px 16px;
+}
+
+.schedule-timeline-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  font-size: 11.5px;
+  color: var(--accent-mint);
+  font-weight: 600;
+}
+
+.schedule-timeline-header .timeline-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.schedule-timeline-header .timing-set-label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.schedule-timeline {
+  display: flex;
+  align-items: stretch;
+  gap: 12px;
+  overflow-x: auto;
+  padding: 4px 0;
+}
+
+.timeline-flow-arrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent-mint);
+  opacity: 0.65;
+  font-size: 18px;
+  font-weight: 700;
+  flex-shrink: 0;
+  user-select: none;
+  padding: 0 2px;
+}
+
+.timeline-slot {
+  flex: 1;
+  min-width: 170px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 14px;
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  transition: all 0.25s ease;
+  position: relative;
+}
+
+.timeline-slot.current {
+  background: rgba(76, 175, 80, 0.16);
+  border: 1.5px solid var(--accent-green);
+  box-shadow: 0 0 14px rgba(76, 175, 80, 0.25);
+}
+
+.timeline-slot.current.break {
+  background: rgba(245, 158, 11, 0.16);
+  border: 1.5px solid var(--accent-amber);
+  box-shadow: 0 0 14px rgba(245, 158, 11, 0.25);
+}
+
+.timeline-slot.break {
+  background: rgba(245, 158, 11, 0.07);
+  border-color: rgba(245, 158, 11, 0.25);
+}
+
+.timeline-slot.concluded {
+  background: rgba(255, 255, 255, 0.03);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+.timeline-slot-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 2px;
+}
+
+.timeline-slot-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 7px;
+  border-radius: 6px;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  font-family: var(--font-mono);
+}
+
+.timeline-slot-badge.current {
+  background: rgba(76, 175, 80, 0.28);
+  color: #4ade80;
+  border: 1px solid rgba(76, 175, 80, 0.55);
+}
+
+.timeline-slot-badge.current-break {
+  background: rgba(245, 158, 11, 0.28);
+  color: #fbbf24;
+  border: 1px solid rgba(245, 158, 11, 0.55);
+}
+
+.timeline-slot-badge.next {
+  background: rgba(56, 189, 248, 0.16);
+  color: #38bdf8;
+  border: 1px solid rgba(56, 189, 248, 0.38);
+}
+
+.timeline-slot-badge.later {
+  background: rgba(168, 85, 247, 0.14);
+  color: #c084fc;
+  border: 1px solid rgba(168, 85, 247, 0.32);
+}
+
+.timeline-slot-badge.upcoming {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-muted);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+}
+
+.timeline-slot-num {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--accent-mint);
+  text-transform: uppercase;
+}
+
+.timeline-slot.break .timeline-slot-num {
+  color: var(--accent-amber);
+}
+
+.timeline-slot-time {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+.timeline-slot-subj {
+  font-size: 12px;
+  font-weight: 700;
+  color: #ffffff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 1px;
+}
+
+.timeline-slot-meta {
+  font-size: 10.5px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* Faculty Info Row */

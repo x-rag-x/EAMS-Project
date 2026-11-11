@@ -880,6 +880,32 @@ router.post('/login', loginLimiter, loginUsernameLimiter, async (req, res) => {
       }
     }
 
+    // ── 4.4 Sudo Admin IP Whitelist & Security Policy (§9, R3.4) ──
+    const isSudo = Boolean(access && (access.flags?.isSudo || access.isSudoAdmin || role === 'sudo'));
+    if (isSudo && security.sudoAllowedIps && typeof security.sudoAllowedIps === 'string') {
+      const sudoIps = security.sudoAllowedIps.split(',').map(s => s.trim()).filter(Boolean);
+      if (sudoIps.length > 0 && !sudoIps.includes(clientDetails.ip)) {
+        setImmediate(() => {
+          logAction(
+            shadowUser.trackId || shadowUser._id,
+            shadowUser.username,
+            role,
+            'Sudo Login Blocked (Unauthorized IP)',
+            `Sudo login blocked: Client IP ${clientDetails.ip} is not in authorized whitelist [${security.sudoAllowedIps}]`,
+            'security',
+            'warning',
+            clientDetails.ip,
+            '',
+            { module: 'admin', subType: 'auth-block', ip: clientDetails.ip }
+          ).catch(() => {});
+        });
+        return res.status(403).json({
+          error: 'Sudo Admin access is restricted to authorized IP addresses.',
+          code: 'SUDO_IP_FORBIDDEN'
+        });
+      }
+    }
+
     // ── 5. Location validation — AFTER password check (§3.5, §3.7) ──
     const isLocRequired = !isDev && security.loginLocationRequired !== false && !access.exempt.location;
     const loc = validateLocation(clientLocation, security, { required: isLocRequired });
@@ -892,7 +918,13 @@ router.post('/login', loginLimiter, loginUsernameLimiter, async (req, res) => {
 
     // ── 6. Session and JWT generation ──
     let sessionClass = role === 'student' ? 'student' : 'staff';
-    let durationMins = (security.sessionTimeout !== false) ? (security.sessionTimeoutMins !== undefined ? Number(security.sessionTimeoutMins) : 7) : (365 * 24 * 60);
+    let durationMins = (security.sessionTimeout !== false)
+      ? (isSudo && security.sudoSessionTimeoutMins !== undefined
+          ? Number(security.sudoSessionTimeoutMins)
+          : (role === 'teacher' && security.teacherInactivityMins !== undefined
+              ? Number(security.teacherInactivityMins)
+              : (security.sessionTimeoutMins !== undefined ? Number(security.sessionTimeoutMins) : 10)))
+      : (365 * 24 * 60);
     let trustedDeviceDoc = null;
     let refreshToken = null;
     let refreshHash = null;
@@ -1121,11 +1153,22 @@ router.post('/login', loginLimiter, loginUsernameLimiter, async (req, res) => {
       }
     }
 
+    const secSettings = settingsMap?.security || {};
+    const isForcePwEnabled = secSettings.forcePasswordChange !== false;
+    let effectiveMustChangePw = isDev ? false : (isForcePwEnabled && !!userDoc.mustChangePassword);
+    if (!effectiveMustChangePw && isSudo && secSettings.sudoForcePasswordChangeDays && userDoc.passwordChangedAt) {
+      const pwAgeMs = Date.now() - new Date(userDoc.passwordChangedAt).getTime();
+      const maxAgeMs = Number(secSettings.sudoForcePasswordChangeDays) * 24 * 60 * 60 * 1000;
+      if (pwAgeMs > maxAgeMs) {
+        effectiveMustChangePw = true;
+      }
+    }
+
     res.json({
       ok: true,
       token,
       sessionId,
-      mustChangePassword: isDev ? false : !!userDoc.mustChangePassword,
+      mustChangePassword: effectiveMustChangePw,
       bootstrapPending: isDev ? false : isBootstrapPending,
       redirectTo,
       redirectUrl,
@@ -1142,7 +1185,7 @@ router.post('/login', loginLimiter, loginUsernameLimiter, async (req, res) => {
         dept: userDoc.department || userDoc.deptName || '',
         deptId: userDoc.deptId || null,
         deptCode: userDoc.deptCode || '',
-        mustChangePassword: isDev ? false : !!userDoc.mustChangePassword,
+        mustChangePassword: effectiveMustChangePw,
         bootstrapPending: isDev ? false : isBootstrapPending,
         isAdmin: access.isAdmin,
         isSudoAdmin: access.isSudoAdmin,
@@ -1300,15 +1343,19 @@ router.get('/dev-users', async (req, res) => {
     const users = [];
 
     teachers.forEach(t => {
+      const isRootAdmin = t.username === 'admin';
       const specials = Array.isArray(t.specials) ? t.specials : [];
       const isHod = specials.some(s => s.option === 'isHod');
       const isPrincipal = specials.some(s => s.option === 'isPrincipal');
       const isTt = specials.some(s => s.option === 'isTimeTableCoordinator');
-      const isSudo = t.role === 'sudo' || (t.adminFlag && t.adminFlag.isSudo);
-      const isAdmin = isSudo || t.role === 'admin' || (t.adminFlag && (t.adminFlag.isSuper || t.adminFlag.isSub || t.adminFlag.isAdmin));
+      const hasAdminSpecial = specials.some(s => s.option === 'isAdmin');
+      const hasSudoPageRight = Array.isArray(t.pageRights) && t.pageRights.some(pr => pr.accessRole === 'sudoAdmin' || pr.accessRole === 'sudo');
+      const isSudo = isRootAdmin || t.role === 'sudo' || hasSudoPageRight || (t.adminFlag && t.adminFlag.isSudo);
+      const isAdmin = isRootAdmin || isSudo || t.role === 'admin' || hasAdminSpecial || (t.adminFlag && (t.adminFlag.isSuper || t.adminFlag.isSub || t.adminFlag.isAdmin));
 
       let badge = 'Faculty';
-      if (isSudo) badge = 'Sudo Admin';
+      if (isRootAdmin) badge = 'Root Admin';
+      else if (isSudo) badge = 'Sudo Admin';
       else if (isPrincipal) badge = 'Principal';
       else if (isHod) badge = 'HOD';
       else if (isTt) badge = 'TT Coord';
@@ -1316,12 +1363,13 @@ router.get('/dev-users', async (req, res) => {
 
       users.push({
         username: t.username,
-        name: (t.firstName && t.lastName) ? `${t.firstName} ${t.lastName}`.trim() : (t.fullName || t.name || t.username),
-        role: t.role || 'teacher',
-        category: isAdmin ? 'Admin' : 'Faculty',
+        name: isRootAdmin ? 'System Administrator' : ((t.firstName && t.lastName) ? `${t.firstName} ${t.lastName}`.trim() : (t.fullName || t.name || t.username)),
+        role: t.role || (isRootAdmin ? 'admin' : 'teacher'),
+        category: 'Faculty',
         badge,
-        dept: t.department || t.deptName || '',
+        dept: isRootAdmin ? 'IT Administration' : (t.department || t.deptName || ''),
         trackId: t.trackId || '',
+        isRootAdmin,
         isSudo,
         isAdmin,
         isHod,
@@ -1344,7 +1392,24 @@ router.get('/dev-users', async (req, res) => {
       });
     });
 
+    // Ensure @admin is unconditionally present in dev users list
+    if (!users.some(u => u.username === 'admin')) {
+      users.unshift({
+        username: 'admin',
+        name: 'System Administrator',
+        role: 'admin',
+        category: 'Faculty',
+        badge: 'Root Admin',
+        dept: 'IT Administration',
+        trackId: 'TR-ADMIN001',
+        isRootAdmin: true,
+        isSudo: true,
+        isAdmin: true
+      });
+    }
+
     const roleRank = {
+      'Root Admin': 0,
       'Sudo Admin': 1,
       'Principal': 2,
       'Admin': 3,
@@ -1356,6 +1421,10 @@ router.get('/dev-users', async (req, res) => {
     };
 
     users.sort((a, b) => {
+      // @admin ALWAYS at the absolute top (topmost)
+      if (a.username === 'admin') return -1;
+      if (b.username === 'admin') return 1;
+
       const rankDiff = (roleRank[a.badge] || 99) - (roleRank[b.badge] || 99);
       if (rankDiff !== 0) return rankDiff;
       if (a.category === 'Student' && b.category === 'Student') {
@@ -2062,6 +2131,7 @@ router.get('/access', authMiddleware, async (req, res) => {
         department: req.user.department || req.user.deptName || '',
         deptId: req.user.deptId || null,
         bootstrapPending: Boolean(req.user.bootstrapPending),
+        mustChangePassword: Boolean(req.user.mustChangePassword),
         accessRole,
         isTimeTableCoordinator: Boolean(req.user.isTimeTableCoordinator || access.isTimeTableCoordinator),
         TTdeptName: req.user.TTdeptName || '',
@@ -2077,7 +2147,11 @@ router.get('/access', authMiddleware, async (req, res) => {
       landing,
       accessVersion,
       sessionExpiresAt,
-      bootstrapPending: Boolean(req.user?.bootstrapPending)
+      bootstrapPending: Boolean(req.user?.bootstrapPending),
+      mustChangePassword: Boolean(req.user?.mustChangePassword),
+      security: {
+        forcePasswordChange: req.user?.forcePasswordChange !== false
+      }
     });
   } catch (err) {
     console.error('[GET /api/auth/access error]:', err);

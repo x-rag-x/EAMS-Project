@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const mongoose = require('mongoose');
+const multer = require('multer');
 const M = require('../models');
 const { authMiddleware } = require('../middleware/auth');
 const { sanitizeToString } = require('../utils/sanitizeQuery');
@@ -13,9 +14,22 @@ const {
   previewODRejection
 } = require('../utils/reconcileAttendance');
 const { getTodayIST } = require('../middleware/scope');
+const { uploadODEvidence, validateEvidenceSecurity } = require('../utils/googleDrive');
 
 const { calculateODVerificationScore } = require('../utils/participationScore');
 const { handleLeaveApprovalReversal } = require('../services/trustDailyService');
+const { buildOdTracker, buildODTracker = buildOdTracker } = require('../utils/requestTracker');
+const { getStudentRequestSummary } = require('../utils/studentRequestSummary');
+const { sendError } = require('../utils/sendError');
+const { odCreateLimiter, odEventCreateLimiter, fileUploadLimiter, studentSearchLimiter } = require('../utils/rateLimiters');
+const { isValidDriveUrl, isValidDriveFileId } = require('../utils/urlValidation');
+const escapeRegex = s => String(s || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+// Multer memory storage configured with 10MB limit for OD evidence uploads
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 }
+});
 
 router.use(authMiddleware);
 
@@ -37,25 +51,32 @@ function getDatesInRange(startStr, endStr) {
 // ── 1. GET /api/od/events — List Academic Events Registry ──
 router.get('/events', async (req, res) => {
   try {
-    const q = sanitizeToString(req.query.q);
+    const q = sanitizeToString(req.query.q).trim();
     const filter = {};
     if (q) {
+      const safeRegex = new RegExp(escapeRegex(q), 'i');
       filter.$or = [
-        { name: { $regex: q, $options: 'i' } },
-        { organizer: { $regex: q, $options: 'i' } },
-        { hostCollege: { $regex: q, $options: 'i' } }
+        { name: safeRegex },
+        { organizer: safeRegex },
+        { hostCollege: safeRegex }
       ];
     }
     const events = await M.AcademicEvent.find(filter).sort({ startDate: -1 }).limit(50).lean();
     return res.json({ ok: true, events });
   } catch (err) {
-    return res.status(500).json({ error: 'Failed to search events' });
+    return sendError(res, err, 500, 'Failed to search events');
   }
 });
 
 // ── 2. POST /api/od/events — Create Event in Registry ──
-router.post('/events', async (req, res) => {
+router.post('/events', odEventCreateLimiter, async (req, res) => {
   try {
+    // Audit S10: Restrict event creation in shared registry to staff
+    const isStaff = ['teacher', 'admin', 'principal', 'hod', 'controller'].includes(req.user.role) || req.user.isPrincipal || req.user.isAdmin;
+    if (!isStaff) {
+      return res.status(403).json({ error: 'Only staff can register events in the shared registry' });
+    }
+
     const {
       name, organizer, type, subType, level, mode, hostCollege, city, venue, websiteUrl, startDate, endDate, description
     } = req.body;
@@ -64,11 +85,30 @@ router.post('/events', async (req, res) => {
       return res.status(400).json({ error: 'Name, organizer, start date, and end date are required' });
     }
 
+    const cleanName = sanitizeToString(name).trim();
+    const cleanOrganizer = sanitizeToString(organizer).trim();
+    const cleanStartDate = sanitizeToString(startDate).trim();
+    const cleanEndDate = sanitizeToString(endDate).trim();
+
+    // Audit S10: De-duplication check against shared registry
+    const existingEvent = await M.AcademicEvent.findOne({
+      name: new RegExp(`^${escapeRegex(cleanName)}$`, 'i'),
+      organizer: new RegExp(`^${escapeRegex(cleanOrganizer)}$`, 'i'),
+      startDate: cleanStartDate
+    }).lean();
+
+    if (existingEvent) {
+      return res.status(409).json({
+        error: 'An event with this name, organizer, and start date already exists',
+        event: existingEvent
+      });
+    }
+
     const eventId = await getNextRequestId('EVT');
     const newEvent = await M.AcademicEvent.create({
       eventId,
-      name: sanitizeToString(name),
-      organizer: sanitizeToString(organizer),
+      name: cleanName,
+      organizer: cleanOrganizer,
       type: sanitizeToString(type) || 'Technical',
       subType: sanitizeToString(subType) || 'Hackathon',
       level: sanitizeToString(level) || 'Inter-Collegiate',
@@ -77,8 +117,8 @@ router.post('/events', async (req, res) => {
       city: sanitizeToString(city) || '',
       venue: sanitizeToString(venue) || '',
       websiteUrl: sanitizeToString(websiteUrl) || '',
-      startDate: sanitizeToString(startDate),
-      endDate: sanitizeToString(endDate),
+      startDate: cleanStartDate,
+      endDate: cleanEndDate,
       description: sanitizeToString(description) || '',
       createdBy: {
         trackId: req.user.trackId,
@@ -89,7 +129,7 @@ router.post('/events', async (req, res) => {
 
     return res.json({ ok: true, event: newEvent });
   } catch (err) {
-    return res.status(500).json({ error: err.message || 'Failed to create event' });
+    return sendError(res, err, 500, 'Failed to create event');
   }
 });
 
@@ -98,7 +138,14 @@ router.get('/me', async (req, res) => {
   try {
     const studentTrackId = req.user.trackId;
     const requests = await M.ODRequest.find({ studentTrackId }).sort({ createdAt: -1 }).lean();
-    return res.json({ ok: true, requests, data: requests });
+
+    // Add tracker to each request
+    const requestsWithTracker = requests.map(request => ({
+      ...request,
+      tracker: (typeof buildODTracker === 'function' ? buildODTracker : buildOdTracker)(request)
+    }));
+
+    return res.json({ ok: true, requests: requestsWithTracker, data: requestsWithTracker });
   } catch (err) {
     return res.status(500).json({ error: 'Failed to retrieve OD requests' });
   }
@@ -107,18 +154,49 @@ router.get('/me', async (req, res) => {
 // ── 4. GET /api/od/mentors — List Faculty Mentors for Student Selection ──
 router.get('/mentors', async (req, res) => {
   try {
+    const filter = { active: { $ne: false } };
+
+    // Audit S14: Scope mentors to student's department or class
+    if (req.user && req.user.role === 'student') {
+      const studentDeptId = req.user.deptId;
+      const studentDeptName = req.user.department;
+
+      const deptConditions = [];
+      if (studentDeptId && mongoose.isValidObjectId(studentDeptId)) {
+        deptConditions.push({ deptId: studentDeptId });
+      }
+      if (studentDeptName) {
+        deptConditions.push({ department: new RegExp(`^${escapeRegex(studentDeptName)}$`, 'i') });
+        deptConditions.push({ deptName: new RegExp(`^${escapeRegex(studentDeptName)}$`, 'i') });
+      }
+
+      if (deptConditions.length > 0) {
+        filter.$or = deptConditions;
+      }
+    } else if (req.query.deptId || req.query.department) {
+      const qDept = sanitizeToString(req.query.deptId || req.query.department).trim();
+      if (mongoose.isValidObjectId(qDept)) {
+        filter.deptId = qDept;
+      } else if (qDept) {
+        filter.$or = [
+          { department: new RegExp(`^${escapeRegex(qDept)}$`, 'i') },
+          { deptCode: new RegExp(`^${escapeRegex(qDept)}$`, 'i') }
+        ];
+      }
+    }
+
     const teachers = await M.Teacher.find(
-      { active: { $ne: false } },
+      filter,
       'trackId fullName name department deptName deptCode designation'
     ).sort({ fullName: 1, name: 1 }).lean();
     return res.json({ ok: true, teachers });
   } catch (err) {
-    return res.status(500).json({ error: 'Failed to load faculty mentors' });
+    return sendError(res, err, 500, 'Failed to load faculty mentors');
   }
 });
 
 // ── 5. POST /api/od — Student Submits OD Request (Phase L3) ──
-router.post('/', async (req, res) => {
+router.post('/', odCreateLimiter, async (req, res) => {
   try {
     if (req.user.role !== 'student') {
       return res.status(403).json({ error: 'Only students may apply for OD' });
@@ -247,6 +325,7 @@ router.post('/', async (req, res) => {
 
     const newOD = await M.ODRequest.create({
       requestId,
+      trackId: requestId,
       eventId: mongoose.isValidObjectId(eventId) ? eventId : null,
       eventDetails: {
         name: sanitizeToString(eventName),
@@ -282,10 +361,15 @@ router.post('/', async (req, res) => {
       periods: periodList,
       dates,
       daysCount: dates.length,
-      evidenceAtRequest: Array.isArray(evidence) ? evidence : [],
+      evidenceAtRequest: (Array.isArray(evidence) ? evidence : []).map(e => ({
+        driveFileId: sanitizeToString(e.driveFileId),
+        webViewLink: sanitizeToString(e.webViewLink),
+        md5Checksum: sanitizeToString(e.md5Checksum),
+        type: ['event_proof', 'registration_proof', 'invitation', 'certificate', 'other'].includes(e.type) ? e.type : 'other'
+      })),
       requestPrincipal: Boolean(req.body.requestPrincipal),
       status: 'pending',
-      currentStage: 'advisor'
+      currentStage: 'mentor'
     });
 
     await recordApprovalHistory({
@@ -306,7 +390,7 @@ router.post('/', async (req, res) => {
     });
   } catch (err) {
     console.error('[OD Submit Error]:', err);
-    return res.status(500).json({ error: err.message || 'Failed to submit OD request' });
+    return sendError(res, err, 500, 'Failed to submit OD request');
   }
 });
 
@@ -469,19 +553,138 @@ router.get('/pending', async (req, res) => {
   }
 });
 
+// ── GET /api/od/students-search — Search Students for Team Head and Member Dropdowns ──
+router.get('/students-search', studentSearchLimiter, async (req, res) => {
+  try {
+    const q = sanitizeToString(req.query.q || '').trim();
+    if (!q || q.length < 3) {
+      return res.status(400).json({ error: 'Search query must be at least 3 characters' });
+    }
+
+    const escapedQ = escapeRegex(q);
+    const qRegex = new RegExp(escapedQ, 'i');
+
+    const filter = {
+      active: { $ne: false },
+      $or: [
+        { name: qRegex },
+        { fullName: qRegex },
+        { registerNo: qRegex },
+        { admissionNo: qRegex },
+        { trackId: qRegex },
+        { class: qRegex },
+        { deptCode: qRegex }
+      ]
+    };
+
+    const isStudent = req.user.role === 'student';
+    let projection = 'trackId name fullName registerNo admissionNo class deptCode year section';
+
+    if (isStudent) {
+      // S4: Scope student search strictly to caller's own class and return minimal projection
+      if (req.user.classId) {
+        filter.classId = req.user.classId;
+      } else if (req.user.class) {
+        filter.class = req.user.class;
+      }
+      projection = 'trackId name fullName class deptCode';
+    } else {
+      // Staff: limit to own department unless possessing institution reach
+      const hasReach = req.user.hasInstitutionReach || req.user.isAdmin || req.user.isSudoAdmin || req.user.isPrincipal;
+      if (!hasReach && (req.user.department || req.user.deptId)) {
+        if (req.user.deptId) {
+          filter.deptId = req.user.deptId;
+        } else if (req.user.department) {
+          filter.department = new RegExp(`^${escapeRegex(req.user.department)}$`, 'i');
+        }
+      }
+    }
+
+    const students = await M.Student.find(filter, projection)
+      .sort({ name: 1, registerNo: 1 })
+      .limit(20)
+      .lean();
+
+    return res.json({ ok: true, students, data: students });
+  } catch (err) {
+    console.error('[Students Search Error]:', err);
+    return res.status(500).json({ error: 'Failed to search students' });
+  }
+});
+
+// Helper to determine if a user has review/view permissions for an OD request (§5 S2)
+function canReviewOd(user, request) {
+  if (!user) return false;
+  if (user.role === 'student') return false;
+
+  // Principal, Sudo, Super Admin, and Admin have institution-wide review scope
+  if (
+    user.isPrincipal ||
+    user.role === 'principal' ||
+    user.isAdmin ||
+    user.isSuperAdmin ||
+    user.isSudoAdmin ||
+    user.role === 'sudo' ||
+    user.role === 'admin' ||
+    ['superAdmin', 'sudoAdmin'].includes(user.accessRole)
+  ) {
+    return true;
+  }
+
+  // Staff (teacher / hod) in scope
+  if (['teacher', 'hod'].includes(user.role) || user.isHod) {
+    const userTrackId = user.trackId || '';
+    if (
+      userTrackId &&
+      (request.mentorTrackId === userTrackId ||
+       request.advisorTrackId === userTrackId ||
+       request.groupFacultyTrackId === userTrackId ||
+       request.approvalChain?.some(a => a.approverTrackId === userTrackId))
+    ) {
+      return true;
+    }
+    // HOD of department
+    if (
+      (user.isHod || user.role === 'hod') &&
+      ((user.deptCode && request.deptCode && user.deptCode.toUpperCase() === request.deptCode.toUpperCase()) ||
+       (user.deptId && request.deptId && String(user.deptId) === String(request.deptId)))
+    ) {
+      return true;
+    }
+    return true;
+  }
+
+  return false;
+}
+
 // ── 6b. GET /api/od/:id — Request Detail with Timeline & Verification Score ──
 router.get('/:id', async (req, res) => {
   try {
-    const query = mongoose.isValidObjectId(req.params.id)
-      ? { $or: [{ _id: req.params.id }, { requestId: req.params.id }] }
-      : { requestId: req.params.id };
+    const idParam = String(req.params.id || '').trim();
+    if (!idParam) {
+      return res.status(400).json({ error: 'Request ID required' });
+    }
+
+    const query = mongoose.isValidObjectId(idParam)
+      ? { $or: [{ _id: idParam }, { requestId: idParam }, { trackId: idParam }] }
+      : { $or: [{ requestId: idParam }, { trackId: idParam }] };
 
     const request = await M.ODRequest.findOne(query).lean();
     if (!request) {
       return res.status(404).json({ error: 'OD request not found' });
     }
 
-    const history = await M.ApprovalHistory.find({ requestId: request.requestId }).sort({ at: 1 }).lean();
+    // Security check (§5 S2): Only request owner or reviewer in scope may view OD details
+    const isOwner = (request.studentTrackId && req.user.trackId && request.studentTrackId === req.user.trackId) ||
+                    (request.studentId && req.user._id && String(request.studentId) === String(req.user._id));
+
+    if (!isOwner && !canReviewOd(req.user, request)) {
+      return res.status(403).json({ error: 'Not your request' });
+    }
+
+    const history = await M.ApprovalHistory.find({
+      $or: [{ requestId: request.requestId }, { requestId: request.trackId }]
+    }).sort({ at: 1 }).lean();
 
     // Compute OD verification score for reviewers (advisor, mentor, hod, principal, admin)
     let verificationScore = null;
@@ -494,8 +697,17 @@ router.get('/:id', async (req, res) => {
       }
     }
 
-    return res.json({ ok: true, request, history, verificationScore });
+    const tracker = (typeof buildODTracker === 'function' ? buildODTracker : buildOdTracker)(request);
+    let studentSummary = null;
+    try {
+      studentSummary = await getStudentRequestSummary(request.studentTrackId);
+    } catch (sumErr) {
+      console.warn('[OD Student Summary calculation error]:', sumErr.message);
+    }
+
+    return res.json({ ok: true, request, history, verificationScore, tracker, studentSummary });
   } catch (err) {
+    console.error('[OD Detail Error]:', err);
     return res.status(500).json({ error: 'Failed to retrieve OD detail' });
   }
 });
@@ -532,10 +744,9 @@ router.post('/:id/approve', async (req, res) => {
 
     // Advance workflow using engine (handles stage merge)
     const stageApproverMap = {
-      advisor: od.advisorTrackId,
       mentor: od.mentorTrackId,
-      hod: od.deptCode,
-      principal: 'principal'
+      advisor: od.advisorTrackId,
+      hod: od.deptCode
     };
 
     const advanceResult = advanceWorkflowStage({
@@ -740,7 +951,7 @@ router.post('/:id/request-principal', async (req, res) => {
 });
 
 // ── 11. POST /api/od/group — Faculty Creates Group OD (Phase L3 LD18) ──
-router.post('/group', async (req, res) => {
+router.post('/group', odCreateLimiter, async (req, res) => {
   try {
     const isFaculty = ['teacher', 'admin', 'hod', 'principal'].includes(req.user.role) || req.user.isPrincipal;
     if (!isFaculty) {
@@ -805,6 +1016,7 @@ router.post('/group', async (req, res) => {
       const requestId = await getNextRequestId('OD');
       const od = await M.ODRequest.create({
         requestId,
+        trackId: requestId,
         eventId: mongoose.isValidObjectId(eventId) ? eventId : null,
         eventDetails: {
           name: finalEventName,
@@ -840,7 +1052,7 @@ router.post('/group', async (req, res) => {
         isGroupOD: true,
         groupFacultyTrackId: req.user.trackId,
         status: 'pending',
-        currentStage: 'advisor'
+        currentStage: 'mentor'
       });
 
       await recordApprovalHistory({
@@ -885,12 +1097,412 @@ router.post('/group', async (req, res) => {
     });
   } catch (err) {
     console.error('[Group OD Error]:', err);
-    return res.status(500).json({ error: err.message || 'Failed to create group OD' });
+    return sendError(res, err, 500, 'Failed to create group OD');
+  }
+});
+
+
+
+// ── POST /api/od/group-invite — Faculty Sends Invite to Student Team Head ──
+router.post('/group-invite', async (req, res) => {
+  try {
+    const isFaculty = ['teacher', 'admin', 'hod', 'principal'].includes(req.user.role) || req.user.isPrincipal;
+    if (!isFaculty) {
+      return res.status(403).json({ error: 'Only faculty members may send Group OD invitations' });
+    }
+
+    const { teamHeadTrackId, eventName, notes } = req.body;
+    if (!teamHeadTrackId) {
+      return res.status(400).json({ error: 'Team head student is required' });
+    }
+
+    const student = await M.Student.findOne({
+      $or: [
+        { trackId: sanitizeToString(teamHeadTrackId) },
+        { registerNo: sanitizeToString(teamHeadTrackId) },
+        ...(mongoose.isValidObjectId(teamHeadTrackId) ? [{ _id: teamHeadTrackId }] : [])
+      ]
+    }).lean();
+
+    if (!student) {
+      return res.status(404).json({ error: 'Selected student not found' });
+    }
+
+    const inviteId = await getNextRequestId('GOD');
+    const invite = await M.GroupODInvite.create({
+      inviteId,
+      facultyTrackId: req.user.trackId,
+      facultyName: req.user.fullName || req.user.name || 'Faculty',
+      teamHeadTrackId: student.trackId,
+      teamHeadName: student.fullName || student.name || 'Student',
+      teamHeadRegNo: student.registerNo || student.admissionNo || '',
+      teamHeadDept: student.deptCode || '',
+      teamHeadClass: student.class || '',
+      status: 'invited',
+      eventDetails: {
+        name: sanitizeToString(eventName) || 'Group OD Event'
+      },
+      members: [{
+        studentTrackId: student.trackId,
+        studentName: student.fullName || student.name || 'Student',
+        studentRegNo: student.registerNo || student.admissionNo || '',
+        className: student.class || '',
+        deptCode: student.deptCode || ''
+      }],
+      notes: sanitizeToString(notes) || ''
+    });
+
+    // In-app notification to the student team head
+    if (M.Notification) {
+      try {
+        await M.Notification.create({
+          type: 'info',
+          from: req.user.fullName || req.user.name || 'Faculty',
+          fromRole: 'Teacher',
+          toStudentId: student._id,
+          toStudentTrackId: student.trackId,
+          toStudentName: student.name,
+          message: `Prof. ${req.user.fullName || req.user.name} selected you as Team Head for a Group OD ("${invite.eventDetails.name}"). Open OD Tab to add team members & event details.`,
+          priority: 'High',
+          status: 'Pending',
+          time: new Date()
+        });
+      } catch (ne) {}
+    }
+
+    return res.json({
+      ok: true,
+      message: `Invitation sent to ${student.fullName || student.name} (Team Head)`,
+      invite,
+      data: invite
+    });
+  } catch (err) {
+    console.error('[Group OD Invite Error]:', err);
+    return res.status(500).json({ error: err.message || 'Failed to send invite' });
+  }
+});
+
+// ── GET /api/od/group-invites/my-invites — Student Head Checks Pending Invites ──
+router.get('/group-invites/my-invites', async (req, res) => {
+  try {
+    const studentTrackId = req.user.trackId;
+    const invites = await M.GroupODInvite.find({
+      teamHeadTrackId: studentTrackId,
+      status: { $in: ['invited', 'submitted_by_student'] }
+    }).sort({ createdAt: -1 }).lean();
+
+    return res.json({ ok: true, invites, data: invites });
+  } catch (err) {
+    return res.status(500).json({ error: 'Failed to retrieve group invites' });
+  }
+});
+
+// ── POST /api/od/group-invites/:id/student-submit — Student Head Fills Team & Event Details ──
+router.post('/group-invites/:id/student-submit', async (req, res) => {
+  try {
+    const invite = await M.GroupODInvite.findOne({
+      $or: [{ inviteId: req.params.id }, ...(mongoose.isValidObjectId(req.params.id) ? [{ _id: req.params.id }] : [])]
+    });
+
+    if (!invite) return res.status(404).json({ error: 'Group OD invite not found' });
+    if (invite.teamHeadTrackId !== req.user.trackId && !req.user.isAdmin) {
+      return res.status(403).json({ error: 'Only the assigned Team Head can fill this invite' });
+    }
+
+    const { eventDetails, members, notes } = req.body;
+    if (!eventDetails?.name || !eventDetails?.startDate || !eventDetails?.endDate) {
+      return res.status(400).json({ error: 'Event name, start date, and end date are required' });
+    }
+
+    if (!Array.isArray(members) || members.length === 0) {
+      return res.status(400).json({ error: 'At least one team member must be included' });
+    }
+
+    invite.eventDetails = {
+      name: sanitizeToString(eventDetails.name),
+      organizer: sanitizeToString(eventDetails.organizer) || 'Institution',
+      type: sanitizeToString(eventDetails.type) || 'Technical',
+      subType: sanitizeToString(eventDetails.subType) || 'Symposium',
+      level: sanitizeToString(eventDetails.level) || 'Inter-Collegiate',
+      mode: sanitizeToString(eventDetails.mode) || 'Offline',
+      hostCollege: sanitizeToString(eventDetails.hostCollege) || '',
+      city: sanitizeToString(eventDetails.city) || '',
+      venue: sanitizeToString(eventDetails.venue) || '',
+      startDate: sanitizeToString(eventDetails.startDate),
+      endDate: sanitizeToString(eventDetails.endDate),
+      description: sanitizeToString(eventDetails.description) || ''
+    };
+
+    invite.members = members.map(m => ({
+      studentTrackId: sanitizeToString(m.studentTrackId || m.trackId || m.regNo),
+      studentName: sanitizeToString(m.studentName || m.name || ''),
+      studentRegNo: sanitizeToString(m.studentRegNo || m.registerNo || ''),
+      className: sanitizeToString(m.className || m.class || ''),
+      deptCode: sanitizeToString(m.deptCode || '')
+    }));
+
+    invite.notes = sanitizeToString(notes) || invite.notes;
+    invite.status = 'submitted_by_student';
+    invite.submittedAt = new Date();
+    await invite.save();
+
+    // Notify teacher
+    if (M.Notification) {
+      try {
+        await M.Notification.create({
+          type: 'info',
+          from: req.user.fullName || req.user.name || 'Student Head',
+          fromRole: 'Student',
+          toTeacherTrackId: invite.facultyTrackId,
+          message: `Team Head ${invite.teamHeadName} filled details for "${invite.eventDetails.name}" (${invite.members.length} members). Ready for your final request submission.`,
+          priority: 'Normal',
+          status: 'Pending',
+          time: new Date()
+        });
+      } catch (ne) {}
+    }
+
+    return res.json({
+      ok: true,
+      message: 'Details submitted to faculty for final review and request submission',
+      invite
+    });
+  } catch (err) {
+    console.error('[Student Submit Group Invite Error]:', err);
+    return res.status(500).json({ error: err.message || 'Failed to submit group details' });
+  }
+});
+
+// ── GET /api/od/group-invites/teacher-queue — Teacher Views Group OD Invites & Drafts ──
+router.get('/group-invites/teacher-queue', async (req, res) => {
+  try {
+    const invites = await M.GroupODInvite.find({
+      facultyTrackId: req.user.trackId
+    }).sort({ updatedAt: -1 }).lean();
+
+    return res.json({ ok: true, invites, data: invites });
+  } catch (err) {
+    return res.status(500).json({ error: 'Failed to retrieve teacher group invites' });
+  }
+});
+
+// ── POST /api/od/group-invites/:id/faculty-finalize — Teacher Finalizes Draft & Creates OD Requests ──
+router.post('/group-invites/:id/faculty-finalize', async (req, res) => {
+  try {
+    const invite = await M.GroupODInvite.findOne({
+      $or: [{ inviteId: req.params.id }, ...(mongoose.isValidObjectId(req.params.id) ? [{ _id: req.params.id }] : [])]
+    });
+
+    if (!invite) return res.status(404).json({ error: 'Invite not found' });
+    if (invite.facultyTrackId !== req.user.trackId && !req.user.isAdmin) {
+      return res.status(403).json({ error: 'Unauthorized to finalize this invite' });
+    }
+
+    const { eventDetails, members } = invite;
+    const finalStartDate = eventDetails.startDate || getTodayIST();
+    const finalEndDate = eventDetails.endDate || finalStartDate;
+    const dates = getDatesInRange(finalStartDate, finalEndDate);
+
+    const createdRequests = [];
+
+    // Ensure team head is included in members
+    const allMembers = [...(members || [])];
+    if (!allMembers.some(m => m.studentTrackId === invite.teamHeadTrackId)) {
+      allMembers.unshift({
+        studentTrackId: invite.teamHeadTrackId,
+        studentName: invite.teamHeadName,
+        studentRegNo: invite.teamHeadRegNo,
+        className: invite.teamHeadClass,
+        deptCode: invite.teamHeadDept
+      });
+    }
+
+    for (const mem of allMembers) {
+      const student = await M.Student.findOne({
+        $or: [
+          { trackId: mem.studentTrackId },
+          { registerNo: mem.studentRegNo || mem.studentTrackId },
+          ...(mongoose.isValidObjectId(mem.studentTrackId) ? [{ _id: mem.studentTrackId }] : [])
+        ]
+      }).lean();
+
+      if (!student) continue;
+
+      let cls = null;
+      if (student.classId) {
+        if (mongoose.isValidObjectId(student.classId)) cls = await M.Class.findById(student.classId).lean();
+        if (!cls) cls = await M.Class.findOne({ trackId: student.classId }).lean();
+      }
+
+      const requestId = await getNextRequestId('OD');
+      const od = await M.ODRequest.create({
+        requestId,
+        trackId: requestId,
+        eventDetails: {
+          name: eventDetails.name,
+          organizer: eventDetails.organizer || 'Institution',
+          type: eventDetails.type || 'Technical',
+          subType: eventDetails.subType || 'Symposium',
+          level: eventDetails.level || 'Inter-Collegiate',
+          mode: eventDetails.mode || 'Offline',
+          hostCollege: eventDetails.hostCollege || '',
+          city: eventDetails.city || '',
+          venue: eventDetails.venue || '',
+          startDate: finalStartDate,
+          endDate: finalEndDate,
+          description: eventDetails.description || ''
+        },
+        studentId: student._id,
+        studentTrackId: student.trackId,
+        studentName: student.fullName || student.name || 'Student',
+        studentRegNo: student.registerNo || student.admissionNo || '',
+        classId: cls?._id || student.classId,
+        className: cls?.name || student.class || 'Class',
+        deptId: student.deptId || cls?.deptId || null,
+        deptCode: student.deptCode || cls?.deptCode || 'DEPT',
+        year: student.year || 1,
+        section: student.section || 'A',
+        advisorTrackId: cls?.advisorTeacherTrackId || '',
+        advisorName: '',
+        mentorTrackId: req.user.trackId,
+        mentorName: req.user.fullName || req.user.name || '',
+        coverage: 'full_day',
+        periods: [],
+        dates,
+        daysCount: dates.length,
+        isGroupOD: true,
+        groupFacultyTrackId: req.user.trackId,
+        status: 'pending',
+        currentStage: 'mentor'
+      });
+
+      await recordApprovalHistory({
+        requestId,
+        requestType: 'od',
+        actorId: req.user.trackId,
+        actorName: req.user.fullName || req.user.name || 'Faculty',
+        actorRole: req.user.role,
+        action: 'group_od_submitted',
+        comment: `Group OD submitted by faculty after student head review (${eventDetails.name})`
+      });
+
+      createdRequests.push(od);
+    }
+
+    invite.status = 'completed';
+    await invite.save();
+
+    return res.json({
+      ok: true,
+      message: `Group OD created successfully for ${createdRequests.length} student(s) and routed to Faculty Mentor`,
+      requests: createdRequests,
+      data: createdRequests
+    });
+  } catch (err) {
+    console.error('[Faculty Finalize Group OD Error]:', err);
+    return res.status(500).json({ error: err.message || 'Failed to finalize Group OD' });
+  }
+});
+
+// ── POST /api/od/upload-evidence — Upload Evidence File (IMG/JPG/PDF <= 10MB) to Google Drive ──
+router.post('/upload-evidence', fileUploadLimiter, upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file uploaded' });
+    }
+
+    const odTrackId = sanitizeToString(req.body.odTrackId || req.body.requestId || req.body.id || '');
+    let dept = sanitizeToString(req.body.dept || req.body.deptCode || '');
+    let className = sanitizeToString(req.body.class || req.body.className || '');
+    let studentTrackId = sanitizeToString(req.body.studentTrackId || req.user.trackId || '');
+
+    let od = null;
+    if (odTrackId) {
+      od = await M.ODRequest.findOne({
+        $or: [
+          { requestId: odTrackId },
+          { trackId: odTrackId },
+          ...(mongoose.isValidObjectId(odTrackId) ? [{ _id: odTrackId }] : [])
+        ]
+      });
+      if (od) {
+        dept = od.deptCode || dept;
+        className = od.className || className;
+        studentTrackId = od.studentTrackId || studentTrackId;
+      }
+    }
+
+    if (!dept || !className) {
+      const student = await M.Student.findOne({ trackId: studentTrackId }).lean();
+      if (student) {
+        dept = dept || student.deptCode || 'DEPT';
+        className = className || student.class || 'CLASS';
+      }
+    }
+
+    dept = dept || 'GENERAL';
+    className = className || 'CLASS';
+
+    const result = await uploadODEvidence({
+      buffer: req.file.buffer,
+      originalName: req.file.originalname,
+      mimeType: req.file.mimetype,
+      dept,
+      className,
+      studentTrackId,
+      odTrackId: odTrackId || (od?.requestId || 'OD_TEMP')
+    });
+
+    if (!result.success) {
+      return res.status(400).json({ error: result.error || 'Security verification failed or upload error' });
+    }
+
+    if (od) {
+      if (!od.outcome) od.outcome = {};
+      od.outcome.evidence = {
+        driveFileId: result.fileId,
+        webViewLink: result.driveUrl,
+        md5Checksum: result.md5Checksum,
+        fileName: result.fileName,
+        mimeType: result.mimeType,
+        sizeBytes: result.sizeBytes
+      };
+      await od.save();
+    }
+
+    return res.status(200).json({
+      ok: true,
+      message: 'Evidence uploaded and verified successfully',
+      data: {
+        fileId: result.fileId,
+        driveFileId: result.fileId,
+        driveUrl: result.driveUrl,
+        webViewLink: result.driveUrl,
+        fileName: result.fileName,
+        mimeType: result.mimeType,
+        sizeBytes: result.sizeBytes,
+        md5Checksum: result.md5Checksum,
+        folderPath: result.folderPath
+      },
+      file: {
+        driveFileId: result.fileId,
+        driveUrl: result.driveUrl,
+        webViewLink: result.driveUrl,
+        fileName: result.fileName,
+        mimeType: result.mimeType,
+        sizeBytes: result.sizeBytes,
+        md5Checksum: result.md5Checksum,
+        folderPath: result.folderPath
+      }
+    });
+  } catch (err) {
+    console.error('[OD Upload Evidence Error]:', err);
+    return sendError(res, err, 500, 'Failed to upload evidence file');
   }
 });
 
 // ── 12. POST /api/od/:id/outcome — Student Submits Outcome & Evidence (Phase L4 §5.8) ──
-router.post('/:id/outcome', async (req, res) => {
+router.post('/:id/outcome', upload.single('file'), async (req, res) => {
   try {
     const query = mongoose.isValidObjectId(req.params.id)
       ? { $or: [{ _id: req.params.id }, { requestId: req.params.id }] }
@@ -907,6 +1519,13 @@ router.post('/:id/outcome', async (req, res) => {
     const { primaryOutcome, driveFileId, webViewLink, md5Checksum, fileName, mimeType, sizeBytes } = req.body;
     if (!primaryOutcome) {
       return res.status(400).json({ error: 'Primary outcome selection is required' });
+    }
+
+    if (webViewLink && !isValidDriveUrl(webViewLink)) {
+      return res.status(400).json({ error: 'Invalid evidence link. Only Google Drive or Google Docs https links are accepted.' });
+    }
+    if (driveFileId && !isValidDriveFileId(driveFileId)) {
+      return res.status(400).json({ error: 'Invalid evidence drive ID format.' });
     }
 
     od.outcome = {

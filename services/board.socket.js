@@ -13,6 +13,7 @@ const { WebSocketServer, WebSocket } = require('ws');
 const url = require('url');
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
+const mongoose = require('mongoose');
 const cfg = require('../config');
 const M = require('../models');
 const { logAction } = require('../utils/logAction');
@@ -382,7 +383,8 @@ async function handleBoardConnection(ws, req) {
     ip,
     ipType,
     serverTime: now.toISOString(),
-    context
+    context,
+    roomContext: context
   }));
 
   // Handle incoming messages from Board
@@ -547,12 +549,14 @@ function startStaleSweeper() {
         } catch (e) { /* ignore */ }
         activeBoardSockets.delete(deviceId);
 
-        try {
-          await M.SmartBoard.updateOne(
-            { deviceId },
-            { $set: { connectionStatus: 'Disconnected', networkStatus: 'offline', lastSeenAt: new Date() } }
-          );
-        } catch (e) { /* ignore */ }
+        if (mongoose.connection && mongoose.connection.readyState === 1) {
+          try {
+            await M.SmartBoard.updateOne(
+              { deviceId },
+              { $set: { connectionStatus: 'Disconnected', networkStatus: 'offline', lastSeenAt: new Date() } }
+            );
+          } catch (e) { /* ignore */ }
+        }
 
         broadcastToMonitors('board:disconnected', {
           deviceId,
@@ -633,8 +637,14 @@ async function sendCommandToBoard(deviceId, command, payload = {}) {
 async function pushContextToRoomBoards(roomId) {
   if (!roomId) return;
   const context = await resolveRoomTimetableContext(roomId);
+  const boardsInRoom = await M.SmartBoard.find({ roomId, status: { $ne: 'Inactive' } }).lean().catch(() => []);
+  const roomBoardDeviceIds = new Set((boardsInRoom || []).map(b => String(b.deviceId).toUpperCase()));
+
   for (const [deviceId, session] of activeBoardSockets.entries()) {
-    if (String(session.roomId) === String(roomId) && session.ws.readyState === WebSocket.OPEN) {
+    const devUpper = String(deviceId).toUpperCase();
+    const isThisRoom = String(session.roomId) === String(roomId) || roomBoardDeviceIds.has(devUpper);
+    if (isThisRoom && session.ws.readyState === WebSocket.OPEN) {
+      session.roomId = roomId;
       session.ws.send(JSON.stringify({
         type: 'context_update',
         context
@@ -690,7 +700,7 @@ function initBoardSocket(httpServer) {
   wssMonitor.on('connection', (ws, req) => handleMonitorConnection(ws, req));
 
   startStaleSweeper();
-  console.log('   ✓ WebSocket Engine: /ws/board and /ws/monitor active (maxPayload: 64 KiB)');
+  // WebSocket engine ready
 }
 
 module.exports = {

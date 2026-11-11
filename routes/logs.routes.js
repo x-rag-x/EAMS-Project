@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const M = require('../models');
-const { authMiddleware, requirePage } = require('../middleware/auth');
+const { authMiddleware, requirePage, logsAdminOnly } = require('../middleware/auth');
 const { logAction, normalizeIp } = require('../utils/logAction');
 const { decryptLog } = require('../utils/logCrypto');
 const { isSudo } = require('../utils/access');
@@ -10,7 +10,7 @@ const { getStartOfInstitutionDaySync } = require('../utils/institutionTime');
 const escapeRegex = s => String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 // GET /api/logs/stats — Server-aggregated status cards metrics
-router.get('/stats', authMiddleware, requirePage('logs', 'view'), async (req, res) => {
+router.get('/stats', authMiddleware, logsAdminOnly, requirePage('logs', 'view'), async (req, res) => {
   try {
     const todayStart = getStartOfInstitutionDaySync();
     // normalized to institution start of day
@@ -58,7 +58,7 @@ router.get('/stats', authMiddleware, requirePage('logs', 'view'), async (req, re
 });
 
 // GET /api/logs — Fetch filtered audit logs with decrypted payload & joined session history
-router.get('/', authMiddleware, requirePage('logs', 'view'), async (req, res) => {
+router.get('/', authMiddleware, logsAdminOnly, requirePage('logs', 'view'), async (req, res) => {
   try {
     const limitParam = sanitizeToString(req.query.limit);
     const limit = Math.min(100, Math.max(1, parseInt(limitParam, 10) || 50));
@@ -259,7 +259,7 @@ router.get('/', authMiddleware, requirePage('logs', 'view'), async (req, res) =>
 });
 
 // GET /api/logs/detail/:id — Fetch single log with full decrypted details & session joins
-router.get('/detail/:id', authMiddleware, requirePage('logs', 'view'), async (req, res) => {
+router.get('/detail/:id', authMiddleware, logsAdminOnly, requirePage('logs', 'view'), async (req, res) => {
   try {
     const id = req.params.id;
     const log = await M.Log.findOne({
@@ -390,7 +390,7 @@ router.post('/page-access', authMiddleware, async (req, res) => {
 });
 
 // POST /api/logs/export — Decrypted CSV export
-router.post('/export', authMiddleware, requirePage('logs', 'export'), async (req, res) => {
+router.post('/export', authMiddleware, logsAdminOnly, requirePage('logs', 'export'), async (req, res) => {
   try {
     const { module: modFilter, subType, category, severity, role, from, to, search } = req.body;
     const filter = {};

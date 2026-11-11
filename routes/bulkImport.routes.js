@@ -154,6 +154,17 @@ async function scanAndValidateWorkbook(type, buffer, req) {
         }
       }
 
+      const rawAdmissionType = getColVal(row, ['admissiontype', 'entrytype', 'admission', 'entry', 'regularorlateral', 'lateralentry']);
+      let admissionType = 'Regular';
+      if (rawAdmissionType) {
+        const lat = String(rawAdmissionType).toLowerCase().trim();
+        if (lat.includes('lateral')) {
+          admissionType = 'Lateral Entry';
+        } else if (lat.includes('regular')) {
+          admissionType = 'Regular';
+        }
+      }
+
       if (!fullName) rowIssues.push('FullName missing');
       if (!regNo) rowIssues.push('RegisterNo missing');
       if (!gender) rowIssues.push('Gender missing');
@@ -220,6 +231,7 @@ async function scanAndValidateWorkbook(type, buffer, req) {
             deptId: matchedDept ? matchedDept._id : null,
             class: className,
             residency,
+            admissionType,
             email,
             username: username.toLowerCase(),
             password
@@ -1273,6 +1285,7 @@ router.post('/batches/:id/approve-final', authMiddleware, async (req, res) => {
             class: data.class,
             classId: cls ? cls._id : null,
             residency: data.residency ? (String(data.residency).toLowerCase().includes('hostel') ? 'hostel' : 'dayscholar') : 'dayscholar',
+            admissionType: data.admissionType ? (String(data.admissionType).toLowerCase().includes('lateral') ? 'Lateral Entry' : 'Regular') : 'Regular',
             email: data.email,
             username: data.username,
             password: hash,
@@ -1340,7 +1353,8 @@ router.post('/batches/:id/approve-final', authMiddleware, async (req, res) => {
             year: data.year,
             sem: data.sem || data.semester || 'I',
             hallNo: data.hallNo || data.hall || '',
-            batch: normalizeYearRange(data.batch)
+            batch: normalizeYearRange(data.batch),
+            section: data.section || ''
           });
           addedCount++;
         } else if (batch.type === 'subject') {

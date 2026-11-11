@@ -4,16 +4,19 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>EAMS – Student Portal</title>
-<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
-  <script src="js/core/escape.js"></script>
-  <script src="js/core/icons.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
+  <script src="js/core/escape.js" defer></script>
+  <script src="js/core/icons.js" defer></script>
   <link rel="stylesheet" href="css/base.css">
   <link rel="stylesheet" href="css/student.css">
+  <link rel="stylesheet" href="css/requestTracker.css">
 </head>
 <body>
 
 <!-- SIDEBAR OVERLAY (mobile) -->
-<div class="sb-overlay" id="sb-overlay" onclick="closeSidebar()"></div>
+<div class="sb-overlay" id="sb-overlay" data-action="close-sidebar"></div>
 
 <div class="app-shell">
 
@@ -30,7 +33,7 @@
   </div>
 
   <!-- Student chip -->
-  <div class="sb-student-chip" onclick="showView('profile')" style="cursor:pointer;" title="My Profile">
+  <div class="sb-student-chip" data-action="show-view" data-view="profile" style="cursor:pointer;" title="My Profile">
     <div class="sb-uav" id="sb-av">S</div>
     <div style="overflow:hidden;">
       <div class="sb-uname" id="sb-name">Loading…</div>
@@ -41,34 +44,34 @@
   <!-- Navigation -->
   <nav class="sb-nav">
     <div class="sb-section-label">Main Menu</div>
-    <button class="sb-item active" id="nav-dashboard" onclick="showView('dashboard')">
+    <button class="sb-item active" id="nav-dashboard" data-action="show-view" data-view="dashboard">
       <span class="sbi-ic"><re-icon icon="grid"></re-icon></span>Dashboard
     </button>
-    <button class="sb-item" id="nav-attendance" onclick="showView('attendance')">
+    <button class="sb-item" id="nav-attendance" data-action="show-view" data-view="attendance">
       <span class="sbi-ic"><re-icon icon="calendar"></re-icon></span>Attendance
     </button>
-    <button class="sb-item" id="nav-mark-att" onclick="window.location.href='attendance.html'">
+    <button class="sb-item" id="nav-mark-att" data-action="navigate" data-url="attendance.html">
       <span class="sbi-ic"><re-icon icon="bolt"></re-icon></span>Mark Attendance
     </button>
-    <button class="sb-item" id="nav-rep-att" onclick="showView('rep-att')" style="display:none;">
+    <button class="sb-item" id="nav-rep-att" data-action="show-view" data-view="rep-att" style="display:none;">
       <span class="sbi-ic"><re-icon icon="clipboard-list"></re-icon></span>Rep Attendance
       <span id="rep-badge" style="display:none;margin-left:auto;background:#ef4444;color:#fff;font-size:9px;font-weight:800;padding:2px 7px;border-radius:10px;">1</span>
     </button>
-    <button class="sb-item" id="nav-leave" onclick="showView('leave')">
+    <button class="sb-item" id="nav-leave" data-action="show-view" data-view="leave">
       <span class="sbi-ic"><re-icon icon="file-text"></re-icon></span>Apply Leave
     </button>
-    <button class="sb-item" id="nav-od" onclick="showView('od')">
+    <button class="sb-item" id="nav-od" data-action="show-view" data-view="od">
       <span class="sbi-ic"><re-icon icon="grid"></re-icon></span>On-Duty (OD)
       <span id="st-od-badge" style="display:none;margin-left:auto;background:#0284c7;color:#fff;font-size:9px;font-weight:800;padding:2px 7px;border-radius:10px;">0</span>
     </button>
-    <button class="sb-item" id="nav-timetable" onclick="window.location.href='timetable.html'">
+    <button class="sb-item" id="nav-timetable" data-action="show-view" data-view="timetable">
       <span class="sbi-ic"><re-icon icon="calendar-days"></re-icon></span>Timetable
     </button>
   </nav>
 
   <!-- Footer: animated logout -->
   <div class="sb-bottom">
-    <button class="sb-logout-btn" onclick="doLogout()" title="Logout">
+    <button class="sb-logout-btn" data-action="logout" title="Logout">
       <div class="logout-sign">
         <svg viewBox="0 0 512 512"><path d="M377.9 105.9L500.7 228.7c7.2 7.2 11.3 17.1 11.3 27.3s-4.1 20.1-11.3 27.3L377.9 406.1c-6.4 6.4-15 9.9-24 9.9c-18.7 0-33.9-15.2-33.9-33.9l0-62.1-128 0c-17.7 0-32-14.3-32-32l0-64c0-17.7 14.3-32 32-32l128 0 0-62.1c0-18.7 15.2-33.9 33.9-33.9c9 0 17.6 3.6 24 9.9zM160 96L96 96c-17.7 0-32 14.3-32 32l0 256c0 17.7 14.3 32 32 32l64 0c17.7 0 32 14.3 32 32s-14.3 32-32 32l-64 0c-53 0-96-43-96-96L0 128C0 75 43 32 96 32l64 0c17.7 0 32 14.3 32 32s-14.3 32-32 32z"></path></svg>
       </div>
@@ -83,7 +86,7 @@
   <!-- TOPBAR -->
   <div class="topbar">
     <div class="tb-brand">
-      <div class="tb-hamburger" id="hamburger" onclick="toggleSidebar()"><re-icon icon="menu"></re-icon></div>
+      <div class="tb-hamburger" id="hamburger" data-action="toggle-sidebar"><re-icon icon="menu"></re-icon></div>
       <div id="tb-page-label" class="topbar-title">Dashboard</div>
     </div>
     <div class="topbar-right">
@@ -92,21 +95,21 @@
         <span id="st-trust-text">Loading…</span>
       </div>
       <div style="position:relative;">
-        <div class="tb-icon" id="st-notif-btn" onclick="toggleStudentNotifs()" title="Notifications" style="cursor:pointer;position:relative;">
+        <div class="tb-icon" id="st-notif-btn" data-action="toggle-notifs" title="Notifications" style="cursor:pointer;position:relative;">
           <re-icon icon="bell"></re-icon><span id="st-nbadge" style="display:none;position:absolute;top:-4px;right:-4px;background:#ef4444;color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:10px;line-height:1.2;">0</span>
         </div>
         <!-- Student Notifications Dropdown -->
         <div id="st-ndrop" style="display:none;position:absolute;right:0;top:42px;width:330px;background:#fff;border-radius:14px;box-shadow:0 12px 36px rgba(0,0,0,0.16);border:1px solid var(--br);z-index:999;overflow:hidden;">
           <div style="padding:12px 16px;border-bottom:1px solid var(--brl);display:flex;align-items:center;justify-content:space-between;background:var(--gLt);">
             <strong style="font-size:13px;color:var(--td);display:flex;align-items:center;gap:6px;"><re-icon icon="bell"></re-icon> Notifications</strong>
-            <button onclick="clearStudentNotifs()" style="background:none;border:none;color:var(--gD);font-size:11px;font-weight:700;cursor:pointer;">Mark all read</button>
+            <button data-action="clear-notifs" style="background:none;border:none;color:var(--gD);font-size:11px;font-weight:700;cursor:pointer;">Mark all read</button>
           </div>
           <div id="st-ndlist" style="max-height:300px;overflow-y:auto;padding:6px 0;">
             <div style="padding:22px;text-align:center;color:var(--tdi);font-size:12px;">No notifications</div>
           </div>
         </div>
       </div>
-      <div class="profile-chip" onclick="showView('profile')" title="My Profile" style="cursor:pointer;">
+      <div class="profile-chip" data-action="show-view" data-view="profile" title="My Profile" style="cursor:pointer;">
         <div class="profile-av" id="av-initials">S</div>
         <div>
           <div class="profile-name" id="tb-name">Loading…</div>
@@ -137,8 +140,11 @@
           <div style="font-size:12px;color:#b45309;margin-top:2px;" id="st-banner-desc">Live attendance session is ongoing. Click to mark your presence.</div>
         </div>
       </div>
-      <button class="btn-pri" onclick="window.location.href='attendance.html'" style="background:#d97706;padding:8px 18px;font-size:12.5px;"><re-icon icon="bolt" size="14"></re-icon> Mark Attendance <re-icon icon="arrow-right"></re-icon></button>
+      <button class="btn-pri" data-action="navigate" data-url="attendance.html" style="background:#d97706;padding:8px 18px;font-size:12.5px;"><re-icon icon="bolt" size="14"></re-icon> Mark Attendance <re-icon icon="arrow-right"></re-icon></button>
     </div>
+
+    <!-- Live Current Slot & Schedule Banner -->
+    <div id="st-current-slot-banner" style="margin:18px 24px 0 24px;"></div>
 
     <div class="main" id="main-content">
       <div class="loading-screen" id="loading-screen">
@@ -209,17 +215,17 @@
 
           <!-- Coverage Selector Tabs -->
           <div style="display:flex;background:var(--gP);border-radius:10px;padding:4px;margin-bottom:18px;gap:4px;">
-            <button type="button" id="tab-leave-full" class="btn-tab act" onclick="setLeaveCoverage('full_day')" style="flex:1;padding:8px;font-size:12px;font-weight:700;border:none;border-radius:8px;cursor:pointer;background:var(--gD);color:#fff;transition:all .2s;"><re-icon icon="tree" size="14"></re-icon> Full Day</button>
-            <button type="button" id="tab-leave-fn" class="btn-tab" onclick="setLeaveCoverage('fn')" style="flex:1;padding:8px;font-size:12px;font-weight:700;border:none;border-radius:8px;cursor:pointer;background:transparent;color:var(--td);transition:all .2s;"><re-icon icon="history" size="14"></re-icon> Morning (FN)</button>
-            <button type="button" id="tab-leave-an" class="btn-tab" onclick="setLeaveCoverage('an')" style="flex:1;padding:8px;font-size:12px;font-weight:700;border:none;border-radius:8px;cursor:pointer;background:transparent;color:var(--td);transition:all .2s;"><re-icon icon="history" size="14"></re-icon> Afternoon (AN)</button>
-            <button type="button" id="tab-leave-period" class="btn-tab" onclick="setLeaveCoverage('periods')" style="flex:1;padding:8px;font-size:12px;font-weight:700;border:none;border-radius:8px;cursor:pointer;background:transparent;color:var(--td);transition:all .2s;"><re-icon icon="timer" size="14"></re-icon> Periods</button>
+            <button type="button" id="tab-leave-full" class="btn-tab act" data-action="set-leave-coverage" data-coverage="full_day" style="flex:1;padding:8px;font-size:12px;font-weight:700;border:none;border-radius:8px;cursor:pointer;background:var(--gD);color:#fff;transition:all .2s;"><re-icon icon="tree" size="14"></re-icon> Full Day</button>
+            <button type="button" id="tab-leave-fn" class="btn-tab" data-action="set-leave-coverage" data-coverage="fn" style="flex:1;padding:8px;font-size:12px;font-weight:700;border:none;border-radius:8px;cursor:pointer;background:transparent;color:var(--td);transition:all .2s;"><re-icon icon="history" size="14"></re-icon> Morning (FN)</button>
+            <button type="button" id="tab-leave-an" class="btn-tab" data-action="set-leave-coverage" data-coverage="an" style="flex:1;padding:8px;font-size:12px;font-weight:700;border:none;border-radius:8px;cursor:pointer;background:transparent;color:var(--td);transition:all .2s;"><re-icon icon="history" size="14"></re-icon> Afternoon (AN)</button>
+            <button type="button" id="tab-leave-period" class="btn-tab" data-action="set-leave-coverage" data-coverage="periods" style="flex:1;padding:8px;font-size:12px;font-weight:700;border:none;border-radius:8px;cursor:pointer;background:transparent;color:var(--td);transition:all .2s;"><re-icon icon="timer" size="14"></re-icon> Periods</button>
           </div>
 
-          <form id="form-apply-leave" onsubmit="handleLeaveSubmit(event)">
+          <form id="form-apply-leave" >
             
             <div style="margin-bottom:14px;">
               <label class="fl">Leave Category</label>
-              <select class="fc2" id="input-leave-category" onchange="onLeaveCategoryChange()">
+              <select class="fc2" id="input-leave-category" data-change="leave-category">
                 <option value="Personal">Personal Leave</option>
                 <option value="Medical">Medical / Sick Leave</option>
                 <option value="Family function">Family Function</option>
@@ -232,11 +238,11 @@
             <div id="group-leave-dates" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;">
               <div>
                 <label class="fl">From Date</label>
-                <input type="date" class="fc2" id="input-from-date" onchange="onFromDateChange()" required>
+                <input type="date" class="fc2" id="input-from-date" data-change="leave-from-date" required>
               </div>
               <div id="wrap-to-date">
                 <label class="fl" id="lbl-to-date">To Date</label>
-                <input type="date" class="fc2" id="input-to-date" onchange="calculateLeaveDays()" required>
+                <input type="date" class="fc2" id="input-to-date" data-change="calc-leave-days" required>
               </div>
             </div>
 
@@ -244,14 +250,14 @@
             <div id="group-period-select" style="display:none;margin-bottom:14px;background:#f8fafc;border:1px solid var(--br);border-radius:10px;padding:12px;">
               <label class="fl" style="margin-bottom:6px;">Select Applicable Periods:</label>
               <div style="display:flex;gap:8px;flex-wrap:wrap;">
-                <label style="font-size:12px;display:flex;align-items:center;gap:4px;"><input type="checkbox" name="leave-period" value="1" onchange="calculateLeaveDays()"> P1</label>
-                <label style="font-size:12px;display:flex;align-items:center;gap:4px;"><input type="checkbox" name="leave-period" value="2" onchange="calculateLeaveDays()"> P2</label>
-                <label style="font-size:12px;display:flex;align-items:center;gap:4px;"><input type="checkbox" name="leave-period" value="3" onchange="calculateLeaveDays()"> P3</label>
-                <label style="font-size:12px;display:flex;align-items:center;gap:4px;"><input type="checkbox" name="leave-period" value="4" onchange="calculateLeaveDays()"> P4</label>
-                <label style="font-size:12px;display:flex;align-items:center;gap:4px;"><input type="checkbox" name="leave-period" value="5" onchange="calculateLeaveDays()"> P5</label>
-                <label style="font-size:12px;display:flex;align-items:center;gap:4px;"><input type="checkbox" name="leave-period" value="6" onchange="calculateLeaveDays()"> P6</label>
-                <label style="font-size:12px;display:flex;align-items:center;gap:4px;"><input type="checkbox" name="leave-period" value="7" onchange="calculateLeaveDays()"> P7</label>
-                <label style="font-size:12px;display:flex;align-items:center;gap:4px;"><input type="checkbox" name="leave-period" value="8" onchange="calculateLeaveDays()"> P8</label>
+                <label style="font-size:12px;display:flex;align-items:center;gap:4px;"><input type="checkbox" name="leave-period" value="1" data-change="calc-leave-days"> P1</label>
+                <label style="font-size:12px;display:flex;align-items:center;gap:4px;"><input type="checkbox" name="leave-period" value="2" data-change="calc-leave-days"> P2</label>
+                <label style="font-size:12px;display:flex;align-items:center;gap:4px;"><input type="checkbox" name="leave-period" value="3" data-change="calc-leave-days"> P3</label>
+                <label style="font-size:12px;display:flex;align-items:center;gap:4px;"><input type="checkbox" name="leave-period" value="4" data-change="calc-leave-days"> P4</label>
+                <label style="font-size:12px;display:flex;align-items:center;gap:4px;"><input type="checkbox" name="leave-period" value="5" data-change="calc-leave-days"> P5</label>
+                <label style="font-size:12px;display:flex;align-items:center;gap:4px;"><input type="checkbox" name="leave-period" value="6" data-change="calc-leave-days"> P6</label>
+                <label style="font-size:12px;display:flex;align-items:center;gap:4px;"><input type="checkbox" name="leave-period" value="7" data-change="calc-leave-days"> P7</label>
+                <label style="font-size:12px;display:flex;align-items:center;gap:4px;"><input type="checkbox" name="leave-period" value="8" data-change="calc-leave-days"> P8</label>
               </div>
             </div>
 
@@ -265,8 +271,8 @@
               <label class="fl" style="font-size:12px;font-weight:700;color:var(--td);">Medical Certificate</label>
               <div style="margin-bottom:8px;">
                 <label style="font-size:12px;display:flex;align-items:center;gap:6px;cursor:pointer;">
-                  <input type="checkbox" id="input-cert-to-follow" onchange="toggleCertToFollow(this.checked)">
-                  <span>Certificate to follow later (due within 7 days)</span>
+                  <input type="checkbox" id="input-cert-to-follow" data-change="toggle-cert-to-follow">
+                  <span id="lbl-cert-follow">Certificate to follow later (due within 3 days)</span>
                 </label>
               </div>
               <div id="wrap-cert-input">
@@ -304,7 +310,7 @@
       <div style="background:#fff;border:1.5px solid var(--br);border-radius:16px;padding:22px;margin-top:22px;box-shadow:0 4px 18px rgba(0,0,0,0.04);">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
           <strong style="font-size:15px;color:var(--td);display:flex;align-items:center;gap:6px;"><re-icon icon="clipboard-list"></re-icon> Leave History &amp; Records</strong>
-          <button class="btn-out bsm" onclick="loadLeaveData()" style="font-size:11px;"><re-icon icon="refresh" size="14"></re-icon> Refresh</button>
+          <button class="btn-out bsm" data-action="load-leave-data" style="font-size:11px;"><re-icon icon="refresh" size="14"></re-icon> Refresh</button>
         </div>
         <div style="overflow-x:auto;">
           <table class="tbl" style="width:100%;">
@@ -336,7 +342,7 @@
   <div class="pg" id="view-od">
     <div class="od-page" id="od-content" style="max-width:1100px;margin:0 auto;padding:24px 20px;">
       
-      <!-- Top Banner: Academic Participation Record (Phase L5 §5.2, LD17) -->
+      <!-- Top Banner: Academic Participation Record -->
       <div style="background:#fff;border:1.5px solid var(--br);border-radius:14px;padding:16px 20px;margin-bottom:16px;box-shadow:0 2px 8px rgba(0,0,0,0.03);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:14px;">
         <div>
           <div style="font-size:11px;font-weight:800;letter-spacing:0.5px;color:var(--gD);text-transform:uppercase;">ACADEMIC PARTICIPATION</div>
@@ -398,12 +404,12 @@
             <span style="font-size:11px;font-weight:700;background:#e0f2fe;color:#0369a1;padding:3px 8px;border-radius:6px;">L3/L4 Workflow</span>
           </div>
 
-          <form id="form-apply-od" onsubmit="handleODSubmit(event)">
+          <form id="form-apply-od" >
             
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;">
               <div>
                 <label class="fl">Category</label>
-                <select class="fc2" id="input-od-type" onchange="onODTypeChange()">
+                <select class="fc2" id="input-od-type" data-change="od-type">
                   <option value="Academic">Academic</option>
                   <option value="Sports">Sports</option>
                   <option value="Cultural">Cultural</option>
@@ -429,7 +435,7 @@
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;">
               <div>
                 <label class="fl">Level</label>
-                <select class="fc2" id="input-od-level" onchange="onODLevelChange()">
+                <select class="fc2" id="input-od-level" data-change="od-level">
                   <option value="department">Department</option>
                   <option value="college">College</option>
                   <option value="inter-collegiate">Inter-Collegiate</option>
@@ -441,7 +447,7 @@
               </div>
               <div>
                 <label class="fl">Event Selection</label>
-                <select class="fc2" id="input-od-event-select" onchange="onODEventSelectChange()">
+                <select class="fc2" id="input-od-event-select" data-change="od-event-select">
                   <option value="">+ Enter New Event Details</option>
                 </select>
               </div>
@@ -471,11 +477,11 @@
             <div style="margin-bottom:12px;">
               <label class="fl">Coverage</label>
               <div style="display:flex;background:var(--gP);border-radius:10px;padding:4px;gap:4px;">
-                <button type="button" id="tab-od-full" class="btn-tab act" onclick="setODCoverage('full_day')" style="flex:1;padding:7px;font-size:11.5px;font-weight:700;border:none;border-radius:8px;cursor:pointer;background:var(--gD);color:#fff;">Full Day</button>
-                <button type="button" id="tab-od-fn" class="btn-tab" onclick="setODCoverage('fn')" style="flex:1;padding:7px;font-size:11.5px;font-weight:700;border:none;border-radius:8px;cursor:pointer;background:transparent;color:var(--td);">FN</button>
-                <button type="button" id="tab-od-an" class="btn-tab" onclick="setODCoverage('an')" style="flex:1;padding:7px;font-size:11.5px;font-weight:700;border:none;border-radius:8px;cursor:pointer;background:transparent;color:var(--td);">AN</button>
-                <button type="button" id="tab-od-periods" class="btn-tab" onclick="setODCoverage('periods')" style="flex:1;padding:7px;font-size:11.5px;font-weight:700;border:none;border-radius:8px;cursor:pointer;background:transparent;color:var(--td);">Periods</button>
-                <button type="button" id="tab-od-none" class="btn-tab" onclick="setODCoverage('none')" style="flex:1;padding:7px;font-size:11.5px;font-weight:700;border:none;border-radius:8px;cursor:pointer;background:transparent;color:var(--td);" title="Weekend / Holiday / Non-class hours event">No-OD (Log)</button>
+                <button type="button" id="tab-od-full" class="btn-tab act" data-action="set-od-coverage" data-coverage="full_day" style="flex:1;padding:7px;font-size:11.5px;font-weight:700;border:none;border-radius:8px;cursor:pointer;background:var(--gD);color:#fff;">Full Day</button>
+                <button type="button" id="tab-od-fn" class="btn-tab" data-action="set-od-coverage" data-coverage="fn" style="flex:1;padding:7px;font-size:11.5px;font-weight:700;border:none;border-radius:8px;cursor:pointer;background:transparent;color:var(--td);">FN</button>
+                <button type="button" id="tab-od-an" class="btn-tab" data-action="set-od-coverage" data-coverage="an" style="flex:1;padding:7px;font-size:11.5px;font-weight:700;border:none;border-radius:8px;cursor:pointer;background:transparent;color:var(--td);">AN</button>
+                <button type="button" id="tab-od-periods" class="btn-tab" data-action="set-od-coverage" data-coverage="periods" style="flex:1;padding:7px;font-size:11.5px;font-weight:700;border:none;border-radius:8px;cursor:pointer;background:transparent;color:var(--td);">Periods</button>
+                <button type="button" id="tab-od-none" class="btn-tab" data-action="set-od-coverage" data-coverage="none" style="flex:1;padding:7px;font-size:11.5px;font-weight:700;border:none;border-radius:8px;cursor:pointer;background:transparent;color:var(--td);" title="Weekend / Holiday / Non-class hours event">No-OD (Log)</button>
               </div>
               <div id="od-none-hint" style="display:none;margin-top:6px;font-size:11.5px;color:#0284c7;background:#f0f9ff;padding:6px 10px;border-radius:6px;border:1px solid #bae6fd;">
                 <re-icon icon="info-circle"></re-icon> <strong>No-OD Activity:</strong> This logs off-hours/weekend participation for your profile and Participation Record without modifying attendance.
@@ -486,11 +492,11 @@
             <div id="group-od-dates" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;">
               <div>
                 <label class="fl">From Date</label>
-                <input type="date" class="fc2" id="input-od-from-date" onchange="onODFromDateChange()" required>
+                <input type="date" class="fc2" id="input-od-from-date" data-change="od-from-date" required>
               </div>
               <div id="wrap-od-to-date">
                 <label class="fl">To Date</label>
-                <input type="date" class="fc2" id="input-od-to-date" onchange="calculateODDays()" required>
+                <input type="date" class="fc2" id="input-od-to-date" data-change="calc-od-days" required>
               </div>
             </div>
 
@@ -498,14 +504,14 @@
             <div id="group-od-period-select" style="display:none;margin-bottom:14px;background:#f8fafc;border:1px solid var(--br);border-radius:10px;padding:12px;">
               <label class="fl" style="margin-bottom:6px;">Select Applicable Periods:</label>
               <div style="display:flex;gap:8px;flex-wrap:wrap;">
-                <label style="font-size:12px;display:flex;align-items:center;gap:4px;"><input type="checkbox" name="od-period" value="1" onchange="calculateODDays()"> P1</label>
-                <label style="font-size:12px;display:flex;align-items:center;gap:4px;"><input type="checkbox" name="od-period" value="2" onchange="calculateODDays()"> P2</label>
-                <label style="font-size:12px;display:flex;align-items:center;gap:4px;"><input type="checkbox" name="od-period" value="3" onchange="calculateODDays()"> P3</label>
-                <label style="font-size:12px;display:flex;align-items:center;gap:4px;"><input type="checkbox" name="od-period" value="4" onchange="calculateODDays()"> P4</label>
-                <label style="font-size:12px;display:flex;align-items:center;gap:4px;"><input type="checkbox" name="od-period" value="5" onchange="calculateODDays()"> P5</label>
-                <label style="font-size:12px;display:flex;align-items:center;gap:4px;"><input type="checkbox" name="od-period" value="6" onchange="calculateODDays()"> P6</label>
-                <label style="font-size:12px;display:flex;align-items:center;gap:4px;"><input type="checkbox" name="od-period" value="7" onchange="calculateODDays()"> P7</label>
-                <label style="font-size:12px;display:flex;align-items:center;gap:4px;"><input type="checkbox" name="od-period" value="8" onchange="calculateODDays()"> P8</label>
+                <label style="font-size:12px;display:flex;align-items:center;gap:4px;"><input type="checkbox" name="od-period" value="1" data-change="calc-od-days"> P1</label>
+                <label style="font-size:12px;display:flex;align-items:center;gap:4px;"><input type="checkbox" name="od-period" value="2" data-change="calc-od-days"> P2</label>
+                <label style="font-size:12px;display:flex;align-items:center;gap:4px;"><input type="checkbox" name="od-period" value="3" data-change="calc-od-days"> P3</label>
+                <label style="font-size:12px;display:flex;align-items:center;gap:4px;"><input type="checkbox" name="od-period" value="4" data-change="calc-od-days"> P4</label>
+                <label style="font-size:12px;display:flex;align-items:center;gap:4px;"><input type="checkbox" name="od-period" value="5" data-change="calc-od-days"> P5</label>
+                <label style="font-size:12px;display:flex;align-items:center;gap:4px;"><input type="checkbox" name="od-period" value="6" data-change="calc-od-days"> P6</label>
+                <label style="font-size:12px;display:flex;align-items:center;gap:4px;"><input type="checkbox" name="od-period" value="7" data-change="calc-od-days"> P7</label>
+                <label style="font-size:12px;display:flex;align-items:center;gap:4px;"><input type="checkbox" name="od-period" value="8" data-change="calc-od-days"> P8</label>
               </div>
             </div>
 
@@ -559,7 +565,7 @@
       <div style="background:#fff;border:1.5px solid var(--br);border-radius:16px;padding:22px;margin-top:22px;box-shadow:0 4px 18px rgba(0,0,0,0.04);">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
           <strong style="font-size:15px;color:var(--td);display:flex;align-items:center;gap:6px;"><re-icon icon="clipboard-list"></re-icon> My On-Duty (OD) Records</strong>
-          <button class="btn-out bsm" onclick="loadODData()" style="font-size:11px;"><re-icon icon="refresh" size="14"></re-icon> Refresh</button>
+          <button class="btn-out bsm" data-action="load-od-data" style="font-size:11px;"><re-icon icon="refresh" size="14"></re-icon> Refresh</button>
         </div>
         <div style="overflow-x:auto;">
           <table class="tbl" style="width:100%;">
@@ -600,7 +606,7 @@
             <div style="font-size:12.5px;color:var(--tmu);margin-top:3px;">Mark physical presence for delegated sessions and verify classroom headcount.</div>
           </div>
         </div>
-        <button class="btn-out" onclick="loadRepPendingSession()" style="font-size:12px;display:flex;align-items:center;gap:6px;padding:8px 14px;">
+        <button class="btn-out" data-action="load-rep-pending" style="font-size:12px;display:flex;align-items:center;gap:6px;padding:8px 14px;">
           <re-icon icon="refresh" size="14"></re-icon> Refresh Session
         </button>
       </div>
@@ -612,7 +618,7 @@
         <p style="font-size:13px;color:var(--tmu);max-width:440px;margin:0 auto 18px;">
           When your teacher delegates attendance marking to you, the live session sheet will appear here instantly.
         </p>
-        <button class="btn-pri" onclick="loadRepPendingSession()" style="font-size:12.5px;padding:8px 18px;">Check for Delegations</button>
+        <button class="btn-pri" data-action="load-rep-pending" style="font-size:12.5px;padding:8px 18px;">Check for Delegations</button>
       </div>
 
       <!-- Active Delegated Session Area (hidden by default) -->
@@ -649,8 +655,8 @@
         <!-- Toolbar & Stats -->
         <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px;flex-wrap:wrap;">
           <div style="display:flex;gap:8px;">
-            <button class="btn-pri" onclick="markAllRep('Present')" style="font-size:12px;padding:6px 14px;background:#16a34a;"><re-icon icon="check" size="14"></re-icon> All Present</button>
-            <button class="btn-out" onclick="markAllRep('Absent')" style="font-size:12px;padding:6px 14px;color:#dc2626;border-color:#fca5a5;"><re-icon icon="x" size="14"></re-icon> All Absent</button>
+            <button class="btn-pri" data-action="mark-all-rep" data-status="Present" style="font-size:12px;padding:6px 14px;background:#16a34a;"><re-icon icon="check" size="14"></re-icon> All Present</button>
+            <button class="btn-out" data-action="mark-all-rep" data-status="Absent" style="font-size:12px;padding:6px 14px;color:#dc2626;border-color:#fca5a5;"><re-icon icon="x" size="14"></re-icon> All Absent</button>
           </div>
           <div style="display:flex;gap:16px;align-items:center;font-size:13px;font-weight:700;">
             <span style="color:var(--tmu);">Total: <span id="rep-cnt-total" style="color:var(--td);">0</span></span>
@@ -687,10 +693,21 @@
               <span id="rep-summary-text">0 of 0 Students Marked Present</span>
             </div>
           </div>
-          <button class="btn-pri" id="btn-rep-proceed" onclick="openRepConfirmModal()" style="font-size:13.5px;padding:10px 24px;font-weight:700;"><re-icon icon="shield" size="14"></re-icon> ️ Verify Physical Headcount &amp; Submit <re-icon icon="arrow-right"></re-icon></button>
+          <button class="btn-pri" id="btn-rep-proceed" data-action="open-rep-confirm-modal" style="font-size:13.5px;padding:10px 24px;font-weight:700;"><re-icon icon="shield" size="14"></re-icon> ️ Verify Physical Headcount &amp; Submit <re-icon icon="arrow-right"></re-icon></button>
         </div>
       </div>
 
+    </div>
+  </div>
+
+
+  <!-- ── TIMETABLE VIEW ── -->
+  <div class="pg" id="view-timetable">
+    <div class="main" id="timetable-main-content">
+      <div class="loading-screen">
+        <div class="spinner"></div>
+        <div style="font-size:13px;color:var(--tmu);">Loading your class timetable…</div>
+      </div>
     </div>
   </div>
 
@@ -706,14 +723,14 @@
     <div id="chpw-err" class="err-msg"></div>
     <div class="fg">
       <label class="fl">Current Password</label>
-      <div class="pw-wrap"><input type="password" class="fc2" id="chpw-old" placeholder="Current password"><button type="button" class="pw-eye" onclick="togglePw('chpw-old',this)"><re-icon icon="eye" size="16"></re-icon></button></div>
+      <div class="pw-wrap"><input type="password" class="fc2" id="chpw-old" placeholder="Current password" autocomplete="current-password"><button type="button" class="pw-eye" data-action="toggle-pw" data-target="chpw-old"><re-icon icon="eye" size="16"></re-icon></button></div>
     </div>
     <div class="fg">
       <label class="fl">New Password</label>
       <div class="pw-wrap">
-        <input type="password" class="fc2" id="chpw-new" placeholder="Min. 6 characters" 
-          oninput="updateStrength(this.value,'chpw-strength')">
-        <button type="button" class="pw-eye" onclick="togglePw('chpw-new',this)"><re-icon icon="eye" size="16"></re-icon></button>
+        <input type="password" class="fc2" id="chpw-new" placeholder="Min. 6 characters" autocomplete="new-password" 
+          data-input="update-strength" data-target="chpw-strength">
+        <button type="button" class="pw-eye" data-action="toggle-pw" data-target="chpw-new"><re-icon icon="eye" size="16"></re-icon></button>
       </div>
       <div class="strength-bar">
         <div class="strength-fill" id="chpw-strength" style="width:0%;"></div>
@@ -722,12 +739,12 @@
     <div class="fg">
       <label class="fl">Confirm New Password</label>
       <div class="pw-wrap">
-        <input type="password" class="fc2" id="chpw-confirm" placeholder="Repeat new password">
-        <button type="button" class="pw-eye" onclick="togglePw('chpw-confirm',this)"><re-icon icon="eye" size="16"></re-icon></button>
+        <input type="password" class="fc2" id="chpw-confirm" placeholder="Repeat new password" autocomplete="new-password">
+        <button type="button" class="pw-eye" data-action="toggle-pw" data-target="chpw-confirm"><re-icon icon="eye" size="16"></re-icon></button>
       </div>
     </div>
     <div style="display:flex;gap:10px;margin-top:4px;">
-      <button class="btn-pri" onclick="doChangePw()" style="flex:2;">Update Password</button>
+      <button class="btn-pri" data-action="change-password" style="flex:2;">Update Password</button>
     </div>
   </div>
 </div>
@@ -737,7 +754,7 @@
   <div class="modal modal-lg">
     <div class="modal-hd">
       <div class="modal-title"><re-icon icon="lock" size="18"></re-icon> Login Activity</div>
-      <div class="modal-close" onclick="closeModal('m-activity')"><re-icon icon="x" size="18"></re-icon></div>
+      <div class="modal-close" data-action="close-modal" data-modal="m-activity"><re-icon icon="x" size="18"></re-icon></div>
     </div>
     <div id="activity-table-container">
       <div style="font-size:12px;color:var(--tmu);margin-bottom:14px;">All recent login sessions for your account.</div>
@@ -757,8 +774,8 @@
       </div>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:18px;padding-top:14px;border-top:1px solid var(--brl);">
-      <button class="btn-warn" onclick="reportUnknownLogin()"><re-icon icon="alert-triangle" size="14"></re-icon> ️ Unknown Login?</button>
-      <button class="btn-danger" onclick="logoutAllDevices()" style="margin-left:auto;"><span class="status-dot red"></span> Logout from All Devices</button>
+      <button class="btn-warn" data-action="report-unknown-login"><re-icon icon="alert-triangle" size="14"></re-icon> ️ Unknown Login?</button>
+      <button class="btn-danger" data-action="logout-all-devices" style="margin-left:auto;"><span class="status-dot red"></span> Logout from All Devices</button>
     </div>
   </div>
 </div>
@@ -768,7 +785,7 @@
   <div class="modal" style="max-width:420px;">
     <div class="modal-hd">
       <div class="modal-title"><re-icon icon="alert-triangle" size="18"></re-icon> ️ Report Unknown Login</div>
-      <div class="modal-close" onclick="closeModal('m-unknown')"><re-icon icon="x" size="18"></re-icon></div>
+      <div class="modal-close" data-action="close-modal" data-modal="m-unknown"><re-icon icon="x" size="18"></re-icon></div>
     </div>
     <div style="font-size:13px;color:var(--tmu);line-height:1.7;margin-bottom:18px;">
       If you didn't authorize a login shown in your activity, your account may be compromised. We recommend changing your password immediately.
@@ -783,8 +800,8 @@
       </select>
     </div>
     <div style="display:flex;gap:10px;">
-      <button class="btn-out" onclick="closeModal('m-unknown')" style="flex:1;">Cancel</button>
-      <button class="btn-danger" onclick="submitUnknownReport()" style="flex:2;">Report &amp; Secure Account</button>
+      <button class="btn-out" data-action="close-modal" data-modal="m-unknown" style="flex:1;">Cancel</button>
+      <button class="btn-danger" data-action="submit-unknown-report" style="flex:2;">Report &amp; Secure Account</button>
     </div>
   </div>
 </div>
@@ -816,12 +833,12 @@
     <div class="fg" style="margin-bottom:16px;">
       <label class="fl" style="font-size:12px;font-weight:700;">Physical Headcount in Classroom:</label>
       <input type="number" min="0" class="fc2" id="input-rep-headcount" placeholder="e.g. 42" 
-        oninput="validateRepHeadcount()" style="font-size:18px;font-weight:800;text-align:center;padding:10px;border-color:var(--br);">
+        data-input="validate-rep-headcount" style="font-size:18px;font-weight:800;text-align:center;padding:10px;border-color:var(--br);">
       <div id="rep-headcount-err" style="display:none;color:#dc2626;font-size:11.5px;font-weight:700;margin-top:6px;text-align:center;"></div>
     </div>
 
     <div style="margin-top:18px;">
-      <button type="button" id="btn-rep-final-submit" class="btn-pri" onclick="submitRepConfirmedAttendance()" 
+      <button type="button" id="btn-rep-final-submit" class="btn-pri" data-action="submit-rep-attendance" 
         style="width:100%;padding:12px;font-size:14px;font-weight:700;background:var(--gD);box-shadow:0 4px 14px rgba(46,125,50,0.3);" disabled>
         Confirm Headcount &amp; Submit Attendance
       </button>
@@ -840,7 +857,7 @@
       <div class="modal-title" style="font-size:17px;display:flex;align-items:center;gap:8px;">
         <span><re-icon icon="trophy"></re-icon></span> Submit OD Event Outcome
       </div>
-      <div class="modal-close" onclick="closeModal('modal-od-outcome')"><re-icon icon="x" size="18"></re-icon></div>
+      <div class="modal-close" data-action="close-modal" data-modal="modal-od-outcome"><re-icon icon="x" size="18"></re-icon></div>
     </div>
     
     <div style="font-size:12.5px;color:var(--tmu);margin-bottom:16px;">
@@ -868,8 +885,8 @@
     </div>
 
     <div style="display:flex;gap:10px;">
-      <button type="button" class="btn-out" onclick="closeModal('modal-od-outcome')" style="flex:1;">Cancel</button>
-      <button type="button" class="btn-pri" id="btn-submit-od-outcome" onclick="submitODOutcome()" style="flex:2;background:#16a34a;"><re-icon icon="send" size="14"></re-icon> Submit Outcome &amp; Evidence</button>
+      <button type="button" class="btn-out" data-action="close-modal" data-modal="modal-od-outcome" style="flex:1;">Cancel</button>
+      <button type="button" class="btn-pri" id="btn-submit-od-outcome" data-action="submit-od-outcome" style="flex:2;background:#16a34a;"><re-icon icon="send" size="14"></re-icon> Submit Outcome &amp; Evidence</button>
     </div>
   </div>
 </div>
@@ -881,7 +898,7 @@
       <div class="modal-title" style="font-size:17px;display:flex;align-items:center;gap:8px;">
         <span><re-icon icon="shield-alert"></re-icon></span> Submit Attendance &amp; Trust Dispute
       </div>
-      <div class="modal-close" onclick="closeModal('modal-dispute-event')"><re-icon icon="x" size="18"></re-icon></div>
+      <div class="modal-close" data-action="close-modal" data-modal="modal-dispute-event"><re-icon icon="x" size="18"></re-icon></div>
     </div>
 
     <input type="hidden" id="dispute-event-id">
@@ -906,8 +923,8 @@
     </div>
 
     <div style="display:flex;gap:10px;">
-      <button type="button" class="btn-out" onclick="closeModal('modal-dispute-event')" style="flex:1;">Cancel</button>
-      <button type="button" class="btn-pri" id="btn-submit-dispute" onclick="submitDisputeForm()" style="flex:2;background:#0284c7;">
+      <button type="button" class="btn-out" data-action="close-modal" data-modal="modal-dispute-event" style="flex:1;">Cancel</button>
+      <button type="button" class="btn-pri" id="btn-submit-dispute" data-action="submit-dispute-form" style="flex:2;background:#0284c7;">
         <re-icon icon="send" size="14"></re-icon> Submit Dispute
       </button>
     </div>
@@ -915,13 +932,13 @@
 </div>
 
 <!-- ══ DEVICE REPLACEMENT REQUEST MODAL (§14) ══ -->
-<div class="modal-bg" id="modal-replacement-request" style="display:none;" onclick="if(event.target===this)closeModal('modal-replacement-request')">
+<div class="modal-bg" id="modal-replacement-request" style="display:none;" data-action="close-modal-backdrop" data-modal="modal-replacement-request">
   <div class="modal" style="max-width:480px;padding:24px;">
     <div class="modal-hd" style="margin-bottom:14px;">
       <div class="modal-title" style="font-size:17px;display:flex;align-items:center;gap:8px;">
         <span><re-icon icon="refresh"></re-icon></span> Request Device Replacement
       </div>
-      <div class="modal-close" onclick="closeModal('modal-replacement-request')"><re-icon icon="x" size="18"></re-icon></div>
+      <div class="modal-close" data-action="close-modal" data-modal="modal-replacement-request"><re-icon icon="x" size="18"></re-icon></div>
     </div>
 
     <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:12px;margin-bottom:16px;font-size:12px;color:#1e40af;line-height:1.45;">
@@ -946,10 +963,76 @@
     </div>
 
     <div style="display:flex;gap:10px;">
-      <button type="button" class="btn-out" onclick="closeModal('modal-replacement-request')" style="flex:1;">Cancel</button>
-      <button type="button" class="btn-pri" id="btn-submit-replacement" onclick="submitDeviceReplacementRequest()" style="flex:2;background:#0284c7;">
+      <button type="button" class="btn-out" data-action="close-modal" data-modal="modal-replacement-request" style="flex:1;">Cancel</button>
+      <button type="button" class="btn-pri" id="btn-submit-replacement" data-action="submit-device-replacement" style="flex:2;background:#0284c7;">
         <re-icon icon="send" size="14"></re-icon> Submit Request
       </button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: SELF PERIOD ABSENT -->
+<div class="modal-bg" id="m-self-absent" style="display:none;" data-action="close-modal-backdrop" data-modal="m-self-absent">
+  <div class="modal" style="max-width:540px;width:94%;">
+    <div class="modal-hd" style="display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--brl);padding-bottom:14px;margin-bottom:14px;">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <span style="display:flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:10px;background:#fee2e2;color:#dc2626;"><re-icon icon="user-x" size="18"></re-icon></span>
+        <div>
+          <h3 style="margin:0;font-size:16px;font-weight:700;color:var(--td);">Mark Self Period Absent</h3>
+          <div style="font-size:11.5px;color:var(--tmu);margin-top:2px;">Declare periods you cannot attend; subject teacher will auto-mark you absent.</div>
+        </div>
+      </div>
+      <button class="modal-close" data-action="close-modal" data-modal="m-self-absent" aria-label="Close modal" style="background:none;border:none;cursor:pointer;color:var(--tmu);"><re-icon icon="x" size="18"></re-icon></button>
+    </div>
+    <div class="modal-body" style="padding:4px 0 16px;">
+      <!-- Date input -->
+      <div class="fg" style="margin-bottom:14px;">
+        <label class="fl">Date *</label>
+        <input type="date" id="sa-date" class="fc2" style="font-family:Poppins,sans-serif;" data-change="change-sa-date">
+      </div>
+
+      <!-- Periods selection -->
+      <div class="fg" style="margin-bottom:14px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+          <label class="fl" style="margin:0;">Select Period(s) to Mark Absent *</label>
+          <div style="display:flex;gap:6px;">
+            <button type="button" class="btn-xs btn-out" data-action="select-all-absent-periods" style="font-size:10.5px;padding:2px 8px;border-radius:6px;cursor:pointer;">Select All</button>
+            <button type="button" class="btn-xs btn-out" data-action="clear-absent-periods" style="font-size:10.5px;padding:2px 8px;border-radius:6px;cursor:pointer;">Clear</button>
+          </div>
+        </div>
+        <div id="sa-periods-container" style="display:grid;grid-template-columns:repeat(auto-fill, minmax(115px, 1fr));gap:8px;margin-top:6px;">
+          <div style="font-size:12px;color:var(--tmu);grid-column:1/-1;">Loading scheduled periods…</div>
+        </div>
+      </div>
+
+      <!-- Reason input -->
+      <div class="fg" style="margin-bottom:14px;">
+        <label class="fl">Reason / Cause *</label>
+        <select id="sa-reason-preset" class="fc2" style="margin-bottom:8px;font-family:Poppins,sans-serif;" data-change="change-sa-preset">
+          <option value="Medical / Health indisposition">Medical / Health indisposition</option>
+          <option value="Doctor Appointment / Clinic visit">Doctor Appointment / Clinic visit</option>
+          <option value="Family urgency / emergency">Family urgency / emergency</option>
+          <option value="Personal unavoidable reason">Personal unavoidable reason</option>
+          <option value="Academic competition / Preparation">Academic competition / Preparation</option>
+          <option value="Other">Other (Specify below)</option>
+        </select>
+        <textarea id="sa-reason" class="fc2" rows="2" placeholder="Specific reason (visible to subject teachers)" style="font-family:Poppins,sans-serif;"></textarea>
+      </div>
+
+      <!-- Notice banner -->
+      <div style="background:#fef2f2;border:1.5px solid #fecaca;border-radius:10px;padding:10px 14px;display:flex;align-items:flex-start;gap:10px;">
+        <span style="color:#dc2626;font-size:16px;line-height:1;"><re-icon icon="alert-triangle"></re-icon></span>
+        <div style="font-size:11.5px;color:#991b1b;line-height:1.4;">
+          <strong>Automatic Attendance Marking:</strong> When your subject teacher takes attendance for the marked period(s), the system will automatically pre-fill and record your status as <b>Absent</b>.
+        </div>
+      </div>
+
+      <!-- Active Self-Absence list for this date -->
+      <div id="sa-active-list" style="display:none;margin-top:14px;"></div>
+    </div>
+    <div style="display:flex;justify-content:flex-end;gap:10px;padding-top:14px;border-top:1px solid var(--brl);">
+      <button type="button" class="btn-out" data-action="close-modal" data-modal="m-self-absent">Cancel</button>
+      <button type="button" class="btn-pri" data-action="submit-self-absent" style="background:#dc2626;border-color:#dc2626;color:#fff;">Confirm Self-Absence</button>
     </div>
   </div>
 </div>
@@ -963,7 +1046,8 @@
 <script src="js/core/popup.js"></script>
 <script src="js/core/deviceKey.js"></script>
 <script src="js/core/guard.js"></script>
-<script src="js/pages/student.page.js?v=20261018f"></script>
+<script src="js/shared/requestTracker.js"></script>
+<script src="js/pages/student.page.js"></script>
 
 </body>
 </html>

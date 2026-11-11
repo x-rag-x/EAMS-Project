@@ -72,7 +72,7 @@ LeaveRequestSchema.index({ studentTrackId: 1, dates: 1, status: 1 });
 LeaveRequestSchema.index({ studentTrackId: 1, fromDate: 1, toDate: 1 });
 
 const TeacherLeaveRequestSchema = new mongoose.Schema({
-  requestId:        { type: String, default: null }, // FL-YYYY-XXXXXX
+  requestId:        { type: String }, // FL-YYYY-XXXXXX
   teacherId:        { type: mongoose.Schema.Types.ObjectId, ref: 'Teacher', required: true },
   teacherTrackId:   { type: String, required: true },
   teacherName:      { type: String, required: true },
@@ -170,6 +170,13 @@ TeacherLeaveRequestSchema.index({ teacherId: 1, createdAt: -1 });
 TeacherLeaveRequestSchema.index({ deptId: 1, status: 1 });
 TeacherLeaveRequestSchema.index({ dates: 1, status: 1 });
 TeacherLeaveRequestSchema.index({ 'substitutions.substituteTeacherTrackId': 1, 'substitutions.date': 1 });
+
+TeacherLeaveRequestSchema.pre('save', async function() {
+  if (!this.requestId) {
+    const { getNextRequestId } = require('../utils/requestIds');
+    this.requestId = await getNextRequestId('FL');
+  }
+});
 
 const LeaveRequestModel = mongoose.models.LeaveRequest || mongoose.model('LeaveRequest', LeaveRequestSchema);
 const TeacherLeaveRequestModel = mongoose.models.TeacherLeaveRequest || mongoose.model('TeacherLeaveRequest', TeacherLeaveRequestSchema);

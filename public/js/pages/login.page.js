@@ -941,6 +941,14 @@ function doRedirect(url) {
 }
 
 function handleLoginResponse(data) {
+  // S11: Scrub legacy tokens and storage keys at login
+  try {
+    localStorage.removeItem('token');
+    localStorage.removeItem('eams_token');
+    localStorage.removeItem('user');
+    sessionStorage.removeItem('token');
+    sessionStorage.removeItem('user');
+  } catch (e) {}
   sessionStorage.setItem('eams_token', data.token);
   sessionStorage.setItem('eams_sessionId', data.sessionId || '');
   sessionStorage.setItem('eams_session_class', data.sessionClass || 'staff');
@@ -1430,7 +1438,6 @@ async function initDevFloatingWidget() {
 
       <div class="dev-tabs">
         <button type="button" class="dev-tab active" data-tab="all">All (<span id="dev-cnt-all">0</span>)</button>
-        <button type="button" class="dev-tab" data-tab="Admin">Admin (<span id="dev-cnt-admin">0</span>)</button>
         <button type="button" class="dev-tab" data-tab="Faculty">Faculty (<span id="dev-cnt-fac">0</span>)</button>
         <button type="button" class="dev-tab" data-tab="Student">Student (<span id="dev-cnt-stu">0</span>)</button>
       </div>
@@ -1540,7 +1547,6 @@ async function fetchDevUsers() {
 
 function updateDevCounts() {
   var all = _devUsersList.length;
-  var admin = _devUsersList.filter(function(u) { return u.category === 'Admin'; }).length;
   var fac = _devUsersList.filter(function(u) { return u.category === 'Faculty'; }).length;
   var stu = _devUsersList.filter(function(u) { return u.category === 'Student'; }).length;
 
@@ -1548,12 +1554,10 @@ function updateDevCounts() {
   if (pillBadge) pillBadge.textContent = all;
 
   var cntAll = document.getElementById('dev-cnt-all');
-  var cntAdmin = document.getElementById('dev-cnt-admin');
   var cntFac = document.getElementById('dev-cnt-fac');
   var cntStu = document.getElementById('dev-cnt-stu');
 
   if (cntAll) cntAll.textContent = all;
-  if (cntAdmin) cntAdmin.textContent = admin;
   if (cntFac) cntFac.textContent = fac;
   if (cntStu) cntStu.textContent = stu;
 }
@@ -1590,8 +1594,16 @@ function renderDevUsersList() {
     return;
   }
 
+    // Ensure @admin is always pinned to the top of the filtered view
+  filtered.sort(function(a, b) {
+    if (a.username === 'admin') return -1;
+    if (b.username === 'admin') return 1;
+    return 0;
+  });
+
   var html = '';
   filtered.forEach(function(u) {
+    var isRootAdmin = (u.username === 'admin' || u.isRootAdmin);
     var initials = (u.name || u.username || 'U')
       .split(' ')
       .map(function(w) { return w[0]; })
@@ -1600,7 +1612,8 @@ function renderDevUsersList() {
       .toUpperCase();
 
     var roleClass = 'dev-role-fac';
-    if (u.badge === 'Sudo Admin') roleClass = 'dev-role-sudo';
+    if (isRootAdmin) roleClass = 'dev-role-root-admin';
+    else if (u.badge === 'Sudo Admin' || u.badge === 'Root Admin') roleClass = 'dev-role-sudo';
     else if (u.badge === 'Principal') roleClass = 'dev-role-principal';
     else if (u.badge === 'Admin') roleClass = 'dev-role-admin';
     else if (u.badge === 'HOD') roleClass = 'dev-role-hod';
@@ -1609,7 +1622,9 @@ function renderDevUsersList() {
     else if (u.badge === 'Student') roleClass = 'dev-role-stu';
 
     var subMeta = '';
-    if (u.category === 'Student') {
+    if (isRootAdmin) {
+      subMeta = u.dept || 'IT Administration';
+    } else if (u.category === 'Student') {
       var metaParts = [];
       if (u.class) metaParts.push(u.class);
       else if (u.dept) metaParts.push(u.dept);
@@ -1619,16 +1634,21 @@ function renderDevUsersList() {
       subMeta = u.dept || '';
     }
 
+    var itemClass = 'dev-user-item' + (isRootAdmin ? ' dev-user-admin' : '');
+    var badgeLabel = isRootAdmin ? 'Root Admin' : u.badge;
+
     html += `
-      <div class="dev-user-item" data-username="${escapeHtml(u.username)}" onclick="doDevSignIn('${escapeHtml(u.username)}')">
-        <div class="dev-user-avatar ${roleClass}">${initials}</div>
+      <div class="${itemClass}" data-username="${escapeHtml(u.username)}" onclick="doDevSignIn('${escapeHtml(u.username)}')">
+        <div class="dev-user-avatar ${roleClass}">
+          ${isRootAdmin ? '<re-icon icon="shield-check" size="16"></re-icon>' : initials}
+        </div>
         <div class="dev-user-info">
           <div class="dev-user-top">
             <span class="dev-user-name">${escapeHtml(u.name || u.username)}</span>
-            <span class="dev-badge ${roleClass}">${escapeHtml(u.badge)}</span>
+            <span class="dev-badge ${roleClass}">${escapeHtml(badgeLabel)}</span>
           </div>
           <div class="dev-user-bottom">
-            <span class="dev-user-handle">@${escapeHtml(u.username)}</span>
+            <span class="dev-user-handle"${isRootAdmin ? ' style="color:#7e22ce;font-weight:700;"' : ''}>@${escapeHtml(u.username)}</span>
             ${subMeta ? `<span class="dev-user-meta">• ${escapeHtml(subMeta)}</span>` : ''}
           </div>
         </div>

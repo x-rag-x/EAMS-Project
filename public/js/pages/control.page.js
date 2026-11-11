@@ -7,6 +7,8 @@ var currentAction = null;
 var PAGE_NAMES = [
   "overview",
   "usergrid",
+  "roster",
+  "registry",
   "broadcasts",
   "data",
   "backup",
@@ -66,6 +68,14 @@ function nav(page) {
   if (window.history && window.history.replaceState) {
     var url = new URL(window.location);
     url.searchParams.set('tab', page);
+    if (page !== 'roster' && page !== 'registry') {
+      url.searchParams.delete('classId');
+      url.searchParams.delete('date');
+      url.searchParams.delete('period');
+      url.searchParams.delete('from');
+      url.searchParams.delete('to');
+      url.searchParams.delete('view');
+    }
     window.history.replaceState(null, '', url);
   }
 
@@ -79,7 +89,7 @@ function nav(page) {
   document.querySelectorAll(".sb-item").forEach(function (el) {
     el.classList.remove("act");
   });
-  var activeBtn = document.querySelector('.sb-item[onclick*="' + page + '"]');
+  var activeBtn = document.querySelector('.sb-item[data-page="' + page + '"]') || document.querySelector('.sb-item[onclick*="' + page + '"]');
   if (!activeBtn && page === 'recycle-bin') {
     activeBtn = document.getElementById('sb-nav-recycle-bin') || document.querySelector('.sb-item[onclick*="undo"]');
   }
@@ -97,6 +107,12 @@ function nav(page) {
   }
   if (page === "usergrid") {
     ugInit();
+  }
+  if (page === "roster" && typeof rosterInit === 'function') {
+    rosterInit();
+  }
+  if (page === "registry" && typeof registryInit === 'function') {
+    registryInit();
   }
   if (page === "broadcasts") {
     loadActiveBroadcastStatus();
@@ -3623,6 +3639,8 @@ function openUGEdit(id) {
     if (genEl) genEl.value = (user.gender && String(user.gender).toLowerCase() === 'female') ? 'Female' : 'Male';
     var resEl = document.getElementById("ug-e-stu-residency");
     if (resEl) resEl.value = (user.residency === 'hostel' || user.residency === 'hosteler') ? 'hostel' : 'dayscholar';
+    var admEl = document.getElementById("ug-e-stu-admission-type");
+    if (admEl) admEl.value = (user.admissionType && String(user.admissionType).toLowerCase().includes('lateral')) ? 'Lateral Entry' : 'Regular';
   } else if (user.role === "teacher") {
     document.getElementById("ug-e-tch-empno").value = user.employeeNo || "";
     document.getElementById("ug-e-tch-dept").value = user.department || "";
@@ -3703,6 +3721,8 @@ function ugSubmitEdit() {
     if (genEl) payload.gender = genEl.value;
     var resEl = document.getElementById("ug-e-stu-residency");
     if (resEl) payload.residency = resEl.value;
+    var admEl = document.getElementById("ug-e-stu-admission-type");
+    if (admEl) payload.admissionType = admEl.value;
   } else if (role === "teacher") {
     payload.employeeNo = document.getElementById("ug-e-tch-empno").value.trim();
     payload.department = document.getElementById("ug-e-tch-dept").value.trim();

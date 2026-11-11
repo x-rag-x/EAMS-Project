@@ -30,11 +30,18 @@ const GridSlotSchema = new Schema({
   combinedWith:   [String],
   isLab:          Boolean,
   span:           { type: Number, default: 1 },
+  spanRootPeriod:    { type: Number, default: null },
+  spanIndex:         { type: Number, default: 0 },
+  isSpanContinuation: { type: Boolean, default: false },
   state:          String,
   activityId:     { type: Schema.Types.ObjectId, ref: 'SpecialActivity', default: null },
   activityLabel:  { type: String, default: '' },
   primaryClassId: { type: Schema.Types.ObjectId, ref: 'Class', default: null },
-  primaryClassName: { type: String, default: '' }
+  primaryClassName: { type: String, default: '' },
+  placementReason:   { type: String, default: '' },
+  isPinned:          { type: Boolean, default: false },
+  generatedBy:       { type: String, default: '' },
+  combinedSessionId: { type: String, default: '' }
 }, { _id: false });
 
 
@@ -58,12 +65,16 @@ const TimetableSchema = new Schema({
 // ── Production section timetable (slots as Mixed object) ──
 
 const SectionTimetableSchema = new Schema({
-  classId:   { type: Schema.Types.ObjectId, ref: 'Class', required: true, unique: true },
-  className: String,
-  deptId:    { type: Schema.Types.ObjectId, ref: 'Department' },
-  deptName:  String,
-  slots:     { type: Schema.Types.Mixed, default: {} },
-  updatedBy: String,
+  classId:     { type: Schema.Types.ObjectId, ref: 'Class', required: true, unique: true },
+  className:   String,
+  deptId:      { type: Schema.Types.ObjectId, ref: 'Department' },
+  deptName:    String,
+  slots:       { type: Schema.Types.Mixed, default: {} },
+  updatedBy:   String,
+  headTrackId: { type: String, default: null },
+  headSeq:     { type: Number, default: 0 },
+  headVersion: { type: Number, default: 1 },
+  deployedAt:  { type: Date, default: null },
 }, { timestamps: true });
 
 
@@ -217,6 +228,8 @@ const CurriculumAssignmentSchema = new Schema({
   periodsPerWeek:   { type: Number, min: 1 },
   preferredPeriods: [Number],
   roomPreference:   String,
+  component:        { type: String, enum: ['theory', 'lab', 'both'], default: 'both' },
+  reason:           { type: String, default: '' },
 }, { timestamps: true });
 
 
@@ -305,19 +318,27 @@ const TimetableVersionSchema = new Schema({
   publishedBy:         String,
   publishedAt:         Date,
   savedBy:             String,
+  savedByTeacherId:    { type: Schema.Types.ObjectId, ref: 'Teacher' },
+  savedByTrackId:      String,
   verificationStatus:  { type: String, enum: ['none', 'pending', 'approved', 'rejected', 'withdrawn'], default: 'none' },
   verificationRequest: {
-    requestedBy:     String,
-    requestedAt:     Date,
-    notes:           String,
-    hodId:           { type: Schema.Types.ObjectId, ref: 'User' },
-    hodName:         String,
-    approvedBy:      String,
-    approvedAt:      Date,
-    comment:         String,
-    withdrawnBy:     String,
-    withdrawnAt:     Date,
-    withdrawnReason: String
+    requestedBy:          String,
+    requestedByTeacherId: { type: Schema.Types.ObjectId, ref: 'Teacher' },
+    requestedByTrackId:   String,
+    requestedByEmail:     String,
+    requestedByRole:      String,
+    requestedAt:          Date,
+    notes:                String,
+    hodId:                { type: Schema.Types.ObjectId, ref: 'User' },
+    hodName:              String,
+    approvedBy:           String,
+    approvedAt:           Date,
+    comment:              String,
+    withdrawnBy:          String,
+    withdrawnByTeacherId: { type: Schema.Types.ObjectId, ref: 'Teacher' },
+    withdrawnByTrackId:   String,
+    withdrawnAt:          Date,
+    withdrawnReason:      String
   },
 }, { timestamps: true });
 
@@ -369,6 +390,7 @@ const DayInstanceSchema = new Schema({
   weekInstanceId:      { type: Schema.Types.ObjectId, ref: 'WeekInstance' },
   isHoliday:           { type: Boolean, default: false },
   holidayReason:       { type: String, default: '' },
+  timetableTrackId:    { type: String, default: null },
   slots: [{
     period:                   Number,
     span:                     { type: Number, default: 1 },

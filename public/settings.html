@@ -42,6 +42,10 @@
       <button class="sb-item" onclick="window.location.href='manage.html?tab=years'"><span class="sbi-ic"><re-icon icon="book-open"></re-icon></span>Years &amp; Batches <span style="font-size:10px;margin-left:auto;opacity:0.75;"><re-icon icon="external-link" size="12"></re-icon></span></button>
       <button class="sb-item" onclick="nav('broadcast')"><span class="sbi-ic"><re-icon icon="bullhorn"></re-icon></span>Broadcast Defaults</button>
 
+      <div class="sb-section-label">Integrations &amp; Services</div>
+      <button class="sb-item" onclick="nav('driveSync')"><span class="sbi-ic"><re-icon icon="cloud"></re-icon></span>Google Drive Sync</button>
+      <button class="sb-item" onclick="nav('mailer')"><span class="sbi-ic"><re-icon icon="envelope"></re-icon></span>Mail Notifications</button>
+
       <div class="sb-section-label">Security &amp; Audit</div>
       <button class="sb-item" onclick="nav('security')"><span class="sbi-ic"><re-icon icon="shield-lock"></re-icon></span>Security &amp; Auth</button>
       <button class="sb-item" onclick="nav('trust')"><span class="sbi-ic"><re-icon icon="shield-halved"></re-icon></span>Trust &amp; Devices</button>
@@ -273,6 +277,71 @@
             <button class="tristate-btn hidden-mode" onclick="setTriState('pageSelector','hidden',this)"><re-icon icon="eye-off" size="14"></re-icon> Hidden</button>
           </div>
         </div>
+
+        <!-- Hostel Portal -->
+        <div class="toggle-row">
+          <div>
+            <div class="toggle-label"><re-icon icon="building"></re-icon> Hostel Management Portal <span class="key-label">pageHostel</span></div>
+            <div class="toggle-hint">Controls access to hostel.html, warden night roll-calls, outing approvals, and block allocations.</div>
+          </div>
+          <div class="tristate-wrap" data-key="pageHostel">
+            <button class="tristate-btn enabled" onclick="setTriState('pageHostel','enabled',this)"><re-icon icon="check-circle" size="14"></re-icon> Enabled</button>
+            <button class="tristate-btn disabled" onclick="setTriState('pageHostel','disabled',this)" title="Disabled / Maintenance"><re-icon icon="lock" size="14"></re-icon> Disabled</button>
+            <button class="tristate-btn hidden-mode" onclick="setTriState('pageHostel','hidden',this)"><re-icon icon="eye-off" size="14"></re-icon> Hidden</button>
+          </div>
+        </div>
+
+        <!-- Trust & Devices Management -->
+        <div class="toggle-row">
+          <div>
+            <div class="toggle-label"><re-icon icon="shield-halved"></re-icon> Trust &amp; Devices Management <span class="key-label">pageTrust</span></div>
+            <div class="toggle-hint">Controls access to Trust &amp; Devices tab in admin console, device registers, and trust ledgers.</div>
+          </div>
+          <div class="tristate-wrap" data-key="pageTrust">
+            <button class="tristate-btn enabled" onclick="setTriState('pageTrust','enabled',this)"><re-icon icon="check-circle" size="14"></re-icon> Enabled</button>
+            <button class="tristate-btn disabled" onclick="setTriState('pageTrust','disabled',this)" title="Disabled / Maintenance"><re-icon icon="lock" size="14"></re-icon> Disabled</button>
+            <button class="tristate-btn hidden-mode" onclick="setTriState('pageTrust','hidden',this)"><re-icon icon="eye-off" size="14"></re-icon> Hidden</button>
+          </div>
+        </div>
+
+        <!-- Export Center -->
+        <div class="toggle-row">
+          <div>
+            <div class="toggle-label"><re-icon icon="grid"></re-icon> Export &amp; Reports Center <span class="key-label">pageExport</span></div>
+            <div class="toggle-hint">Controls access to export.html institutional attendance registers and PDF reports.</div>
+          </div>
+          <div class="tristate-wrap" data-key="pageExport">
+            <button class="tristate-btn enabled" onclick="setTriState('pageExport','enabled',this)"><re-icon icon="check-circle" size="14"></re-icon> Enabled</button>
+            <button class="tristate-btn disabled" onclick="setTriState('pageExport','disabled',this)" title="Disabled / Maintenance"><re-icon icon="lock" size="14"></re-icon> Disabled</button>
+            <button class="tristate-btn hidden-mode" onclick="setTriState('pageExport','hidden',this)"><re-icon icon="eye-off" size="14"></re-icon> Hidden</button>
+          </div>
+        </div>
+
+        <!-- Control Dashboard -->
+        <div class="toggle-row">
+          <div>
+            <div class="toggle-label"><re-icon icon="settings"></re-icon> Control Dashboard &amp; Health Hub <span class="key-label">pageControl</span></div>
+            <div class="toggle-hint">Controls access to control.html system health monitoring and maintenance.</div>
+          </div>
+          <div class="tristate-wrap" data-key="pageControl">
+            <button class="tristate-btn enabled" onclick="setTriState('pageControl','enabled',this)"><re-icon icon="check-circle" size="14"></re-icon> Enabled</button>
+            <button class="tristate-btn disabled" onclick="setTriState('pageControl','disabled',this)" title="Disabled / Maintenance"><re-icon icon="lock" size="14"></re-icon> Disabled</button>
+            <button class="tristate-btn hidden-mode" onclick="setTriState('pageControl','hidden',this)"><re-icon icon="eye-off" size="14"></re-icon> Hidden</button>
+          </div>
+        </div>
+
+        <!-- Activity Logs -->
+        <div class="toggle-row">
+          <div>
+            <div class="toggle-label"><re-icon icon="clipboard-list"></re-icon> Activity &amp; Audit Logs <span class="key-label">pageLogs</span></div>
+            <div class="toggle-hint">Controls access to logs.html system audit activity logs.</div>
+          </div>
+          <div class="tristate-wrap" data-key="pageLogs">
+            <button class="tristate-btn enabled" onclick="setTriState('pageLogs','enabled',this)"><re-icon icon="check-circle" size="14"></re-icon> Enabled</button>
+            <button class="tristate-btn disabled" onclick="setTriState('pageLogs','disabled',this)" title="Disabled / Maintenance"><re-icon icon="lock" size="14"></re-icon> Disabled</button>
+            <button class="tristate-btn hidden-mode" onclick="setTriState('pageLogs','hidden',this)"><re-icon icon="eye-off" size="14"></re-icon> Hidden</button>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -311,6 +380,29 @@
           </div>
           <div class="toggle-wrap">
             <label class="toggle"><input type="checkbox" id="att-quick-pass" checked><div class="toggle-track"></div><div class="toggle-thumb"></div></label>
+          </div>
+        </div>
+
+        <div class="toggle-row">
+          <div>
+            <div class="toggle-label"><re-icon icon="map-pin"></re-icon> Enforce Classroom Geofencing <span class="key-label">enforceAttendanceGeofence</span></div>
+            <div class="toggle-hint">Verify student device GPS coordinates against classroom location during live scans and quick pass.</div>
+          </div>
+          <div class="toggle-wrap">
+            <label class="toggle"><input type="checkbox" id="att-geofence" checked><div class="toggle-track"></div><div class="toggle-thumb"></div></label>
+          </div>
+        </div>
+
+        <div class="settings-grid" style="grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--brl);">
+          <div class="form-group">
+            <label class="form-label">Max Allowed Geofence Radius (m) <span class="key-label">attendanceMaxRadiusM</span></label>
+            <input type="number" class="form-input" id="att-max-radius" min="10" max="2000" step="10" value="200">
+            <div class="form-hint">Maximum distance in meters permitted from classroom center. Default: 200m.</div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Max GPS Inaccuracy Allowed (m) <span class="key-label">attendanceMaxAccuracyM</span></label>
+            <input type="number" class="form-input" id="att-max-accuracy" min="10" max="500" step="5" value="100">
+            <div class="form-hint">Rejects low-precision or spoofed coarse GPS fixes exceeding this margin. Default: 100m.</div>
           </div>
         </div>
 
@@ -361,6 +453,20 @@
           </div>
           <div class="toggle-wrap">
             <label class="toggle"><input type="checkbox" id="att-force-timetable"><div class="toggle-track"></div><div class="toggle-thumb"></div></label>
+          </div>
+        </div>
+
+        <div class="toggle-row" style="align-items:flex-start;">
+          <div>
+            <div class="toggle-label"><re-icon icon="clock"></re-icon> Timetable Match Policy <span class="key-label">timetableMatch</span></div>
+            <div class="toggle-hint">Validation policy for marking unscheduled timetable periods: Warn faculty, Allow freely, or Block strictly.</div>
+          </div>
+          <div style="min-width:200px;">
+            <select class="form-input" id="att-timetable-match" style="font-size:12px;padding:6px 10px;height:auto;">
+              <option value="warn">Warn (Alert teacher)</option>
+              <option value="allow">Allow (No restriction)</option>
+              <option value="block">Block (Strict schedule only)</option>
+            </select>
           </div>
         </div>
 
@@ -521,11 +627,41 @@
 
         <div class="toggle-row">
           <div>
-            <div class="toggle-label"><re-icon icon="tree"></re-icon> Student &amp; Faculty Leave / OD <span class="key-label">modelLeave</span></div>
-            <div class="toggle-hint">Leave applications, on-duty approvals, and balance tracking.</div>
+            <div class="toggle-label"><re-icon icon="tree"></re-icon> Master Leave / OD System <span class="key-label">modelLeave</span></div>
+            <div class="toggle-hint">Global master switch for all leave applications, on-duty approvals, and balance tracking.</div>
           </div>
           <div class="toggle-wrap">
             <label class="toggle"><input type="checkbox" id="mod-leave" checked><div class="toggle-track"></div><div class="toggle-thumb"></div></label>
+          </div>
+        </div>
+
+        <div class="toggle-row">
+          <div>
+            <div class="toggle-label"><re-icon icon="user"></re-icon> Student Leave Module <span class="key-label">modelStudentLeave</span></div>
+            <div class="toggle-hint">Allow students to submit leave / OD requests; advisors and wardens can review and approve.</div>
+          </div>
+          <div class="toggle-wrap">
+            <label class="toggle"><input type="checkbox" id="mod-student-leave" checked><div class="toggle-track"></div><div class="toggle-thumb"></div></label>
+          </div>
+        </div>
+
+        <div class="toggle-row">
+          <div>
+            <div class="toggle-label"><re-icon icon="teacher"></re-icon> Faculty &amp; Staff Leave Module <span class="key-label">modelStaffLeave</span></div>
+            <div class="toggle-hint">Faculty leave applications, period substitution allocation, and HOD/Principal approvals.</div>
+          </div>
+          <div class="toggle-wrap">
+            <label class="toggle"><input type="checkbox" id="mod-staff-leave" checked><div class="toggle-track"></div><div class="toggle-thumb"></div></label>
+          </div>
+        </div>
+
+        <div class="toggle-row">
+          <div>
+            <div class="toggle-label"><re-icon icon="envelope"></re-icon> Bulk Mail Credentials <span class="key-label">bulkMailCredentials</span></div>
+            <div class="toggle-hint">Automatically email login credentials when importing students or faculty in bulk.</div>
+          </div>
+          <div class="toggle-wrap">
+            <label class="toggle"><input type="checkbox" id="mod-bulk-mail" checked><div class="toggle-track"></div><div class="toggle-thumb"></div></label>
           </div>
         </div>
 
@@ -611,6 +747,16 @@
 
         <div class="toggle-row">
           <div>
+            <div class="toggle-label"><re-icon icon="check-square"></re-icon> Require HOD Approval for Leaves <span class="key-label">requireHodApproval</span></div>
+            <div class="toggle-hint">Mandate department head verification on all faculty leave requests prior to principal review.</div>
+          </div>
+          <div class="toggle-wrap">
+            <label class="toggle"><input type="checkbox" id="mod-hodapproval" checked><div class="toggle-track"></div><div class="toggle-thumb"></div></label>
+          </div>
+        </div>
+
+        <div class="toggle-row">
+          <div>
             <div class="toggle-label"><re-icon icon="tv"></re-icon> Smart Board Kiosk System <span class="key-label">modelSmartBoards</span></div>
             <div class="toggle-hint">Enable or disable classroom autonomous smart board kiosk sign-in and attendance integration.</div>
           </div>
@@ -669,6 +815,64 @@
           </div>
         </div>
 
+      </div>
+
+      <!-- Sudo Admin Security Card -->
+      <div class="card">
+        <div class="card-hd">
+          <div class="card-icon red"><re-icon icon="shield-lock"></re-icon></div>
+          <div>
+            <div class="card-title">Sudo Administrator Security &amp; Access Controls</div>
+            <div class="card-desc">Elevated protections, session boundaries, and IP whitelist for root Sudo access</div>
+          </div>
+        </div>
+
+        <div class="toggle-row">
+          <div>
+            <div class="toggle-label"><re-icon icon="key"></re-icon> Require Multi-Factor Authentication (MFA) <span class="key-label">sudoMfaRequired</span></div>
+            <div class="toggle-hint">Enforces two-factor authentication verification for Sudo Administrator sign-ins.</div>
+          </div>
+          <div class="toggle-wrap">
+            <label class="toggle"><input type="checkbox" id="sec-sudo-mfa"><div class="toggle-track"></div><div class="toggle-thumb"></div></label>
+          </div>
+        </div>
+
+        <div class="toggle-row">
+          <div>
+            <div class="toggle-label"><re-icon icon="bell"></re-icon> Alert on Sudo Admin Login <span class="key-label">sudoNotifyOnLogin</span></div>
+            <div class="toggle-hint">Triggers immediate high-priority audit alerts and notifications upon Sudo sign-in.</div>
+          </div>
+          <div class="toggle-wrap">
+            <label class="toggle"><input type="checkbox" id="sec-sudo-notify" checked><div class="toggle-track"></div><div class="toggle-thumb"></div></label>
+          </div>
+        </div>
+
+        <div class="settings-grid" style="grid-template-columns: 1fr; gap: 14px; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--brl);">
+          <div class="form-group">
+            <label class="form-label">Authorized Sudo IP Addresses <span class="key-label">sudoAllowedIps</span></label>
+            <input type="text" class="form-input" id="sec-sudo-ips" placeholder="e.g. 192.168.1.100, 10.0.0.1 (leave blank for any IP)">
+            <div class="form-hint">Comma-separated IPv4 or IPv6 addresses permitted to authenticate as Sudo Admin.</div>
+          </div>
+        </div>
+
+        <div class="settings-grid" style="grid-template-columns: 1fr 1fr 1fr; gap: 14px; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--brl);">
+          <div class="form-group">
+            <label class="form-label">Sudo Inactivity Timeout (Mins) <span class="key-label">sudoSessionTimeoutMins</span></label>
+            <input type="number" class="form-input" id="sec-sudo-timeout" min="1" max="480" value="30">
+            <div class="form-hint">Expires inactive Sudo sessions automatically. Default: 30 minutes.</div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Sudo Max Session Lifetime (Hours) <span class="key-label">sudoMaxSessionLifetimeHours</span></label>
+            <input type="number" class="form-input" id="sec-sudo-lifetime" min="1" max="168" value="24">
+            <div class="form-hint">Hard session cutoff regardless of activity. Default: 24 hours.</div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Sudo Password Rotation (Days) <span class="key-label">sudoForcePasswordChangeDays</span></label>
+            <input type="number" class="form-input" id="sec-sudo-pw-days" min="1" max="365" value="90">
+            <div class="form-hint">Mandates password change every N days for root credentials. Default: 90 days.</div>
+          </div>
+        </div>
+
         <div class="toggle-row">
           <div>
             <div class="toggle-label">Sub-Admin Audit Log Access <span class="key-label">allowSubAdminLogs</span></div>
@@ -701,7 +905,22 @@
         <div class="settings-grid" style="margin-top:20px;border-top:1px solid var(--brl);padding-top:20px;">
           <div class="form-group">
             <label class="form-label">Session Timeout (Minutes) <span class="key-label">sessionTimeoutMins</span></label>
-            <input type="number" class="form-input" id="sec-timeout-mins" min="1" max="240" placeholder="7">
+            <input type="number" class="form-input" id="sec-timeout-mins" min="1" max="240" placeholder="10">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Faculty Inactivity Timeout (Minutes) <span class="key-label">teacherInactivityMins</span></label>
+            <input type="number" class="form-input" id="sec-teacher-inactivity" min="1" max="240" placeholder="10">
+            <span class="field-hint">Max idle minutes for faculty sessions before requiring re-authentication.</span>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Max Session Lifetime (Hours) <span class="key-label">maxSessionLifetimeHours</span></label>
+            <input type="number" class="form-input" id="sec-max-session-hours" min="1" max="168" placeholder="24">
+            <span class="field-hint">Hard ceiling on user session token duration (default 24h).</span>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Student Device Session Lifetime (Days) <span class="key-label">studentDeviceSessionLifetimeDays</span></label>
+            <input type="number" class="form-input" id="sec-student-device-days" min="1" max="90" placeholder="15">
+            <span class="field-hint">Cryptographic token lifetime for registered student devices (default 15 days).</span>
           </div>
           <div class="form-group">
             <label class="form-label">Max Failed Login Attempts <span class="key-label">maxLoginAttempts</span></label>
@@ -1229,6 +1448,194 @@
         </p>
         <button class="btn btn-danger" onclick="openResetModal()"><re-icon icon="undo"></re-icon> Restore Factory Defaults</button>
       </div>
+    </div>
+
+    <!-- Google Drive Sync Page -->
+    <div class="pg" id="pg-driveSync">
+      <div class="page-hd">
+        <div>
+          <div class="page-title"><re-icon icon="cloud"></re-icon> Google Drive Cloud Sync</div>
+          <div class="page-sub">Automated database backup archives and attendance spreadsheet synchronization</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-hd">
+          <div class="card-icon blue"><re-icon icon="cloud"></re-icon></div>
+          <div>
+            <div class="card-title">Cloud Storage &amp; Backup Synchronization</div>
+            <div class="card-desc">Configure automated sync to institutional Google Drive storage</div>
+          </div>
+        </div>
+
+        <div class="toggle-row">
+          <div>
+            <div class="toggle-label"><re-icon icon="cloud"></re-icon> Enable Google Drive Sync <span class="key-label">enabled</span></div>
+            <div class="toggle-hint">Master switch to activate cloud backups and report exports to Google Drive.</div>
+          </div>
+          <div class="toggle-wrap">
+            <label class="toggle"><input type="checkbox" id="drive-enabled"><div class="toggle-track"></div><div class="toggle-thumb"></div></label>
+          </div>
+        </div>
+
+        <div class="toggle-row">
+          <div>
+            <div class="toggle-label"><re-icon icon="calendar"></re-icon> Sync Attendance Reports <span class="key-label">syncAttendanceReports</span></div>
+            <div class="toggle-hint">Export daily and monthly attendance spreadsheets to Drive folder automatically.</div>
+          </div>
+          <div class="toggle-wrap">
+            <label class="toggle"><input type="checkbox" id="drive-sync-att" checked><div class="toggle-track"></div><div class="toggle-thumb"></div></label>
+          </div>
+        </div>
+
+        <div class="toggle-row">
+          <div>
+            <div class="toggle-label"><re-icon icon="database"></re-icon> Sync System Backups <span class="key-label">syncSystemBackups</span></div>
+            <div class="toggle-hint">Upload AES-256 encrypted database archives according to scheduled frequency.</div>
+          </div>
+          <div class="toggle-wrap">
+            <label class="toggle"><input type="checkbox" id="drive-sync-backups" checked><div class="toggle-track"></div><div class="toggle-thumb"></div></label>
+          </div>
+        </div>
+
+        <div class="settings-grid" style="grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--brl);">
+          <div class="form-group">
+            <label class="form-label">Backup Frequency <span class="key-label">backupSchedule</span></label>
+            <select class="form-select" id="drive-schedule">
+              <option value="disabled">Disabled</option>
+              <option value="daily" selected>Daily (Midnight)</option>
+              <option value="weekly">Weekly (Sunday)</option>
+              <option value="monthly">Monthly (1st of Month)</option>
+            </select>
+            <div class="form-hint">Frequency of automatic encrypted database backup exports.</div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Cloud Retention Period (Days) <span class="key-label">retentionDays</span></label>
+            <input type="number" class="form-input" id="drive-retention" min="1" max="365" value="30">
+            <div class="form-hint">Number of days to keep historical backups in Drive before purging.</div>
+          </div>
+        </div>
+
+        <div class="settings-grid" style="grid-template-columns: 1fr; gap: 14px; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--brl);">
+          <div class="form-group">
+            <label class="form-label">Target Google Drive Folder ID <span class="key-label">backupFolderId</span></label>
+            <input type="text" class="form-input" id="drive-folder-id" placeholder="e.g. 1BxiMVs0XRA5nFMdKvBHKrZKx_vG645tg">
+            <div class="form-hint">ID of the shared Google Drive folder where files and backups will be stored.</div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Service Account Email <span class="key-label">serviceAccountEmail</span></label>
+            <input type="text" class="form-input" id="drive-sa-email" placeholder="e.g. eams-backup@project.iam.gserviceaccount.com">
+            <div class="form-hint">The Google Cloud service account with editor permission on the target folder.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Mail Notifications Page -->
+    <div class="pg" id="pg-mailer">
+      <div class="page-hd">
+        <div>
+          <div class="page-title"><re-icon icon="envelope"></re-icon> Mail Notifications &amp; SMTP Configuration</div>
+          <div class="page-sub">Configure outgoing email delivery, SMTP credentials, and automated system alerts</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-hd">
+          <div class="card-icon purple"><re-icon icon="envelope"></re-icon></div>
+          <div>
+            <div class="card-title">SMTP Mailer &amp; Notification Engine</div>
+            <div class="card-desc">Configure server connection for sending emails to students, faculty, and admins</div>
+          </div>
+        </div>
+
+        <div class="toggle-row">
+          <div>
+            <div class="toggle-label"><re-icon icon="envelope"></re-icon> Enable Mail Notifications <span class="key-label">enabled</span></div>
+            <div class="toggle-hint">Master switch to dispatch system email notifications.</div>
+          </div>
+          <div class="toggle-wrap">
+            <label class="toggle"><input type="checkbox" id="mail-enabled"><div class="toggle-track"></div><div class="toggle-thumb"></div></label>
+          </div>
+        </div>
+
+        <div class="toggle-row">
+          <div>
+            <div class="toggle-label"><re-icon icon="alert-circle"></re-icon> Notify Students &amp; Parents on Absence <span class="key-label">notifyOnAbsence</span></div>
+            <div class="toggle-hint">Send automated email notifications when a student is marked absent in a period.</div>
+          </div>
+          <div class="toggle-wrap">
+            <label class="toggle"><input type="checkbox" id="mail-notify-absence" checked><div class="toggle-track"></div><div class="toggle-thumb"></div></label>
+          </div>
+        </div>
+
+        <div class="toggle-row">
+          <div>
+            <div class="toggle-label"><re-icon icon="check-circle"></re-icon> Notify on Leave Status Updates <span class="key-label">notifyOnLeaveStatus</span></div>
+            <div class="toggle-hint">Email users when their leave or OD applications are approved or rejected.</div>
+          </div>
+          <div class="toggle-wrap">
+            <label class="toggle"><input type="checkbox" id="mail-notify-leave" checked><div class="toggle-track"></div><div class="toggle-thumb"></div></label>
+          </div>
+        </div>
+
+        <div class="toggle-row">
+          <div>
+            <div class="toggle-label"><re-icon icon="shield-alert"></re-icon> Alert on Sudo Admin Sign-In <span class="key-label">notifyOnSudoLogin</span></div>
+            <div class="toggle-hint">Send urgent security alert to administrator emails upon Sudo root login.</div>
+          </div>
+          <div class="toggle-wrap">
+            <label class="toggle"><input type="checkbox" id="mail-notify-sudo" checked><div class="toggle-track"></div><div class="toggle-thumb"></div></label>
+          </div>
+        </div>
+
+        <div class="settings-grid" style="grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--brl);">
+          <div class="form-group">
+            <label class="form-label">Mail Delivery Provider <span class="key-label">provider</span></label>
+            <select class="form-select" id="mail-provider">
+              <option value="smtp" selected>Standard SMTP</option>
+              <option value="gmail">Gmail Workspace</option>
+              <option value="sendgrid">SendGrid API</option>
+              <option value="ses">Amazon SES</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Sender Display Name <span class="key-label">fromName</span></label>
+            <input type="text" class="form-input" id="mail-from-name" placeholder="e.g. EAMS Notifications">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Sender Email Address <span class="key-label">fromEmail</span></label>
+            <input type="email" class="form-input" id="mail-from-email" placeholder="e.g. no-reply@college.edu">
+          </div>
+          <div class="form-group">
+            <label class="form-label">SMTP Host Server <span class="key-label">smtpHost</span></label>
+            <input type="text" class="form-input" id="mail-smtp-host" placeholder="e.g. smtp.gmail.com">
+          </div>
+          <div class="form-group">
+            <label class="form-label">SMTP Port <span class="key-label">smtpPort</span></label>
+            <input type="number" class="form-input" id="mail-smtp-port" value="587">
+          </div>
+          <div class="form-group">
+            <label class="form-label">SMTP Username <span class="key-label">smtpUser</span></label>
+            <input type="text" class="form-input" id="mail-smtp-user" placeholder="username or email">
+          </div>
+          <div class="form-group" style="grid-column: span 2;">
+            <label class="form-label">SMTP Password / App Password <span class="key-label">smtpPass</span></label>
+            <input type="password" class="form-input" id="mail-smtp-pass" placeholder="••••••••••••••••">
+          </div>
+        </div>
+
+        <div class="toggle-row" style="margin-top: 14px;">
+          <div>
+            <div class="toggle-label"><re-icon icon="lock"></re-icon> Secure Connection (SSL/TLS) <span class="key-label">smtpSecure</span></div>
+            <div class="toggle-hint">Enable SSL/TLS directly (typically for port 465). For port 587 (STARTTLS), leave OFF.</div>
+          </div>
+          <div class="toggle-wrap">
+            <label class="toggle"><input type="checkbox" id="mail-smtp-secure"><div class="toggle-track"></div><div class="toggle-thumb"></div></label>
+          </div>
+        </div>
+      </div>
+    </div>
     </div>
 
   </div><!-- end .mc -->

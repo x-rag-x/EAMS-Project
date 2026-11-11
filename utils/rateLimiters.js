@@ -192,7 +192,152 @@ const deviceReplacementLimiter = rateLimit({
   legacyHeaders: false,
 });
 
+const registryExportLimiter = rateLimit({
+  windowMs: 5 * 60 * 1000, // 5 minutes
+  max: 30, // 30 exports per 5 minutes per user/IP
+  skip: () => process.env.NODE_ENV === 'development',
+  keyGenerator: (req) => req.user?.trackId || req.user?._id?.toString() || req.ip,
+  validate: { keyGeneratorIpFallback: false },
+  message: { error: 'Export rate limit reached. Please wait a few minutes before generating more files.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const repShareRequestLimiter = rateLimit({
+  windowMs: 5 * 60 * 1000, // 5 minutes
+  max: 30,
+  keyGenerator: (req) => req.user?.trackId || req.user?._id?.toString() || req.ip,
+  validate: { keyGeneratorIpFallback: false },
+  message: { error: 'Too many Rep Share delegation requests for this account. Please slow down.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const repShareSubmitLimiter = rateLimit({
+  windowMs: 5 * 60 * 1000, // 5 minutes
+  max: 20,
+  keyGenerator: (req) => req.user?.trackId || req.user?._id?.toString() || req.ip,
+  validate: { keyGeneratorIpFallback: false },
+  message: { error: 'Too many Rep Share submission attempts for this account. Please wait a moment.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const publicSettingsLimiter = rateLimit({
+  windowMs: 1 * 60 * 1000, // 1 minute
+  max: 60, // 60 requests per minute per IP
+  skip: () => process.env.NODE_ENV === 'development',
+  message: { error: 'Too many settings requests from this IP. Please try again in a minute.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Leave, OD, Files, Participation, and Trust Rate Limiters (Audit S15)
+const leaveApplyLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 20,
+  skip: () => process.env.NODE_ENV === 'development',
+  keyGenerator: (req) => req.user?.trackId || req.user?._id?.toString() || req.ip,
+  validate: { keyGeneratorIpFallback: false },
+  message: { error: 'Too many leave requests submitted. Please wait a few minutes before applying again.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const odCreateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 20,
+  skip: () => process.env.NODE_ENV === 'development',
+  keyGenerator: (req) => req.user?.trackId || req.user?._id?.toString() || req.ip,
+  validate: { keyGeneratorIpFallback: false },
+  message: { error: 'Too many OD requests submitted. Please wait a few minutes before submitting again.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const odEventCreateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 20,
+  skip: () => process.env.NODE_ENV === 'development',
+  keyGenerator: (req) => req.user?.trackId || req.user?._id?.toString() || req.ip,
+  validate: { keyGeneratorIpFallback: false },
+  message: { error: 'Too many event registration requests. Please wait a moment.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const fileUploadLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 30,
+  skip: () => process.env.NODE_ENV === 'development',
+  keyGenerator: (req) => req.user?.trackId || req.user?._id?.toString() || req.ip,
+  validate: { keyGeneratorIpFallback: false },
+  message: { error: 'Too many file upload requests. Please wait a moment before uploading more files.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const fileStreamLimiter = rateLimit({
+  windowMs: 5 * 60 * 1000, // 5 minutes
+  max: 100,
+  skip: () => process.env.NODE_ENV === 'development',
+  keyGenerator: (req) => req.user?.trackId || req.user?._id?.toString() || req.ip,
+  validate: { keyGeneratorIpFallback: false },
+  message: { error: 'Too many file download requests. Please slow down.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const trustActionLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 30,
+  skip: () => process.env.NODE_ENV === 'development',
+  keyGenerator: (req) => req.user?.trackId || req.user?._id?.toString() || req.ip,
+  validate: { keyGeneratorIpFallback: false },
+  message: { error: 'Too many trust management requests. Please try again later.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const participationLimiter = rateLimit({
+  windowMs: 5 * 60 * 1000, // 5 minutes
+  max: 50,
+  skip: () => process.env.NODE_ENV === 'development',
+  keyGenerator: (req) => req.user?.trackId || req.user?._id?.toString() || req.ip,
+  validate: { keyGeneratorIpFallback: false },
+  message: { error: 'Too many participation requests. Please slow down.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const studentSearchLimiter = rateLimit({
+  windowMs: 5 * 60 * 1000,
+  max: 60,
+  skip: () => process.env.NODE_ENV === 'development',
+  keyGenerator: (req) => req.user?.trackId || req.user?._id?.toString() || req.ip,
+  validate: { keyGeneratorIpFallback: false },
+  message: { error: 'Too many search requests. Please slow down.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+
+const recountLimiter = rateLimit({
+  windowMs: 5 * 60 * 1000,
+  max: 5,
+  keyGenerator: (req) => req.user?.trackId || req.user?._id?.toString() || req.ip,
+  validate: { keyGeneratorIpFallback: false },
+  message: { error: 'Too many recount requests. Please try again later.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 module.exports = {
+  recountLimiter,
+  studentSearchLimiter,
+  repShareRequestLimiter,
+  repShareSubmitLimiter,
+  registryExportLimiter,
   authLimiter,
   deleteAuthLimiter,
   liveSessionMarkLimiter,
@@ -212,5 +357,13 @@ module.exports = {
   deviceClaimIpLimiter,
   deviceVerifyLimiter,
   deviceReplacementLimiter,
+  publicSettingsLimiter,
+  leaveApplyLimiter,
+  odCreateLimiter,
+  odEventCreateLimiter,
+  fileUploadLimiter,
+  fileStreamLimiter,
+  trustActionLimiter,
+  participationLimiter,
 };
 

@@ -3,7 +3,7 @@
  * 
  * Provides persistent in-app tab management with zero-lag DOM-retained switching,
  * per-tab state isolation (mode, scroll, undo/redo stacks), full W3C ARIA accessibility,
- * dirty-draft guard rails, sessionStorage restoration with server revalidation,
+ * dirty-draft guard rails, database user state restoration with server revalidation,
  * and a Dual-Mode Split Screen engine with width-aware sidebar auto-hiding.
  * 
  * Invariants:
@@ -28,6 +28,65 @@
       .map(k => `${encodeURIComponent(k)}=${encodeURIComponent(params[k] ?? '')}`)
       .join('&');
     return `${viewType}:${query}`;
+  }
+
+  /**
+   * Resolves a clean, human-friendly tab title from any tab configuration or tab ID.
+   * Prevents raw internal IDs like 'section:classId=25-29%20CSE-D' from appearing in UI.
+   */
+  function resolveFriendlyTabTitle(config = {}) {
+    const rawTitle = config.title;
+    // If already clean and does not look like an internal query string:
+    if (rawTitle && typeof rawTitle === 'string' && !rawTitle.startsWith('section:') && !rawTitle.includes('=')) {
+      return rawTitle;
+    }
+
+    // Try viewParams first
+    const vp = config.viewParams || {};
+    if (vp.sectionName && typeof vp.sectionName === 'string' && !vp.sectionName.includes('=')) {
+      return decodeURIComponent(vp.sectionName);
+    }
+    if (vp.classId && typeof vp.classId === 'string' && !vp.classId.includes('=')) {
+      const decoded = decodeURIComponent(vp.classId);
+      if (typeof _masterData !== 'undefined' && Array.isArray(_masterData?.classes)) {
+        const found = _masterData.classes.find(c => String(c._id) === String(decoded) || c.name === decoded);
+        if (found) return found.name;
+      }
+      return decoded;
+    }
+
+    // Extract from tab id (e.g. 'section:classId=25-29%20CSE-D')
+    const id = String(config.id || '');
+    if (id.includes(':')) {
+      const query = id.split(':').slice(1).join(':');
+      try {
+        const search = new URLSearchParams(query);
+        const candidate = search.get('sectionName') || search.get('classId') || search.get('section') || search.get('className');
+        if (candidate) {
+          const decoded = decodeURIComponent(candidate);
+          if (typeof _masterData !== 'undefined' && Array.isArray(_masterData?.classes)) {
+            const found = _masterData.classes.find(c => String(c._id) === String(decoded) || c.name === decoded);
+            if (found) return found.name;
+          }
+          return decoded;
+        }
+      } catch (_) {}
+    }
+
+    // Clean up rawTitle if needed
+    if (rawTitle && typeof rawTitle === 'string') {
+      try {
+        let clean = decodeURIComponent(rawTitle);
+        if (clean.startsWith('section:')) clean = clean.replace(/^section:/, '');
+        if (clean.includes('=')) clean = clean.split('=').pop() || clean;
+        if (clean.trim()) return clean.trim();
+      } catch (_) {}
+    }
+
+    if (config.id === 'main-matrix' || config.viewType === 'matrix-launcher') {
+      return 'Select Class';
+    }
+    return 'Timetable View';
   }
 
   class TabWorkspace {
@@ -198,9 +257,22 @@
      */
     openTab(config = {}) {
       const viewType = config.viewType || 'section';
-      const viewParams = config.viewParams || {};
+      let viewParams = config.viewParams ? { ...config.viewParams } : {};
       const id = config.id || buildTabId(viewType, viewParams);
-      const title = config.title || 'Untitled View';
+
+      // If viewParams is missing classId or sectionName but id contains query string, recover them:
+      if ((!viewParams.classId && !viewParams.sectionName) && String(id).includes(':')) {
+        try {
+          const search = new URLSearchParams(String(id).split(':').slice(1).join(':'));
+          const cId = search.get('classId') || search.get('sectionName') || search.get('section');
+          if (cId) {
+            viewParams.classId = decodeURIComponent(cId);
+            viewParams.sectionName = decodeURIComponent(cId);
+          }
+        } catch (_) {}
+      }
+
+      const title = resolveFriendlyTabTitle({ ...config, id, viewType, viewParams });
       const rawIcon = config.icon || 'calendar';
       const icon = rawIcon.includes('<') ? rawIcon : `<re-icon icon="${rawIcon}"></re-icon>`;
       const isPinned = Boolean(config.isPinned);
@@ -219,8 +291,9 @@
       // 1. Deduplication: activate existing tab
       if (this.tabs.has(id)) {
         const existing = this.tabs.get(id);
-        if (config.title && config.title !== existing.title) {
-          existing.title = config.title;
+        const resolvedTitle = resolveFriendlyTabTitle({ ...config, title: config.title || existing.title, id, viewType, viewParams });
+        if (resolvedTitle && resolvedTitle !== existing.title) {
+          existing.title = resolvedTitle;
           this._updateChipTitle(existing);
         }
         if (activate) this.activateTab(id);
@@ -1246,45 +1319,59 @@
       }
     }
 
-    // ── Session Storage Persistence ──
+    // ── Database User State Persistence (Z7 / Phase 2) ──
     _saveSession() {
       try {
-        const serialized = {
-          activeTabId: this.activeTabId,
-          isSplit: this.isSplit,
-          splitMode: this.splitMode,
-          secondaryTabId: this.secondaryTabId,
-          splitRatio: this.splitRatio,
-          tabs: Array.from(this.tabs.values())
-            .filter(t => t.id === 'main-matrix' || t.viewType === 'matrix-launcher' || t.viewType === 'section' || String(t.id).startsWith('section:'))
-            .map(t => ({
-              id: t.id,
-              title: t.title,
-              icon: t.icon,
-              viewType: t.viewType,
-              viewParams: t.viewParams,
-              isPinned: t.isPinned,
-              mode: t.mode
-            }))
-        };
-        sessionStorage.setItem('eams_tt_workspace', JSON.stringify(serialized));
+        if (typeof window.syncUserStateToDb === 'function') {
+          window.syncUserStateToDb();
+        }
       } catch (err) {
-        console.warn('[TabWorkspace] Unable to persist session state:', err);
+        console.warn('[TabWorkspace] Unable to persist user state:', err);
       }
     }
 
+    serializeTabs() {
+      return Array.from(this.tabs.values())
+        .filter(t => t && t.id && t.id !== 'main-matrix')
+        .map(t => {
+          const cleanTitle = resolveFriendlyTabTitle(t);
+          return {
+            id: t.id,
+            title: cleanTitle,
+            sectionName: t.viewParams?.sectionName || cleanTitle,
+            icon: t.icon,
+            viewType: t.viewType || 'section',
+            viewParams: t.viewParams,
+            classId: t.viewParams?.classId || null,
+            isPinned: Boolean(t.isPinned),
+            mode: t.mode || 'production'
+          };
+        });
+    }
+
     /**
-     * Restores tabs from sessionStorage.
+     * Restores tabs from database TimetableUserState (Z7).
      * Takes an optional asynchronous revalidateDraftFn(tab) to check if server draft still exists.
      */
     async restoreSession(revalidateDraftFn) {
       try {
-        const raw = sessionStorage.getItem('eams_tt_workspace');
-        if (!raw) return false;
-        const data = JSON.parse(raw);
-        if (!data || !Array.isArray(data.tabs) || !data.tabs.length) return false;
+        let tabsData = [];
+        try {
+          const token = (typeof getToken === 'function' ? getToken() : null) || (window.sessionStorage ? (sessionStorage.getItem('eams_token') || sessionStorage.getItem('token')) : null);
+          const res = await fetch('/api/timetable/user-state', {
+            headers: token ? { 'Authorization': 'Bearer ' + token } : {}
+          });
+          if (res.ok) {
+            const data = await res.json();
+            if (data && Array.isArray(data.openTabs)) {
+              tabsData = data.openTabs;
+            }
+          }
+        } catch (_) {}
 
-        const validTabs = data.tabs.filter(item => item.id === 'main-matrix' || item.viewType === 'matrix-launcher' || item.viewType === 'section' || String(item.id).startsWith('section:'));
+        if (!tabsData || !tabsData.length) return false;
+
+        const validTabs = tabsData.filter(item => item.id === 'main-matrix' || item.viewType === 'matrix-launcher' || item.viewType === 'section' || String(item.id).startsWith('section:'));
         for (const item of validTabs) {
           let verifiedMode = item.mode || 'production';
           if (item.viewType === 'section' && typeof revalidateDraftFn === 'function') {
@@ -1298,35 +1385,45 @@
             }
           }
 
-          this.openTab({
+          let vp = item.viewParams ? { ...item.viewParams } : (item.classId ? { classId: item.classId, sectionName: item.classId } : {});
+          if ((!vp.classId && !vp.sectionName) && String(item.id).includes(':')) {
+            try {
+              const search = new URLSearchParams(String(item.id).split(':').slice(1).join(':'));
+              const cId = search.get('classId') || search.get('sectionName') || search.get('section');
+              if (cId) {
+                vp.classId = decodeURIComponent(cId);
+                vp.sectionName = decodeURIComponent(cId);
+              }
+            } catch (_) {}
+          }
+
+          const friendlyTitle = resolveFriendlyTabTitle({
             id: item.id,
             title: item.title,
+            viewType: item.viewType,
+            viewParams: vp
+          });
+
+          this.openTab({
+            id: item.id,
+            title: friendlyTitle,
             icon: item.icon,
             viewType: item.viewType || (item.id === 'main-matrix' ? 'matrix-launcher' : 'section'),
-            viewParams: item.viewParams,
-            isPinned: item.isPinned,
+            viewParams: vp,
+            isPinned: Boolean(item.isPinned),
             mode: verifiedMode,
             activate: false
           });
         }
 
-        if (data.activeTabId && this.tabs.has(data.activeTabId)) {
-          this.activateTab(data.activeTabId);
-        } else if (this.tabs.size > 0) {
+        if (this.tabs.size > 0) {
           const firstId = this.tabs.keys().next().value;
           this.activateTab(firstId);
         }
 
-        // Restore split mode if previously active
-        if (data.isSplit && data.secondaryTabId && this.tabs.has(data.secondaryTabId)) {
-          this.splitMode = data.splitMode || 'vertical';
-          this.splitRatio = data.splitRatio || 0.5;
-          this.toggleSplit(data.secondaryTabId);
-        }
-
         return true;
       } catch (err) {
-        console.error('[TabWorkspace] Error restoring session:', err);
+        console.error('[TabWorkspace] Error restoring user state:', err);
         return false;
       }
     }
@@ -1345,4 +1442,5 @@
   // Expose to window
   window.TabWorkspace = TabWorkspace;
   window.buildTabId = buildTabId;
+  window.resolveFriendlyTabTitle = resolveFriendlyTabTitle;
 })();

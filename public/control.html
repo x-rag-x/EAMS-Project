@@ -12,6 +12,7 @@
   <script src="js/core/icons.js"></script>
   <link rel="stylesheet" href="css/base.css">
   <link rel="stylesheet" href="css/control.css">
+  <link rel="stylesheet" href="css/control.attendance.css">
 </head>
 
 <body>
@@ -46,17 +47,21 @@
 
     <div style="flex:1;overflow-y:auto;padding:6px 0;">
       <div class="sb-section-label">Overview</div>
-      <button class="sb-item act" onclick="nav('overview')"><span class="sbi-ic"><re-icon icon="monitor"></re-icon></span>System Overview</button>
-      <button class="sb-item" onclick="nav('usergrid')"><span class="sbi-ic"><re-icon icon="users"></re-icon></span>User Grid</button>
+      <button class="sb-item act" data-page="overview" onclick="nav('overview')"><span class="sbi-ic"><re-icon icon="monitor"></re-icon></span>System Overview</button>
+      <button class="sb-item" data-page="usergrid" onclick="nav('usergrid')"><span class="sbi-ic"><re-icon icon="users"></re-icon></span>User Grid</button>
+
+      <div class="sb-section-label">Attendance</div>
+      <button class="sb-item" data-page="roster" onclick="nav('roster')"><span class="sbi-ic"><re-icon icon="calendar"></re-icon></span>Attendance Roster</button>
+      <button class="sb-item" data-page="registry" onclick="nav('registry')"><span class="sbi-ic"><re-icon icon="table"></re-icon></span>Attendance Registry</button>
 
       <div class="sb-section-label">Announcements</div>
-      <button class="sb-item" onclick="nav('broadcasts')"><span class="sbi-ic"><re-icon icon="bullhorn"></re-icon></span>Broadcasts</button>
+      <button class="sb-item" data-page="broadcasts" onclick="nav('broadcasts')"><span class="sbi-ic"><re-icon icon="bullhorn"></re-icon></span>Broadcasts</button>
 
       <div class="sb-section-label">Danger Zone</div>
-      <button class="sb-item" onclick="nav('data')"><span class="sbi-ic"><re-icon icon="trash2"></re-icon></span>Data Management</button>
-      <button class="sb-item" onclick="nav('backup')"><span class="sbi-ic"><re-icon icon="archive"></re-icon></span>Backup</button>
-      <button class="sb-item" id="sb-nav-recycle-bin" onclick="nav('recycle-bin')"><span class="sbi-ic"><re-icon icon="trash2"></re-icon></span>Recycle Bin <span class="sb-badge-count" id="sb-recycle-badge" style="display:none;margin-left:auto;padding:2px 7px;font-size:11px;font-weight:700;background:#ef4444;color:#fff;border-radius:12px;line-height:1;">0</span></button>
-      <button class="sb-item" onclick="nav('maintenance')"><span class="sbi-ic"><re-icon icon="sledgehammer"></re-icon></span>Maintenance Mode</button>
+      <button class="sb-item" data-page="data" onclick="nav('data')"><span class="sbi-ic"><re-icon icon="trash2"></re-icon></span>Data Management</button>
+      <button class="sb-item" data-page="backup" onclick="nav('backup')"><span class="sbi-ic"><re-icon icon="archive"></re-icon></span>Backup</button>
+      <button class="sb-item" data-page="recycle-bin" id="sb-nav-recycle-bin" onclick="nav('recycle-bin')"><span class="sbi-ic"><re-icon icon="trash2"></re-icon></span>Recycle Bin <span class="sb-badge-count" id="sb-recycle-badge" style="display:none;margin-left:auto;padding:2px 7px;font-size:11px;font-weight:700;background:#ef4444;color:#fff;border-radius:12px;line-height:1;">0</span></button>
+      <button class="sb-item" data-page="maintenance" onclick="nav('maintenance')"><span class="sbi-ic"><re-icon icon="sledgehammer"></re-icon></span>Maintenance Mode</button>
 
       <div class="sb-section-label">Configuration & Logs</div>
       <a href="logs.html" class="sb-item" style="text-decoration:none;"><span class="sbi-ic"><re-icon icon="clipboard-list"></re-icon></span>Audit Logs <re-icon icon="arrow-right"></re-icon></a>
@@ -523,7 +528,7 @@
                     </div>
                   </div>
 
-                  <div class="form-grid form-grid-2" style="margin-top:10px;">
+                  <div class="form-grid form-grid-3" style="margin-top:10px;">
                     <div class="fg">
                       <label class="fl">Gender</label>
                       <select class="fc2" id="ug-e-stu-gender">
@@ -536,6 +541,13 @@
                       <select class="fc2" id="ug-e-stu-residency">
                         <option value="dayscholar">Dayscholar</option>
                         <option value="hostel">Hosteler</option>
+                      </select>
+                    </div>
+                    <div class="fg">
+                      <label class="fl">Admission Type</label>
+                      <select class="fc2" id="ug-e-stu-admission-type">
+                        <option value="Regular">Regular</option>
+                        <option value="Lateral Entry">Lateral Entry</option>
                       </select>
                     </div>
                   </div>
@@ -780,7 +792,112 @@
       </div>
     </div>
 
-    <!-- DATA MANAGEMENT PAGE -->
+    <!-- ══════════════════════════════════════════════════════════════════════════
+         PAGE: ATTENDANCE ROSTER (AttReg Part 1)
+    ══════════════════════════════════════════════════════════════════════════ -->
+    <div class="pg" id="pg-roster">
+      <div class="page-hd">
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+          <div>
+            <div class="page-title"><re-icon icon="calendar"></re-icon> Attendance Roster</div>
+            <div class="page-sub">Day view &amp; period forensics joined to LoginHistory and device trust heuristics.</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <button class="btn btn-sm btn-out" onclick="window.print()"><re-icon icon="printer" size="13"></re-icon> Print Day</button>
+            <button class="btn btn-sm btn-out" onclick="fetchRoster()"><re-icon icon="refresh-cw" size="13"></re-icon> Refresh</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Controls Bar -->
+      <div class="att-controls-bar">
+        <div class="att-controls-left">
+          <div class="att-select-group">
+            <label for="roster-dept-sel">Dept</label>
+            <select id="roster-dept-sel" class="att-select"><option value="">All</option></select>
+          </div>
+          <div class="att-select-group">
+            <label for="roster-class-sel">Class</label>
+            <select id="roster-class-sel" class="att-select"><option value="">Select Class...</option></select>
+          </div>
+          <div class="att-select-group">
+            <label for="roster-date-input">Date</label>
+            <input type="date" id="roster-date-input" class="att-input-date">
+          </div>
+        </div>
+        <div class="att-controls-right">
+          <div class="att-search-box">
+            <re-icon icon="search" size="14" class="att-search-icon"></re-icon>
+            <input type="text" id="roster-search" class="att-search-input" placeholder="Search student (/)..." autocomplete="off">
+          </div>
+        </div>
+      </div>
+
+      <!-- Content Area (KPI Strip + Period Strip + Table) -->
+      <div id="roster-content-area"></div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════════════════════════
+         PAGE: ATTENDANCE REGISTRY (AttReg Part 2)
+    ══════════════════════════════════════════════════════════════════════════ -->
+    <div class="pg" id="pg-registry">
+      <div class="page-hd">
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+          <div>
+            <div class="page-title"><re-icon icon="table"></re-icon> Attendance Registry</div>
+            <div class="page-sub">Spreadsheet-style attendance register: 2-level date bands over periods, live formulas, shortage alerts, and Excel/PDF export.</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <button class="btn btn-sm btn-out" onclick="fetchRegistry()"><re-icon icon="refresh-cw" size="13"></re-icon> Refresh</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Controls Bar -->
+      <div class="att-controls-bar">
+        <div class="att-controls-left">
+          <div class="att-select-group">
+            <label for="reg-dept-sel">Dept</label>
+            <select id="reg-dept-sel" class="att-select"><option value="">All</option></select>
+          </div>
+          <div class="att-select-group">
+            <label for="reg-class-sel">Class</label>
+            <select id="reg-class-sel" class="att-select"><option value="">Select Class...</option></select>
+          </div>
+          <div class="att-select-group">
+            <label>Range</label>
+            <input type="date" id="reg-from-input" class="att-input-date" style="padding:4px 6px;font-size:12px;">
+            <span style="color:var(--tmu);font-size:12px;">to</span>
+            <input type="date" id="reg-to-input" class="att-input-date" style="padding:4px 6px;font-size:12px;">
+          </div>
+          <div style="display:flex;gap:4px;">
+            <button class="btn btn-sm btn-out" style="padding:3px 8px;font-size:11px;" onclick="setRegistryPreset('this-week')">Week</button>
+            <button class="btn btn-sm btn-out" style="padding:3px 8px;font-size:11px;" onclick="setRegistryPreset('this-month')">Month</button>
+            <button class="btn btn-sm btn-out" style="padding:3px 8px;font-size:11px;" onclick="setRegistryPreset('last-month')">Last Mo</button>
+            <button class="btn btn-sm btn-out" style="padding:3px 8px;font-size:11px;" onclick="setRegistryPreset('semester')">Sem</button>
+          </div>
+        </div>
+        <div class="att-controls-right">
+          <label style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:var(--td);cursor:pointer;margin-right:6px;">
+            <input type="checkbox" id="reg-shortage-chk" style="accent-color:#dc2626;"> ⚠ Shortage (&lt;75%)
+          </label>
+          <div class="att-search-box">
+            <re-icon icon="search" size="14" class="att-search-icon"></re-icon>
+            <input type="text" id="reg-search" class="att-search-input" placeholder="Search student..." autocomplete="off">
+          </div>
+        </div>
+      </div>
+
+      <!-- Header Strip (Class title, Advisor, View Toggles & Exports) -->
+      <div id="reg-header-strip"></div>
+
+      <!-- Main Content Area (Grid + Legend) -->
+      <div id="reg-content-area">
+        <div id="reg-grid-container"></div>
+      </div>
+    </div>
+
+    <!-- DATA MANAGEMENT PAGE -->
     <div class="pg" id="pg-data">
       <div class="page-hd">
         <div class="page-title"><re-icon icon="trash2"></re-icon> Data Management</div>
@@ -1849,4 +1966,21 @@
   <script src="js/core/popup.js"></script>
   <script src="js/core/guard.js"></script>
   <script src="js/core/searchableDropdown.js"></script>
+  <!-- Roster Student Forensic Drawer -->
+  <div class="att-drawer-overlay" id="roster-drawer-overlay"></div>
+  <div class="att-drawer" id="roster-drawer">
+    <div class="att-drawer-hd">
+      <div>
+        <div class="att-drawer-title" id="roster-drawer-title">Student Forensic Dossier</div>
+        <div class="att-drawer-sub" id="roster-drawer-sub">Live session forensics &amp; device trust breakdown</div>
+      </div>
+      <button class="modal-x" onclick="closeStudentDrawer()">&times;</button>
+    </div>
+    <div class="att-drawer-bd" id="roster-drawer-content">
+      <!-- Injected by control.roster.js -->
+    </div>
+  </div>
+
   <script src="js/pages/control.page.js"></script>
+  <script src="js/pages/control.roster.js"></script>
+  <script src="js/pages/control.registry.js"></script>

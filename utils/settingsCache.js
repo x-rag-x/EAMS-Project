@@ -101,8 +101,14 @@ function invalidateSettingsCache(key) {
   }
 }
 
+async function getCachedSettings(keys) {
+  const targetKeys = Array.isArray(keys) && keys.length > 0 ? keys : Object.keys(DEFAULT_SETTINGS_MAP);
+  return getSettings(targetKeys);
+}
+
 module.exports = {
   getSetting,
   getSettings,
+  getCachedSettings,
   invalidateSettingsCache
 };

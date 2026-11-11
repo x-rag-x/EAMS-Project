@@ -19,10 +19,17 @@ try {
 var portalPagesState = {
   pageStudents: 'enabled',
   pageTeachers: 'enabled',
+  pageController: 'enabled',
+  pageRooms: 'enabled',
   pageManage: 'enabled',
   pageBulk: 'enabled',
   pageTimeTable: 'enabled',
   pageSelector: 'enabled',
+  pageHostel: 'enabled',
+  pageTrust: 'enabled',
+  pageExport: 'enabled',
+  pageControl: 'enabled',
+  pageLogs: 'enabled',
 };
 
 // PAGE LOADER & ACCESS SYNCHRONIZATION (2-4s minimum loading protocol)
@@ -312,28 +319,28 @@ function renderRoleTags(user, accessData) {
   var tags = [];
 
   if (flags.isPrincipal || user.isPrincipal || user.adminFlag === 'principal') {
-    tags.push('<span class="role-tag-pill active" style="background:#eef2ff;border-color:#c7d2fe;color:#3730a3;"><re-icon icon="building2"></re-icon> Principal · Institutional Executive</span>');
+    tags.push('<span class="role-tag-pill pill-principal"><re-icon icon="building2"></re-icon> Principal · Institutional Executive</span>');
   }
 
   if (flags.isSudo || accessRole === 'sudoAdmin' || isSudoAdmin(user)) {
-    tags.push('<span class="role-tag-pill active" style="background:#fef2f2;border-color:#fecaca;color:#991b1b;"><re-icon icon="shield"></re-icon> Sudo Admin Authority</span>');
+    tags.push('<span class="role-tag-pill pill-sudo"><re-icon icon="shield"></re-icon> Sudo Admin Authority</span>');
   } else if (flags.isSuper || accessRole === 'superAdmin') {
-    tags.push('<span class="role-tag-pill active" style="background:#fef3c7;border-color:#fde68a;color:#92400e;"><re-icon icon="shield"></re-icon> Super Administrator' + (deptLabel ? (' (' + deptLabel + ')') : '') + '</span>');
+    tags.push('<span class="role-tag-pill pill-super"><re-icon icon="shield"></re-icon> Super Administrator' + (deptLabel ? (' (' + deptLabel + ')') : '') + '</span>');
   } else if (flags.isSub || accessRole === 'subAdmin') {
     var grantCount = (accessData && Array.isArray(accessData.grants)) ? accessData.grants.filter(function(g){ return g && g.enabled; }).length : 1;
-    tags.push('<span class="role-tag-pill active" style="background:#f5f3ff;border-color:#ddd6fe;color:#5b21b6;"><re-icon icon="bolt"></re-icon> Sub-Administrator (' + grantCount + ' modules)</span>');
+    tags.push('<span class="role-tag-pill pill-sub"><re-icon icon="bolt"></re-icon> Sub-Administrator (' + grantCount + ' modules)</span>');
   }
 
   if (flags.isHod || user.isHod) {
-    tags.push('<span class="role-tag-pill active" style="background:#fdf2f8;border-color:#fbcfe8;color:#9d174d;"><re-icon icon="building2"></re-icon> Head of Department (HOD)</span>');
+    tags.push('<span class="role-tag-pill pill-hod"><re-icon icon="building2"></re-icon> Head of Department (HOD)</span>');
   }
 
   if (user.role === 'teacher' || (!flags.isSudo && !flags.isPrincipal)) {
-    tags.push('<span class="role-tag-pill active"><re-icon icon="teacher"></re-icon> Faculty Member</span>');
+    tags.push('<span class="role-tag-pill pill-faculty"><re-icon icon="teacher"></re-icon> Faculty Member</span>');
   }
 
   if (user.isTimeTableCoordinator || (accessData && accessData.pages && accessData.pages.timetable)) {
-    tags.push('<span class="role-tag-pill active" style="background:#fffbeb;border-color:#fde68a;color:#92400e;"><re-icon icon="calendar-days"></re-icon> Timetable Coordinator</span>');
+    tags.push('<span class="role-tag-pill pill-coordinator"><re-icon icon="calendar-days"></re-icon> Timetable Coordinator</span>');
   }
 
   tagsBar.innerHTML = tags.join('');
@@ -421,7 +428,7 @@ function formatActionsMeta(actions) {
   var formatted = actions.map(function(a) {
     return labels[a] || (a.charAt(0).toUpperCase() + a.slice(1));
   }).join(' · ');
-  return '<div class="card-actions-meta"><re-icon icon="shield"></re-icon> <span>Actions: <strong>' + escapeHtml(formatted) + '</strong></span></div>';
+  return '<span class="card-actions-meta"><re-icon icon="shield"></re-icon> <span>Actions: <strong>' + escapeHtml(formatted) + '</strong></span></span>';
 }
 
 /**
@@ -453,6 +460,11 @@ function getPortalDefinitions(accessData, user) {
   var ttState = isSudo ? 'enabled' : (portalPagesState.pageTimeTable || 'enabled');
   var manageState = isSudo ? 'enabled' : (portalPagesState.pageManage || 'enabled');
   var bulkState = isSudo ? 'enabled' : (portalPagesState.pageBulk || 'enabled');
+  var hostelState = isSudo ? 'enabled' : (portalPagesState.pageHostel || 'enabled');
+  var trustState = isSudo ? 'enabled' : (portalPagesState.pageTrust || 'enabled');
+  var exportState = isSudo ? 'enabled' : (portalPagesState.pageExport || 'enabled');
+  var controlState = isSudo ? 'enabled' : (portalPagesState.pageControl || 'enabled');
+  var logsState = isSudo ? 'enabled' : (portalPagesState.pageLogs || 'enabled');
 
   var defs = [
     // 1. Teacher Portal (Always present for staff)
@@ -485,10 +497,10 @@ function getPortalDefinitions(accessData, user) {
       icon: '<re-icon icon="building2"></re-icon>',
       tag: isPrincipal ? 'Principal · College-wide' : (isHod ? ('HOD · ' + (userDeptCode || 'Department')) : 'Executive Hub'),
       link: 'controller.html',
-      accent: '#4f46e5',
-      iconBg: '#eef2ff',
-      tagBg: '#eef2ff',
-      tagCol: '#3730a3',
+      accent: '#0f766e',
+      iconBg: '#f0fdfa',
+      tagBg: '#f0fdfa',
+      tagCol: '#0f766e',
       highlights: ['Attendance Overview', 'Leave Approvals', 'Defaulters Notice', 'Broadcast Hub'],
       scope: isPrincipal ? 'institution' : 'department',
       scopeDept: isPrincipal ? '' : userDeptCode,
@@ -531,10 +543,10 @@ function getPortalDefinitions(accessData, user) {
       icon: '<re-icon icon="clipboard-list"></re-icon>',
       tag: 'Academic Data',
       link: 'manage.html',
-      accent: '#0284c7',
-      iconBg: '#f0f9ff',
-      tagBg: '#f0f9ff',
-      tagCol: '#0369a1',
+      accent: '#2e7d32',
+      iconBg: '#e8f5e9',
+      tagBg: '#e8f5e9',
+      tagCol: '#1b5e20',
       highlights: ['College Calendar', 'Exam Schedules', 'Batch Years'],
       scope: (pages.manage && pages.manage.scope) || (isSudo ? 'institution' : 'department'),
       scopeDept: (pages.manage && pages.manage.scope === 'institution') || isSudo ? '' : userDeptCode,
@@ -554,7 +566,7 @@ function getPortalDefinitions(accessData, user) {
       icon: '<re-icon icon="calendar"></re-icon>',
       tag: 'Timetable Hub',
       link: 'timetable.html?tab=dashboard',
-      accent: '#d97706',
+      accent: '#b45309',
       iconBg: '#fffbeb',
       tagBg: '#fffbeb',
       tagCol: '#92400e',
@@ -578,10 +590,10 @@ function getPortalDefinitions(accessData, user) {
       icon: '<re-icon icon="package"></re-icon>',
       tag: 'Bulk Operations',
       link: 'bulk.html',
-      accent: '#7c3aed',
-      iconBg: '#f5f3ff',
-      tagBg: '#f5f3ff',
-      tagCol: '#5b21b6',
+      accent: '#c2410c',
+      iconBg: '#fff7ed',
+      tagBg: '#fff7ed',
+      tagCol: '#9a3412',
       highlights: ['Spreadsheet Import', 'Mass Students', 'Data Verification'],
       scope: (pages.bulk && pages.bulk.scope) || (isSudo ? 'institution' : 'department'),
       scopeDept: (pages.bulk && pages.bulk.scope === 'institution') || isSudo ? '' : userDeptCode,
@@ -601,7 +613,7 @@ function getPortalDefinitions(accessData, user) {
       icon: '<re-icon icon="grid"></re-icon>',
       tag: 'Reports & Export',
       link: 'export.html',
-      accent: '#0d9488',
+      accent: '#0f766e',
       iconBg: '#f0fdfa',
       tagBg: '#f0fdfa',
       tagCol: '#0f766e',
@@ -611,9 +623,9 @@ function getPortalDefinitions(accessData, user) {
       actions: (pages.export && pages.export.actions) || (isSudo ? ['view', 'create', 'export'] : ['view', 'export']),
       validTo: (findGrant('export') || {}).validTo,
       btnText: 'Open Export Center',
-      state: 'enabled',
-      allowed: Boolean(isSudo || pages.export),
-      isLocked: false
+      state: exportState,
+      allowed: Boolean(isSudo || pages.export) && exportState !== 'hidden',
+      isLocked: exportState === 'disabled'
     },
 
     // 8. Control Dashboard (control.html)
@@ -624,19 +636,19 @@ function getPortalDefinitions(accessData, user) {
       icon: '<re-icon icon="settings"></re-icon>',
       tag: 'Control & Logs',
       link: 'control.html',
-      accent: '#4f46e5',
-      iconBg: '#eef2ff',
-      tagBg: '#eef2ff',
-      tagCol: '#3730a3',
+      accent: '#334155',
+      iconBg: '#f1f5f9',
+      tagBg: '#f1f5f9',
+      tagCol: '#334155',
       highlights: ['System Health', 'Audit Activity Logs', 'Backup & Undo'],
       scope: 'institution',
       scopeDept: '',
       actions: (pages.control && pages.control.actions) || ['view', 'create', 'edit', 'export', 'change'],
       validTo: (findGrant('control') || {}).validTo,
       btnText: 'Open Control',
-      state: 'enabled',
-      allowed: Boolean(isSudo || pages.control),
-      isLocked: false
+      state: controlState,
+      allowed: Boolean(isSudo || pages.control) && controlState !== 'hidden',
+      isLocked: controlState === 'disabled'
     },
 
     // 9. System Settings (settings.html)
@@ -647,10 +659,10 @@ function getPortalDefinitions(accessData, user) {
       icon: '<re-icon icon="settings"></re-icon>',
       tag: 'Configuration',
       link: 'settings.html',
-      accent: '#e11d48',
-      iconBg: '#fff1f2',
-      tagBg: '#fff1f2',
-      tagCol: '#9f1239',
+      accent: '#b91c1c',
+      iconBg: '#fef2f2',
+      tagBg: '#fef2f2',
+      tagCol: '#991b1b',
       highlights: ['Pages & Portals', 'Security Rules', 'Change History'],
       scope: 'institution',
       scopeDept: '',
@@ -670,7 +682,7 @@ function getPortalDefinitions(accessData, user) {
       icon: '<re-icon icon="shield"></re-icon>',
       tag: 'Audit & Security',
       link: 'logs.html',
-      accent: '#dc2626',
+      accent: '#b91c1c',
       iconBg: '#fef2f2',
       tagBg: '#fef2f2',
       tagCol: '#991b1b',
@@ -680,9 +692,9 @@ function getPortalDefinitions(accessData, user) {
       actions: (pages.logs && pages.logs.actions) || ['view', 'edit', 'export'],
       validTo: (findGrant('logs') || {}).validTo,
       btnText: 'View Logs',
-      state: 'enabled',
-      allowed: Boolean(isSudo || pages.logs),
-      isLocked: false
+      state: logsState,
+      allowed: Boolean(isSudo || pages.logs) && logsState !== 'hidden',
+      isLocked: logsState === 'disabled'
     },
 
     // 11. Room & Board Manager (rooms.html)
@@ -693,10 +705,10 @@ function getPortalDefinitions(accessData, user) {
       icon: '<re-icon icon="building2"></re-icon>',
       tag: 'Facilities',
       link: 'rooms.html',
-      accent: '#0284c7',
-      iconBg: '#f0f9ff',
-      tagBg: '#f0f9ff',
-      tagCol: '#0369a1',
+      accent: '#0f766e',
+      iconBg: '#f0fdfa',
+      tagBg: '#f0fdfa',
+      tagCol: '#0f766e',
       highlights: ['Room Directories', 'Smart Boards', 'Block Management'],
       scope: 'institution',
       scopeDept: '',
@@ -716,7 +728,7 @@ function getPortalDefinitions(accessData, user) {
       icon: '<re-icon icon="settings"></re-icon>',
       tag: 'System Maintenance',
       link: 'maintenance-admin.html',
-      accent: '#d97706',
+      accent: '#b45309',
       iconBg: '#fffbeb',
       tagBg: '#fffbeb',
       tagCol: '#92400e',
@@ -729,6 +741,29 @@ function getPortalDefinitions(accessData, user) {
       state: 'enabled',
       allowed: Boolean(isSudo || pages.maintenance || pages['maintenance-admin']),
       isLocked: false
+    },
+
+    // 13. Hostel Management Portal (hostel.html)
+    {
+      id: 'hostel',
+      title: 'Hostel Management Portal',
+      desc: 'Nightly roll-calls, outing and home leave approvals, student room allocations, and resident management.',
+      icon: '<re-icon icon="building"></re-icon>',
+      tag: 'Hostel Portal',
+      link: 'hostel.html',
+      accent: '#0d9488',
+      iconBg: '#f0fdfa',
+      tagBg: '#ecfdf5',
+      tagCol: '#065f46',
+      highlights: ['Night Roll-Call', 'Outing Passes', 'Room Allocations'],
+      scope: 'institution',
+      scopeDept: '',
+      actions: isSudo ? ['view', 'create', 'edit', 'approve', 'export'] : ['view', 'approve'],
+      validTo: (findGrant('hostel') || {}).validTo,
+      btnText: 'Open Hostel Portal',
+      state: hostelState,
+      allowed: Boolean(isSudo || (user && ((Array.isArray(user.specials) && user.specials.some(function(s) { return s && s.option === 'isWarden'; })) || (typeof user.designation === 'string' && /warden/i.test(user.designation)))) || pages.hostel) && hostelState !== 'hidden',
+      isLocked: hostelState === 'disabled'
     }
   ];
 
@@ -748,9 +783,9 @@ function renderCards(accessData, user) {
   });
 
   if (allowedPortals.length === 0) {
-    grid.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 48px 24px; background: #fff; border: 1px solid var(--br); border-radius: 16px; color: var(--tmu); font-size: 13.5px;">'
-      + '<div style="font-size:32px;margin-bottom:10px;"><re-icon icon="lock"></re-icon></div>'
-      + '<div style="font-weight:700;color:var(--td);margin-bottom:4px;">No active workspaces assigned</div>'
+    grid.innerHTML = '<div class="sel-empty">'
+      + '<div class="sel-empty-icon"><re-icon icon="lock"></re-icon></div>'
+      + '<div class="sel-empty-title">No active workspaces assigned</div>'
       + '<div>Please contact your system administrator for access permissions.</div>'
       + '</div>';
     return;
@@ -764,70 +799,51 @@ function renderCards(accessData, user) {
       return '<span class="card-highlight-item">' + escapeHtml(h) + '</span>';
     }).join('');
 
-    var scopeBadgeHtml = formatScopeBadge(card.scope, card.scopeDept);
-    var actionsMetaHtml = formatActionsMeta(card.actions);
-    var expiryBadgeHtml = card.validTo ? formatExpiryBadge(card.validTo) : '';
+    var cardVars = isLocked
+      ? '--card-accent:#94a3b8;--card-icon-bg:var(--gP);--card-tag-bg:var(--gP);--card-tag-col:var(--tmu);'
+      : '--card-accent:' + card.accent + ';--card-icon-bg:' + card.iconBg + ';--card-tag-bg:' + card.tagBg + ';--card-tag-col:' + card.tagCol + ';';
 
-    // Handle locked card with Request Access button (§8, R6.3)
+    var metaHtml = '<div class="card-meta">'
+      + (card.validTo ? formatExpiryBadge(card.validTo) : '')
+      + formatActionsMeta(card.actions)
+      + '</div>';
+
+    var scopeBadgeHtml = formatScopeBadge(card.scope, card.scopeDept);
+
+    // Locked card: a div, so the Request Access button stays valid markup (§8, R6.3)
     if (isLocked) {
-      return '' +
-        '<div class="sel-card card-locked" style="--card-accent:#94a3b8;">' +
-          '<div class="card-top">' +
-            '<div class="card-icon" style="background:#f1f5f9;color:#64748b;">' + card.icon + '</div>' +
-            '<span class="disabled-badge" style="background:#f1f5f9;color:#64748b;border-color:#cbd5e1;"><re-icon icon="lock"></re-icon> Access Locked</span>' +
-          '</div>' +
-          '<div class="card-body">' +
-            '<h2 class="card-title" style="color:#64748b;">' + escapeHtml(card.title) + '</h2>' +
-            '<p class="card-desc">' + escapeHtml(card.desc) + '</p>' +
-            '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:6px;">' +
-              scopeBadgeHtml +
-              expiryBadgeHtml +
-            '</div>' +
-            actionsMetaHtml +
-            '<div class="card-highlights" style="opacity:0.6;">' + highlightsHtml + '</div>' +
-          '</div>' +
-          '<div class="card-footer" style="margin-top:14px;padding-top:14px;border-top:1px dashed #e2e8f0;display:flex;justify-content:space-between;align-items:center;">' +
-            '<span class="card-tag" style="background:#f1f5f9;color:#64748b;">' + escapeHtml(card.tag) + '</span>' +
-            '<button type="button" class="card-request-btn" onclick="openRequestAccessModal(\'' + escapeHtml(card.id) + '\', \'' + escapeHtml(card.title) + '\', \'' + escapeHtml(card.scopeDept ? (card.scopeDept + ' (Department)') : 'Institution-wide') + '\')">' +
-              '<re-icon icon="key"></re-icon> Request Access' +
-            '</button>' +
-          '</div>' +
-        '</div>';
+      return '<div class="sel-card card-locked" style="' + cardVars + '">'
+        + '<div class="card-top"><div class="card-icon">' + card.icon + '</div>'
+        + '<span class="disabled-badge"><re-icon icon="lock"></re-icon> Access Locked</span></div>'
+        + '<div class="card-body"><h2 class="card-title">' + escapeHtml(card.title) + '</h2>'
+        + '<p class="card-desc">' + escapeHtml(card.desc) + '</p>'
+        + '<div class="card-highlights">' + highlightsHtml + '</div>' + metaHtml + '</div>'
+        + '<div class="card-footer">' + scopeBadgeHtml
+        + '<button type="button" class="card-request-btn" onclick="openRequestAccessModal(\'' + escapeHtml(card.id) + '\', \'' + escapeHtml(card.title) + '\', \'' + escapeHtml(card.scopeDept ? (card.scopeDept + ' (Department)') : 'Institution-wide') + '\')">'
+        + '<re-icon icon="key"></re-icon> Request Access</button></div></div>';
     }
 
     var tagHtml = isDisabled
-      ? '<span class="disabled-badge"><re-icon icon="lock"></re-icon> Disabled / Maintenance</span>'
-      : '<span class="card-tag" style="background:' + card.tagBg + ';color:' + card.tagCol + ';">' + escapeHtml(card.tag) + '</span>';
+      ? '<span class="disabled-badge"><re-icon icon="lock"></re-icon> Disabled</span>'
+      : '<span class="card-tag">' + escapeHtml(card.tag) + '</span>';
+
+    var ctaHtml = isDisabled
+      ? '<span class="card-btn is-muted"><re-icon icon="lock"></re-icon> Locked</span>'
+      : '<span class="card-btn">' + escapeHtml(card.btnText) + ' <span class="card-arrow"><re-icon icon="arrow-right"></re-icon></span></span>';
 
     var cardClass = 'sel-card' + (isDisabled ? ' disabled-portal' : '');
     var cardHref = isDisabled ? 'javascript:void(0)' : card.link;
-    var clickAttr = isDisabled ? 'onclick="showDisabledNotice(event, \'' + escapeHtml(card.title) + '\')"' : '';
+    var noticeAttr = isDisabled
+      ? ' onclick="showDisabledNotice(event, \'' + escapeHtml(card.title) + '\')" aria-disabled="true"'
+      : '';
 
-    var btnHtml = isDisabled
-      ? '<button class="card-btn" style="background:#94a3b8;cursor:not-allowed;box-shadow:none;"><re-icon icon="lock"></re-icon> Locked</button>'
-      : '<button class="card-btn" style="background:' + card.accent + ';">' + escapeHtml(card.btnText) + ' <span class="card-arrow"><re-icon icon="arrow-right"></re-icon></span></button>';
-
-    return '' +
-      '<a href="' + cardHref + '" class="' + cardClass + '" ' + clickAttr + ' style="--card-accent:' + (isDisabled ? '#d97706' : card.accent) + ';">' +
-        '<div class="card-top">' +
-          '<div class="card-icon" style="background:' + card.iconBg + ';">' + card.icon + '</div>' +
-          tagHtml +
-        '</div>' +
-        '<div class="card-body">' +
-          '<h2 class="card-title">' + escapeHtml(card.title) + '</h2>' +
-          '<p class="card-desc">' + escapeHtml(card.desc) + '</p>' +
-          '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:6px;">' +
-            scopeBadgeHtml +
-            expiryBadgeHtml +
-          '</div>' +
-          actionsMetaHtml +
-          '<div class="card-highlights">' + highlightsHtml + '</div>' +
-        '</div>' +
-        '<div class="card-footer">' +
-          '<span class="card-tag" style="background:' + card.tagBg + ';color:' + card.tagCol + ';">' + escapeHtml(card.tag) + '</span>' +
-          btnHtml +
-        '</div>' +
-      '</a>';
+    return '<a href="' + cardHref + '" class="' + cardClass + '"' + noticeAttr
+      + ' aria-label="Open ' + escapeHtml(card.title) + '" style="' + cardVars + '">'
+      + '<div class="card-top"><div class="card-icon">' + card.icon + '</div>' + tagHtml + '</div>'
+      + '<div class="card-body"><h2 class="card-title">' + escapeHtml(card.title) + '</h2>'
+      + '<p class="card-desc">' + escapeHtml(card.desc) + '</p>'
+      + '<div class="card-highlights">' + highlightsHtml + '</div>' + metaHtml + '</div>'
+      + '<div class="card-footer">' + scopeBadgeHtml + ctaHtml + '</div></a>';
   }).join('');
 }
 
@@ -882,7 +898,7 @@ function submitAccessRequest(event) {
   var reason = (document.getElementById('req-reason') || {}).value || '';
 
   if (!reason.trim()) {
-    showToast('<re-icon icon="alert-circle"></re-icon> Please enter a reason for requesting access.');
+    showToast('<re-icon icon="alert-triangle"></re-icon> Please enter a reason for requesting access.');
     return;
   }
 
@@ -897,7 +913,7 @@ function submitAccessRequest(event) {
   var submitBtn = document.getElementById('btn-submit-access-req');
   if (submitBtn) {
     submitBtn.disabled = true;
-    submitBtn.innerHTML = '<re-icon icon="loader-2"></re-icon> Submitting...';
+    submitBtn.innerHTML = '<re-icon icon="hourglass"></re-icon> Submitting...';
   }
 
   fetch('/api/access-requests', {
@@ -919,7 +935,7 @@ function submitAccessRequest(event) {
   .finally(function () {
     if (submitBtn) {
       submitBtn.disabled = false;
-      submitBtn.innerHTML = '<re-icon icon="send"></re-icon> Submit Request';
+      submitBtn.innerHTML = '<re-icon icon="plane"></re-icon> Submit Request';
     }
   });
 }

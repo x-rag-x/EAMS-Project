@@ -1,0 +1,141 @@
+/**
+ * public/css/timetable.mobile.css
+ * EAMS Timetable v3 — Mobile Day-Slider, Touch Card Layout & Lite Mode Styles (Phase 7)
+ */
+
+/* ── Lite Mode (N17) ── */
+html[data-tt-lite="true"] * {
+  animation: none !important;
+  transition: none !important;
+  backdrop-filter: none !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
+}
+
+html[data-tt-lite="true"] .reicon-wrap svg {
+  transition: none !important;
+}
+
+html[data-tt-lite="true"] .skeleton-box,
+html[data-tt-lite="true"] .shimmer {
+  background: var(--bg-hover, #f1f5f9) !important;
+  animation: none !important;
+}
+
+/* ── Mobile Day-Slider & Card Timeline (< 768px) ── */
+@media (max-width: 768px) {
+  /* Day Navigation Pill Bar */
+  .tt-mobile-day-slider {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    padding: 8px 4px 14px 4px;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+    margin-bottom: 12px;
+  }
+
+  .tt-mobile-day-slider::-webkit-scrollbar {
+    display: none;
+  }
+
+  .tt-day-pill {
+    flex: 0 0 auto;
+    min-width: 60px;
+    min-height: 48px; /* WCAG 48px touch target */
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    border-radius: 12px;
+    background: #f1f5f9;
+    color: #475569;
+    border: 1px solid #e2e8f0;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+
+  .tt-day-pill.active {
+    background: var(--gD, #1b5e20);
+    color: #ffffff;
+    border-color: #1b5e20;
+    box-shadow: 0 2px 8px rgba(27, 94, 32, 0.25);
+  }
+
+  /* Timeline Period Cards */
+  .tt-mobile-card-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .tt-period-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 14px 16px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+    min-height: 48px;
+  }
+
+  .tt-period-card.is-lab {
+    border-left: 5px solid #d97706;
+    background: #fffdfa;
+  }
+
+  .tt-period-card.is-break {
+    background: #f8fafc;
+    border-style: dashed;
+    text-align: center;
+    padding: 8px;
+  }
+
+  .tt-card-time {
+    font-size: 11.5px;
+    font-weight: 700;
+    color: #64748b;
+    margin-bottom: 4px;
+    display: flex;
+    justify-content: space-between;
+  }
+
+  .tt-card-subject {
+    font-size: 15px;
+    font-weight: 700;
+    color: #0f172a;
+    margin-bottom: 6px;
+  }
+
+  .tt-card-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    font-size: 12px;
+    color: #334155;
+  }
+
+  .tt-card-badge {
+    background: #f1f5f9;
+    padding: 3px 8px;
+    border-radius: 6px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-weight: 500;
+  }
+
+  /* Action buttons expansion for mobile thumbs */
+  .tt-btn,
+  .btn-pri,
+  .btn-out,
+  .btn-danger {
+    min-height: 48px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    touch-action: manipulation;
+  }
+}

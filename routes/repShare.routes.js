@@ -7,8 +7,14 @@ const { authMiddleware } = require('../middleware/auth');
 const { isSudoAdmin } = require('../utils/access');
 const { verifyTeacherAssignment } = require('../utils/assignmentAuth');
 const { logAction } = require('../utils/logAction');
+const { checkAttendanceMarkGuard, checkRepShareGuard } = require('../middleware/portalGuard');
+const { attendanceMarkIpLimiter, repShareRequestLimiter, repShareSubmitLimiter } = require('../utils/rateLimiters');
+const { sendError } = require('../utils/sendError');
 
 const isValidObjId = (id) => typeof id === 'string' && mongoose.Types.ObjectId.isValid(id) && id.length === 24;
+
+// Rep Share server-side guards (Invariant 13 & S8)
+router.use(authMiddleware, checkAttendanceMarkGuard, checkRepShareGuard);
 
 // 1. Get Class Reps for a Class (Teacher)
 router.get('/reps/:classId', authMiddleware, async (req, res) => {
@@ -41,12 +47,12 @@ router.get('/reps/:classId', authMiddleware, async (req, res) => {
     return res.json({ success: true, reps: reps || [] });
   } catch (err) {
     console.error('Error fetching class reps:', err);
-    return res.status(500).json({ error: err.message || 'Failed to fetch class reps' });
+    return sendError(res, err, 500, 'Failed to fetch class reps');
   }
 });
 
 // 2. Request Rep Share delegation (Teacher)
-router.post('/request', authMiddleware, async (req, res) => {
+router.post('/request', attendanceMarkIpLimiter, repShareRequestLimiter, async (req, res) => {
   if (req.user.role !== 'teacher' && req.user.role !== 'admin') {
     return res.status(403).json({ error: 'Only teachers can delegate attendance to Class Reps' });
   }
@@ -61,6 +67,10 @@ router.post('/request', authMiddleware, async (req, res) => {
       topic = '',
       actualClassCount = 0
     } = req.body;
+    const targetPeriodNumbers = Array.isArray(req.body.periodNumbers) && req.body.periodNumbers.length
+      ? req.body.periodNumbers.map(Number).filter(n => !isNaN(n) && n > 0)
+      : [Number(periodNumber) || 1];
+    const targetPeriodNumber = targetPeriodNumbers[0] || (Number(periodNumber) || 1);
 
     if (!classId || !subjectId || !date || !repStudentId) {
       return res.status(400).json({ error: 'Class, Subject, Date, and Representative are required' });
@@ -69,7 +79,8 @@ router.post('/request', authMiddleware, async (req, res) => {
     // Verify teacher assignment (A3, permit valid substitute)
     const assignCheck = await verifyTeacherAssignment(req.user, classId, subjectId, {
       date,
-      periodNumber
+      periodNumber: targetPeriodNumber,
+      periodNumbers: targetPeriodNumbers
     });
     if (!assignCheck.allowed) {
       return res.status(403).json({ error: assignCheck.reason });
@@ -106,7 +117,8 @@ router.post('/request', authMiddleware, async (req, res) => {
       subjectId: sub ? sub._id : (isValidObjId(subjectId) ? new mongoose.Types.ObjectId(subjectId) : subjectId),
       subjectName: (sub && (sub.name || sub.subjectName)) || 'Subject',
       date,
-      periodNumber: Number(periodNumber) || 1,
+      periodNumber: targetPeriodNumber,
+      periodNumbers: targetPeriodNumbers,
       topic: topic || '',
       repStudentId: rep._id,
       repStudentTrackId: rep.trackId,
@@ -171,7 +183,7 @@ router.post('/request', authMiddleware, async (req, res) => {
     });
   } catch (err) {
     console.error('Error initiating Rep Share request:', err);
-    return res.status(500).json({ error: err.message || 'Failed to delegate attendance' });
+    return sendError(res, err, 500, 'Failed to delegate attendance');
   }
 });
 
@@ -212,7 +224,7 @@ router.get('/pending', authMiddleware, async (req, res) => {
     });
   } catch (err) {
     console.error('Error checking pending rep session:', err);
-    return res.status(500).json({ error: err.message || 'Failed to check pending session' });
+    return sendError(res, err, 500, 'Failed to check pending session');
   }
 });
 
@@ -240,12 +252,12 @@ router.get('/session/:sessionId', authMiddleware, async (req, res) => {
 
     return res.json({ success: true, session });
   } catch (err) {
-    return res.status(500).json({ error: err.message || 'Failed to fetch session' });
+    return sendError(res, err, 500, 'Failed to fetch session');
   }
 });
 
 // 5. Submit attendance by Rep (Anti-fraud headcount check)
-router.post('/submit/:sessionId', authMiddleware, async (req, res) => {
+router.post('/submit/:sessionId', attendanceMarkIpLimiter, repShareSubmitLimiter, async (req, res) => {
   try {
     const { sessionId } = req.params;
     const { records = [], repConfirmedCount } = req.body;
@@ -332,7 +344,7 @@ router.post('/submit/:sessionId', authMiddleware, async (req, res) => {
     });
   } catch (err) {
     console.error('Error submitting rep attendance:', err);
-    return res.status(500).json({ error: err.message || 'Failed to submit rep attendance' });
+    return sendError(res, err, 500, 'Failed to submit rep attendance');
   }
 });
 
@@ -362,7 +374,7 @@ router.get('/draft/:sessionId', authMiddleware, async (req, res) => {
       records: session.records || []
     });
   } catch (err) {
-    return res.status(500).json({ error: err.message || 'Failed to load draft records' });
+    return sendError(res, err, 500, 'Failed to load draft records');
   }
 });
 
@@ -393,7 +405,7 @@ router.post('/cancel/:sessionId', authMiddleware, async (req, res) => {
     await session.save();
     return res.json({ success: true, message: 'Session cancelled' });
   } catch (err) {
-    return res.status(500).json({ error: err.message || 'Failed to cancel session' });
+    return sendError(res, err, 500, 'Failed to cancel session');
   }
 });
 

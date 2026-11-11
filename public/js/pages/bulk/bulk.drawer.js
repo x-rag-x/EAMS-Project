@@ -175,7 +175,22 @@
   };
 
   root.Bulk.openDrawer = function () {
-    store.setState({ drawerOpen: true });
+    var state = store.getState();
+    var batch = state.batch;
+    if (batch && batch._id && (batch.hasMoreRows || (batch.eligibleCount && (!batch.eligibleRows || batch.eligibleRows.length < batch.eligibleCount)))) {
+      api.getBatch(batch._id).then(function (res) {
+        var fullBatch = res && res.data && res.data.batch ? res.data.batch : (res ? res.batch : null);
+        if (fullBatch && fullBatch.eligibleRows) {
+          store.setState({ batch: fullBatch, drawerOpen: true });
+        } else {
+          store.setState({ drawerOpen: true });
+        }
+      }).catch(function () {
+        store.setState({ drawerOpen: true });
+      });
+    } else {
+      store.setState({ drawerOpen: true });
+    }
   };
 
   root.Bulk.drawer = {

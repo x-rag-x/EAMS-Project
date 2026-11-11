@@ -75,6 +75,27 @@ const ClassSessionSchema = new mongoose.Schema({
     trackId: { type: String, default: null },
     name:    { type: String, default: null }
   },
+  slotKey: {
+    type: String,
+    default: ''
+  },
+  slotHash: {
+    type: String,
+    default: ''
+  },
+  timetableTrackId: {
+    type: String,
+    default: ''
+  },
+  roomId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Room',
+    default: null
+  },
+  timetableDrift: {
+    type: Boolean,
+    default: false
+  },
   source: {
     type: String,
     enum: ['timetable', 'substitution', 'extra'],

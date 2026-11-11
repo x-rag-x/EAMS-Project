@@ -50,6 +50,8 @@ async function evaluateDeviceTrust(params) {
   const trustSettings = settingsMap?.trust || {};
   const weights = trustSettings.deviceWeights || DEFAULT_WEIGHTS;
   const allowedCampusIps = settingsMap?.college_ips || [];
+  const deviceSettings = settingsMap?.device || {};
+  const requireRegistered = deviceSettings.requireRegisteredDevice !== false;
 
   // 2. Check Student Trust Score & Lock Gate (§7.2, §8)
   const trustObj = student?.trust || {};
@@ -85,6 +87,21 @@ async function evaluateDeviceTrust(params) {
     deviceRegisteredOk = false;
     deviceProofOk = false;
     riskReasons.push('Unregistered device (no trusted phone registered for student)');
+    if (requireRegistered) {
+      return {
+        allowed: false,
+        code: 'REGISTERED_DEVICE_REQUIRED',
+        error: 'Self-attendance requires a registered trusted device. Please register your device in the student portal or contact your advisor.',
+        trustScore,
+        isLocked,
+        trustOk,
+        deviceRegisteredOk: false,
+        deviceProofOk: false,
+        requiresTeacherVerification: true,
+        riskLevel: 'high',
+        riskReasons
+      };
+    }
   } else if (!deviceProof || !deviceProof.signature || !deviceProof.ts) {
     deviceRegisteredOk = false;
     deviceProofOk = false;
@@ -247,6 +264,186 @@ async function evaluateDeviceTrust(params) {
   };
 }
 
+
+/**
+ * AttReg Part 1 (§3.8, §10): Heuristic Forensic Device Trust Engine
+ */
+const TRUST_VERSION = 1;
+const WEIGHTS = {
+  exclusiveInSession: 20,
+  knownDevice: 20,
+  loginSessionLinked: 20,
+  userAgentMatch: 10,
+  ipMatch: 10,
+  geoOk: 15,
+  qrWindow: 5,
+};
+const CAPS = { noDeviceId: 20, sharedDevice: 20 };
+const BANDS = { high: 80, medium: 50 };
+
+/**
+ * Computes heuristic explainable device trust score (0-100)
+ * @param {object} params
+ * @param {string} params.method - 'Live QR' | 'QuickPass Code' | 'Manual' | 'Rep Share'
+ * @param {string} [params.deviceId]
+ * @param {boolean} [params.isSharedInSession]
+ * @param {number} [params.priorSessionCount]
+ * @param {object} [params.loginEntry] - Matching LoginHistory entry
+ * @param {Date} [params.markedAt]
+ * @param {string} [params.requestUserAgent]
+ * @param {string} [params.requestIp]
+ * @param {boolean} [params.locationOk]
+ * @param {string} [params.qrWindowType] - 'current' | 'grace' | null
+ * @returns {object} { score, band, flags: string[], signals: Array<{key, earned, max, ok}>, v: number }
+ */
+function computeDeviceTrust(params) {
+  const {
+    method,
+    deviceId
+  } = params;
+
+  // Manual and Rep Share have no device link
+  if (method === 'Manual' || method === 'Rep Share' || !method) {
+    return {
+      score: null,
+      band: 'na',
+      flags: [],
+      signals: [],
+      v: TRUST_VERSION
+    };
+  }
+
+  const isSharedInSession = params.isSharedInSession ?? ((params.sharedCountInSession || 1) > 1);
+  const priorSessionCount = params.priorSessionCount ?? params.priorSeenCount ?? 0;
+  const loginEntry = params.loginEntry || params.loginSession || null;
+  const markedAt = params.markedAt || new Date();
+  const requestUserAgent = params.requestUserAgent || params.userAgent || '';
+  const requestIp = params.requestIp || params.ipAddress || '';
+  const locationOk = params.locationOk ?? (params.verificationDetails?.locationOk === true);
+  const qrWindowType = params.qrWindowType || 'current';
+
+  const flags = [];
+  const signals = [];
+  let rawScore = 0;
+
+  // Signal 1: Exclusive in session
+  if (!isSharedInSession) {
+    rawScore += WEIGHTS.exclusiveInSession;
+    signals.push({ key: 'exclusiveInSession', earned: WEIGHTS.exclusiveInSession, max: WEIGHTS.exclusiveInSession, ok: true });
+  } else {
+    flags.push('SHARED_DEVICE');
+    signals.push({ key: 'exclusiveInSession', earned: 0, max: WEIGHTS.exclusiveInSession, ok: false });
+  }
+
+  // Signal 2: Known device to student
+  if (priorSessionCount >= 3) {
+    rawScore += WEIGHTS.knownDevice;
+    signals.push({ key: 'knownDevice', earned: WEIGHTS.knownDevice, max: WEIGHTS.knownDevice, ok: true });
+  } else if (priorSessionCount > 0) {
+    const pts = Math.min(WEIGHTS.knownDevice, 8 + (priorSessionCount * 4));
+    rawScore += pts;
+    signals.push({ key: 'knownDevice', earned: pts, max: WEIGHTS.knownDevice, ok: true });
+  } else {
+    rawScore += 8; // first sight
+    signals.push({ key: 'knownDevice', earned: 8, max: WEIGHTS.knownDevice, ok: false });
+  }
+
+  // Signal 3: Login session link & time window
+  if (loginEntry) {
+    const lTime = loginEntry.loginTime ? new Date(loginEntry.loginTime).getTime() : 0;
+    const oTime = loginEntry.logoutTime ? new Date(loginEntry.logoutTime).getTime() : Date.now() + 86400000;
+    const mTime = new Date(markedAt).getTime();
+    if (mTime >= (lTime - 60000) && mTime <= (oTime + 60000)) {
+      rawScore += WEIGHTS.loginSessionLinked;
+      signals.push({ key: 'loginSessionLinked', earned: WEIGHTS.loginSessionLinked, max: WEIGHTS.loginSessionLinked, ok: true });
+    } else {
+      flags.push('LOGIN_WINDOW_EXPIRED');
+      signals.push({ key: 'loginSessionLinked', earned: 5, max: WEIGHTS.loginSessionLinked, ok: false });
+    }
+  } else {
+    signals.push({ key: 'loginSessionLinked', earned: 0, max: WEIGHTS.loginSessionLinked, ok: false });
+  }
+
+  // Signal 4: User agent match
+  if (loginEntry && loginEntry.userAgent && requestUserAgent) {
+    if (loginEntry.userAgent.trim() === requestUserAgent.trim()) {
+      rawScore += WEIGHTS.userAgentMatch;
+      signals.push({ key: 'userAgentMatch', earned: WEIGHTS.userAgentMatch, max: WEIGHTS.userAgentMatch, ok: true });
+    } else {
+      flags.push('UA_MISMATCH');
+      signals.push({ key: 'userAgentMatch', earned: 0, max: WEIGHTS.userAgentMatch, ok: false });
+    }
+  } else {
+    signals.push({ key: 'userAgentMatch', earned: 5, max: WEIGHTS.userAgentMatch, ok: true });
+  }
+
+  // Signal 5: IP match (or /24 subnet match)
+  if (loginEntry && loginEntry.ip && requestIp) {
+    const lIp = loginEntry.ip.trim();
+    const rIp = requestIp.trim();
+    if (lIp === rIp) {
+      rawScore += WEIGHTS.ipMatch;
+      signals.push({ key: 'ipMatch', earned: WEIGHTS.ipMatch, max: WEIGHTS.ipMatch, ok: true });
+    } else {
+      const lSub = lIp.split('.').slice(0, 3).join('.');
+      const rSub = rIp.split('.').slice(0, 3).join('.');
+      if (lSub && lSub === rSub) {
+        rawScore += 5;
+        signals.push({ key: 'ipMatch', earned: 5, max: WEIGHTS.ipMatch, ok: true });
+      } else {
+        signals.push({ key: 'ipMatch', earned: 0, max: WEIGHTS.ipMatch, ok: false });
+      }
+    }
+  } else {
+    signals.push({ key: 'ipMatch', earned: 5, max: WEIGHTS.ipMatch, ok: true });
+  }
+
+  // Signal 6: Geolocation OK
+  if (locationOk) {
+    rawScore += WEIGHTS.geoOk;
+    signals.push({ key: 'geoOk', earned: WEIGHTS.geoOk, max: WEIGHTS.geoOk, ok: true });
+  } else {
+    signals.push({ key: 'geoOk', earned: 0, max: WEIGHTS.geoOk, ok: false });
+  }
+
+  // Signal 7: QR Window
+  if (qrWindowType === 'current') {
+    rawScore += WEIGHTS.qrWindow;
+    signals.push({ key: 'qrWindow', earned: WEIGHTS.qrWindow, max: WEIGHTS.qrWindow, ok: true });
+  } else if (qrWindowType === 'grace') {
+    rawScore += 2;
+    flags.push('GRACE_WINDOW');
+    signals.push({ key: 'qrWindow', earned: 2, max: WEIGHTS.qrWindow, ok: true });
+  } else {
+    signals.push({ key: 'qrWindow', earned: 0, max: WEIGHTS.qrWindow, ok: false });
+  }
+
+  // Hard caps
+  let finalScore = rawScore;
+  if (!deviceId) {
+    flags.push('NO_DEVICE_ID');
+    finalScore = Math.min(finalScore, CAPS.noDeviceId);
+  }
+  if (isSharedInSession) {
+    finalScore = Math.min(finalScore, CAPS.sharedDevice);
+  }
+
+  finalScore = Math.max(0, Math.min(100, finalScore));
+
+  let band = 'low';
+  if (finalScore >= BANDS.high) band = 'high';
+  else if (finalScore >= BANDS.medium) band = 'medium';
+
+  return {
+    score: finalScore,
+    band,
+    flags,
+    signals,
+    v: TRUST_VERSION
+  };
+}
+
 module.exports = {
-  evaluateDeviceTrust
+  evaluateDeviceTrust,
+  computeDeviceTrust
 };

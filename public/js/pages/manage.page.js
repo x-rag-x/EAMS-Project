@@ -293,7 +293,7 @@ function toggleSidebar() {
 
 // Navigation
 function nav(page) {
-  if (['overview', 'calendar', 'exam', 'years', 'settings'].indexOf(page) === -1) page = 'overview';
+  if (['overview', 'calendar', 'exam', 'years', 'settings', 'subjects'].indexOf(page) === -1) page = 'overview';
 
   if (window.history && window.history.replaceState) {
     var url = new URL(window.location);
@@ -310,6 +310,7 @@ function nav(page) {
   if(page==='exam')      { loadExams(); populateExamSel(); populateDeptCheckboxes(); }
   if(page==='years')     loadYears();
   if(page==='settings')  loadManageAdmins();
+  if(page==='subjects')  loadSubjectsManager();
   applyManageReadOnlyRestrictions();
 }
 
@@ -2113,4 +2114,765 @@ function saveBatch() {
       closeModal('batch-modal-bg');
       loadYears();
     }).catch(function(err) { dbToast('Error: ' + (err&&err.message?err.message:'Server error'), 'error'); });
+}
+
+// =========================================================================
+//  SUBJECTS MANAGER (PHASE 1)
+// =========================================================================
+
+var _smData = {
+  regulations: [],
+  departments: [],
+  batches: [],
+  classes: [],
+  catalogSubjects: [],
+  currentSet: null,
+  capacity: null
+};
+
+async function loadSubjectsManager() {
+  try {
+    await Promise.all([
+      loadSmMasterData(),
+      loadSmCatalogSubjects()
+    ]);
+    populateSmFilters();
+    initSmFilterDropdowns();
+    await fetchActiveSemesterSet();
+  } catch (err) {
+    console.error('Error loading subjects manager:', err);
+  }
+}
+
+async function loadSmMasterData() {
+  try {
+    var tok = getToken();
+    var headers = tok ? { 'Authorization': 'Bearer ' + tok } : {};
+
+    // 1. Regulations
+    var regRes = await fetch('/api/settings/curriculum-regulations', { headers: headers });
+    var regJson = await regRes.json();
+    _smData.regulations = Array.isArray(regJson) ? regJson : (regJson?.data || [{ code: '2021' }, { code: '2025' }]);
+
+    // 2. Departments
+    var deptRes = await fetch('/api/departments', { headers: headers });
+    var deptJson = await deptRes.json();
+    _smData.departments = Array.isArray(deptJson) ? deptJson : (deptJson?.data || []);
+
+    // 3. Batches
+    var batchRes = await fetch('/api/year/academic-years', { headers: headers });
+    var batchJson = await batchRes.json();
+    var allBatches = [];
+    (Array.isArray(batchJson) ? batchJson : (batchJson?.data || [])).forEach(function(y) {
+      if (Array.isArray(y.batches)) {
+        y.batches.forEach(function(b) {
+          var bStr = typeof b === 'string' ? b : (b.batch || b.name);
+          if (bStr && allBatches.indexOf(bStr) === -1) allBatches.push(bStr);
+        });
+      }
+    });
+    if (!allBatches.length) allBatches = ['2023-2027', '2024-2028', '2025-2029', '2026-2030'];
+    _smData.batches = allBatches;
+
+    // 4. Classes
+    var clsRes = await fetch('/api/classes', { headers: headers });
+    var clsJson = await clsRes.json();
+    _smData.classes = Array.isArray(clsJson) ? clsJson : (clsJson?.data || []);
+  } catch (e) {
+    console.warn('Error loading SM master data', e);
+  }
+}
+
+async function loadSmCatalogSubjects() {
+  try {
+    var tok = getToken();
+    var headers = tok ? { 'Authorization': 'Bearer ' + tok } : {};
+    var res = await fetch('/api/subjects', { headers: headers });
+    var json = await res.json();
+    _smData.catalogSubjects = Array.isArray(json) ? json : (json?.data || []);
+  } catch (e) {
+    console.warn('Error loading catalog subjects', e);
+  }
+}
+
+function populateSmFilters() {
+  var regSel = document.getElementById('sm-filter-reg');
+  var deptSel = document.getElementById('sm-filter-dept');
+  var batchSel = document.getElementById('sm-filter-batch');
+
+  if (regSel && (!regSel.options.length || regSel.options.length <= 1)) {
+    regSel.innerHTML = _smData.regulations.map(function(r) {
+      var code = r.code || r;
+      var name = r.name ? code + ' - ' + r.name : code;
+      return '<option value="' + escapeHtml(code) + '" data-badge="' + escapeHtml(code) + '">' + escapeHtml(name) + '</option>';
+    }).join('');
+  }
+
+  if (deptSel && (!deptSel.options.length || deptSel.options.length <= 1)) {
+    deptSel.innerHTML = _smData.departments.map(function(d) {
+      var dCode = d.code || d.shortCode || '';
+      return '<option value="' + escapeHtml(d._id) + '" data-badge="' + escapeHtml(dCode) + '">' + escapeHtml(d.name || d.code) + '</option>';
+    }).join('');
+  }
+
+  if (batchSel && (!batchSel.options.length || batchSel.options.length <= 1)) {
+    batchSel.innerHTML = _smData.batches.map(function(b) {
+      return '<option value="' + escapeHtml(b) + '" data-badge="' + escapeHtml(b) + '">' + escapeHtml(b) + '</option>';
+    }).join('');
+  }
+
+  initSmFilterDropdowns();
+}
+
+function initSmFilterDropdowns() {
+  if (typeof SearchableDropdown === 'undefined') return;
+
+  var filterConfigs = [
+    { id: 'sm-filter-reg', kind: 'reg', search: false, placeholder: 'Select Regulation', minWidth: '140px' },
+    { id: 'sm-filter-dept', kind: 'dept', search: true, placeholder: 'Select Department', searchPlaceholder: 'Search department name, code…', minWidth: '200px' },
+    { id: 'sm-filter-batch', kind: 'batch', search: true, placeholder: 'Select Batch', searchPlaceholder: 'Search batch, year…', minWidth: '140px' },
+    { id: 'sm-filter-year', kind: 'year', search: false, placeholder: 'Select Year', minWidth: '110px' },
+    { id: 'sm-filter-sem', kind: 'sem', search: false, placeholder: 'Select Semester', minWidth: '110px' }
+  ];
+
+  filterConfigs.forEach(function (cfg) {
+    var el = document.getElementById(cfg.id);
+    if (!el) return;
+    var inst = SearchableDropdown.get(el);
+    if (!inst) {
+      SearchableDropdown.attach(el, {
+        kind: cfg.kind,
+        search: cfg.search,
+        placeholder: cfg.placeholder,
+        searchPlaceholder: cfg.searchPlaceholder,
+        width: '100%',
+        minWidth: cfg.minWidth
+      });
+    } else {
+      inst.rebuild();
+    }
+  });
+}
+
+async function onSmFilterChange() {
+  await fetchActiveSemesterSet();
+}
+
+async function fetchActiveSemesterSet() {
+  var container = document.getElementById('sm-active-set-container');
+  if (!container) return;
+
+  var reg = document.getElementById('sm-filter-reg')?.value;
+  var deptId = document.getElementById('sm-filter-dept')?.value;
+  var batch = document.getElementById('sm-filter-batch')?.value;
+  var year = document.getElementById('sm-filter-year')?.value;
+  var semester = document.getElementById('sm-filter-sem')?.value;
+
+  if (!deptId || !batch || !year || !semester) {
+    container.innerHTML = '<div style="text-align:center;padding:48px;background:#fff;border-radius:12px;color:var(--tmu);">Select department, batch, and semester above.</div>';
+    return;
+  }
+
+  container.innerHTML = '<div style="text-align:center;padding:48px;background:#fff;border-radius:12px;color:var(--tmu);">Loading semester subject set…</div>';
+
+  try {
+    var tok = getToken();
+    var headers = tok ? { 'Authorization': 'Bearer ' + tok } : {};
+    var url = '/api/semester-sets?deptId=' + encodeURIComponent(deptId) +
+              '&batch=' + encodeURIComponent(batch) +
+              '&year=' + encodeURIComponent(year) +
+              '&semester=' + encodeURIComponent(semester);
+
+    var res = await fetch(url, { headers: headers });
+    var json = await res.json();
+    var sets = json?.data || [];
+
+    if (!sets.length) {
+      _smData.currentSet = null;
+      _smData.capacity = null;
+      renderEmptySetState(deptId, batch, year, semester);
+      return;
+    }
+
+    // Load full set with populated details
+    var fullRes = await fetch('/api/semester-sets/' + sets[0]._id, { headers: headers });
+    var fullJson = await fullRes.json();
+    _smData.currentSet = fullJson?.data || sets[0];
+
+    // Compute capacity
+    var capRes = await fetch('/api/semester-sets/' + sets[0]._id + '/capacity', { headers: headers });
+    var capJson = await capRes.json();
+    _smData.capacity = capJson?.data || null;
+
+    renderActiveSetEditor(_smData.currentSet, _smData.capacity);
+  } catch (err) {
+    container.innerHTML = '<div style="text-align:center;padding:48px;color:#dc2626;">Error loading semester set: ' + escapeHtml(err.message) + '</div>';
+  }
+}
+
+function renderEmptySetState(deptId, batch, year, semester) {
+  var container = document.getElementById('sm-active-set-container');
+  if (!container) return;
+  var deptObj = _smData.departments.find(function(d) { return String(d._id) === String(deptId); });
+  var dName = deptObj ? (deptObj.name || deptObj.code) : 'Department';
+
+  container.innerHTML =
+    '<div class="card" style="text-align:center;padding:54px 20px;">' +
+    '  <div style="font-size:36px;margin-bottom:10px;">📚</div>' +
+    '  <h3 style="font-size:17px;font-weight:700;margin:0 0 6px 0;">No Semester Subject Set Configured</h3>' +
+    '  <p style="font-size:13px;color:var(--tmu);max-width:520px;margin:0 auto 18px auto;">' +
+    '    No semester set exists yet for <b>' + escapeHtml(dName) + '</b> (' + escapeHtml(batch) + ' Year ' + escapeHtml(year) + ' Sem ' + escapeHtml(semester) + '). ' +
+    '    Create a set or clone from an existing term to start timetable planning.' +
+    '  </p>' +
+    '  <div style="display:flex;justify-content:center;gap:10px;">' +
+    '    <button class="btn-pri" onclick="openNewSetModal()"><re-icon icon="plus" size="13"></re-icon> Create New Set</button>' +
+    '    <button class="btn-out" onclick="openCloneSetModal()"><re-icon icon="copy" size="13"></re-icon> Clone from Previous</button>' +
+    '  </div>' +
+    '</div>';
+}
+
+function renderActiveSetEditor(set, capacity) {
+  var container = document.getElementById('sm-active-set-container');
+  if (!container || !set) return;
+
+  var statusCls = set.status === 'Locked' ? 'green' : (set.status === 'HOD_Approved' ? 'purple' : (set.status === 'Submitted' ? 'orange' : 'amber'));
+  var isLocked = set.status === 'Locked';
+  var isApproved = set.status === 'HOD_Approved' || isLocked;
+  var isSubmitted = set.status === 'Submitted' || isApproved;
+  var isDraft = set.status === 'Draft';
+
+  var subjects = Array.isArray(set.subjects) ? set.subjects : [];
+  var capText = capacity ? capacity.summaryText : (subjects.length + ' subjects');
+  var capColor = capacity && capacity.isOverCapacity ? '#dc2626' : '#15803d';
+
+  // Action Buttons
+  var actionButtons = '';
+  if (isDraft) {
+    actionButtons =
+      '<button class="btn-pri btn-sm" onclick="submitSetForApproval(\'' + set._id + '\')"><re-icon icon="send" size="12"></re-icon> Submit for HOD Approval</button> ' +
+      '<button class="btn-out btn-sm" onclick="openAddSubjectModal()"><re-icon icon="plus" size="12"></re-icon> Add Subject</button> ' +
+      '<button class="btn-out btn-sm" style="color:#dc2626;" onclick="deleteSemesterSet(\'' + set._id + '\')"><re-icon icon="trash2" size="12"></re-icon> Delete</button>';
+  } else if (set.status === 'Submitted') {
+    actionButtons =
+      '<button class="btn-pri btn-sm" style="background:#7e22ce;" onclick="approveSet(\'' + set._id + '\')"><re-icon icon="check" size="12"></re-icon> HOD Approve Set</button> ' +
+      '<button class="btn-out btn-sm" onclick="openAddSubjectModal()"><re-icon icon="plus" size="12"></re-icon> Add Subject</button>';
+  } else if (set.status === 'HOD_Approved') {
+    actionButtons =
+      '<button class="btn-pri btn-sm" style="background:#15803d;" onclick="lockSet(\'' + set._id + '\')"><re-icon icon="lock" size="12"></re-icon> Lock Set for Auto Gen</button> ' +
+      '<button class="btn-out btn-sm" onclick="openAmendSetModal()"><re-icon icon="edit" size="12"></re-icon> Revert to Draft</button>';
+  } else if (isLocked) {
+    actionButtons =
+      '<button class="btn-out btn-sm" style="color:#b45309;" onclick="openAmendSetModal()"><re-icon icon="unlock" size="12"></re-icon> Unlock for Amendment</button>';
+  }
+
+  container.innerHTML =
+    '<div class="card" style="margin-bottom:16px;">' +
+    '  <div class="card-hd" style="flex-wrap:wrap;gap:12px;">' +
+    '    <div>' +
+    '      <div style="display:flex;align-items:center;gap:10px;">' +
+    '        <h2 style="font-size:16px;font-weight:700;margin:0;">' + escapeHtml(set.deptName) + ' &bull; Batch ' + escapeHtml(set.batch) + ' &bull; Year ' + escapeHtml(set.year) + ' Sem ' + escapeHtml(set.semester) + '</h2>' +
+    '        <span class="pill ' + statusCls + '" style="font-size:11px;font-weight:700;">' + escapeHtml(set.status) + '</span>' +
+    '      </div>' +
+    '      <div style="font-size:12px;color:var(--tmu);margin-top:4px;">Regulation: <b>' + escapeHtml(set.regulation) + '</b> &bull; Track ID: <code>' + escapeHtml(set.trackId) + '</code>' +
+    (set.lockedAt ? ' &bull; Locked on ' + new Date(set.lockedAt).toLocaleDateString() + ' by ' + escapeHtml(set.lockedBy) : '') +
+    '      </div>' +
+    '    </div>' +
+    '    <div style="display:flex;align-items:center;gap:10px;">' +
+    '      <div style="font-size:12.5px;font-weight:700;color:' + capColor + ';background:rgba(21,128,61,0.08);padding:5px 12px;border-radius:8px;">' +
+    '        ⚡ ' + escapeHtml(capText) +
+    '      </div>' +
+    '      <div style="display:flex;gap:6px;">' + actionButtons + '</div>' +
+    '    </div>' +
+    '  </div>' +
+
+    // Warnings/Blockers from capacity
+    (capacity && capacity.flagged && capacity.flagged.length ?
+      '<div style="padding:10px 16px;background:#fefce8;border-bottom:1px solid #fef08a;font-size:12px;color:#854d0e;">' +
+      capacity.flagged.map(function(f) { return '<div>&bull; ' + escapeHtml(f.message) + '</div>'; }).join('') +
+      '</div>' : '') +
+
+    // Subjects Table
+    '  <div class="tw">' +
+    '    <table class="tbl">' +
+    '      <thead>' +
+    '        <tr>' +
+    '          <th>Code</th>' +
+    '          <th>Subject Name</th>' +
+    '          <th>Type</th>' +
+    '          <th>Credits</th>' +
+    '          <th>Target Slots</th>' +
+    '          <th>Slots (Min-Max)</th>' +
+    '          <th>Category</th>' +
+    '          <th>Block</th>' +
+    '          <th>Teaching Dept</th>' +
+    '          <th>Combined Classes</th>' +
+    '          <th style="text-align:right;">Actions</th>' +
+    '        </tr>' +
+    '      </thead>' +
+    '      <tbody>' +
+    (!subjects.length ?
+      '<tr><td colspan="11" style="text-align:center;padding:28px;color:var(--tdi);">No subjects added to this set yet. Click "+ Add Subject" to add courses from the catalog.</td></tr>' :
+      subjects.map(function(s) {
+        var subDoc = s.subjectId || {};
+        var sCode = subDoc.code || subDoc.courseCode || '—';
+        var sName = subDoc.name || 'Subject';
+        var sType = subDoc.type || 'Theory';
+        var isBlend = s.isBlend || subDoc.isBlend;
+        var blendText = isBlend ? '<span class="pill" style="font-size:10px;background:#f3e8ff;color:#7e22ce;">Blend: ' + (s.blendTheorySlots || 0) + 'T + ' + (s.blendLabSlots || 0) + 'L</span>' : (s.slotsTarget || 5);
+        var catCls = s.category === 'hard' ? 'dan' : (s.category === 'important' ? 'warn' : 'pri');
+        var teachDept = s.teachingDeptName || (s.teachingDeptId ? s.teachingDeptId.name : 'Home Dept');
+
+        // Combined info
+        var cg = (set.combinedGroups || []).find(function(g) {
+          return String(g.subjectId?._id || g.subjectId) === String(subDoc._id || s.subjectId);
+        });
+        var combinedInfo = cg && cg.classNames && cg.classNames.length ?
+          '<span class="pill pri" style="font-size:11px;">' + cg.classNames.join(', ') + '</span>' :
+          '<span style="color:var(--tdi);font-size:11px;">Single</span>';
+
+        return '<tr>' +
+          '<td><code>' + escapeHtml(sCode) + '</code></td>' +
+          '<td><b>' + escapeHtml(sName) + '</b></td>' +
+          '<td><span class="pill ' + (sType === 'Lab' ? 'warn' : 'pri') + '" style="font-size:11px;">' + escapeHtml(sType) + '</span></td>' +
+          '<td>' + (subDoc.credits ?? 3) + '</td>' +
+          '<td><b>' + blendText + '</b></td>' +
+          '<td>' + (s.slotsMin || 5) + ' – ' + (s.slotsMax || 7) + '</td>' +
+          '<td><span class="pill ' + catCls + '" style="font-size:11px;text-transform:capitalize;">' + escapeHtml(s.category || 'easy') + '</span></td>' +
+          '<td>' + (s.blockLength || 1) + '</td>' +
+          '<td style="font-size:12px;color:var(--tmu);">' + escapeHtml(teachDept) + '</td>' +
+          '<td>' + combinedInfo + '</td>' +
+          '<td style="text-align:right;">' +
+          (!isLocked ?
+            '<button class="btn-out btn-xs" style="color:#dc2626;" onclick="removeSubjectFromSet(\'' + subDoc._id + '\')"><re-icon icon="trash2" size="11"></re-icon></button>' :
+            '<span style="font-size:11px;color:var(--tmu);">Locked</span>') +
+          '</td>' +
+          '</tr>';
+      }).join('')) +
+    '      </tbody>' +
+    '    </table>' +
+    '  </div>' +
+
+    // Approval Log History Panel
+    '  <div style="padding:14px 16px;background:var(--bg2,#f8fafc);border-top:1px solid var(--br);font-size:12px;">' +
+    '    <div style="font-weight:700;margin-bottom:6px;color:var(--td);">Lifecycle Audit Log</div>' +
+    '    <div style="display:flex;flex-direction:column;gap:4px;">' +
+    (Array.isArray(set.approvalLog) ? set.approvalLog.map(function(log) {
+      return '<div style="color:var(--tmu);">' +
+        '<b>' + escapeHtml(log.action) + '</b> on ' + new Date(log.at).toLocaleString() + ' by ' + escapeHtml(log.by) +
+        (log.comment ? ': ' + escapeHtml(log.comment) : '') +
+        (log.reason ? ' (Reason: ' + escapeHtml(log.reason) + ')' : '') +
+        '</div>';
+    }).join('') : '') +
+    '    </div>' +
+    '  </div>' +
+    '</div>';
+}
+
+function openNewSetModal() {
+  var regSel = document.getElementById('sm-new-reg');
+  var deptSel = document.getElementById('sm-new-dept');
+  var batchSel = document.getElementById('sm-new-batch');
+  var yearSel = document.getElementById('sm-new-year');
+  var semSel = document.getElementById('sm-new-semester');
+
+  if (regSel) {
+    regSel.innerHTML = (_smData.regulations || []).map(function(r) {
+      var code = r.code || r;
+      return '<option value="' + escapeHtml(code) + '">' + escapeHtml(code) + '</option>';
+    }).join('');
+    var curReg = document.getElementById('sm-filter-reg')?.value;
+    if (curReg) regSel.value = curReg;
+  }
+  if (deptSel) {
+    deptSel.innerHTML = (_smData.departments || []).map(function(d) {
+      return '<option value="' + escapeHtml(d._id) + '">' + escapeHtml(d.name || d.code) + '</option>';
+    }).join('');
+    var curDept = document.getElementById('sm-filter-dept')?.value;
+    if (curDept) deptSel.value = curDept;
+  }
+  if (batchSel) {
+    batchSel.innerHTML = (_smData.batches || []).map(function(b) {
+      return '<option value="' + escapeHtml(b) + '">' + escapeHtml(b) + '</option>';
+    }).join('');
+    var curBatch = document.getElementById('sm-filter-batch')?.value;
+    if (curBatch) batchSel.value = curBatch;
+  }
+  if (yearSel) {
+    var curYear = document.getElementById('sm-filter-year')?.value;
+    if (curYear) yearSel.value = curYear;
+  }
+  if (semSel) {
+    var curSem = document.getElementById('sm-filter-sem')?.value;
+    if (curSem) semSel.value = curSem;
+  }
+  openModal('modal-sm-new-set');
+}
+
+async function submitCreateNewSet() {
+  var regulation = document.getElementById('sm-new-reg')?.value;
+  var deptId = document.getElementById('sm-new-dept')?.value;
+  var batch = document.getElementById('sm-new-batch')?.value;
+  var year = document.getElementById('sm-new-year')?.value;
+  var semester = document.getElementById('sm-new-semester')?.value;
+
+  if (!regulation || !deptId || !batch || !year || !semester) {
+    showToast('Please fill all required fields', 'warn');
+    return;
+  }
+
+  try {
+    var tok = getToken();
+    var res = await fetch('/api/semester-sets', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + tok
+      },
+      body: JSON.stringify({ regulation: regulation, deptId: deptId, batch: batch, year: year, semester: semester })
+    });
+    var data = await res.json();
+    if (data.error) throw new Error(data.error);
+
+    showToast('Semester subject set created successfully!', 'success');
+    closeModal('modal-sm-new-set');
+
+    // Update filter selectors and load active set
+    if (document.getElementById('sm-filter-reg')) document.getElementById('sm-filter-reg').value = regulation;
+    if (document.getElementById('sm-filter-dept')) document.getElementById('sm-filter-dept').value = deptId;
+    if (document.getElementById('sm-filter-batch')) document.getElementById('sm-filter-batch').value = batch;
+    if (document.getElementById('sm-filter-year')) document.getElementById('sm-filter-year').value = year;
+    if (document.getElementById('sm-filter-sem')) document.getElementById('sm-filter-sem').value = semester;
+
+    if (typeof SearchableDropdown !== 'undefined') {
+      ['sm-filter-reg', 'sm-filter-dept', 'sm-filter-batch', 'sm-filter-year', 'sm-filter-sem'].forEach(function(id) {
+        SearchableDropdown.sync(id);
+      });
+    }
+
+    await fetchActiveSemesterSet();
+  } catch (err) {
+    showToast('Error: ' + err.message, 'error');
+  }
+}
+
+function openAddSubjectModal() {
+  var sel = document.getElementById('sm-add-subj-select');
+  var teachSel = document.getElementById('sm-add-teaching-dept');
+
+  if (sel) {
+    sel.innerHTML = '<option value="">Select subject to add…</option>' +
+      _smData.catalogSubjects.map(function(s) {
+        var c = s.courseCode || s.code || '';
+        return '<option value="' + s._id + '">' + escapeHtml(c ? c + ' - ' : '') + escapeHtml(s.name) + '</option>';
+      }).join('');
+  }
+
+  if (teachSel) {
+    teachSel.innerHTML = '<option value="">Home Department</option>' +
+      _smData.departments.map(function(d) {
+        return '<option value="' + escapeHtml(d._id) + '">' + escapeHtml(d.name || d.code) + '</option>';
+      }).join('');
+  }
+
+  openModal('modal-sm-add-subj');
+}
+
+function onCatalogSubjPicked(id) {
+  var sub = _smData.catalogSubjects.find(function(s) { return String(s._id) === String(id); });
+  if (!sub) return;
+
+  if (document.getElementById('sm-add-slots-min')) document.getElementById('sm-add-slots-min').value = sub.slotsMin || 5;
+  if (document.getElementById('sm-add-slots-target')) document.getElementById('sm-add-slots-target').value = sub.slotsTarget || 5;
+  if (document.getElementById('sm-add-slots-max')) document.getElementById('sm-add-slots-max').value = sub.slotsMax || 7;
+  if (document.getElementById('sm-add-block-len')) document.getElementById('sm-add-block-len').value = sub.blockLength || 1;
+  if (document.getElementById('sm-add-category')) document.getElementById('sm-add-category').value = sub.category || 'easy';
+
+  var isBlend = !!sub.isBlend;
+  if (document.getElementById('sm-add-blend-chk')) document.getElementById('sm-add-blend-chk').checked = isBlend;
+  toggleSmAddBlend(isBlend);
+  if (document.getElementById('sm-add-blend-theory')) document.getElementById('sm-add-blend-theory').value = sub.blendTheorySlots || 6;
+  if (document.getElementById('sm-add-blend-lab')) document.getElementById('sm-add-blend-lab').value = sub.blendLabSlots || 3;
+}
+
+function toggleSmAddBlend(isChecked) {
+  var wrap = document.getElementById('sm-add-blend-wrap');
+  if (wrap) wrap.style.display = isChecked ? 'grid' : 'none';
+}
+
+async function submitAddSubjectToSet() {
+  if (!_smData.currentSet) return;
+  var subjId = document.getElementById('sm-add-subj-select')?.value;
+  if (!subjId) return showToast('Please select a subject', 'warn');
+
+  var teachingDeptId = document.getElementById('sm-add-teaching-dept')?.value || null;
+  var deptObj = _smData.departments.find(function(d) { return String(d._id) === String(teachingDeptId); });
+  var teachingDeptName = deptObj ? (deptObj.name || deptObj.code) : '';
+
+  var slotsMin = Number(document.getElementById('sm-add-slots-min')?.value) || 5;
+  var slotsTarget = Number(document.getElementById('sm-add-slots-target')?.value) || 5;
+  var slotsMax = Number(document.getElementById('sm-add-slots-max')?.value) || 7;
+  var blockLength = Number(document.getElementById('sm-add-block-len')?.value) || 1;
+  var category = document.getElementById('sm-add-category')?.value || 'easy';
+  var isBlend = document.getElementById('sm-add-blend-chk')?.checked === true;
+  var blendTheorySlots = Number(document.getElementById('sm-add-blend-theory')?.value) || 0;
+  var blendLabSlots = Number(document.getElementById('sm-add-blend-lab')?.value) || 0;
+
+  var existing = (_smData.currentSet.subjects || []).filter(function(s) {
+    return String(s.subjectId?._id || s.subjectId) !== String(subjId);
+  });
+
+  existing.push({
+    subjectId: subjId,
+    teachingDeptId: teachingDeptId,
+    teachingDeptName: teachingDeptName,
+    slotsMin: slotsMin,
+    slotsTarget: slotsTarget,
+    slotsMax: slotsMax,
+    blockLength: blockLength,
+    category: category,
+    isBlend: isBlend,
+    blendTheorySlots: blendTheorySlots,
+    blendLabSlots: blendLabSlots
+  });
+
+  try {
+    var tok = getToken();
+    var res = await fetch('/api/semester-sets/' + _smData.currentSet._id, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + tok },
+      body: JSON.stringify({ subjects: existing })
+    });
+    var data = await res.json();
+    if (data.error) throw new Error(data.error);
+
+    showToast('Subject added to set', 'success');
+    closeModal('modal-sm-add-subj');
+    await fetchActiveSemesterSet();
+  } catch (err) {
+    showToast('Error: ' + err.message, 'error');
+  }
+}
+
+async function removeSubjectFromSet(subjId) {
+  if (!_smData.currentSet) return;
+  if (!confirm('Remove this subject from the semester set?')) return;
+
+  var updated = (_smData.currentSet.subjects || []).filter(function(s) {
+    return String(s.subjectId?._id || s.subjectId) !== String(subjId);
+  });
+
+  try {
+    var tok = getToken();
+    var res = await fetch('/api/semester-sets/' + _smData.currentSet._id, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + tok },
+      body: JSON.stringify({ subjects: updated })
+    });
+    var data = await res.json();
+    if (data.error) throw new Error(data.error);
+
+    showToast('Subject removed', 'success');
+    await fetchActiveSemesterSet();
+  } catch (err) {
+    showToast('Error: ' + err.message, 'error');
+  }
+}
+
+async function submitSetForApproval(id) {
+  try {
+    var tok = getToken();
+    var res = await fetch('/api/semester-sets/' + id + '/submit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + tok }
+    });
+    var data = await res.json();
+    if (data.error) throw new Error(data.error);
+    showToast('Semester set submitted for HOD approval', 'success');
+    await fetchActiveSemesterSet();
+  } catch (err) {
+    showToast('Error: ' + err.message, 'error');
+  }
+}
+
+async function approveSet(id) {
+  try {
+    var tok = getToken();
+    var res = await fetch('/api/semester-sets/' + id + '/approve', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + tok }
+    });
+    var data = await res.json();
+    if (data.error) throw new Error(data.error);
+    showToast('Semester set approved by HOD', 'success');
+    await fetchActiveSemesterSet();
+  } catch (err) {
+    showToast('Error: ' + err.message, 'error');
+  }
+}
+
+async function lockSet(id) {
+  if (!confirm('Lock this semester set? Once locked, timetable auto-generation can safely execute against these approved requirements.')) return;
+  try {
+    var tok = getToken();
+    var res = await fetch('/api/semester-sets/' + id + '/lock', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + tok }
+    });
+    var data = await res.json();
+    if (data.error) throw new Error(data.error);
+    showToast('Semester set locked successfully!', 'success');
+    await fetchActiveSemesterSet();
+  } catch (err) {
+    showToast('Error: ' + err.message, 'error');
+  }
+}
+
+function openAmendSetModal() {
+  document.getElementById('sm-amend-reason').value = '';
+  openModal('modal-sm-amend');
+}
+
+async function submitAmendSet() {
+  if (!_smData.currentSet) return;
+  var reason = document.getElementById('sm-amend-reason')?.value.trim();
+  if (!reason) return showToast('Amendment reason is required', 'warn');
+
+  try {
+    var tok = getToken();
+    var res = await fetch('/api/semester-sets/' + _smData.currentSet._id + '/amend', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + tok },
+      body: JSON.stringify({ reason: reason })
+    });
+    var data = await res.json();
+    if (data.error) throw new Error(data.error);
+
+    showToast('Set unlocked for amendment', 'success');
+    closeModal('modal-sm-amend');
+    await fetchActiveSemesterSet();
+  } catch (err) {
+    showToast('Error: ' + err.message, 'error');
+  }
+}
+
+async function openCloneSetModal() {
+  var bSel = document.getElementById('sm-clone-batch');
+  var ySel = document.getElementById('sm-clone-year');
+  var sSel = document.getElementById('sm-clone-sem');
+  var srcSel = document.getElementById('sm-clone-source-set');
+  var curDept = document.getElementById('sm-filter-dept')?.value;
+
+  if (bSel) {
+    bSel.innerHTML = (_smData.batches || []).map(function(b) {
+      return '<option value="' + escapeHtml(b) + '">' + escapeHtml(b) + '</option>';
+    }).join('');
+  }
+
+  // Pre-fill target values from current ribbon filters
+  var curBatch = document.getElementById('sm-filter-batch')?.value;
+  var curYear = document.getElementById('sm-filter-year')?.value;
+  var curSem = document.getElementById('sm-filter-sem')?.value;
+  if (curBatch && bSel) bSel.value = curBatch;
+  if (curYear && ySel) ySel.value = curYear;
+  if (curSem && sSel) sSel.value = curSem;
+
+  // Fetch available sets for this department to offer as source
+  if (srcSel) {
+    srcSel.innerHTML = '<option value="">Loading available sets...</option>';
+    try {
+      var tok = getToken();
+      var deptQuery = curDept ? ('?deptId=' + encodeURIComponent(curDept)) : '';
+      var res = await fetch('/api/semester-sets' + deptQuery, {
+        headers: tok ? { 'Authorization': 'Bearer ' + tok } : {}
+      });
+      var json = await res.json();
+      var allSets = Array.isArray(json) ? json : (json?.data || []);
+
+      if (allSets.length === 0) {
+        srcSel.innerHTML = '<option value="">No existing sets found in this department</option>';
+      } else {
+        srcSel.innerHTML = allSets.map(function(s) {
+          var isCur = _smData.currentSet && String(_smData.currentSet._id) === String(s._id);
+          var subCount = Array.isArray(s.subjects) ? s.subjects.length : 0;
+          var label = (s.batch || 'Batch') + ' — Year ' + (s.year || '') + ' Sem ' + (s.semester || '') + ' (' + subCount + ' subjs, ' + (s.status || 'Draft') + ')' + (isCur ? ' [Current Active]' : '');
+          return '<option value="' + escapeHtml(s._id) + '"' + (isCur ? ' selected' : '') + '>' + escapeHtml(label) + '</option>';
+        }).join('');
+
+        if (_smData.currentSet && srcSel) {
+          srcSel.value = _smData.currentSet._id;
+        }
+      }
+    } catch (e) {
+      console.warn('Could not load source sets:', e);
+      if (_smData.currentSet) {
+        srcSel.innerHTML = '<option value="' + _smData.currentSet._id + '">Current Set (' + _smData.currentSet.batch + ')</option>';
+      } else {
+        srcSel.innerHTML = '<option value="">Error loading source sets</option>';
+      }
+    }
+  }
+
+  openModal('modal-sm-clone');
+}
+
+async function submitCloneSet() {
+  var srcSel = document.getElementById('sm-clone-source-set');
+  var sourceId = srcSel?.value || (_smData.currentSet ? _smData.currentSet._id : null);
+  if (!sourceId) {
+    return showToast('Please select a valid source set to clone from', 'warn');
+  }
+
+  var targetBatch = document.getElementById('sm-clone-batch')?.value;
+  var targetYear = document.getElementById('sm-clone-year')?.value;
+  var targetSemester = document.getElementById('sm-clone-sem')?.value;
+
+  if (!targetBatch || !targetYear || !targetSemester) {
+    return showToast('Target batch, year, and semester are required', 'warn');
+  }
+
+  try {
+    var tok = getToken();
+    var res = await fetch('/api/semester-sets/' + sourceId + '/clone', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + tok },
+      body: JSON.stringify({ targetBatch: targetBatch, targetYear: targetYear, targetSemester: targetSemester })
+    });
+    var data = await res.json();
+    if (data.error) throw new Error(data.error);
+
+    showToast('Semester set cloned successfully!', 'success');
+    closeModal('modal-sm-clone');
+
+    // Switch filters to target
+    if (document.getElementById('sm-filter-batch')) document.getElementById('sm-filter-batch').value = targetBatch;
+    if (document.getElementById('sm-filter-year')) document.getElementById('sm-filter-year').value = targetYear;
+    if (document.getElementById('sm-filter-sem')) document.getElementById('sm-filter-sem').value = targetSemester;
+
+    if (typeof SearchableDropdown !== 'undefined') {
+      ['sm-filter-batch', 'sm-filter-year', 'sm-filter-sem'].forEach(function(id) {
+        SearchableDropdown.sync(id);
+      });
+    }
+
+    await fetchActiveSemesterSet();
+  } catch (err) {
+    showToast('Error: ' + err.message, 'error');
+  }
+}
+
+async function deleteSemesterSet(id) {
+  if (!confirm('Are you sure you want to delete this semester subject set?')) return;
+  try {
+    var tok = getToken();
+    var res = await fetch('/api/semester-sets/' + id, {
+      method: 'DELETE',
+      headers: { 'Authorization': 'Bearer ' + tok }
+    });
+    var data = await res.json();
+    if (data.error) throw new Error(data.error);
+    showToast('Semester set deleted', 'success');
+    await fetchActiveSemesterSet();
+  } catch (err) {
+    showToast('Error: ' + err.message, 'error');
+  }
 }

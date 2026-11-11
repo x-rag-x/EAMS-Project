@@ -181,6 +181,12 @@
         resSel.value = (d.residency && String(d.residency).toLowerCase().includes('hostel')) ? 'hostel' : 'dayscholar';
       }
 
+      // Admission Type
+      var admSel = document.getElementById('vedit-admission-type');
+      if (admSel) {
+        admSel.value = (d.admissionType && String(d.admissionType).toLowerCase().includes('lateral')) ? 'Lateral Entry' : 'Regular';
+      }
+
       // Login details
       var emailEl = document.getElementById('vedit-email');
       if (emailEl) emailEl.value = d.email || '';
@@ -317,6 +323,7 @@
         class: className,
         gender: (document.getElementById('vedit-gender').value || 'Male'),
         residency: (document.getElementById('vedit-residency') ? document.getElementById('vedit-residency').value : 'dayscholar'),
+        admissionType: (document.getElementById('vedit-admission-type') ? document.getElementById('vedit-admission-type').value : 'Regular'),
         email: (document.getElementById('vedit-email').value || '').trim(),
         username: (document.getElementById('vedit-username').value || '').trim()
       };

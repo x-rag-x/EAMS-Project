@@ -10,6 +10,10 @@ const { resolveStageApprover, recordApprovalHistory } = require('../utils/approv
 const { reconcileOnLeaveApproved, reconcileOnLeaveCancelled, reconcilePeriodOverride } = require('../utils/reconcileAttendance');
 const { handleLeaveApprovalReversal } = require('../services/trustDailyService');
 const { getTodayIST } = require('../middleware/scope');
+const { buildLeaveTracker } = require('../utils/requestTracker');
+const { checkModuleGuard } = require('../middleware/portalGuard');
+const { leaveApplyLimiter } = require('../utils/rateLimiters');
+const { isValidDriveUrl, isValidDriveFileId } = require('../utils/urlValidation');
 
 router.use(authMiddleware);
 
@@ -40,10 +44,278 @@ router.get('/me', async (req, res) => {
       .sort({ createdAt: -1 })
       .lean();
 
-    return res.json({ ok: true, requests });
+    // Add tracker to each request
+    const requestsWithTracker = requests.map(request => ({
+      ...request,
+      tracker: buildLeaveTracker(request)
+    }));
+
+    return res.json({ ok: true, requests: requestsWithTracker });
   } catch (err) {
     console.error('[Student Leave Me Error]:', err);
     return res.status(500).json({ error: 'Failed to retrieve leave requests' });
+  }
+});
+
+// ── Helpers for permit/reject/return actions ──
+async function executePermitLeave(request, req, remarks) {
+  const previousStatus = request.status;
+  request.status = 'Approved';
+  request.advisorStatus = 'Approved';
+  request.advisorRemarks = remarks || '';
+  request.advisorReviewedAt = new Date();
+  await request.save();
+
+  // Reconcile attendance: marks absent with reason: 'leave' and creates entitlements
+  await reconcileOnLeaveApproved({
+    leaveRequestId: request.requestId,
+    studentTrackId: request.studentTrackId,
+    classId: String(request.classId),
+    dates: request.dates,
+    periodNumbers: request.periods,
+    actorTrackId: req.user.trackId,
+    actorRole: 'advisor'
+  });
+
+  // Phase T4: Reverses uninformed absence penalties for backdated approved leave (§8)
+  handleLeaveApprovalReversal(request.studentId, request.dates).catch(err => {
+    console.warn('[Trust Leave Reversal Warn]:', err.message);
+  });
+
+  await recordApprovalHistory({
+    requestId: request.requestId,
+    requestType: 'student_leave',
+    actorId: req.user.trackId,
+    actorName: req.user.fullName || req.user.name || '',
+    actorRole: 'advisor',
+    action: 'permitted',
+    comment: remarks || '',
+    previousState: previousStatus,
+    newState: 'Approved'
+  });
+
+  return request;
+}
+
+async function executeRejectLeave(request, req, reason) {
+  const previousStatus = request.status;
+  request.status = 'Rejected';
+  request.advisorStatus = 'Rejected';
+  request.advisorRemarks = reason;
+  request.advisorReviewedAt = new Date();
+  await request.save();
+
+  await recordApprovalHistory({
+    requestId: request.requestId,
+    requestType: 'student_leave',
+    actorId: req.user.trackId,
+    actorName: req.user.fullName || req.user.name || '',
+    actorRole: 'advisor',
+    action: 'rejected',
+    comment: reason,
+    previousState: previousStatus,
+    newState: 'Rejected'
+  });
+
+  return request;
+}
+
+async function executeReturnLeave(request, req, remarks) {
+  const previousStatus = request.status;
+  request.status = 'Returned';
+  request.advisorStatus = 'Returned';
+  request.advisorRemarks = remarks;
+  request.advisorReviewedAt = new Date();
+  await request.save();
+
+  await recordApprovalHistory({
+    requestId: request.requestId,
+    requestType: 'student_leave',
+    actorId: req.user.trackId,
+    actorName: req.user.fullName || req.user.name || '',
+    actorRole: 'advisor',
+    action: 'returned',
+    comment: remarks,
+    previousState: previousStatus,
+    newState: 'Returned'
+  });
+
+  return request;
+}
+
+// ── GET /api/student-leave/history — Approval queue and history for Staff/Advisors ──
+router.get('/history', async (req, res) => {
+  try {
+    const userRole = req.user.role;
+    const userTrackId = req.user.trackId;
+    const todayIST = getTodayIST();
+
+    // 1. If student, return their own history
+    if (userRole === 'student') {
+      const requests = await M.StudentLeaveRequest.find({ studentTrackId: userTrackId })
+        .sort({ createdAt: -1 })
+        .lean();
+      const withTracker = requests.map(r => ({ ...r, tracker: buildLeaveTracker(r) }));
+      return res.json({ ok: true, requests: withTracker, leaves: withTracker, data: withTracker });
+    }
+
+    // 2. Build scope filter based on role
+    const isInstitutionStaff = ['admin', 'principal'].includes(userRole) || req.user.isPrincipal || req.user.isAdmin;
+    let scopeQuery = {};
+
+    if (!isInstitutionStaff) {
+      // Find classes where user is nominal Advisor
+      const classes = await M.Class.find({
+        $or: [
+          { advisorTeacherTrackId: userTrackId },
+          { advisorTeacherId: req.user._id }
+        ]
+      }).lean();
+
+      const classIds = classes.map(c => c._id);
+
+      // Check active ActingRole appointments
+      const actingRoles = await M.ActingRole.find({
+        holderTrackId: userTrackId,
+        role: 'advisor',
+        status: { $in: ['active', 'pending'] },
+        from: { $lte: todayIST },
+        to: { $gte: todayIST }
+      }).lean();
+
+      for (const ar of actingRoles) {
+        if (mongoose.isValidObjectId(ar.key)) {
+          classIds.push(new mongoose.Types.ObjectId(ar.key));
+        }
+      }
+
+      const orConditions = [
+        { advisorTrackId: userTrackId },
+        { advisorId: req.user._id }
+      ];
+
+      if (classIds.length > 0) {
+        orConditions.push({ classId: { $in: classIds } });
+      }
+
+      // If user is HOD, also include their department requests
+      if (userRole === 'hod' && req.user.deptId) {
+        orConditions.push({ deptId: req.user.deptId });
+      }
+
+      // Also check teacher trackId
+      const teacher = await M.Teacher.findOne({
+        $or: [
+          { _id: mongoose.isValidObjectId(req.user._id) ? req.user._id : undefined },
+          { trackId: userTrackId }
+        ].filter(Boolean)
+      }).lean();
+
+      if (teacher?.trackId && teacher.trackId !== userTrackId) {
+        orConditions.push({ advisorTrackId: teacher.trackId });
+      }
+
+      scopeQuery.$or = orConditions;
+    } else if (req.user.deptId && !req.user.isAdmin) {
+      // Department admin scoped
+      scopeQuery.deptId = req.user.deptId;
+    }
+
+    // 3. Apply optional filters
+    const finalQuery = Object.assign({}, scopeQuery);
+    const statusParam = sanitizeToString(req.query.status);
+    if (statusParam && statusParam.toLowerCase() !== 'all') {
+      finalQuery.status = new RegExp(`^${statusParam}$`, 'i');
+    }
+
+    const fromDate = sanitizeToString(req.query.from);
+    if (fromDate) finalQuery.toDate = { $gte: fromDate };
+
+    const toDate = sanitizeToString(req.query.to);
+    if (toDate) finalQuery.fromDate = { $lte: toDate };
+
+    const category = sanitizeToString(req.query.category);
+    if (category) finalQuery.category = category;
+
+    const search = sanitizeToString(req.query.search);
+    if (search) {
+      const sReg = new RegExp(search, 'i');
+      finalQuery.$and = finalQuery.$and || [];
+      finalQuery.$and.push({
+        $or: [
+          { studentName: sReg },
+          { studentRegNo: sReg },
+          { reason: sReg },
+          { requestId: sReg }
+        ]
+      });
+    }
+
+    const limit = Math.min(Number(req.query.limit) || 200, 500);
+    const requests = await M.StudentLeaveRequest.find(finalQuery)
+      .sort({ createdAt: -1 })
+      .limit(limit)
+      .lean();
+
+    const withTracker = requests.map(r => ({ ...r, tracker: buildLeaveTracker(r) }));
+
+    return res.json({
+      ok: true,
+      requests: withTracker,
+      leaves: withTracker,
+      data: withTracker,
+      count: withTracker.length
+    });
+  } catch (err) {
+    console.error('[Student Leave History Error]:', err);
+    return res.status(500).json({ error: 'Failed to retrieve leave history' });
+  }
+});
+
+// ── GET /api/student-leave/advisor/pending — Pending requests for Advisor ──
+router.get('/advisor/pending', async (req, res) => {
+  try {
+    const userTrackId = req.user.trackId;
+    const todayIST = getTodayIST();
+
+    // Find classes where user is nominal Advisor or active Acting Advisor
+    const classes = await M.Class.find({
+      $or: [
+        { advisorTeacherTrackId: userTrackId },
+        { advisorTeacherId: req.user._id }
+      ]
+    }).lean();
+
+    const classIds = classes.map(c => c._id);
+
+    // Also check ActingRole appointments
+    const actingRoles = await M.ActingRole.find({
+      holderTrackId: userTrackId,
+      role: 'advisor',
+      status: { $in: ['active', 'pending'] },
+      from: { $lte: todayIST },
+      to: { $gte: todayIST }
+    }).lean();
+
+    for (const ar of actingRoles) {
+      if (mongoose.isValidObjectId(ar.key)) {
+        classIds.push(new mongoose.Types.ObjectId(ar.key));
+      }
+    }
+
+    const query = {
+      status: 'Pending',
+      $or: [
+        { advisorTrackId: userTrackId },
+        { classId: { $in: classIds } }
+      ]
+    };
+
+    const requests = await M.StudentLeaveRequest.find(query).sort({ createdAt: -1 }).lean();
+    return res.json({ ok: true, requests, leaves: requests, data: requests });
+  } catch (err) {
+    console.error('[Advisor Pending Leave Error]:', err);
+    return res.status(500).json({ error: 'Failed to load pending requests' });
   }
 });
 
@@ -61,9 +333,25 @@ router.get('/:id', async (req, res) => {
 
     // Verify ownership or staff permissions
     const isOwner = req.user.trackId === request.studentTrackId;
-    const isStaff = ['teacher', 'admin', 'principal', 'hod'].includes(req.user.role) || req.user.isPrincipal;
-    if (!isOwner && !isStaff) {
-      return res.status(403).json({ error: 'Unauthorized to view this request' });
+    const isInstitutionStaff = ['admin', 'principal'].includes(req.user.role) || req.user.isPrincipal || req.user.isAdmin;
+    if (!isOwner && !isInstitutionStaff) {
+      const isStaff = ['teacher', 'hod'].includes(req.user.role);
+      if (!isStaff) {
+        return res.status(403).json({ error: 'Unauthorized to view this request' });
+      }
+
+      // Check department or class scope (S14)
+      const userDeptId = req.user.deptId ? String(req.user.deptId) : null;
+      const reqDeptId = request.deptId ? String(request.deptId) : null;
+      const isSameDept = (userDeptId && reqDeptId && userDeptId === reqDeptId) ||
+        (req.user.department && request.deptName && req.user.department.trim().toLowerCase() === request.deptName.trim().toLowerCase());
+
+      const isAdvisor = (request.advisorTrackId && request.advisorTrackId === req.user.trackId) ||
+        (request.advisorId && String(request.advisorId) === String(req.user._id));
+
+      if (!isSameDept && !isAdvisor) {
+        return res.status(403).json({ error: 'Unauthorized: request outside your class or department scope' });
+      }
     }
 
     // Retrieve audit timeline history
@@ -77,7 +365,7 @@ router.get('/:id', async (req, res) => {
 });
 
 // ── 3. POST /api/student-leave — Student submits leave request ──
-router.post('/', async (req, res) => {
+router.post('/', checkModuleGuard('modelStudentLeave', 'Student Leave'), leaveApplyLimiter, async (req, res) => {
   try {
     if (req.user.role !== 'student') {
       return res.status(403).json({ error: 'Only students may apply through this endpoint' });
@@ -103,6 +391,13 @@ router.post('/', async (req, res) => {
     const certLink = sanitizeToString(req.body.certificateLink);
     const certDriveId = sanitizeToString(req.body.certificateDriveId);
     const certToFollow = Boolean(req.body.certificateToFollow);
+
+    if (certLink && !isValidDriveUrl(certLink)) {
+      return res.status(400).json({ error: 'Invalid certificate link. Only Google Drive or Google Docs https links are accepted.' });
+    }
+    if (certDriveId && !isValidDriveFileId(certDriveId)) {
+      return res.status(400).json({ error: 'Invalid certificate drive ID format.' });
+    }
 
     if (!fromDate || !toDate || !reason) {
       return res.status(400).json({ error: 'From date, to date, and reason are required' });
@@ -362,53 +657,6 @@ router.post('/:id/cancel', async (req, res) => {
   }
 });
 
-// ── 5. GET /api/student-leave/advisor/pending — Pending requests for Advisor ──
-router.get('/advisor/pending', async (req, res) => {
-  try {
-    const userTrackId = req.user.trackId;
-    const todayIST = getTodayIST();
-
-    // Find classes where user is nominal Advisor or active Acting Advisor
-    const classes = await M.Class.find({
-      $or: [
-        { advisorTeacherTrackId: userTrackId },
-        { advisorTeacherId: req.user._id }
-      ]
-    }).lean();
-
-    const classIds = classes.map(c => c._id);
-
-    // Also check ActingRole appointments
-    const actingRoles = await M.ActingRole.find({
-      holderTrackId: userTrackId,
-      role: 'advisor',
-      status: { $in: ['active', 'pending'] },
-      from: { $lte: todayIST },
-      to: { $gte: todayIST }
-    }).lean();
-
-    for (const ar of actingRoles) {
-      if (mongoose.isValidObjectId(ar.key)) {
-        classIds.push(new mongoose.Types.ObjectId(ar.key));
-      }
-    }
-
-    const query = {
-      status: 'Pending',
-      $or: [
-        { advisorTrackId: userTrackId },
-        { classId: { $in: classIds } }
-      ]
-    };
-
-    const requests = await M.StudentLeaveRequest.find(query).sort({ createdAt: -1 }).lean();
-    return res.json({ ok: true, requests });
-  } catch (err) {
-    console.error('[Advisor Pending Leave Error]:', err);
-    return res.status(500).json({ error: 'Failed to load pending requests' });
-  }
-});
-
 // ── 6. POST /api/student-leave/:id/permit — Advisor permits leave ──
 router.post('/:id/permit', async (req, res) => {
   try {
@@ -421,47 +669,13 @@ router.post('/:id/permit', async (req, res) => {
       return res.status(404).json({ error: 'Leave request not found' });
     }
 
-    const previousStatus = request.status;
     const remarks = sanitizeToString(req.body.remarks) || '';
-
-    request.status = 'Approved';
-    request.advisorStatus = 'Approved';
-    request.advisorRemarks = remarks;
-    request.advisorReviewedAt = new Date();
-    await request.save();
-
-    // Reconcile attendance: marks absent with reason: 'leave' and creates entitlements
-    await reconcileOnLeaveApproved({
-      leaveRequestId: request.requestId,
-      studentTrackId: request.studentTrackId,
-      classId: String(request.classId),
-      dates: request.dates,
-      periodNumbers: request.periods,
-      actorTrackId: req.user.trackId,
-      actorRole: 'advisor'
-    });
-
-    // Phase T4: Reverses uninformed absence penalties for backdated approved leave (§8)
-    handleLeaveApprovalReversal(request.studentId, request.dates).catch(err => {
-      console.warn('[Trust Leave Reversal Warn]:', err.message);
-    });
-
-    await recordApprovalHistory({
-      requestId: request.requestId,
-      requestType: 'student_leave',
-      actorId: req.user.trackId,
-      actorName: req.user.fullName || req.user.name || '',
-      actorRole: 'advisor',
-      action: 'permitted',
-      comment: remarks,
-      previousState: previousStatus,
-      newState: 'Approved'
-    });
+    const updated = await executePermitLeave(request, req, remarks);
 
     return res.json({
       ok: true,
-      message: `Leave request ${request.requestId} approved and locked as Absent`,
-      request
+      message: `Leave request ${updated.requestId} approved and locked as Absent`,
+      request: updated
     });
   } catch (err) {
     console.error('[Advisor Permit Leave Error]:', err);
@@ -486,26 +700,8 @@ router.post('/:id/reject', async (req, res) => {
       return res.status(400).json({ error: 'Rejection reason is required' });
     }
 
-    const previousStatus = request.status;
-    request.status = 'Rejected';
-    request.advisorStatus = 'Rejected';
-    request.advisorRemarks = reason;
-    request.advisorReviewedAt = new Date();
-    await request.save();
-
-    await recordApprovalHistory({
-      requestId: request.requestId,
-      requestType: 'student_leave',
-      actorId: req.user.trackId,
-      actorName: req.user.fullName || req.user.name || '',
-      actorRole: 'advisor',
-      action: 'rejected',
-      comment: reason,
-      previousState: previousStatus,
-      newState: 'Rejected'
-    });
-
-    return res.json({ ok: true, message: `Leave request ${request.requestId} rejected`, request });
+    const updated = await executeRejectLeave(request, req, reason);
+    return res.json({ ok: true, message: `Leave request ${updated.requestId} rejected`, request: updated });
   } catch (err) {
     console.error('[Advisor Reject Leave Error]:', err);
     return res.status(500).json({ error: err.message || 'Failed to reject leave' });
@@ -529,34 +725,55 @@ router.post('/:id/return', async (req, res) => {
       return res.status(400).json({ error: 'Correction instructions are required' });
     }
 
-    const previousStatus = request.status;
-    request.status = 'Returned';
-    request.advisorStatus = 'Returned';
-    request.advisorRemarks = remarks;
-    request.advisorReviewedAt = new Date();
-    await request.save();
-
-    await recordApprovalHistory({
-      requestId: request.requestId,
-      requestType: 'student_leave',
-      actorId: req.user.trackId,
-      actorName: req.user.fullName || req.user.name || '',
-      actorRole: 'advisor',
-      action: 'returned',
-      comment: remarks,
-      previousState: previousStatus,
-      newState: 'Returned'
-    });
-
-    return res.json({ ok: true, message: `Leave request ${request.requestId} returned for correction`, request });
+    const updated = await executeReturnLeave(request, req, remarks);
+    return res.json({ ok: true, message: `Leave request ${updated.requestId} returned for correction`, request: updated });
   } catch (err) {
     console.error('[Advisor Return Leave Error]:', err);
     return res.status(500).json({ error: err.message || 'Failed to return leave' });
   }
 });
 
+// ── 8B. POST /api/student-leave/:id/status — Unified status update for Approvals Inbox ──
+router.post('/:id/status', async (req, res) => {
+  try {
+    const query = mongoose.isValidObjectId(req.params.id)
+      ? { $or: [{ _id: req.params.id }, { requestId: req.params.id }] }
+      : { requestId: req.params.id };
+
+    const request = await M.StudentLeaveRequest.findOne(query);
+    if (!request) {
+      return res.status(404).json({ error: 'Leave request not found' });
+    }
+
+    const targetStatus = sanitizeToString(req.body.status || req.body.action || '');
+    if (!targetStatus) {
+      return res.status(400).json({ error: 'Status is required' });
+    }
+
+    const s = targetStatus.toLowerCase();
+    const remarks = sanitizeToString(req.body.remarks || req.body.reason || '');
+
+    if (s === 'approved' || s === 'permit' || s === 'approve') {
+      const updated = await executePermitLeave(request, req, remarks || 'Approved via Approvals Inbox');
+      return res.json({ ok: true, message: `Leave request ${updated.requestId} approved`, request: updated });
+    } else if (s === 'rejected' || s === 'reject') {
+      const updated = await executeRejectLeave(request, req, remarks || 'Rejected via Approvals Inbox');
+      return res.json({ ok: true, message: `Leave request ${updated.requestId} rejected`, request: updated });
+    } else if (s === 'returned' || s === 'return') {
+      const updated = await executeReturnLeave(request, req, remarks || 'Returned for correction via Approvals Inbox');
+      return res.json({ ok: true, message: `Leave request ${updated.requestId} returned for correction`, request: updated });
+    } else {
+      return res.status(400).json({ error: `Unsupported status '${targetStatus}'. Use Approved, Rejected, or Returned.` });
+    }
+  } catch (err) {
+    console.error('[Student Leave Status Update Error]:', err);
+    return res.status(500).json({ error: err.message || 'Failed to update leave request status' });
+  }
+});
+
+
 // ── 9. POST /api/student-leave/advisor/file-for-student — Advisor files leave (e.g. >3 days) ──
-router.post('/advisor/file-for-student', async (req, res) => {
+router.post('/advisor/file-for-student', checkModuleGuard('modelStudentLeave', 'Student Leave'), leaveApplyLimiter, async (req, res) => {
   try {
     const studentInput = sanitizeToString(req.body.studentTrackId || req.body.registerNo || req.body.regNo);
     const category = sanitizeToString(req.body.category) || 'Personal';

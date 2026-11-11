@@ -83,6 +83,14 @@
     return null;
   }
 
+  function isForcedPasswordChangeEnabled(data) {
+    var pub = window._pubSettings || window._publicSettings || {};
+    if (pub.isDev || (pub.security && pub.security.isDev)) return false;
+    if (pub.security && pub.security.forcePasswordChange === false) return false;
+    if (data && data.security && data.security.forcePasswordChange === false) return false;
+    return true;
+  }
+
   function showNotificationToast(msg, type) {
     if (typeof window.showToast === 'function') {
       window.showToast(msg, type || 'info');
@@ -332,6 +340,24 @@
           handleAuthFailure('timeout');
           throw new Error('Unauthorized');
         }
+        if (res.status === 403) {
+          return res.json().then(function (data) {
+            if (data && (data.code === 'PASSWORD_CHANGE_REQUIRED' || data.mustChangePassword)) {
+              if (isForcedPasswordChangeEnabled(data)) {
+                try { sessionStorage.setItem('eams_mustChangePw', '1'); } catch (e) {}
+                if (typeof window.showForcePwModal === 'function') {
+                  window.showForcePwModal();
+                } else if (typeof window.openForceChangePwModal === 'function') {
+                  window.openForceChangePwModal();
+                }
+                throw new Error('PASSWORD_CHANGE_REQUIRED');
+              } else {
+                try { sessionStorage.removeItem('eams_mustChangePw'); } catch (_) {}
+              }
+            }
+            throw new Error('Failed to fetch access rights: HTTP 403');
+          });
+        }
         if (!res.ok) {
           throw new Error('Failed to fetch access rights');
         }
@@ -343,6 +369,17 @@
         try {
           sessionStorage.setItem('eams_access', JSON.stringify(data));
         } catch (e) {}
+
+        if (data && (data.mustChangePassword || (data.user && data.user.mustChangePassword)) && isForcedPasswordChangeEnabled(data)) {
+          try { sessionStorage.setItem('eams_mustChangePw', '1'); } catch (e) {}
+          if (typeof window.showForcePwModal === 'function') {
+            window.showForcePwModal();
+          } else if (typeof window.openForceChangePwModal === 'function') {
+            window.openForceChangePwModal();
+          }
+        } else {
+          try { sessionStorage.removeItem('eams_mustChangePw'); } catch (_) {}
+        }
 
         var pageKey = getCurrentPageKey();
 
@@ -373,14 +410,28 @@
       });
     },
 
-    pingServer: function () {
+    pingServer: function (force) {
       var self = this;
       var token = sessionStorage.getItem('eams_token');
       if (!token) return;
 
       var now = Date.now();
-      // Throttle pings to at most once per 5 seconds
-      if (now - self._lastPingAt < 5000) return;
+      // Throttle pings to at most once per 15 seconds
+      if (now - self._lastPingAt < 15000) return;
+
+      // Inactivity check: only send periodic heartbeat if user had interaction recently (< 2 mins)
+      // or if force is true (e.g. window focus / tab visibility change)
+      var sAct = parseInt(sessionStorage.getItem('eams_last_activity') || '0', 10);
+      var lAct = 0;
+      try { lAct = parseInt(localStorage.getItem('eams_last_activity') || '0', 10); } catch (e) {}
+      var latestUserAct = Math.max(sAct, lAct);
+      var isRecentlyActive = latestUserAct > 0 && (now - latestUserAct < 2 * 60 * 1000);
+
+      if (!isRecentlyActive && !force) {
+        // User has been idle for > 2 minutes; avoid sending background heartbeats that falsely extend server session
+        return;
+      }
+
       self._lastPingAt = now;
 
       fetch('/api/auth/ping', {
@@ -388,7 +439,8 @@
         headers: {
           'Authorization': 'Bearer ' + token,
           'Content-Type': 'application/json'
-        }
+        },
+        body: JSON.stringify({ active: isRecentlyActive })
       })
       .then(function (res) {
         if (res.status === 401) {
@@ -427,21 +479,21 @@
 
       if (self._pingTimer) clearInterval(self._pingTimer);
 
-      // Ping every 60s
+      // Heartbeat ping every 60s
       self._pingTimer = setInterval(function () {
-        self.pingServer();
+        self.pingServer(false);
       }, 60 * 1000);
 
       // Ping on visibilitychange (when tab becomes active)
       document.addEventListener('visibilitychange', function () {
         if (document.visibilityState === 'visible') {
-          self.pingServer();
+          self.pingServer(true);
         }
       });
 
       // Ping on window focus
       window.addEventListener('focus', function () {
-        self.pingServer();
+        self.pingServer(true);
       });
     },
 
@@ -487,7 +539,7 @@
           }
         };
 
-        // Phase T3: On student and attendance pages, attempt seamless 15-day device session refresh
+        // On student and attendance pages, attempt seamless 15-day device session refresh
         if ((pageKey === 'student' || pageKey === 'attendance') && typeof window.DeviceKey === 'object' && typeof window.DeviceKey.trySessionRefresh === 'function') {
           window.DeviceKey.trySessionRefresh().then(function (res) {
             if (res && res.token) {
@@ -523,6 +575,25 @@
           handleAuthFailure('timeout');
           throw new Error('Unauthorized');
         }
+        if (res.status === 403) {
+          return res.json().then(function (data) {
+            if (data && (data.code === 'PASSWORD_CHANGE_REQUIRED' || data.mustChangePassword)) {
+              if (isForcedPasswordChangeEnabled(data)) {
+                try { sessionStorage.setItem('eams_mustChangePw', '1'); } catch (e) {}
+                if (typeof window.showForcePwModal === 'function') {
+                  window.showForcePwModal();
+                } else if (typeof window.openForceChangePwModal === 'function') {
+                  window.openForceChangePwModal();
+                }
+                self.revealPage();
+                throw new Error('PASSWORD_CHANGE_REQUIRED');
+              } else {
+                try { sessionStorage.removeItem('eams_mustChangePw'); } catch (_) {}
+              }
+            }
+            throw new Error('Access check failed: HTTP ' + res.status);
+          });
+        }
         if (!res.ok) {
           throw new Error('Access check failed: HTTP ' + res.status);
         }
@@ -535,6 +606,17 @@
         try {
           sessionStorage.setItem('eams_access', JSON.stringify(data));
         } catch (e) {}
+
+        if (data && (data.mustChangePassword || (data.user && data.user.mustChangePassword)) && isForcedPasswordChangeEnabled(data)) {
+          try { sessionStorage.setItem('eams_mustChangePw', '1'); } catch (e) {}
+          if (typeof window.showForcePwModal === 'function') {
+            window.showForcePwModal();
+          } else if (typeof window.openForceChangePwModal === 'function') {
+            window.openForceChangePwModal();
+          }
+        } else {
+          try { sessionStorage.removeItem('eams_mustChangePw'); } catch (_) {}
+        }
 
         if (data.bootstrapPending) {
           try { sessionStorage.setItem('eams_bootstrapPending', '1'); } catch (e) {}
@@ -569,6 +651,9 @@
         self.startContinuousPing();
       })
       .catch(function (err) {
+        if (err && err.message === 'PASSWORD_CHANGE_REQUIRED') {
+          return;
+        }
         if (err.message !== 'Unauthorized') {
           console.error('[EAMS Guard Init Error]:', err);
           // Allow existing fallback if DB offline

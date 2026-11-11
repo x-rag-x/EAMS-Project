@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const M = require('../../models');
 const { postMessage } = require('./messages');
 
@@ -8,6 +9,7 @@ const STALE_DRAFT_DAYS = 7;
  * Recovers batches that died mid-execution due to server crashes, deployments, or timeouts
  */
 async function checkStuckBatches() {
+  if (!mongoose.connection || mongoose.connection.readyState !== 1) return;
   try {
     const cutoff = new Date(Date.now() - HEARTBEAT_TIMEOUT_MS);
     const stuck = await M.BulkImportBatch.find({
@@ -38,6 +40,9 @@ async function checkStuckBatches() {
       }).catch(() => {});
     }
   } catch (err) {
+    if (err.name === 'MongoServerSelectionError' || err.name === 'MongoNetworkError' || (err.message && (err.message.includes('buffering timed out') || err.message.includes('closed')))) {
+      return;
+    }
     console.warn('[BulkSweeper Warning]:', err.message);
   }
 }
@@ -46,6 +51,7 @@ async function checkStuckBatches() {
  * Removes abandoned empty drafts older than 7 days
  */
 async function cleanupStaleDrafts() {
+  if (!mongoose.connection || mongoose.connection.readyState !== 1) return;
   try {
     const draftCutoff = new Date(Date.now() - STALE_DRAFT_DAYS * 24 * 60 * 60 * 1000);
     const staleDrafts = await M.BulkImportBatch.find({
@@ -60,36 +66,55 @@ async function cleanupStaleDrafts() {
       console.log(`[BulkSweeper] Cleaned up ${res.deletedCount} abandoned bulk draft chats.`);
     }
   } catch (err) {
+    if (err.name === 'MongoServerSelectionError' || err.name === 'MongoNetworkError' || (err.message && (err.message.includes('buffering timed out') || err.message.includes('closed')))) {
+      return;
+    }
     console.warn('[BulkSweeper Draft Cleanup Error]:', err.message);
   }
 }
 
 let _sweeperInterval = null;
 let _cleanupInterval = null;
+let _initialTimeout = null;
 
 function startBulkSweeper() {
   if (_sweeperInterval) return;
 
-  // Run stuck check on boot and every 60s
-  checkStuckBatches().catch(() => {});
+  const scheduleInitialSweep = () => {
+    if (_initialTimeout) clearTimeout(_initialTimeout);
+    _initialTimeout = setTimeout(() => {
+      checkStuckBatches().catch(() => {});
+      cleanupStaleDrafts().catch(() => {});
+    }, 2000);
+  };
+
+  if (mongoose.connection && mongoose.connection.readyState === 1) {
+    scheduleInitialSweep();
+  } else if (mongoose.connection) {
+    mongoose.connection.once('connected', scheduleInitialSweep);
+  }
+
+  // Run stuck check every 60s
   _sweeperInterval = setInterval(() => {
     checkStuckBatches().catch(() => {});
   }, 60 * 1000);
 
   // Run draft cleanup once every 24 hours
-  cleanupStaleDrafts().catch(() => {});
   _cleanupInterval = setInterval(() => {
     cleanupStaleDrafts().catch(() => {});
   }, 24 * 60 * 60 * 1000);
 
-  console.log('   ✓ Bulk background job sweeper active');
+  if (_sweeperInterval.unref) _sweeperInterval.unref();
+  if (_cleanupInterval.unref) _cleanupInterval.unref();
 }
 
 function stopBulkSweeper() {
   if (_sweeperInterval) clearInterval(_sweeperInterval);
   if (_cleanupInterval) clearInterval(_cleanupInterval);
+  if (_initialTimeout) clearTimeout(_initialTimeout);
   _sweeperInterval = null;
   _cleanupInterval = null;
+  _initialTimeout = null;
 }
 
 module.exports = {

@@ -1,0 +1,942 @@
+/* ═══════════════════════════════════════════════════════════════════════
+ * EAMS Timetable Workspace · Notes & Slot Clipboard (Win + V) Styles
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+/* ── 1. Floating Action Button (FAB) ────────────────────────────────── */
+.tt-scratchpad-fab {
+  position: fixed;
+  bottom: 26px;
+  right: 28px;
+  z-index: 1040;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  background: linear-gradient(135deg, #1b5e20 0%, #2e7d32 100%);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  border-radius: 50%;
+  padding: 0;
+  cursor: pointer;
+  box-shadow: 0 10px 28px -4px rgba(27, 94, 32, 0.42), 0 4px 12px rgba(0, 0, 0, 0.12);
+  transition: all 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+  user-select: none;
+  outline: none;
+}
+
+.tt-scratchpad-fab:hover {
+  transform: translateY(-3px) scale(1.06);
+  box-shadow: 0 14px 34px -4px rgba(27, 94, 32, 0.52), 0 6px 16px rgba(0, 0, 0, 0.16);
+  background: linear-gradient(135deg, #144a19 0%, #256a29 100%);
+}
+
+.tt-scratchpad-fab.dragover {
+  transform: translateY(-4px) scale(1.18) !important;
+  box-shadow: 0 0 0 5px rgba(46, 125, 50, 0.45), 0 16px 36px rgba(0, 0, 0, 0.28) !important;
+  background: linear-gradient(135deg, #15803d 0%, #16a34a 100%) !important;
+}
+
+.tt-scratchpad-drawer.drag-receiving {
+  box-shadow: -8px 0 32px rgba(27, 94, 32, 0.35) !important;
+  border-left: 2px dashed var(--gM, #2e7d32);
+}
+
+.tt-scratchpad-fab:active {
+  transform: translateY(0) scale(0.96);
+}
+
+.tt-scratchpad-fab .fab-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.16);
+  flex-shrink: 0;
+  transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.tt-scratchpad-fab:hover .fab-icon {
+  transform: rotate(-10deg) scale(1.12);
+}
+
+.tt-scratchpad-fab .fab-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  background: #ffea00;
+  color: #1b5e20;
+  font-size: 10.5px;
+  font-weight: 800;
+  min-width: 19px;
+  height: 19px;
+  padding: 0 5px;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  border: 1.5px solid #ffffff;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+  transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.tt-scratchpad-fab .fab-badge.bump {
+  animation: ttBadgeBump 0.35s ease;
+}
+
+@keyframes ttBadgeBump {
+  0%   { transform: scale(1); }
+  50%  { transform: scale(1.4); }
+  100% { transform: scale(1); }
+}
+
+/* ── 2. Backdrop Overlay ────────────────────────────────────────────── */
+.tt-scratchpad-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.25);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+  z-index: 1048;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.28s ease;
+}
+
+.tt-scratchpad-backdrop.open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* ── 3. Pop-up Slide-out Drawer ──────────────────────────────────────── */
+.tt-scratchpad-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 440px;
+  max-width: calc(100vw - 24px);
+  background: var(--cd, #ffffff);
+  border-left: 1px solid var(--br, rgba(27, 94, 32, 0.14));
+  box-shadow: -10px 0 40px rgba(0, 0, 0, 0.14), -2px 0 8px rgba(0, 0, 0, 0.04);
+  z-index: 1050;
+  display: flex;
+  flex-direction: column;
+  transform: translateX(105%);
+  opacity: 0.6;
+  pointer-events: none;
+  transition: transform 0.34s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.22s ease;
+  font-family: inherit;
+  box-sizing: border-box;
+}
+
+.tt-scratchpad-drawer.open {
+  transform: translateX(0);
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* Pin / Docked Mode (Stays open side-by-side without backdrop) */
+.tt-scratchpad-drawer.docked {
+  box-shadow: -4px 0 20px rgba(0, 0, 0, 0.08);
+}
+
+/* Drawer Header */
+.tt-drawer-hd {
+  padding: 16px 20px 14px;
+  border-bottom: 1px solid var(--br, rgba(27, 94, 32, 0.1));
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--gP, #f4f7f4);
+  flex-shrink: 0;
+}
+
+.tt-drawer-title-box {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.tt-drawer-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--td, #1a2e1a);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tt-drawer-scope {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--gD, #1b5e20);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.tt-drawer-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tt-drawer-btn {
+  background: #ffffff;
+  border: 1px solid var(--br, rgba(27, 94, 32, 0.15));
+  color: var(--td, #1a2e1a);
+  border-radius: 8px;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 14px;
+}
+
+.tt-drawer-btn:hover {
+  background: var(--gLt, #e8f5e9);
+  color: var(--gD, #1b5e20);
+  border-color: var(--gM, #2e7d32);
+}
+
+/* Drawer Tab Switcher */
+.tt-drawer-tabs-bar {
+  display: flex;
+  background: #ffffff;
+  padding: 8px 16px 6px;
+  border-bottom: 1px solid var(--br, rgba(27, 94, 32, 0.1));
+  gap: 6px;
+  position: relative;
+  flex-shrink: 0;
+}
+
+.tt-drawer-tab-btn {
+  flex: 1;
+  padding: 8px 10px;
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--tmu, #557055);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: all 0.2s ease;
+}
+
+.tt-drawer-tab-btn:hover {
+  color: var(--td, #1a2e1a);
+  background: var(--gP, #f4f7f4);
+}
+
+.tt-drawer-tab-btn.active {
+  background: var(--gLt, #e8f5e9);
+  color: var(--gD, #1b5e20);
+}
+
+.tt-drawer-tab-badge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 10px;
+  background: rgba(27, 94, 32, 0.12);
+  color: var(--gD, #1b5e20);
+}
+
+.tt-drawer-tab-btn.active .tt-drawer-tab-badge {
+  background: var(--gD, #1b5e20);
+  color: #ffffff;
+}
+
+/* Tab Panes Container */
+.tt-drawer-body {
+  flex: 1;
+  overflow-y: auto;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+.tt-tab-pane {
+  display: none;
+  flex: 1;
+  flex-direction: column;
+  animation: ttFadeIn 0.22s ease forwards;
+}
+
+.tt-tab-pane.active {
+  display: flex;
+}
+
+@keyframes ttFadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── 4. Tab 1: Notepad (Multi-Area Scratchpad) ──────────────────────── */
+.tt-notes-doc-bar {
+  display: flex;
+  align-items: center;
+  background: var(--gP, #f4f7f4);
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--br, rgba(27, 94, 32, 0.1));
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: thin;
+  flex-shrink: 0;
+}
+
+.tt-note-doc-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: #ffffff;
+  border: 1px solid var(--br, rgba(27, 94, 32, 0.15));
+  padding: 5px 10px;
+  border-radius: 6px;
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--td, #1a2e1a);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.tt-note-doc-tab:hover {
+  border-color: var(--gM, #2e7d32);
+}
+
+.tt-note-doc-tab.active {
+  background: var(--gD, #1b5e20);
+  color: #ffffff;
+  border-color: var(--gD, #1b5e20);
+  font-weight: 600;
+}
+
+.tt-note-tab-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  font-size: 11px;
+  opacity: 0.6;
+  margin-left: 2px;
+}
+
+.tt-note-tab-close:hover {
+  opacity: 1;
+  background: rgba(0, 0, 0, 0.15);
+}
+
+.tt-note-add-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: #ffffff;
+  border: 1px dashed var(--gM, #2e7d32);
+  color: var(--gD, #1b5e20);
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+}
+
+.tt-note-add-btn:hover {
+  background: var(--gLt, #e8f5e9);
+}
+
+.tt-notes-editor-wrap {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 14px 16px;
+  gap: 10px;
+}
+
+.tt-note-title-input {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--td, #1a2e1a);
+  background: transparent;
+  border: none;
+  border-bottom: 1.5px solid var(--br, rgba(27, 94, 32, 0.12));
+  padding: 4px 0 6px;
+  outline: none;
+  transition: border-color 0.2s ease;
+  font-family: inherit;
+}
+
+.tt-note-title-input:focus {
+  border-bottom-color: var(--gD, #1b5e20);
+}
+
+.tt-note-textarea {
+  flex: 1;
+  width: 100%;
+  min-height: 240px;
+  background: var(--bg2, #fafbfa);
+  border: 1px solid var(--br, rgba(27, 94, 32, 0.12));
+  border-radius: 10px;
+  padding: 12px 14px;
+  font-family: 'DM Mono', monospace, sans-serif;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--td, #1a2e1a);
+  resize: none;
+  outline: none;
+  box-sizing: border-box;
+  transition: border-color 0.2s ease;
+}
+
+.tt-note-textarea:focus {
+  border-color: var(--gM, #2e7d32);
+  background: #ffffff;
+}
+
+.tt-notes-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 16px 14px;
+  border-top: 1px solid var(--br, rgba(27, 94, 32, 0.08));
+  font-size: 11px;
+  color: var(--tmu, #557055);
+}
+
+.tt-note-tools {
+  display: flex;
+  gap: 8px;
+}
+
+.tt-note-tool-btn {
+  background: var(--gP, #f4f7f4);
+  border: 1px solid var(--br, rgba(27, 94, 32, 0.1));
+  color: var(--td, #1a2e1a);
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.15s ease;
+}
+
+.tt-note-tool-btn:hover {
+  background: var(--gLt, #e8f5e9);
+  color: var(--gD, #1b5e20);
+}
+
+/* ── 5. Tab 2 & 3: Slot Cards & Lists ───────────────────────────────── */
+.tt-slot-list-controls {
+  padding: 10px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  background: #ffffff;
+  border-bottom: 1px solid var(--br, rgba(27, 94, 32, 0.08));
+  flex-shrink: 0;
+}
+
+.tt-slot-search-input {
+  flex: 1;
+  background: var(--gP, #f4f7f4);
+  border: 1px solid var(--br, rgba(27, 94, 32, 0.12));
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 11.5px;
+  color: var(--td, #1a2e1a);
+  outline: none;
+  font-family: inherit;
+}
+
+.tt-slot-search-input:focus {
+  border-color: var(--gM, #2e7d32);
+  background: #ffffff;
+}
+
+.tt-slot-clear-btn {
+  background: transparent;
+  border: 1px solid rgba(220, 38, 38, 0.3);
+  color: #dc2626;
+  border-radius: 6px;
+  padding: 5px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.tt-slot-clear-btn:hover {
+  background: #fef2f2;
+}
+
+/* Slot Drop Zone for Stash */
+.tt-stash-dropzone {
+  margin: 10px 16px 4px;
+  border: 2px dashed rgba(27, 94, 32, 0.25);
+  background: var(--gP, #f4f7f4);
+  border-radius: 10px;
+  padding: 12px;
+  text-align: center;
+  font-size: 11.5px;
+  color: var(--gD, #1b5e20);
+  font-weight: 500;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.2s ease;
+}
+
+.tt-stash-dropzone.dragover {
+  border-color: var(--gM, #2e7d32);
+  background: var(--gLt, #e8f5e9);
+  transform: scale(1.02);
+}
+
+.tt-slot-card-feed {
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex: 1;
+  overflow-y: auto;
+}
+
+/* Slot Card Styling */
+.tt-slot-card {
+  background: #ffffff;
+  border: 1px solid var(--br, rgba(27, 94, 32, 0.14));
+  border-left: 4px solid var(--gM, #2e7d32);
+  border-radius: 10px;
+  padding: 10px 12px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  transition: all 0.2s ease;
+  position: relative;
+  cursor: grab;
+}
+
+.tt-slot-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.08);
+  border-color: var(--gM, #2e7d32);
+}
+
+.tt-slot-card.is-lab {
+  border-left-color: #7c3aed;
+}
+
+.tt-slot-card-hd {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.tt-slot-card-title-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+}
+
+.tt-slot-subj-code {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--gD, #1b5e20);
+  letter-spacing: 0.3px;
+}
+
+.tt-slot-subj-name {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--td, #1a2e1a);
+  line-height: 1.35;
+}
+
+.tt-slot-badge-group {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.tt-slot-type-badge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--gLt, #e8f5e9);
+  color: var(--gD, #1b5e20);
+}
+
+.tt-slot-type-badge.lab {
+  background: #f5f3ff;
+  color: #7c3aed;
+}
+
+.tt-slot-meta-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  font-size: 11px;
+  color: var(--tmu, #557055);
+}
+
+.tt-slot-meta-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.tt-slot-source-tag {
+  font-size: 10px;
+  font-weight: 500;
+  color: #64748b;
+  background: #f1f5f9;
+  padding: 1px 6px;
+  border-radius: 4px;
+  margin-top: 2px;
+}
+
+.tt-slot-actions-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 4px;
+  padding-top: 6px;
+  border-top: 1px dashed var(--br, rgba(27, 94, 32, 0.1));
+}
+
+.tt-slot-actions-left {
+  display: flex;
+  gap: 6px;
+}
+
+.tt-slot-paste-btn {
+  background: linear-gradient(135deg, #1b5e20 0%, #2e7d32 100%);
+  color: #ffffff;
+  border: none;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.2s ease;
+}
+
+.tt-slot-paste-btn:hover {
+  background: linear-gradient(135deg, #144a19 0%, #256a29 100%);
+  transform: translateY(-1px);
+}
+
+.tt-slot-icon-btn {
+  background: #ffffff;
+  border: 1px solid var(--br, rgba(27, 94, 32, 0.15));
+  color: var(--td, #1a2e1a);
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.15s ease;
+}
+
+.tt-slot-icon-btn:hover {
+  background: var(--gP, #f4f7f4);
+  border-color: var(--gM, #2e7d32);
+  color: var(--gD, #1b5e20);
+}
+
+.tt-slot-icon-btn.pin.active {
+  background: #fffbeb;
+  border-color: #f59e0b;
+  color: #d97706;
+}
+
+.tt-slot-icon-btn.delete:hover {
+  background: #fef2f2;
+  border-color: #f87171;
+  color: #dc2626;
+}
+
+/* Empty State */
+.tt-drawer-empty {
+  padding: 40px 20px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  color: var(--tmu, #557055);
+}
+
+.tt-drawer-empty-icon {
+  font-size: 32px;
+  color: var(--gM, #2e7d32);
+  opacity: 0.6;
+}
+
+.tt-drawer-empty-title {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--td, #1a2e1a);
+}
+
+.tt-drawer-empty-sub {
+  font-size: 11.5px;
+  line-height: 1.5;
+  max-width: 260px;
+}
+
+/* Cell Highlight when ready for 1-Click Paste */
+.slot-add.paste-target-ready,
+.slot.paste-target-ready {
+  outline: 2px dashed #16a34a !important;
+  outline-offset: -2px;
+  background: rgba(22, 163, 74, 0.08) !important;
+}
+
+/* Responsive adjustments */
+@media (max-width: 640px) {
+  .tt-scratchpad-drawer {
+    width: 100vw;
+    max-width: 100vw;
+  }
+  .tt-scratchpad-fab {
+    bottom: 16px;
+    right: 16px;
+    width: 44px;
+    height: 44px;
+  }
+}
+
+/* ── 6. Stash Drop Animation & Reactions ────────────────────────────── */
+.tt-scratchpad-fab.absorbing {
+  animation: ttFabAbsorb 0.52s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+}
+
+@keyframes ttFabAbsorb {
+  0% {
+    transform: scale(1);
+    box-shadow: 0 10px 28px -4px rgba(27, 94, 32, 0.42), 0 4px 12px rgba(0, 0, 0, 0.12);
+  }
+  35% {
+    transform: scale(1.28);
+    box-shadow: 0 0 0 10px rgba(46, 125, 50, 0.25), 0 16px 36px -4px rgba(27, 94, 32, 0.6);
+    background: linear-gradient(135deg, #15803d 0%, #16a34a 100%);
+  }
+  70% {
+    transform: scale(0.94);
+    box-shadow: 0 0 0 18px rgba(46, 125, 50, 0), 0 10px 28px -4px rgba(27, 94, 32, 0.42);
+  }
+  100% {
+    transform: scale(1);
+    background: linear-gradient(135deg, #1b5e20 0%, #2e7d32 100%);
+  }
+}
+
+.tt-scratchpad-fab.shaking {
+  animation: ttFabShake 0.48s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+}
+
+@keyframes ttFabShake {
+  0%, 100% { transform: scale(1) translate3d(0, 0, 0); }
+  15% { transform: scale(1.08) translate3d(-4px, 0, 0); }
+  30% { transform: scale(1.08) translate3d(5px, 0, 0); }
+  45% { transform: scale(1.05) translate3d(-5px, 0, 0); }
+  60% { transform: scale(1.05) translate3d(4px, 0, 0); }
+  75% { transform: scale(1.02) translate3d(-2px, 0, 0); }
+  90% { transform: scale(1.01) translate3d(1px, 0, 0); }
+}
+
+.tt-scratchpad-fab .fab-badge.warn-flash {
+  animation: ttBadgeWarnFlash 0.65s ease;
+  background: #f59e0b !important;
+  color: #78350f !important;
+}
+
+@keyframes ttBadgeWarnFlash {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.45); }
+  100% { transform: scale(1); }
+}
+
+/* Expanding ripple ring behind FAB upon drop */
+.tt-stash-ripple {
+  position: fixed;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 1039;
+  border: 2.5px solid rgba(34, 197, 94, 0.75);
+  box-shadow: 0 0 16px rgba(34, 197, 94, 0.4);
+  transform: translate(-50%, -50%) scale(0.4);
+  opacity: 1;
+  animation: ttStashRippleExpand 0.55s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.tt-stash-ripple.warn {
+  border-color: rgba(245, 158, 11, 0.85);
+  box-shadow: 0 0 16px rgba(245, 158, 11, 0.45);
+}
+
+@keyframes ttStashRippleExpand {
+  0% {
+    transform: translate(-50%, -50%) scale(0.4);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(2.4);
+    opacity: 0;
+  }
+}
+
+/* Flying ghost mini-card */
+.tt-stash-ghost {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 175px;
+  max-width: 220px;
+  padding: 8px 12px;
+  background: #ffffff;
+  border: 1.5px solid rgba(27, 94, 32, 0.28);
+  border-left: 4.5px solid var(--gM, #2e7d32);
+  border-radius: 10px;
+  box-shadow: 0 18px 40px -6px rgba(27, 94, 32, 0.42), 0 8px 20px rgba(0, 0, 0, 0.16);
+  pointer-events: none;
+  user-select: none;
+  z-index: 10000;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-family: inherit;
+  will-change: transform, opacity, filter;
+  transform-origin: center center;
+}
+
+.tt-stash-ghost.is-lab {
+  border-left-color: #7c3aed;
+  border-color: rgba(124, 58, 237, 0.32);
+  box-shadow: 0 18px 40px -6px rgba(124, 58, 237, 0.4), 0 8px 20px rgba(0, 0, 0, 0.16);
+}
+
+.tt-stash-ghost-hd {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.tt-stash-ghost-code {
+  font-size: 10px;
+  font-weight: 800;
+  color: var(--gD, #1b5e20);
+  letter-spacing: 0.4px;
+}
+
+.tt-stash-ghost.is-lab .tt-stash-ghost-code {
+  color: #7c3aed;
+}
+
+.tt-stash-ghost-type {
+  font-size: 9px;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--gLt, #e8f5e9);
+  color: var(--gD, #1b5e20);
+}
+
+.tt-stash-ghost.is-lab .tt-stash-ghost-type {
+  background: #f5f3ff;
+  color: #7c3aed;
+}
+
+.tt-stash-ghost-title {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--td, #1a2e1a);
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tt-stash-ghost-meta {
+  font-size: 10px;
+  color: var(--tmu, #557055);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Stash Feed card highlight if already exists */
+.tt-slot-card.highlight-found {
+  animation: ttCardPulseFound 1.4s ease forwards;
+}
+
+@keyframes ttCardPulseFound {
+  0% {
+    transform: scale(1);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+  }
+  25% {
+    transform: scale(1.03);
+    border-color: #f59e0b;
+    box-shadow: 0 0 0 4px rgba(245, 158, 11, 0.28), 0 8px 22px rgba(245, 158, 11, 0.2);
+    background: #fffdf5;
+  }
+  60% {
+    transform: scale(1.01);
+    border-color: #f59e0b;
+    box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.15);
+  }
+  100% {
+    transform: scale(1);
+    border-color: var(--br, rgba(27, 94, 32, 0.14));
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+    background: #ffffff;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tt-stash-ghost {
+    display: none !important;
+  }
+  .tt-scratchpad-fab.absorbing,
+  .tt-scratchpad-fab.shaking {
+    animation: none !important;
+  }
+}

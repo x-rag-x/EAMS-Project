@@ -264,7 +264,7 @@ async function doLogout(reasonType) {
     // Default is enabled (true) unless explicitly configured as 'false'
     var isEnabled = (enabledStr !== 'false');
     var rawMins = sessionStorage.getItem('eams_session_timeout_mins');
-    var mins = (rawMins && !isNaN(parseInt(rawMins, 10))) ? parseInt(rawMins, 10) : 7;
+    var mins = (rawMins && !isNaN(parseInt(rawMins, 10))) ? parseInt(rawMins, 10) : 10;
     return {
       enabled: isEnabled,
       mins: mins,
@@ -281,22 +281,70 @@ async function doLogout(reasonType) {
     try { localStorage.setItem('eams_last_activity', nowStr); } catch (e) {}
   }
 
+  function isBackgroundApiCall(url, opts) {
+    var urlStr = '';
+    if (typeof url === 'string') {
+      urlStr = url;
+    } else if (url && typeof url.url === 'string') {
+      urlStr = url.url;
+    } else if (url && typeof url.toString === 'function') {
+      urlStr = url.toString();
+    }
+
+    if (!urlStr.includes('/api/') && !urlStr.startsWith('/api')) {
+      return true; // Not an API endpoint
+    }
+
+    // Exclude automatic background polls and session lifecycle endpoints from resetting user activity
+    if (
+      urlStr.includes('/api/auth/logout') ||
+      urlStr.includes('/api/settings/public') ||
+      urlStr.includes('/api/auth/ping') ||
+      urlStr.includes('/api/notifications')
+    ) {
+      return true;
+    }
+
+    var headers = (opts && opts.headers) || (url && url.headers);
+    if (headers) {
+      if (typeof headers.get === 'function') {
+        if (headers.get('x-background-request') === 'true' || headers.get('X-Background-Request') === 'true') {
+          return true;
+        }
+      } else if (typeof headers === 'object') {
+        if (headers['x-background-request'] === 'true' || headers['X-Background-Request'] === 'true') {
+          return true;
+        }
+      }
+    }
+
+    return false;
+  }
+
   if (typeof window !== 'undefined') {
     window.recordSessionActivity = recordSessionActivity;
     window.getTimeoutConfig = getTimeoutConfig;
+    window.isBackgroundApiCall = isBackgroundApiCall;
   }
 
-  // Intercept all API calls so each API call automatically extends logout time
+  // Intercept all user API calls so each API call automatically detects active status & extends session
   if (typeof window !== 'undefined' && window.fetch) {
     var _origFetch = window.fetch;
     window.fetch = function() {
       var url = arguments[0];
-      if (typeof url === 'string' && (url.includes('/api/') || url.startsWith('/api'))) {
-        if (!url.includes('/api/auth/logout') && !url.includes('/api/settings/public')) {
-          recordSessionActivity();
-        }
+      var opts = arguments[1];
+      if (!isBackgroundApiCall(url, opts)) {
+        recordSessionActivity();
       }
-      return _origFetch.apply(this, arguments);
+      return _origFetch.apply(this, arguments).then(function(res) {
+        if (res && res.headers) {
+          var serverExpiresAt = res.headers.get('x-session-expires-at');
+          if (serverExpiresAt) {
+            try { sessionStorage.setItem('eams_server_expires_at', serverExpiresAt); } catch (e) {}
+          }
+        }
+        return res;
+      });
     };
   }
 
@@ -311,7 +359,13 @@ async function doLogout(reasonType) {
   }
 
   if (typeof window !== 'undefined' && typeof document !== 'undefined') {
-    ['click', 'keydown', 'keypress', 'mousedown', 'mousemove', 'scroll', 'touchstart', 'touchmove'].forEach(function(evt) {
+    [
+      'click', 'keydown', 'keypress', 'keyup',
+      'mousedown', 'mouseup', 'mousemove',
+      'scroll', 'touchstart', 'touchmove',
+      'input', 'change', 'paste', 'wheel',
+      'pointerdown', 'pointermove'
+    ].forEach(function(evt) {
       window.addEventListener(evt, onUserInteraction, { passive: true, capture: true });
     });
   }
@@ -324,7 +378,13 @@ async function doLogout(reasonType) {
         .then(function(data) {
           if (data && data.security) {
             var timeoutEnabled = data.security.sessionTimeout !== false;
-            var timeoutMins = data.security.sessionTimeoutMins !== undefined ? Number(data.security.sessionTimeoutMins) : 7;
+            var user = getUser();
+            var timeoutMins = 10;
+            if (user && user.role === 'teacher' && data.security.teacherInactivityMins !== undefined) {
+              timeoutMins = Number(data.security.teacherInactivityMins);
+            } else if (data.security.sessionTimeoutMins !== undefined) {
+              timeoutMins = Number(data.security.sessionTimeoutMins);
+            }
             sessionStorage.setItem('eams_session_timeout', timeoutEnabled ? 'true' : 'false');
             sessionStorage.setItem('eams_session_timeout_mins', String(timeoutMins));
           }

@@ -6,6 +6,7 @@ const { authMiddleware } = require('../middleware/auth');
 const { isSudoAdmin } = require('../utils/access');
 const { qrAttendanceLimiter, qrAttendanceIpLimiter } = require('../utils/rateLimiters');
 const { checkLiveSessionGuard } = require('../middleware/portalGuard');
+const { getSetting } = require('../utils/settingsCache');
 const { logAction } = require('../utils/logAction');
 const { evaluateDeviceTrust } = require('../utils/deviceTrust');
 const {
@@ -40,15 +41,20 @@ function haversineDistance(lat1, lon1, lat2, lon2) {
  * GET /api/qr-attendance/generate-qr
  * Generate QR code image from text data
  */
-router.get('/generate-qr', authMiddleware, qrAttendanceLimiter, async (req, res) => {
+router.get('/generate-qr', qrAttendanceLimiter, async (req, res) => {
   try {
     const { data, size } = req.query;
 
-    if (!data) {
+    if (!data || typeof data !== 'string' || !data.trim()) {
       return res.status(400).json({ error: 'Missing data parameter' });
     }
 
-    const qrSize = parseInt(size) || 300;
+    if (data.length > 2048) {
+      return res.status(400).json({ error: 'Data parameter exceeds maximum allowed length of 2048 characters' });
+    }
+
+    const parsedSize = parseInt(size, 10);
+    const qrSize = Math.min(Math.max(!isNaN(parsedSize) ? parsedSize : 300, 100), 1000);
 
     // Generate QR code as PNG buffer
     const qrImage = await QRCode.toBuffer(data, {
@@ -448,8 +454,33 @@ router.post('/submit', authMiddleware, qrAttendanceIpLimiter, qrAttendanceLimite
       verification.failReason = 'Live session expired';
     } else {
       // Check class match if session has classId
-      if (liveSession.classId && student.classId && String(liveSession.classId) !== String(student.classId)) {
-        verification.failReason = 'Live session does not belong to your enrolled class';
+      if (liveSession.classId) {
+        if (student.classId) {
+          if (String(liveSession.classId) === String(student.classId)) {
+            verification.sessionOk = true;
+          } else {
+            verification.failReason = 'Live session does not belong to your enrolled class';
+          }
+        } else if (student.class) {
+          const studentClass = student.class.trim().toLowerCase();
+          let matched = false;
+          if (liveSession.className && studentClass === liveSession.className.trim().toLowerCase()) {
+            matched = true;
+          } else {
+            const classDoc = await M.Class.findById(liveSession.classId).select('name').lean().catch(() => null);
+            if (classDoc?.name && studentClass === classDoc.name.trim().toLowerCase()) {
+              matched = true;
+            }
+          }
+
+          if (matched) {
+            verification.sessionOk = true;
+          } else {
+            verification.failReason = 'Live session does not belong to your enrolled class';
+          }
+        } else {
+          verification.failReason = 'Live session does not belong to your enrolled class';
+        }
       } else {
         verification.sessionOk = true;
       }
@@ -457,15 +488,24 @@ router.post('/submit', authMiddleware, qrAttendanceIpLimiter, qrAttendanceLimite
 
     // Geolocation radius check against session coordinates if configured
     if (verification.locationOk && liveSession) {
-      const sessionLat = liveSession.latitude ?? liveSession.location?.latitude ?? liveSession.location?.lat;
-      const sessionLng = liveSession.longitude ?? liveSession.location?.longitude ?? liveSession.location?.lng;
-      const maxRadiusM = liveSession.maxRadiusMeters || 200;
+      const attSettings = await getSetting('attendance').catch(() => ({}));
+      const enforceGeofence = attSettings.enforceAttendanceGeofence !== false;
 
-      if (sessionLat !== undefined && sessionLat !== null && sessionLng !== undefined && sessionLng !== null) {
-        const distance = haversineDistance(Number(latitude), Number(longitude), Number(sessionLat), Number(sessionLng));
-        if (distance > maxRadiusM) {
+      if (enforceGeofence) {
+        const sessionLat = liveSession.latitude ?? liveSession.location?.latitude ?? liveSession.location?.lat;
+        const sessionLng = liveSession.longitude ?? liveSession.location?.longitude ?? liveSession.location?.lng;
+        const maxRadiusM = liveSession.maxRadiusMeters || Number(attSettings.attendanceMaxRadiusM) || 200;
+        const maxAccuracyM = Number(attSettings.attendanceMaxAccuracyM) || 100;
+
+        if (accuracy !== undefined && !isNaN(Number(accuracy)) && Number(accuracy) > maxAccuracyM) {
           verification.locationOk = false;
-          verification.failReason = `Location too far from classroom (${Math.round(distance)}m away, max allowed: ${maxRadiusM}m)`;
+          verification.failReason = `Device GPS accuracy too low (${Math.round(Number(accuracy))}m, max allowed: ${maxAccuracyM}m)`;
+        } else if (sessionLat !== undefined && sessionLat !== null && sessionLng !== undefined && sessionLng !== null) {
+          const distance = haversineDistance(Number(latitude), Number(longitude), Number(sessionLat), Number(sessionLng));
+          if (distance > maxRadiusM) {
+            verification.locationOk = false;
+            verification.failReason = `Location too far from classroom (${Math.round(distance)}m away, max allowed: ${maxRadiusM}m)`;
+          }
         }
       }
     }

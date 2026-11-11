@@ -16,6 +16,7 @@ const { calculateAttendancePct, calculateDefaulterBand, calculateClassesNeeded }
 const { getTodayIST } = require('../middleware/scope');
 const { decryptLog } = require('../utils/logCrypto');
 const { todayIST } = require('../utils/institutionTime');
+const escapeRegex = s => String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 // 0a. GET /api/controller/stream — Browser EventSource stream (authenticated via one-time ticket)
 router.get('/stream', async (req, res) => {
@@ -876,6 +877,7 @@ router.get('/init', async (req, res) => {
 
     res.json({
       context: ctx,
+      serverDateIST: getTodayIST(),
       badges: {
         pendingStudentLeaves,
         pendingTeacherLeaves,
@@ -1270,6 +1272,10 @@ router.post('/leaves/approve', async (req, res) => {
           continue;
         }
 
+        if (leave.status === 'Approved') {
+          continue;
+        }
+
         leave.hodStatus = 'Approved';
         leave.hodReviewedBy = ctx.name;
         leave.hodReviewedAt = new Date();
@@ -1304,6 +1310,7 @@ router.post('/leaves/approve', async (req, res) => {
 
         if (ctx.role === 'hod') {
           if (String(tLeave.deptId) !== String(ctx.deptId)) continue;
+          if (tLeave.hodStatus === 'Approved') continue;
 
           // Endorsed by HOD, forwarded to Principal per LD9 (including emergency)
           tLeave.hodStatus = 'Approved';
@@ -1316,6 +1323,7 @@ router.post('/leaves/approve', async (req, res) => {
           await tLeave.save();
           updatedCount++;
         } else if (ctx.role === 'principal') {
+          if (tLeave.status === 'Approved') continue;
           // Principal Final Approval (LD9)
           tLeave.principalStatus = 'Approved';
           tLeave.principalReviewedBy = ctx.name;
@@ -1455,6 +1463,7 @@ router.post('/leaves/reject', async (req, res) => {
         const leave = await M.LeaveRequest.findById(id);
         if (!leave) continue;
         if (ctx.role === 'hod' && String(leave.deptId) !== String(ctx.deptId)) continue;
+        if (leave.status === 'Rejected') continue;
 
         leave.hodStatus = 'Rejected';
         leave.hodReviewedBy = ctx.name;
@@ -1594,7 +1603,7 @@ router.get('/faculty', async (req, res) => {
   }
 });
 
-// 9. GET /api/controller/students — Student directory with cumulative attendance %
+// 9. GET /api/controller/students — Student directory with cumulative attendance % & server pagination
 router.get('/students', async (req, res) => {
   try {
     const ctx = req.controllerContext;
@@ -1602,22 +1611,59 @@ router.get('/students', async (req, res) => {
     const deptId = isHod ? ctx.deptId : (sanitizeToString(req.query.deptId) || null);
     const classId = sanitizeToString(req.query.classId) || null;
     const search = sanitizeToString(req.query.search) || '';
+    const gender = sanitizeToString(req.query.gender) || null;
+    const residency = sanitizeToString(req.query.residency) || null;
+    const entryType = sanitizeToString(req.query.entryType || req.query.admissionType) || null;
+
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const limit = Math.min(200, Math.max(10, parseInt(req.query.limit, 10) || 50));
+    const skip = (page - 1) * limit;
+
+    const sortBy = sanitizeToString(req.query.sortBy) || 'registerNo';
+    const sortOrder = req.query.sortOrder === 'desc' ? -1 : 1;
 
     const filter = {};
     if (deptId) filter.deptId = deptId;
     if (classId) filter.classId = classId;
+    if (gender && ['Male', 'Female', 'Other'].includes(gender)) {
+      filter.gender = gender;
+    }
+    if (residency && ['hostel', 'dayscholar'].includes(residency.toLowerCase())) {
+      filter.residency = residency.toLowerCase();
+    }
+    if (entryType) {
+      if (entryType.toLowerCase().includes('lateral')) {
+        filter.admissionType = 'Lateral Entry';
+      } else if (entryType.toLowerCase().includes('regular')) {
+        filter.admissionType = 'Regular';
+      }
+    }
     if (search) {
+      const escaped = escapeRegex(search);
       filter.$or = [
-        { fullName: new RegExp(search, 'i') },
-        { registerNo: new RegExp(search, 'i') },
-        { username: new RegExp(search, 'i') }
+        { fullName: new RegExp(escaped, 'i') },
+        { registerNo: new RegExp(escaped, 'i') },
+        { username: new RegExp(escaped, 'i') }
       ];
     }
 
+    const sortMap = {
+      registerNo: { registerNo: sortOrder },
+      rollNumber: { registerNo: sortOrder },
+      fullName: { fullName: sortOrder },
+      name: { fullName: sortOrder },
+      attendancePercentage: { attendancePercentage: sortOrder },
+      attendancePct: { attendancePercentage: sortOrder },
+      createdAt: { createdAt: sortOrder }
+    };
+    const sortObj = sortMap[sortBy] || { registerNo: 1 };
+
+    const total = await M.Student.countDocuments(filter);
     const students = await M.Student.find(filter)
       .select('-password -passwordHistory')
-      .sort({ registerNo: 1 })
-      .limit(500)
+      .sort(sortObj)
+      .skip(skip)
+      .limit(limit)
       .lean();
 
     const trackIds = students.map(s => s.trackId).filter(Boolean);
@@ -1634,15 +1680,25 @@ router.get('/students', async (req, res) => {
     });
 
     const enriched = students.map(s => {
-      const att = attMap[s.trackId] || { totalHeld: 0, totalAtt: 0, pct: 100 };
+      const att = attMap[s.trackId] || {
+        totalHeld: 0,
+        totalAtt: 0,
+        pct: s.attendancePercentage != null ? s.attendancePercentage : 100
+      };
       return {
         _id: s._id,
         trackId: s.trackId,
         fullName: s.fullName,
         registerNo: s.registerNo || '—',
+        rollNumber: s.registerNo || '—',
         class: s.class || '—',
         section: s.section || '—',
         department: s.department || '—',
+        deptId: s.deptId,
+        gender: s.gender || '—',
+        residency: s.residency || 'dayscholar',
+        admissionType: s.admissionType || 'Regular',
+        entryType: (s.admissionType === 'Lateral Entry') ? 'lateral' : 'regular',
         admissionYear: s.admissionYear || '—',
         batchTrackId: s.batchTrackId || '—',
         classesHeld: att.totalHeld,
@@ -1651,7 +1707,23 @@ router.get('/students', async (req, res) => {
       };
     });
 
-    res.json(enriched);
+    const totalPages = Math.ceil(total / limit) || 1;
+
+    res.json({
+      ok: true,
+      items: enriched,
+      total,
+      page,
+      totalPages,
+      limit,
+      data: {
+        items: enriched,
+        total,
+        page,
+        totalPages,
+        limit
+      }
+    });
   } catch (err) {
     console.error('[Controller Students Error]:', err);
     res.status(500).json({ error: err.message });
@@ -2092,10 +2164,13 @@ router.get('/defaulters', async (req, res) => {
     const classId = sanitizeToString(req.query.classId) || null;
     const bandFilter = sanitizeToString(req.query.band) || 'all'; // 'all' | 'condonation' | 'critical'
 
-    // Get policy threshold
+    // Get policy threshold dynamically
     const settingsDoc = await M.Settings.findOne({ key: 'attendancePolicy' }).lean();
     const minThreshold = Number(req.query.threshold) || Number(settingsDoc?.value?.minAttendancePct) || 75;
-    const condonationBand = [65, minThreshold];
+    const condonationMin = Number(settingsDoc?.value?.condonationMinPct) || Math.max(0, minThreshold - 10);
+    const atRiskUpper = minThreshold + 5;
+    const condonationBand = [condonationMin, minThreshold];
+    const atRiskBand = [minThreshold, atRiskUpper];
 
     const studentQuery = {};
     if (classId) studentQuery.classId = classId;
@@ -2404,6 +2479,462 @@ router.get('/reports/semester', async (req, res) => {
   }
 });
 
+// 14b. GET /api/controller/reports/weekly — Monday-to-Saturday calendar week report
+router.get('/reports/weekly', async (req, res) => {
+  try {
+    const ctx = req.controllerContext;
+    const isPrincipal = ctx.role === 'principal';
+    const targetDate = sanitizeToString(req.query.date) || getTodayIST();
+    const deptCodes = req.scope.deptCodes || [];
+
+    // Calculate Monday-to-Saturday dates for the target week
+    const base = new Date(targetDate + 'T12:00:00+05:30');
+    const day = base.getDay(); // 0: Sun, 1: Mon, ..., 6: Sat
+    const diffToMon = (day === 0 ? -6 : 1) - day;
+    const monday = new Date(base);
+    monday.setDate(base.getDate() + diffToMon);
+
+    const weekDates = [];
+    const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    for (let i = 0; i < 6; i++) {
+      const d = new Date(monday);
+      d.setDate(monday.getDate() + i);
+      weekDates.push(d.toISOString().slice(0, 10));
+    }
+
+    const query = { date: { $in: weekDates } };
+    if (!isPrincipal && deptCodes.length) {
+      query.deptCode = { $in: deptCodes };
+    } else if (req.query.deptCode) {
+      query.deptCode = String(req.query.deptCode).toUpperCase();
+    }
+
+    const sessions = await M.ClassSession.find(query).lean();
+
+    // Group by date
+    const daysMap = {};
+    weekDates.forEach((dt, idx) => {
+      daysMap[dt] = {
+        date: dt,
+        dayName: dayNames[idx],
+        scheduled: 0,
+        held: 0,
+        cancelled: 0,
+        presentSum: 0,
+        rosterSum: 0,
+        pct: 0
+      };
+    });
+
+    sessions.forEach(s => {
+      const dayObj = daysMap[s.date];
+      if (!dayObj) return;
+      dayObj.scheduled++;
+      if (s.status === 'cancelled') {
+        dayObj.cancelled++;
+        return;
+      }
+      if (s.attendance && s.attendance.savedAt) {
+        dayObj.held++;
+        dayObj.presentSum += (s.attendance.present || 0);
+        dayObj.rosterSum += (s.attendance.total || 0);
+      }
+    });
+
+    let totalHeld = 0;
+    let totalPresent = 0;
+    let totalRoster = 0;
+
+    const daysReport = weekDates.map(dt => {
+      const d = daysMap[dt];
+      totalHeld += d.held;
+      totalPresent += d.presentSum;
+      totalRoster += d.rosterSum;
+      d.pct = d.rosterSum > 0 ? Math.round((d.presentSum / d.rosterSum) * 100) : 0;
+      return d;
+    });
+
+    const overallPct = totalRoster > 0 ? Math.round((totalPresent / totalRoster) * 100) : 0;
+
+    res.json({
+      ok: true,
+      startDate: weekDates[0],
+      endDate: weekDates[5],
+      weekDates,
+      overallPct,
+      totalHeld,
+      totalPresent,
+      totalRoster,
+      days: daysReport
+    });
+  } catch (err) {
+    console.error('[Controller Weekly Report Error]:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 14c. GET /api/controller/attendance/overview — Headline KPI, Delta, SVG Trend Series & Class Rankings
+router.get('/attendance/overview', async (req, res) => {
+  try {
+    const ctx = req.controllerContext;
+    const isPrincipal = ctx.role === 'principal';
+    const range = sanitizeToString(req.query.range) || 'weekly'; // daily, weekly, monthly, semester
+    const targetDate = sanitizeToString(req.query.date) || getTodayIST();
+    const deptCodes = req.scope.deptCodes || [];
+
+    // 1. Get dynamic settings threshold
+    const settingsDoc = await M.Settings.findOne({ key: 'attendancePolicy' }).lean();
+    const minThreshold = Number(settingsDoc?.value?.minAttendancePct) || 75;
+    const condonationMin = Number(settingsDoc?.value?.condonationMinPct) || Math.max(0, minThreshold - 10);
+    const atRiskUpper = minThreshold + 5;
+
+    // 2. Build date windows based on range
+    const base = new Date(targetDate + 'T12:00:00+05:30');
+    let currentDates = [];
+    let prevDates = [];
+
+    if (range === 'daily') {
+      currentDates = [targetDate];
+      const prevD = new Date(base);
+      prevD.setDate(base.getDate() - 1);
+      prevDates = [prevD.toISOString().slice(0, 10)];
+    } else if (range === 'monthly') {
+      for (let i = 29; i >= 0; i--) {
+        const d = new Date(base);
+        d.setDate(base.getDate() - i);
+        currentDates.push(d.toISOString().slice(0, 10));
+      }
+      for (let i = 59; i >= 30; i--) {
+        const d = new Date(base);
+        d.setDate(base.getDate() - i);
+        prevDates.push(d.toISOString().slice(0, 10));
+      }
+    } else if (range === 'semester') {
+      for (let i = 89; i >= 0; i--) {
+        const d = new Date(base);
+        d.setDate(base.getDate() - i);
+        currentDates.push(d.toISOString().slice(0, 10));
+      }
+      for (let i = 179; i >= 90; i--) {
+        const d = new Date(base);
+        d.setDate(base.getDate() - i);
+        prevDates.push(d.toISOString().slice(0, 10));
+      }
+    } else {
+      // 'weekly': Monday-to-Saturday current week vs Monday-to-Saturday previous week
+      const day = base.getDay();
+      const diffToMon = (day === 0 ? -6 : 1) - day;
+      const monday = new Date(base);
+      monday.setDate(base.getDate() + diffToMon);
+
+      for (let i = 0; i < 6; i++) {
+        const d = new Date(monday);
+        d.setDate(monday.getDate() + i);
+        currentDates.push(d.toISOString().slice(0, 10));
+      }
+
+      const prevMon = new Date(monday);
+      prevMon.setDate(monday.getDate() - 7);
+      for (let i = 0; i < 6; i++) {
+        const d = new Date(prevMon);
+        d.setDate(prevMon.getDate() + i);
+        prevDates.push(d.toISOString().slice(0, 10));
+      }
+    }
+
+    const queryScope = {};
+    if (!isPrincipal && deptCodes.length) {
+      queryScope.deptCode = { $in: deptCodes };
+    } else if (req.query.deptCode) {
+      queryScope.deptCode = String(req.query.deptCode).toUpperCase();
+    }
+
+    const allDates = [...new Set([...currentDates, ...prevDates])];
+    const sessions = await M.ClassSession.find({
+      date: { $in: allDates },
+      ...queryScope
+    }).lean();
+
+    let currPresent = 0;
+    let currRoster = 0;
+    let currHeld = 0;
+    let prevPresent = 0;
+    let prevRoster = 0;
+
+    const classStats = {};
+    const dateStats = {};
+    currentDates.forEach(d => {
+      dateStats[d] = { date: d, present: 0, roster: 0, held: 0 };
+    });
+
+    sessions.forEach(s => {
+      if (s.status === 'cancelled') return;
+      const isCurrent = currentDates.includes(s.date);
+      const isPrev = prevDates.includes(s.date);
+
+      if (s.attendance && s.attendance.savedAt) {
+        const p = s.attendance.present || 0;
+        const tot = s.attendance.total || 0;
+
+        if (isCurrent) {
+          currHeld++;
+          currPresent += p;
+          currRoster += tot;
+
+          if (dateStats[s.date]) {
+            dateStats[s.date].held++;
+            dateStats[s.date].present += p;
+            dateStats[s.date].roster += tot;
+          }
+
+          const cKey = s.className || s.classId || 'Class';
+          if (!classStats[cKey]) {
+            classStats[cKey] = { name: cKey, dept: s.deptCode || '', present: 0, roster: 0, held: 0 };
+          }
+          classStats[cKey].held++;
+          classStats[cKey].present += p;
+          classStats[cKey].roster += tot;
+        }
+
+        if (isPrev) {
+          prevPresent += p;
+          prevRoster += tot;
+        }
+      }
+    });
+
+    const headlinePct = currRoster > 0 ? Math.round((currPresent / currRoster) * 100) : 0;
+    const prevHeadlinePct = prevRoster > 0 ? Math.round((prevPresent / prevRoster) * 100) : headlinePct;
+    const delta = headlinePct - prevHeadlinePct;
+
+    // Trend Series
+    const trend = currentDates.map(d => {
+      const stat = dateStats[d] || { held: 0, present: 0, roster: 0 };
+      const pct = stat.roster > 0 ? Math.round((stat.present / stat.roster) * 100) : 0;
+      return {
+        date: d,
+        label: d.slice(5),
+        pct,
+        held: stat.held,
+        attended: stat.present
+      };
+    });
+
+    // Class rankings
+    const rankedClasses = Object.values(classStats).map(c => {
+      c.pct = c.roster > 0 ? Math.round((c.present / c.roster) * 100) : 0;
+      return c;
+    }).sort((a, b) => b.pct - a.pct);
+
+    res.json({
+      ok: true,
+      range,
+      headlinePct,
+      prevHeadlinePct,
+      delta,
+      totalHeld: currHeld,
+      totalAttended: currPresent,
+      totalRoster: currRoster,
+      threshold: minThreshold,
+      atRiskBand: [minThreshold, atRiskUpper],
+      condonationBand: [condonationMin, minThreshold],
+      trend,
+      rankings: rankedClasses.slice(0, 10),
+      lowestRankings: rankedClasses.slice(-5).reverse()
+    });
+  } catch (err) {
+    console.error('[Controller Attendance Overview Error]:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 14d. GET /api/controller/staff/compliance — 30-day punctuality & role coverage gap analysis
+router.get('/staff/compliance', async (req, res) => {
+  try {
+    const ctx = req.controllerContext;
+    const isPrincipal = ctx.role === 'principal';
+    const deptCodes = req.scope.deptCodes || [];
+    const targetDeptId = !isPrincipal ? ctx.deptId : (req.query.deptId || null);
+
+    // 1. Calculate 30-day window
+    const todayStr = getTodayIST();
+    const base = new Date(todayStr + 'T12:00:00+05:30');
+    const startD = new Date(base);
+    startD.setDate(base.getDate() - 30);
+    const startDateStr = startD.toISOString().slice(0, 10);
+
+    // Query 30-day class sessions
+    const sessionQuery = {
+      date: { $gte: startDateStr, $lte: todayStr }
+    };
+    if (!isPrincipal && deptCodes.length) {
+      sessionQuery.deptCode = { $in: deptCodes };
+    } else if (req.query.deptCode) {
+      sessionQuery.deptCode = String(req.query.deptCode).toUpperCase();
+    }
+
+    const sessions = await M.ClassSession.find(sessionQuery).lean();
+
+    // Aggregate by teacher
+    const teacherMap = {};
+    sessions.forEach(s => {
+      if (s.status === 'cancelled') return;
+      const tKey = s.teacherTrackId || s.teacherName || 'Unknown Faculty';
+      if (!teacherMap[tKey]) {
+        teacherMap[tKey] = {
+          teacherTrackId: s.teacherTrackId || '',
+          teacherName: s.teacherName || tKey,
+          deptCode: s.deptCode || '',
+          totalSessions: 0,
+          onTimeSessions: 0,
+          lateSessions: 0
+        };
+      }
+      teacherMap[tKey].totalSessions++;
+      if (s.attendance && s.attendance.savedAt) {
+        if (s.attendance.onTime === true) {
+          teacherMap[tKey].onTimeSessions++;
+        } else {
+          teacherMap[tKey].lateSessions++;
+        }
+      }
+    });
+
+    const complianceList = Object.values(teacherMap).map(t => {
+      const marked = t.onTimeSessions + t.lateSessions;
+      t.punctualityRate = marked > 0 ? Math.round((t.onTimeSessions / marked) * 100) : 100;
+      return t;
+    }).sort((a, b) => b.totalSessions - a.totalSessions);
+
+    // 2. Operational role coverage gap analysis
+    const classQuery = targetDeptId ? { deptId: targetDeptId } : {};
+    const classes = await M.Class.find(classQuery).lean();
+
+    const missingAdvisorClasses = [];
+    classes.forEach(c => {
+      if (!c.classAdvisor && !c.advisorId && !c.advisorTrackId) {
+        missingAdvisorClasses.push({
+          classId: c._id,
+          className: c.name || c.className,
+          section: c.section || '',
+          deptName: c.deptName || c.department || ''
+        });
+      }
+    });
+
+    res.json({
+      ok: true,
+      startDate: startDateStr,
+      endDate: todayStr,
+      compliance: complianceList,
+      coverageGaps: {
+        missingAdvisorClasses,
+        totalClasses: classes.length,
+        assignedAdvisorsCount: classes.length - missingAdvisorClasses.length,
+        gapCount: missingAdvisorClasses.length
+      }
+    });
+  } catch (err) {
+    console.error('[Controller Staff Compliance Error]:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 14e. GET /api/controller/search — Global Search (Students, Faculty, Classes)
+router.get('/search', async (req, res) => {
+  try {
+    const ctx = req.controllerContext;
+    const isPrincipal = ctx.role === 'principal';
+    const deptCodes = req.scope.deptCodes || [];
+    const q = sanitizeToString(req.query.q || req.query.query || '').trim();
+
+    if (!q || q.length < 2) {
+      return res.json({ ok: true, results: [] });
+    }
+
+    const escaped = escapeRegex(q);
+    const regex = new RegExp(escaped, 'i');
+
+    const studentQuery = {
+      $or: [
+        { fullName: regex },
+        { registerNo: regex },
+        { username: regex }
+      ]
+    };
+    const teacherQuery = {
+      $or: [
+        { name: regex },
+        { username: regex },
+        { employeeId: regex }
+      ]
+    };
+    const classQuery = {
+      $or: [
+        { name: regex },
+        { code: regex }
+      ]
+    };
+
+    if (!isPrincipal && deptCodes.length) {
+      studentQuery.department = { $in: deptCodes };
+      teacherQuery.deptCode = { $in: deptCodes };
+      classQuery.deptCode = { $in: deptCodes };
+    }
+
+    const [students, teachers, classes] = await Promise.all([
+      M.Student.find(studentQuery).select('trackId fullName registerNo class department').limit(8).lean(),
+      M.Teacher.find(teacherQuery).select('trackId name employeeId designation deptCode department').limit(8).lean(),
+      M.Class.find(classQuery).select('name code department deptCode').limit(8).lean()
+    ]);
+
+    const results = [];
+
+    students.forEach(s => {
+      results.push({
+        type: 'student',
+        id: s.trackId || s._id,
+        title: s.fullName,
+        sub: (s.registerNo || 'No Reg') + ' · ' + (s.class || s.department || 'Student'),
+        icon: 'graduation-cap',
+        targetPage: 'students',
+        targetTab: 'directory',
+        trackId: s.trackId
+      });
+    });
+
+    teachers.forEach(t => {
+      results.push({
+        type: 'faculty',
+        id: t.trackId || t._id,
+        title: t.name,
+        sub: (t.designation || 'Faculty') + ' · ' + (t.deptCode || t.department || 'Department'),
+        icon: 'teacher',
+        targetPage: 'staff',
+        targetTab: 'directory',
+        trackId: t.trackId
+      });
+    });
+
+    classes.forEach(c => {
+      results.push({
+        type: 'class',
+        id: c._id,
+        title: c.name,
+        sub: (c.code || '') + ' · ' + (c.deptCode || c.department || 'Class'),
+        icon: 'chalkboard',
+        targetPage: 'timetable',
+        targetTab: 'view'
+      });
+    });
+
+    res.json({ ok: true, results });
+  } catch (err) {
+    console.error('[Controller Global Search Error]:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // 15. POST /api/controller/broadcast — Dispatch tagged announcement
 router.post('/broadcast', async (req, res) => {
   try {
@@ -2575,15 +3106,22 @@ router.get('/timetable', async (req, res) => {
         const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
 
         days.forEach(day => {
-          for (let p = 1; p <= 7; p++) {
+          for (let p = 1; p <= 9; p++) {
             const capitalizedDay = day.charAt(0).toUpperCase() + day.slice(1);
-            const slotData = slots[`${capitalizedDay}-${p}`] || slots[`${day}-${p}`] || slots[`${day.slice(0, 3)}-${p}`];
+            const slotData = slots[`${capitalizedDay}_${p}`] ||
+                             slots[`${capitalizedDay}-${p}`] ||
+                             slots[`${day}_${p}`] ||
+                             slots[`${day}-${p}`] ||
+                             slots[`${day.slice(0, 3)}_${p}`] ||
+                             slots[`${day.slice(0, 3)}-${p}`];
             if (slotData) {
               schedule[day].push({
                 periodNumber: p,
                 subject: slotData.subject || slotData.subjectName || slotData.code || slotData.subjectCode,
                 subjectCode: slotData.subjectCode || slotData.code || slotData.subject,
-                teacherName: slotData.staff || slotData.teacherName || slotData.faculty
+                teacherName: slotData.staff || slotData.teacherName || slotData.faculty || slotData.teacher,
+                room: slotData.room || slotData.hallNo || '',
+                span: slotData.span || 1
               });
             }
           }
@@ -2688,6 +3226,8 @@ router.get('/inbox', async (req, res) => {
     const deptIdFilter = isPrincipal || !ctx.deptId ? {} : { deptId: ctx.deptId };
 
     const items = [];
+    const now = Date.now();
+    const FORTY_EIGHT_HOURS = 48 * 60 * 60 * 1000;
 
     // 1. Faculty Leaves awaiting approval
     const flQuery = isPrincipal
@@ -2700,6 +3240,7 @@ router.get('/inbox', async (req, res) => {
       .lean();
 
     facultyLeaves.forEach(fl => {
+      const age = now - new Date(fl.createdAt).getTime();
       items.push({
         id: fl._id,
         type: 'faculty_leave',
@@ -2710,17 +3251,66 @@ router.get('/inbox', async (req, res) => {
         createdAt: fl.createdAt,
         requester: fl.teacherName,
         department: fl.deptCode || fl.deptName || '',
+        isUrgent: !!fl.isEmergency,
+        isOverdue: false,
+        isEscalated: isPrincipal && (age > FORTY_EIGHT_HOURS),
         context: {
+          leaveType: fl.leaveType,
+          fromDate: fl.fromDate,
+          toDate: fl.toDate,
           daysCount: fl.daysCount,
           reason: fl.reason,
           substitutionsCount: fl.substitutions?.length || 0,
-          unresolvedCount: fl.substitutions?.filter(s => s.isUnresolved || s.status === 'rejected')?.length || 0
+          unresolvedCount: fl.substitutions?.filter(s => s.isUnresolved || s.status === 'rejected')?.length || 0,
+          substitutions: fl.substitutions || []
+        },
+        actions: ['approve', 'return', 'reject']
+      });
+    });
+
+    // 2. Student Leaves awaiting approval
+    const slFilter = { status: 'Pending' };
+    if (!isPrincipal && ctx.deptId) {
+      slFilter.deptId = ctx.deptId;
+      slFilter.$or = [{ hodStatus: 'Pending' }, { advisorStatus: 'Approved', hodStatus: { $in: ['Pending', 'N/A'] } }];
+    } else if (isPrincipal) {
+      slFilter.escalationLevel = 'principal';
+    }
+
+    const studentLeaves = await M.LeaveRequest.find(slFilter)
+      .sort({ createdAt: 1 })
+      .limit(30)
+      .lean();
+
+    studentLeaves.forEach(sl => {
+      const age = now - new Date(sl.createdAt).getTime();
+      items.push({
+        id: sl._id,
+        type: 'student_leave',
+        title: `Student Leave: ${sl.studentName || 'Student'} (${sl.registerNo || sl.className || ''})`,
+        subtitle: `${sl.category || 'Leave'} · ${sl.dates?.length || 1} day(s) · ${sl.fromDate} to ${sl.toDate}`,
+        badge: sl.isEmergency ? 'Urgent' : 'Student Leave',
+        badgeClass: sl.isEmergency ? 'danger' : 'warning',
+        createdAt: sl.createdAt,
+        requester: sl.studentName,
+        department: sl.department || '',
+        isUrgent: !!sl.isEmergency,
+        isOverdue: false,
+        isEscalated: isPrincipal && (age > FORTY_EIGHT_HOURS),
+        context: {
+          category: sl.category,
+          reason: sl.reason,
+          dates: sl.dates,
+          fromDate: sl.fromDate,
+          toDate: sl.toDate,
+          daysCount: sl.daysCount || sl.dates?.length || 1,
+          studentTrackId: sl.studentTrackId
         },
         actions: ['approve', 'reject']
       });
     });
 
-    // 2. Student OD Requests awaiting HOD / Principal stage
+    // 3. Student OD Requests awaiting HOD / Principal stage
     const odStage = isPrincipal ? 'principal' : 'hod';
     const odQuery = {
       status: 'pending',
@@ -2734,6 +3324,7 @@ router.get('/inbox', async (req, res) => {
       .lean();
 
     odRequests.forEach(od => {
+      const age = now - new Date(od.createdAt).getTime();
       items.push({
         id: od._id,
         type: 'student_od',
@@ -2744,6 +3335,9 @@ router.get('/inbox', async (req, res) => {
         createdAt: od.createdAt,
         requester: od.studentName,
         department: od.deptCode || '',
+        isUrgent: false,
+        isOverdue: false,
+        isEscalated: isPrincipal && (age > FORTY_EIGHT_HOURS),
         context: {
           eventName: od.eventDetails?.name,
           organizer: od.eventDetails?.organizer,
@@ -2755,7 +3349,7 @@ router.get('/inbox', async (req, res) => {
       });
     });
 
-    // 3. Evidence Overdue ODs
+    // 4. Evidence Overdue ODs
     const overdueODs = await M.ODRequest.find({
       status: 'evidence_overdue',
       ...deptFilter
@@ -2775,6 +3369,9 @@ router.get('/inbox', async (req, res) => {
         createdAt: od.updatedAt || od.createdAt,
         requester: od.studentName,
         department: od.deptCode || '',
+        isUrgent: true,
+        isOverdue: true,
+        isEscalated: false,
         context: {
           eventName: od.eventDetails?.name,
           dates: od.dates
@@ -2783,7 +3380,7 @@ router.get('/inbox', async (req, res) => {
       });
     });
 
-    // 4. Attendance Unlock Requests (Alerts)
+    // 5. Attendance Unlock Requests (Alerts)
     const alertQuery = {
       status: 'open',
       type: { $in: ['unlock_request', 'attendance_unlock', 'attendance_correction'] }
@@ -2808,12 +3405,15 @@ router.get('/inbox', async (req, res) => {
         createdAt: a.createdAt,
         requester: a.teacherName || a.context?.teacherName || 'Faculty',
         department: a.deptCode || '',
+        isUrgent: false,
+        isOverdue: false,
+        isEscalated: false,
         context: a.context || {},
         actions: ['approve', 'reject']
       });
     });
 
-    // 5. Unresolved Substitutions (Today)
+    // 6. Unresolved Substitutions (Today)
     const unresolvedSessions = await M.ClassSession.find({
       date: getTodayIST(),
       flags: 'unresolved_sub',
@@ -2835,6 +3435,9 @@ router.get('/inbox', async (req, res) => {
         createdAt: s.createdAt || new Date(),
         requester: s.scheduledTeacher?.name || 'Scheduled Teacher',
         department: s.deptCode || '',
+        isUrgent: true,
+        isOverdue: true,
+        isEscalated: false,
         context: {
           periodNumber: s.periodNumber,
           room: s.room,
@@ -2844,10 +3447,36 @@ router.get('/inbox', async (req, res) => {
       });
     });
 
-    // 6. Timetable Verification requests awaiting HoD / Principal review
-    const ttFilter = {
-      verificationStatus: 'pending'
-    };
+    // 7. Sub-Admin Role Access Requests
+    const arFilter = { status: isPrincipal ? 'pending_principal' : 'pending_hod' };
+    if (!isPrincipal && ctx.deptId) {
+      arFilter.deptId = ctx.deptId;
+    }
+    const accessReqs = await M.AccessRequest.find(arFilter).sort({ createdAt: 1 }).limit(20).lean();
+    accessReqs.forEach(ar => {
+      items.push({
+        id: ar.requestId || ar._id,
+        type: 'role_access',
+        title: `Role Delegation: ${ar.forTeacherName || 'Faculty Member'}`,
+        subtitle: `Requested by ${ar.requestedBy?.name || 'Administrator'} · Dept: ${ar.deptName || ''}`,
+        badge: 'Role Access',
+        badgeClass: 'warning',
+        createdAt: ar.createdAt,
+        requester: ar.forTeacherName,
+        department: ar.deptName || '',
+        isUrgent: false,
+        isOverdue: false,
+        isEscalated: false,
+        context: {
+          modules: (ar.grants || []).map(g => `${g.page} (${(g.actions || []).join(', ')})`).join(', '),
+          reason: ar.reason || ''
+        },
+        actions: ['approve', 'reject']
+      });
+    });
+
+    // 8. Timetable Verification requests awaiting review
+    const ttFilter = { verificationStatus: 'pending' };
     if (!isPrincipal) {
       const orBranches = [];
       if (req.user && req.user._id) {
@@ -2888,6 +3517,9 @@ router.get('/inbox', async (req, res) => {
         badgeClass: 'warning',
         createdAt: tt.verificationRequest?.requestedAt || tt.createdAt,
         requester: tt.verificationRequest?.requestedBy || tt.savedBy || 'Coordinator',
+        isUrgent: false,
+        isOverdue: false,
+        isEscalated: false,
         context: {
           className: tt.className || '',
           versionName: tt.versionName || `v${tt.version}`,
@@ -2898,8 +3530,18 @@ router.get('/inbox', async (req, res) => {
       });
     });
 
-    // Sort all items oldest first (FIFO)
-    items.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+    // Priority Sorting (Urgent & Overdue first, then by createdAt)
+    const sortOrder = req.query.sort === 'newest' ? 'newest' : 'oldest';
+    items.sort((a, b) => {
+      const aPri = (a.isUrgent || a.isOverdue) ? 1 : 0;
+      const bPri = (b.isUrgent || b.isOverdue) ? 1 : 0;
+      if (aPri !== bPri) {
+        return bPri - aPri; // Urgent and overdue jump to top
+      }
+      const tA = new Date(a.createdAt || 0).getTime();
+      const tB = new Date(b.createdAt || 0).getTime();
+      return sortOrder === 'newest' ? tB - tA : tA - tB;
+    });
 
     res.json({
       ok: true,
@@ -2912,7 +3554,7 @@ router.get('/inbox', async (req, res) => {
   }
 });
 
-// 20. GET /api/controller/reports/daily — Daily Executive Department & Roll-up Report (C7 §12)
+// 20. GET /api/controller/reports/daily
 router.get('/reports/daily', async (req, res) => {
   try {
     const ctx = req.controllerContext;

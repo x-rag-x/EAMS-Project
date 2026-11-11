@@ -16,6 +16,9 @@ const RoleAssignmentSchema = new mongoose.Schema({
       'placementCoordinator',
       'classAdvisor',
       'warden',
+      'secondaryHod',
+      'secondaryTtCoordinator',
+      'secondaryClassAdvisor',
       'sudoAdmin'
     ],
     required: true,

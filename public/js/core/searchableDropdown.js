@@ -205,6 +205,10 @@
       attrBadge = '';
     }
     var attrSub = opt.dataset ? opt.dataset.sub : opt.getAttribute('data-sub');
+    var attrGroup = opt.dataset ? opt.dataset.group : opt.getAttribute('data-group');
+    var groupLabel = (opt.parentElement && opt.parentElement.tagName === 'OPTGROUP')
+      ? (opt.parentElement.label || opt.parentElement.getAttribute('label') || '')
+      : '';
 
     var data = {
       value: val,
@@ -212,6 +216,7 @@
       title: rawText,
       badge: attrBadge ? attrBadge.trim() : '',
       sub: attrSub ? attrSub.trim() : '',
+      group: (attrGroup || groupLabel || '').trim(),
       icon: 'chevron-right',
       isPlaceholder: isPlaceholder,
       disabled: opt.disabled || isLoading,
@@ -234,11 +239,15 @@
       else if (kind === 'dept') data.icon = 'building2';
       else if (kind === 'class') data.icon = 'chalkboard';
       else if (kind === 'batch') data.icon = 'calendar';
+      else if (kind === 'reg' || selectId.includes('reg')) data.icon = 'book';
+      else if (kind === 'year' || selectId.includes('year')) data.icon = 'award';
+      else if (kind === 'sem' || kind === 'semester' || selectId.includes('sem')) data.icon = 'book-open';
       else if (kind === 'ct' || kind === 'courseType') data.icon = 'award';
       else if (kind === 'sec' || kind === 'section') data.icon = 'layout-grid';
       else if (kind === 'advisor') data.icon = 'teacher';
       else if (kind === 'desig' || selectId.includes('desig')) data.icon = 'award';
       else if (kind === 'status' || selectId.includes('status')) data.icon = 'activity';
+      else if (kind === 'student' || kind === 'rep' || selectId.includes('rep') || selectId.includes('stu')) data.icon = 'users';
       else if (kind === 'teacher' || kind === 'faculty' || selectId.includes('advisor') || selectId.includes('tch') || selectId.includes('teacher')) data.icon = 'teacher';
       else if (kind === 'subject' || kind === 'subj' || selectId.includes('subj')) data.icon = 'book-open';
       else data.icon = 'search';
@@ -372,13 +381,49 @@
       data.title = rawText;
       if (rawText && !isPlaceholder) {
         var yearBadge = resolveBatchYear(rawText || val, opt);
-        data.badge = yearBadge || 'Batch';
+        if (yearBadge && yearBadge !== rawText && yearBadge !== 'Batch') {
+          data.badge = yearBadge;
+        } else {
+          data.badge = '';
+        }
+      }
+      return data;
+    }
+
+    // Regulation parser
+    if (kind === 'reg' || selectId.includes('reg')) {
+      data.icon = 'file-text';
+      if (rawText && !isPlaceholder) {
+        var rVal = (attrBadge || val || rawText).trim();
+        var cleanReg = rVal.replace(/^Reg(ulation)?\s*/i, '');
+        data.title = 'Regulation ' + cleanReg;
+        data.badge = '';
+      }
+      return data;
+    }
+
+    // Year level parser
+    if (kind === 'year' || selectId.includes('year')) {
+      data.icon = 'graduation-cap';
+      if (rawText && !isPlaceholder) {
+        data.title = rawText.startsWith('Year') ? rawText : ('Year ' + rawText);
+        data.badge = '';
+      }
+      return data;
+    }
+
+    // Semester parser
+    if (kind === 'sem' || kind === 'semester' || selectId.includes('sem')) {
+      data.icon = 'book-open';
+      if (rawText && !isPlaceholder) {
+        data.title = rawText.startsWith('Semester') ? rawText : ('Semester ' + rawText.replace(/^Sem(ester)?\s*/i, ''));
+        data.badge = '';
       }
       return data;
     }
 
     // Course Type parser
-    if (kind === 'ct' || kind === 'courseType' || selectId.includes('ct')) {
+    if (kind === 'ct' || kind === 'courseType' || ((/(?:^|[-_])ct(?:$|[-_])/i.test(selectId) && !selectId.includes('select')) || selectId.includes('coursetype'))) {
       data.icon = 'award';
       data.title = rawText === 'UG' ? 'Undergraduate' : (rawText === 'PG' ? 'Postgraduate' : rawText);
       if (rawText && !isPlaceholder) {
@@ -388,7 +433,7 @@
     }
 
     // Section parser
-    if (kind === 'sec' || kind === 'section' || selectId.includes('sec')) {
+    if (kind === 'sec' || kind === 'section' || ((/(?:^|[-_])sec(?:$|[-_])/i.test(selectId) && !selectId.includes('select')) || selectId.includes('section'))) {
       data.icon = 'layout-grid';
       data.title = (rawText && !rawText.toLowerCase().startsWith('sec')) ? ('Section ' + rawText) : rawText;
       if (rawText && !isPlaceholder) {
@@ -422,7 +467,7 @@
 
     // Teacher / Faculty / Advisor parser
     if (kind === 'teacher' || kind === 'advisor' || kind === 'faculty' ||
-        selectId.includes('advisor') || selectId.includes('tch') || selectId.includes('teacher') || selectId.includes('prin')) {
+        selectId.includes('adv') || selectId.includes('advisor') || selectId.includes('tch') || selectId.includes('teacher') || selectId.includes('prin')) {
       data.icon = 'teacher';
 
       // Clean Faculty Name on left
@@ -440,6 +485,9 @@
       var rawBadge = attrBadge ? attrBadge.trim() : '';
       if (!rawBadge && tchMatch && tchMatch[2]) {
         var paren = tchMatch[2].trim();
+        if (paren.includes('•')) {
+          paren = paren.split('•')[0].trim();
+        }
         if (!/^\d+$/.test(paren) && paren.length <= 6) {
           rawBadge = paren;
         } else {
@@ -459,8 +507,38 @@
         if (lookedUpDept) data.badge = lookedUpDept;
       }
 
-      if (attrSub) data.sub = attrSub.trim();
-      data.hideSub = true;
+      var isAdvisor = (kind === 'advisor' || selectId === 'cd-advisor-select' || selectId === 'adv-modal-select' || selectId.includes('adv'));
+      if (isAdvisor) {
+        data.sub = '';
+        data.hideSub = true;
+      } else {
+        if (attrSub) data.sub = attrSub.trim();
+        data.hideSub = (selectId === 'cd-advisor-select');
+      }
+      return data;
+    }
+
+    // Student / Class Representative parser
+    if (kind === 'student' || kind === 'rep' || selectId.includes('rep') || selectId.includes('stu')) {
+      data.icon = 'users';
+      var attrName = opt.dataset ? (opt.dataset.name || opt.dataset.fullname) : (opt.getAttribute('data-name') || opt.getAttribute('data-fullname'));
+      var matchBracket = rawText.match(/^([^\[(]+)(?:\[([^\]]+)\]|\(([^)]+)\))?/);
+      if (attrName && attrName.trim()) {
+        data.title = attrName.trim();
+      } else if (matchBracket && matchBracket[1]) {
+        data.title = matchBracket[1].trim();
+      } else {
+        data.title = rawText;
+      }
+
+      var reg = attrSub || attrBadge || (opt.dataset ? opt.dataset.reg : '') || (matchBracket ? (matchBracket[2] || matchBracket[3]) : '');
+      if (reg && reg.trim()) {
+        data.sub = reg.trim();
+        data.badge = ''; // Suppress right-side light bg badge to prevent duplicate
+      } else {
+        data.sub = '';
+        data.badge = '';
+      }
       return data;
     }
 
@@ -554,9 +632,13 @@
       selectEl.id.includes('desig') ? 'desig' :
       selectEl.id.includes('status') ? 'status' :
       selectEl.id.includes('batch') ? 'batch' :
-      selectEl.id.includes('ct') ? 'ct' :
-      selectEl.id.includes('sec') ? 'sec' :
-      selectEl.id.includes('advisor') ? 'advisor' :
+      selectEl.id.includes('reg') ? 'reg' :
+      selectEl.id.includes('year') ? 'year' :
+      selectEl.id.includes('sem') ? 'sem' :
+      ((/(?:^|[-_])ct(?:$|[-_])/i.test(selectEl.id) && !selectEl.id.includes('select')) || selectEl.id.includes('coursetype')) ? 'ct' :
+      ((/(?:^|[-_])sec(?:$|[-_])/i.test(selectEl.id) && !selectEl.id.includes('select')) || selectEl.id.includes('section')) ? 'sec' :
+      selectEl.id.includes('rep') || selectEl.id.includes('stu') ? 'student' :
+      selectEl.id.includes('adv') || selectEl.id.includes('advisor') ? 'advisor' :
       selectEl.id.includes('tch') || selectEl.id.includes('teacher') ? 'teacher' :
       selectEl.id.includes('subj') || selectEl.id.includes('subject') || selectEl.id === 'attsub' ? 'subject' :
       selectEl.id.includes('cls') || selectEl.id.includes('class') ? 'class' : 'auto'
@@ -565,23 +647,31 @@
       this.kind === 'room' ? '— Select Room / Hall —' :
       this.kind === 'dept' ? '— Select Department —' :
       this.kind === 'class' ? '— Select Class —' :
+      (this.kind === 'student' || this.kind === 'rep') ? '— Select Student —' :
       this.kind === 'advisor' ? '— None (Unassigned) —' :
       this.kind === 'teacher' ? '— Select Teacher —' :
       this.kind === 'subject' ? '— Select Subject —' :
       this.kind === 'desig' ? 'All Designations' :
       this.kind === 'status' ? 'All Statuses' :
       this.kind === 'batch' ? 'All Batches' :
+      this.kind === 'reg' ? '— Select Regulation —' :
+      this.kind === 'year' ? '— Select Year —' :
+      this.kind === 'sem' ? '— Select Semester —' :
       (this.kind === 'courseType' || this.kind === 'ct') ? 'All' :
       (this.kind === 'section' || this.kind === 'sec') ? 'All' : '— Select —'
     );
     this.searchPlaceholder = this.config.searchPlaceholder || (
+      (this.kind === 'student' || this.kind === 'rep') ? 'Search student name, register no…' :
       this.kind === 'room' ? 'Search room, hall, building…' :
       this.kind === 'dept' ? 'Search department name, code…' :
       this.kind === 'class' ? 'Search class, section, batch…' :
       this.kind === 'status' ? 'Search status…' :
       this.kind === 'advisor' || this.kind === 'teacher' ? 'Search faculty name, emp ID, dept…' :
       this.kind === 'subject' ? 'Search subject name, code…' :
-      this.kind === 'desig' ? 'Search designation…' : 'Search options…'
+      this.kind === 'desig' ? 'Search designation…' :
+      this.kind === 'reg' ? 'Search regulation…' :
+      this.kind === 'year' ? 'Search year level…' :
+      this.kind === 'sem' ? 'Search semester…' : 'Search options…'
     );
 
     this.showIcon = this.config.showIcon !== undefined
@@ -833,7 +923,7 @@
     if (!sel) return;
 
     var options = Array.from(sel.options || []);
-    this.items = options.map(function (opt) {
+    this.items = options.filter(function (opt) { return !opt.hidden && opt.style.display !== 'none'; }).map(function (opt) {
       return parseOptionData(opt, self.kind, sel.id);
     });
 
@@ -857,7 +947,7 @@
 
     var filtered = this.items.filter(function (it) {
       if (!q) return true;
-      var text = (it.rawText + ' ' + it.badge + ' ' + it.sub + ' ' + it.title).toLowerCase();
+      var text = (it.rawText + ' ' + it.badge + ' ' + it.sub + ' ' + it.title + ' ' + (it.group || '')).toLowerCase();
       return text.includes(q);
     });
 
@@ -868,6 +958,7 @@
                       self.kind === 'class' ? 'Classes' :
                       self.kind === 'desig' ? 'Designations' :
                       self.kind === 'status' ? 'Statuses' :
+                      (self.kind === 'student' || self.kind === 'rep' || (self.selectEl && self.selectEl.id.includes('rep'))) ? 'Students' :
                       (self.kind === 'teacher' || self.kind === 'advisor' || self.kind === 'faculty') ? 'Faculty Members' :
                       (self.kind === 'subject' || self.kind === 'subj') ? 'Subjects' : 'Options';
       this.countEl.textContent = (selectableCount || filtered.length) + ' Available ' + labelUnit;
@@ -884,7 +975,21 @@
     }
 
     var selectedVal = self.selectEl.value;
-    list.innerHTML = filtered.map(function (it) {
+    var htmlParts = [];
+    var currentGroup = null;
+
+    filtered.forEach(function (it) {
+      if (it.group && it.group !== currentGroup) {
+        currentGroup = it.group;
+        htmlParts.push(
+          '<div class="tt-dropdown-group-header" style="padding:6px 12px 4px;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--gD,#1b5e20);background:var(--gLt,#f0fdf4);border-top:1px solid var(--br,#e2e8f0);border-bottom:1px solid var(--br,#e2e8f0);margin:4px 0 2px;user-select:none;pointer-events:none;display:flex;align-items:center;gap:6px;">' +
+            '<re-icon icon="users" size="12"></re-icon> ' + escapeHtml(it.group) +
+          '</div>'
+        );
+      } else if (!it.group && currentGroup !== null) {
+        currentGroup = null;
+      }
+
       var isSel = String(it.value) === String(selectedVal);
       var isClearOpt = it.isPlaceholder && !it.value;
       var isAllOption = it.rawText.startsWith('All ') || it.rawText === 'All';
@@ -905,21 +1010,28 @@
           )
         : it.icon;
 
-      return (
+      htmlParts.push(
         '<div class="tt-dropdown-item' + (isSel ? ' selected is-selected' : '') + '" data-val="' + escapeHtml(it.value) + '" role="option" aria-selected="' + (isSel ? 'true' : 'false') + '" title="' + escapeHtml(it.rawText || optTitle) + '" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:nowrap;white-space:nowrap;">' +
           '<div class="tt-dropdown-item-left" style="display:flex;align-items:center;gap:8px;min-width:0;flex:1 1 auto;overflow:hidden;">' +
             '<span class="tt-dropdown-item-dot"></span>' +
             (self.showIcon && optIcon ? '<span class="tt-dd-item-icon"><re-icon icon="' + escapeHtml(optIcon) + '" size="14"></re-icon></span>' : '') +
             '<span class="tt-dropdown-item-text" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + escapeHtml(optTitle) + '</span>' +
           '</div>' +
-          '<div class="tt-dropdown-item-right" style="display:inline-flex;align-items:center;gap:6px;flex:0 0 auto;flex-shrink:0;margin-left:auto;white-space:nowrap;">' +
-            (it.badge ? '<span class="tt-dropdown-item-badge' + (it.isLab ? ' warn' : '') + '" title="' + escapeHtml(it.badge) + '">' + escapeHtml(it.badge) + '</span>' : '') +
-            (it.sub && !it.hideSub ? '<span class="tt-dropdown-item-sub" title="' + escapeHtml(it.sub) + '">' + escapeHtml(it.sub) + '</span>' : '') +
-            '<span class="tt-dropdown-item-check">' + (isSel ? '<re-icon icon="check" size="13"></re-icon>' : '') + '</span>' +
-          '</div>' +
+          (function () {
+            var isStudentRep = (self.kind === 'student' || self.kind === 'rep' || (self.selectEl && self.selectEl.id.includes('rep')));
+            var showSub = it.sub && !it.hideSub;
+            var showBadge = it.badge && !isStudentRep && (!showSub || it.badge.trim() !== it.sub.trim());
+            return '<div class="tt-dropdown-item-right" style="display:inline-flex;align-items:center;gap:6px;flex:0 0 auto;flex-shrink:0;margin-left:auto;white-space:nowrap;">' +
+              (showSub ? '<span class="tt-dropdown-item-sub" title="' + escapeHtml(it.sub) + '">' + escapeHtml(it.sub) + '</span>' : '') +
+              (showBadge ? '<span class="tt-dropdown-item-badge' + (it.isLab ? ' warn' : '') + '" title="' + escapeHtml(it.badge) + '">' + escapeHtml(it.badge) + '</span>' : '') +
+              '<span class="tt-dropdown-item-check">' + (isSel ? '<re-icon icon="check" size="13"></re-icon>' : '') + '</span>' +
+            '</div>';
+          })() +
         '</div>'
       );
-    }).join('');
+    });
+
+    list.innerHTML = htmlParts.join('');
 
     // Attach click handlers
     list.querySelectorAll('.tt-dropdown-item').forEach(function (itemEl) {
@@ -976,10 +1088,14 @@
                         this.kind === 'dept' ? 'building2' :
                         this.kind === 'class' ? 'chalkboard' :
                         this.kind === 'batch' ? 'calendar' :
+                        this.kind === 'reg' ? 'file-text' :
+                        this.kind === 'year' ? 'graduation-cap' :
+                        this.kind === 'sem' ? 'book-open' :
                         (this.kind === 'desig') ? 'award' :
                         (this.kind === 'status') ? 'activity' :
                         (this.kind === 'courseType' || this.kind === 'ct') ? 'award' :
                         (this.kind === 'section' || this.kind === 'sec') ? 'layout-grid' :
+                        (this.kind === 'student' || this.kind === 'rep' || (this.selectEl && this.selectEl.id.includes('rep'))) ? 'users' :
                         (this.kind === 'advisor' || this.kind === 'teacher' || this.kind === 'faculty') ? 'teacher' :
                         (this.kind === 'subject' || this.kind === 'subj') ? 'book-open' : 'search';
           iconEl.innerHTML = '<re-icon icon="' + defIcon + '" size="14"></re-icon>';
@@ -995,8 +1111,12 @@
             var countLabel = this.kind === 'room' ? (validCount + ' Rooms') :
                              this.kind === 'dept' ? (validCount + ' Depts') :
                              this.kind === 'class' ? (validCount + ' Classes') :
+                             this.kind === 'reg' ? (validCount + ' Regulations') :
+                             this.kind === 'year' ? (validCount + ' Years') :
+                             this.kind === 'sem' ? (validCount + ' Semesters') :
                              this.kind === 'desig' ? (validCount + ' Designations') :
                              this.kind === 'status' ? (validCount + ' Statuses') :
+                             (this.kind === 'student' || this.kind === 'rep' || (this.selectEl && this.selectEl.id.includes('rep'))) ? (validCount + ' Students') :
                              (this.kind === 'teacher' || this.kind === 'advisor') ? (validCount + ' Faculty') :
                              (this.kind === 'subject' || this.kind === 'subj') ? (validCount + ' Subjects') :
                              this.kind === 'batch' ? (validCount + ' Batches') :
@@ -1014,7 +1134,14 @@
     }
 
     var item = parseOptionData(selectedOpt, this.kind, sel.id);
-    if (textEl) textEl.textContent = item.title;
+    var isStudentRep = (this.kind === 'student' || this.kind === 'rep' || (this.selectEl && this.selectEl.id.includes('rep')));
+    if (textEl) {
+      if (isStudentRep && item.sub) {
+        textEl.textContent = item.title + ' [' + item.sub + ']';
+      } else {
+        textEl.textContent = item.title;
+      }
+    }
     if (iconEl) {
       if (!this.showIcon) {
         iconEl.style.display = 'none';
@@ -1025,11 +1152,19 @@
       }
     }
     if (badgeEl) {
-      if (item.badge || item.sub) {
-        badgeEl.textContent = item.badge || item.sub;
-        badgeEl.style.display = 'inline-flex';
-      } else {
+      if (isStudentRep) {
         badgeEl.style.display = 'none';
+      } else {
+        var trigBadge = item.badge;
+        if (!trigBadge && !item.hideSub && item.sub) {
+          trigBadge = item.sub;
+        }
+        if (trigBadge) {
+          badgeEl.textContent = trigBadge;
+          badgeEl.style.display = 'inline-flex';
+        } else {
+          badgeEl.style.display = 'none';
+        }
       }
     }
   };

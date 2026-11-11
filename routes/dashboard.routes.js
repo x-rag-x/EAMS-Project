@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const mongoose = require('mongoose');
 const M = require('../models');
+const countService = require('../services/countService');
 const { authMiddleware, requirePage } = require('../middleware/auth');
 const { sanitizeToString } = require('../utils/sanitizeQuery');
 const { normalizeYearRange } = require('../utils/yearFormat');
@@ -9,11 +10,8 @@ const { todayInInstitutionTz, todayIST } = require('../utils/institutionTime');
 
 router.get('/summary', authMiddleware, requirePage('admin', 'view', { tab: 'dash' }), async (req, res) => {
   try {
-    const [students, depts, teachers, classes, pendingNotifs] = await Promise.all([
-      M.Student.countDocuments(),
-      M.Department.countDocuments(),
-      M.User.countDocuments({ role: 'teacher', status: 'active' }),
-      M.Class.countDocuments(),
+    const [aggregated, pendingNotifs] = await Promise.all([
+      countService.getCounts(),
       M.Notification.countDocuments({
         status: 'Pending',
         read: false,
@@ -26,7 +24,13 @@ router.get('/summary', authMiddleware, requirePage('admin', 'view', { tab: 'dash
         type: { $nin: ['leave-request', 'leave-approval', 'leave-rejection', 'attendance-alert'] }
       }),
     ]);
-    res.json({ students, depts, teachers, classes, pendingNotifs });
+    res.json({
+      students: Number(aggregated?.students) || 0,
+      depts: Number(aggregated?.departments) || 0,
+      teachers: Number(aggregated?.activeTeachers !== undefined ? aggregated.activeTeachers : aggregated?.teachers) || 0,
+      classes: Number(aggregated?.classes) || 0,
+      pendingNotifs: Number(pendingNotifs) || 0,
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -44,19 +48,36 @@ router.get('/counts', authMiddleware, requirePage('admin', 'view', { tab: 'dash'
       type: { $nin: ['leave-request', 'leave-approval', 'leave-rejection', 'attendance-alert'] }
     };
 
-    const [depts, classes, subjects, students, users, teachers, assignments, logs, notifications, pendingNotifs] = await Promise.all([
-      M.Department.countDocuments(),
-      M.Class.countDocuments(),
-      M.Subject.countDocuments(),
-      M.Student.countDocuments(),
-      M.User.countDocuments(),
-      M.User.countDocuments({ role: 'teacher', status: { $ne: 'inactive' } }),
-      M.Assignment.countDocuments(),
-      M.Log.countDocuments(),
+    const [aggregated, assignments, notifications, pendingNotifs] = await Promise.all([
+      countService.getCounts(),
+      typeof M.Assignment.estimatedDocumentCount === 'function'
+        ? M.Assignment.estimatedDocumentCount().catch(() => 0)
+        : Promise.resolve(0),
       M.Notification.countDocuments(adminNotifFilter),
       M.Notification.countDocuments(Object.assign({ status: 'Pending', read: false }, adminNotifFilter)),
     ]);
-    res.json({ depts, classes, subjects, students, users, teachers, assignments, logs, notifications, pendingNotifs });
+
+    const depts = Number(aggregated?.departments) || 0;
+    const classes = Number(aggregated?.classes) || 0;
+    const subjects = Number(aggregated?.subjects) || 0;
+    const students = Number(aggregated?.students) || 0;
+    const teachers = Number(aggregated?.teachers) || 0;
+    const attendanceRecords = Number(aggregated?.attendanceRecords) || 0;
+    const users = (students + teachers);
+
+    res.json({
+      depts,
+      classes,
+      subjects,
+      students,
+      users,
+      teachers,
+      assignments: Number(assignments) || 0,
+      logs: 0,
+      notifications: Number(notifications) || 0,
+      pendingNotifs: Number(pendingNotifs) || 0,
+      attendanceRecords,
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -197,43 +218,59 @@ router.get('/attendance-overview', authMiddleware, requirePage('admin', 'view', 
 // GET /api/dashboard/defaulters — Students with < 75% attendance
 router.get('/defaulters', authMiddleware, requirePage('admin', 'view', { tab: 'dash' }), async (req, res) => {
   try {
-    const studentAttRecords = await M.StudentAttendance.find().lean();
-    const trackIds = studentAttRecords.map(function (r) { return r.studentTrackId; });
-    const students = trackIds.length
-      ? await M.Student.find({
-          $or: [
-            { trackId: { $in: trackIds } },
-            { _id: { $in: trackIds.filter(function (id) { return mongoose.isValidObjectId(id); }) } }
-          ]
-        }).select('trackId fullName registerNo classId deptId department deptName class').lean()
-      : [];
+    const studentAttRecords = await M.StudentAttendance.find()
+      .select('studentTrackId records')
+      .lean();
+
+    const defaulterStats = [];
+    for (const rec of studentAttRecords) {
+      if (!Array.isArray(rec.records) || !rec.records.length) continue;
+      const totalHeld = rec.records.reduce(function (s, r) { return s + (r.classesHeld || 0); }, 0);
+      const totalAttended = rec.records.reduce(function (s, r) { return s + (r.classesAttended || 0); }, 0);
+      if (!totalHeld) continue;
+      const pct = Math.round(totalAttended / totalHeld * 100);
+      if (pct >= 75) continue;
+      defaulterStats.push({ studentTrackId: rec.studentTrackId, pct: pct });
+    }
+
+    if (!defaulterStats.length) {
+      return res.json([]);
+    }
+
+    const trackIds = defaulterStats.map(function (d) { return d.studentTrackId; });
+    const students = await M.Student.find({
+      $or: [
+        { trackId: { $in: trackIds } },
+        { _id: { $in: trackIds.filter(function (id) { return mongoose.isValidObjectId(id); }) } }
+      ]
+    }).select('trackId fullName registerNo classId deptId department deptName class').lean();
+
     const studentMap = new Map();
     students.forEach(function (s) {
-      studentMap.set(s.trackId, s);
+      if (s.trackId) studentMap.set(s.trackId, s);
       studentMap.set(String(s._id), s);
     });
+
     const classIds = [...new Set(students.map(function (s) { return s.classId; }).filter(Boolean))];
     const classDocs = classIds.length
       ? await M.Class.find({ _id: { $in: classIds } }).select('name').lean()
       : [];
     const classMap = new Map();
     classDocs.forEach(function (c) { classMap.set(String(c._id), c.name); });
+
     const defaulters = [];
-    studentAttRecords.forEach(function (rec) {
-      const totalHeld = rec.records.reduce(function (s, r) { return s + r.classesHeld; }, 0);
-      const totalAttended = rec.records.reduce(function (s, r) { return s + r.classesAttended; }, 0);
-      if (!totalHeld) return;
-      const pct = Math.round(totalAttended / totalHeld * 100);
-      if (pct >= 75) return;
-      const stu = studentMap.get(rec.studentTrackId);
-      if (!stu) return;
+    for (const stat of defaulterStats) {
+      const stu = studentMap.get(stat.studentTrackId);
+      if (!stu) continue;
       defaulters.push({
-        name: stu.fullName, regNo: stu.registerNo,
+        name: stu.fullName,
+        regNo: stu.registerNo,
         className: classMap.get(String(stu.classId)) || stu.class || '—',
         deptName: stu.department || stu.deptName || '—',
-        pct: pct
+        pct: stat.pct
       });
-    });
+    }
+
     defaulters.sort(function (a, b) { return a.pct - b.pct; });
     res.json(defaulters);
   } catch (err) {

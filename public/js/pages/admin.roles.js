@@ -69,25 +69,51 @@
     var wardenSec = document.getElementById('role-sec-wardens');
     var reqSec = document.getElementById('role-sec-requests');
 
-    if (!isSudo) {
-      if (wardenBtn) wardenBtn.style.display = 'none';
-      if (reqBtn) reqBtn.style.display = 'none';
-      if (wardenSec) wardenSec.style.display = 'none';
-      if (reqSec) reqSec.style.display = 'none';
+    if (!window._pubSettings && typeof fetch === 'function') {
+      fetch('/api/settings/public')
+        .then(function(r) { return r.json(); })
+        .then(function(pub) {
+          window._pubSettings = pub;
+          updateExecutiveRolesTabVisibility();
+        })
+        .catch(function() {});
+    }
 
-      if (_rolesState.currentTab === 'wardens' || _rolesState.currentTab === 'requests') {
+    var pub = window._pubSettings || (window.DB && DB.get('settings') && DB.get('settings').pages ? { pages: DB.get('settings').pages } : null);
+    var pageHostel = (pub && pub.pages && pub.pages.pageHostel !== undefined) ? pub.pages.pageHostel : (window._pubSettings ? 'enabled' : 'hidden');
+    var isHostelDisabled = String(pageHostel).toLowerCase() === 'disabled' || String(pageHostel).toLowerCase() === 'hidden' || pageHostel === false;
+
+    if (!isSudo || isHostelDisabled) {
+      if (wardenBtn) wardenBtn.style.display = 'none';
+      if (wardenSec) wardenSec.style.display = 'none';
+
+      if (_rolesState.currentTab === 'wardens') {
         _rolesState.currentTab = 'departments';
         var deptBtn = document.getElementById('rtab-btn-departments');
         var deptSec = document.getElementById('role-sec-departments');
-        ['wardens', 'requests'].forEach(function (t) {
-          var b = document.getElementById('rtab-btn-' + t);
-          if (b) b.classList.remove('act');
-        });
+        var b = document.getElementById('rtab-btn-wardens');
+        if (b) b.classList.remove('act');
         if (deptBtn) deptBtn.classList.add('act');
         if (deptSec) deptSec.style.display = 'block';
       }
     } else {
       if (wardenBtn) wardenBtn.style.display = '';
+    }
+
+    if (!isSudo) {
+      if (reqBtn) reqBtn.style.display = 'none';
+      if (reqSec) reqSec.style.display = 'none';
+
+      if (_rolesState.currentTab === 'requests') {
+        _rolesState.currentTab = 'departments';
+        var deptBtn = document.getElementById('rtab-btn-departments');
+        var deptSec = document.getElementById('role-sec-departments');
+        var b = document.getElementById('rtab-btn-requests');
+        if (b) b.classList.remove('act');
+        if (deptBtn) deptBtn.classList.add('act');
+        if (deptSec) deptSec.style.display = 'block';
+      }
+    } else {
       if (reqBtn) reqBtn.style.display = '';
     }
   }
@@ -143,6 +169,28 @@
       .then(function (data) {
         _rolesState.departments = Array.isArray(data) ? data : [];
         renderDepartmentCards();
+        setTimeout(function () { updateExecutiveTabIndicator(false); }, 30);
+
+        // ── SYNC HOD STATE INTO LOCAL DEPTS FOR DEPARTMENT CARDS ──
+        if (Array.isArray(data) && typeof DB !== 'undefined') {
+          var localDepts = DB.get('depts') || [];
+          var changed = false;
+          data.forEach(function (rd) {
+            var ld = localDepts.find(function (x) { return String(x._id) === String(rd._id); });
+            if (ld) {
+              var newHodName = rd.hod ? rd.hod.name : '';
+              var newHodId = rd.hod ? rd.hod.teacherId : null;
+              if (ld.hodName !== newHodName || String(ld.hodId || '') !== String(newHodId || '')) {
+                ld.hodName = newHodName;
+                ld.hodId = newHodId;
+                changed = true;
+              }
+            }
+          });
+          if (changed && window._currentPage === 'depts' && typeof renderDepartments === 'function') {
+            renderDepartments();
+          }
+        }
       })
       .catch(function (err) {
         console.error('[loadExecutiveRolesOverview error]:', err);
@@ -152,23 +200,166 @@
       });
   }
 
+    function getInitials(name) {
+    if (!name) return '??';
+    var parts = String(name).trim().split(/\s+/).filter(Boolean);
+    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  }
+
+  function updateExecutiveTabIndicator(animate) {
+    var switcher = document.getElementById('exec-roles-switcher');
+    if (!switcher) return;
+    var ind = document.getElementById('exec-tab-ind');
+    if (!ind) return;
+    var actBtn = switcher.querySelector('.exec-tab-btn.act') || switcher.querySelector('.tab.act');
+    if (!actBtn || actBtn.offsetWidth === 0) return;
+
+    var x = actBtn.offsetLeft;
+    var w = actBtn.offsetWidth;
+
+    if (animate === false) {
+      ind.classList.add('no-anim');
+    } else {
+      ind.classList.remove('no-anim');
+    }
+
+    ind.style.transform = 'translateX(' + x + 'px)';
+    ind.style.width = w + 'px';
+
+    if (animate === false) {
+      void ind.offsetWidth;
+      requestAnimationFrame(function () {
+        ind.classList.remove('no-anim');
+      });
+    }
+  }
+  window.updateExecutiveTabIndicator = updateExecutiveTabIndicator;
+
+  window.addEventListener('resize', function () {
+    updateExecutiveTabIndicator(false);
+  });
+
+  function renderExecutiveCard(d) {
+    var isSupporting = (d.category === 'supporting') ||
+      ['MAB', 'PHY', 'CHY', 'ENG', 'S&H', 'MATH', 'MATHS'].includes(String(d.code || '').toUpperCase()) ||
+      /mathematics|physics|chemistry|humanities/i.test(String(d.name || ''));
+    var totalAdv = d.advisors ? d.advisors.total : 0;
+    var assignedAdv = d.advisors ? d.advisors.assigned : 0;
+    var secAdv = d.advisors ? (d.advisors.secondaryAssigned || 0) : 0;
+    var openAdv = d.advisors ? d.advisors.open : 0;
+
+    var reqRoles = isSupporting ? ['hod', 'superAdmin'] : ['hod', 'superAdmin', 'ttCoordinator'];
+    var filledCount = 0;
+    if (d.hod) filledCount++;
+    if (d.superAdmin) filledCount++;
+    if (!isSupporting && d.ttCoordinator) filledCount++;
+
+    var isComplete = (filledCount === reqRoles.length);
+    var barsHtml = reqRoles.map(function (r, idx) {
+      var isFilled = (idx === 0 && d.hod) || (idx === 1 && d.superAdmin) || (idx === 2 && d.ttCoordinator);
+      return '<i class="' + (isFilled ? 'on' : '') + '"></i>';
+    }).join('');
+
+    var coverageHtml = '' +
+      '<div class="cv' + (isComplete ? '' : ' w') + '">' +
+        '<div>' + barsHtml + '</div>' +
+        filledCount + ' of ' + reqRoles.length + ' roles filled' +
+      '</div>';
+
+    var hodHtml = d.hod
+      ? '<span class="as"><span class="pp"><i>' + escapeHtml(getInitials(d.hod.name)) + '</i><b>' + escapeHtml(d.hod.name) + '</b></span></span>'
+      : '<span class="as"><span class="wn"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l10 18H2z"></path><path d="M12 10v5M12 18h.01"></path></svg> Unassigned</span><button type="button" class="ad" onclick="openManagePrivilegesDrawer(\'' + d._id + '\', \'hod\')">Assign</button></span>';
+
+    var secHodHtml = d.secondaryHod
+      ? '<div class="rw card-role-row"><i class="ri"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8l4 4 5-7 5 7 4-4-2 11H5z"></path></svg></i><span class="rl role-lbl">Sec. HOD</span><span class="as"><span class="pp"><i>' + escapeHtml(getInitials(d.secondaryHod.name)) + '</i><b style="color:var(--pri,#1b5e20);">' + escapeHtml(d.secondaryHod.name) + '</b></span></span></div>'
+      : '';
+
+    var superHtml = d.superAdmin
+      ? '<span class="as"><span class="pp"><i>' + escapeHtml(getInitials(d.superAdmin.name)) + '</i><b>' + escapeHtml(d.superAdmin.name) + '</b></span></span>'
+      : '<span class="as"><span class="wn"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l10 18H2z"></path><path d="M12 10v5M12 18h.01"></path></svg> Unassigned</span><button type="button" class="ad" onclick="openManagePrivilegesDrawer(\'' + d._id + '\', \'superAdmin\')">Assign</button></span>';
+
+    var ttHtml = '';
+    if (!isSupporting || d.ttCoordinator) {
+      var ttVal = d.ttCoordinator
+        ? '<span class="as"><span class="pp"><i>' + escapeHtml(getInitials(d.ttCoordinator.name)) + '</i><b>' + escapeHtml(d.ttCoordinator.name) + '</b></span></span>'
+        : '<span class="as"><span class="wn"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l10 18H2z"></path><path d="M12 10v5M12 18h.01"></path></svg> Unassigned</span><button type="button" class="ad" onclick="openManagePrivilegesDrawer(\'' + d._id + '\', \'ttCoordinator\')">Assign</button></span>';
+      ttHtml = '<div class="rw card-role-row"><i class="ri"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="2"></rect><path d="M4 10h16M9 3v4M15 3v4"></path></svg></i><span class="rl role-lbl">TT Coord.</span>' + ttVal + '</div>';
+    }
+
+    var secTtHtml = d.secondaryTtCoordinator
+      ? '<div class="rw card-role-row"><i class="ri"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="2"></rect><path d="M4 10h16M9 3v4M15 3v4"></path></svg></i><span class="rl role-lbl">Sec. TTC</span><span class="as"><span class="pp"><i>' + escapeHtml(getInitials(d.secondaryTtCoordinator.name)) + '</i><b style="color:var(--pri,#1b5e20);">' + escapeHtml(d.secondaryTtCoordinator.name) + '</b></span></span></div>'
+      : '';
+
+    var actingHtml = '';
+    if (d.actingHod && d.actingHod.name) {
+      actingHtml = '<div class="rw card-role-row acting-row" style="background:#fffbeb;border-radius:10px;padding:8px 12px;margin:4px 0;"><i class="ri" style="background:#fef3c7;color:#b45309;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg></i><span class="rl role-lbl" style="color:#b45309;font-weight:600;">Acting HOD</span><span class="as"><span class="wn" style="background:#fef3c7;border-color:#fde68a;color:#92400e;font-weight:600;">' + escapeHtml(d.actingHod.name) + ' (Active)</span></span></div>';
+    }
+
+    var advisorsRow = '';
+    if (totalAdv > 0) {
+      var advVal = assignedAdv + ' / ' + totalAdv + ' assigned' +
+        (secAdv > 0 ? ' · ' + secAdv + ' dual' : '') +
+        (openAdv > 0 ? ' · <span class="wn" style="padding:2px 8px;font-size:11px;">⚠ ' + openAdv + ' open</span>' : '');
+      advisorsRow = '<div class="rw card-role-row"><i class="ri"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="4"></circle><path d="M2 21c0-4 3-6 7-6s7 2 7 6M17 11a4 4 0 0 0 0-7"></path></svg></i><span class="rl role-lbl">Advisors</span><span class="as" style="font-size:13px;font-weight:500;color:#33463a;">' + advVal + '</span></div>';
+    }
+
+    var supportingBanner = '';
+    if (isSupporting) {
+      supportingBanner = '<div class="sv"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"></path></svg> Serves programme departments <i>CSE</i> <i>ECE</i> <i>MECH</i></div>';
+    }
+
+    var metaPills = '<span>' + escapeHtml(d.threeLetterCode || d.code) + (d.number ? ' · ' + escapeHtml(d.number) : '') + '</span>' +
+      '<span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="4"></circle><path d="M2 21c0-4 3-6 7-6s7 2 7 6M17 11a4 4 0 0 0 0-7"></path></svg> ' + (d.staffCount || 0) + ' staff</span>' +
+      (!isSupporting && d.classCount ? '<span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"></rect><path d="M3 10h18"></path></svg> ' + d.classCount + ' classes</span>' : '');
+
+    var advisorsBtn = (!isSupporting || totalAdv > 0)
+      ? '<button type="button" class="bt btn-sm btn-out" onclick="openManageAdvisorsDrawer(\'' + d._id + '\')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="4"></circle><path d="M2 21c0-4 3-6 7-6s7 2 7 6M17 11a4 4 0 0 0 0-7"></path></svg> Manage Advisors</button>'
+      : '';
+
+    return '' +
+      '<article class="ec dept-role-card' + (isSupporting ? ' sp' : '') + '" id="dcard-' + d._id + '">' +
+        '<div class="hd card-top">' +
+          '<i class="ib"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 21V5l8-3v19M12 9h8v12M2 21h20M8 8h1M8 12h1M8 16h1"></path></svg></i>' +
+          '<div>' +
+            '<small class="ey">' + (isSupporting ? 'SUPPORTING DEPARTMENT' : 'PROGRAMME DEPARTMENT') + '</small>' +
+            '<h3 class="dept-name">' + escapeHtml(d.name) + '</h3>' +
+          '</div>' +
+        '</div>' +
+        '<div class="mt dept-sub">' + metaPills + '</div>' +
+        coverageHtml +
+        '<div class="rs card-body-roles">' +
+          '<div class="rw card-role-row"><i class="ri"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8l4 4 5-7 5 7 4-4-2 11H5z"></path></svg></i><span class="rl role-lbl">HOD</span>' + hodHtml + '</div>' +
+          secHodHtml +
+          '<div class="rw card-role-row"><i class="ri"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"></path></svg></i><span class="rl role-lbl">Super Admin</span>' + superHtml + '</div>' +
+          ttHtml +
+          secTtHtml +
+          advisorsRow +
+          actingHtml +
+        '</div>' +
+        supportingBanner +
+        '<div class="ft card-actions">' +
+          '<button type="button" class="bt p btn-sm btn-pri" onclick="openManagePrivilegesDrawer(\'' + d._id + '\')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="15" r="4"></circle><path d="M11 12l9-9M16 7l3 3"></path></svg> Manage Privileges</button>' +
+          advisorsBtn +
+        '</div>' +
+      '</article>';
+  }
+
   function renderDepartmentCards() {
     var gridEl = document.getElementById('roles-dept-grid');
     if (!gridEl) return;
 
-    var depts = _rolesState.departments;
+    var depts = _rolesState.departments || [];
     var search = (_rolesState.search || '').toLowerCase().trim();
     var filter = _rolesState.filter || 'all';
 
     var filtered = depts.filter(function (d) {
-      // Search match
       if (search) {
         var matchName = (d.name || '').toLowerCase().includes(search);
         var matchCode = (d.code || '').toLowerCase().includes(search);
         var matchNum = (d.number || '').toLowerCase().includes(search);
         if (!matchName && !matchCode && !matchNum) return false;
       }
-      // Filter chips
       if (filter === 'missing-hod') return !d.hod;
       if (filter === 'missing-super') return !d.superAdmin;
       if (filter === 'open-advisors') return d.advisors && d.advisors.open > 0;
@@ -176,53 +367,11 @@
     });
 
     if (filtered.length === 0) {
-      gridEl.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--tmu);background:#fff;border-radius:12px;border:1px solid var(--bdr);"><re-icon icon="search" size="28" style="opacity:0.4;margin-bottom:8px;"></re-icon><div>No departments matching current filters.</div></div>';
+      gridEl.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:48px 24px;color:var(--tmu);background:#fff;border-radius:18px;border:1px solid #d9e6d6;"><re-icon icon="search" size="32" style="opacity:0.35;margin-bottom:12px;"></re-icon><div style="font-size:15px;font-weight:600;color:#14281c;">No departments matching current search or filters.</div><div style="font-size:13px;color:#5f7264;margin-top:4px;">Try clearing search keywords or selecting another filter.</div></div>';
       return;
     }
 
-    gridEl.innerHTML = filtered.map(function (d) {
-      var hodText = d.hod ? escapeHtml(d.hod.name) : '<span class="role-warn">⚠ none</span>';
-      var superText = d.superAdmin ? escapeHtml(d.superAdmin.name) : '<span class="role-warn">⚠ none</span>';
-      var ttText = d.ttCoordinator ? escapeHtml(d.ttCoordinator.name) : '<span style="color:var(--tmu);">—</span>';
-      var placementText = d.placementCoordinator ? escapeHtml(d.placementCoordinator.name) : '<span style="color:var(--tmu);">—</span>';
-
-      var totalAdv = d.advisors ? d.advisors.total : 0;
-      var assignedAdv = d.advisors ? d.advisors.assigned : 0;
-      var openAdv = d.advisors ? d.advisors.open : 0;
-      var advisorsText = totalAdv > 0
-        ? (assignedAdv + ' / ' + totalAdv + ' assigned' + (openAdv > 0 ? ' · <span class="role-warn">⚠ ' + openAdv + ' open</span>' : ''))
-        : '<span style="color:var(--tmu);">No classes</span>';
-
-      var actingHtml = '';
-      if (d.actingHod && d.actingHod.name) {
-        actingHtml = '<div class="card-role-row acting-row"><span class="role-lbl">Acting HOD</span><span class="role-val" style="color:#d97706;font-weight:600;">' + escapeHtml(d.actingHod.name) + ' (Active)</span></div>';
-      }
-
-      return '' +
-        '<div class="dept-role-card" id="dcard-' + d._id + '">' +
-          '<div class="card-top">' +
-            '<div class="card-title-wrap">' +
-              '<div class="dept-icon-box"><re-icon icon="' + escapeHtml(d.icon || 'building2') + '" size="20"></re-icon></div>' +
-              '<div>' +
-                '<div class="dept-name">' + escapeHtml(d.name) + '</div>' +
-                '<div class="dept-sub">' + escapeHtml(d.code) + (d.number ? ' · ' + escapeHtml(d.number) : '') + ' · ' + (d.staffCount || 0) + ' staff · ' + (d.classCount || 0) + ' classes</div>' +
-              '</div>' +
-            '</div>' +
-          '</div>' +
-          '<div class="card-body-roles">' +
-            '<div class="card-role-row"><span class="role-lbl">HOD</span><span class="role-val">' + hodText + '</span></div>' +
-            '<div class="card-role-row"><span class="role-lbl">Super Admin</span><span class="role-val">' + superText + '</span></div>' +
-            '<div class="card-role-row"><span class="role-lbl">TT Coord.</span><span class="role-val">' + ttText + '</span></div>' +
-            '<div class="card-role-row"><span class="role-lbl">Placement</span><span class="role-val">' + placementText + '</span></div>' +
-            '<div class="card-role-row"><span class="role-lbl">Advisors</span><span class="role-val">' + advisorsText + '</span></div>' +
-            actingHtml +
-          '</div>' +
-          '<div class="card-actions">' +
-            '<button class="btn-sm btn-pri" onclick="openManagePrivilegesDrawer(\'' + d._id + '\')"><re-icon icon="key" size="13"></re-icon> Manage Privileges</button>' +
-            '<button class="btn-sm btn-out" onclick="openManageAdvisorsDrawer(\'' + d._id + '\')"><re-icon icon="users" size="13"></re-icon> Manage Advisors</button>' +
-          '</div>' +
-        '</div>';
-    }).join('');
+    gridEl.innerHTML = filtered.map(renderExecutiveCard).join('');
   }
 
   function filterExecutiveCards() {
@@ -242,7 +391,17 @@
 
   function switchExecutiveTab(tab) {
     var isSudo = isCurrentUserSudo();
-    if (!isSudo && (tab === 'wardens' || tab === 'requests')) {
+    var pub = window._pubSettings || {};
+    var pageHostel = (pub.pages && pub.pages.pageHostel !== undefined) ? pub.pages.pageHostel : 'enabled';
+    var isHostelDisabled = String(pageHostel).toLowerCase() === 'disabled' || String(pageHostel).toLowerCase() === 'hidden' || pageHostel === false;
+
+    if ((!isSudo || isHostelDisabled) && tab === 'wardens') {
+      tab = 'departments';
+      if (isHostelDisabled && typeof showToast === 'function') {
+        showToast('Hostel & Warden portal is currently disabled in Pages & Portal Access Control.', 'warn');
+      }
+    }
+    if (!isSudo && tab === 'requests') {
       tab = 'departments';
     }
     _rolesState.currentTab = tab || 'departments';
@@ -250,7 +409,7 @@
     ['departments', 'wardens', 'institution', 'requests'].forEach(function (t) {
       var btn = document.getElementById('rtab-btn-' + t);
       if (btn) {
-        if (!isSudo && (t === 'wardens' || t === 'requests')) {
+        if ((!isSudo || (t === 'wardens' && isHostelDisabled)) && (t === 'wardens' || t === 'requests')) {
           btn.style.display = 'none';
         } else {
           btn.style.display = '';
@@ -260,7 +419,7 @@
 
       var sec = document.getElementById('role-sec-' + t);
       if (sec) {
-        if (!isSudo && (t === 'wardens' || t === 'requests')) {
+        if ((!isSudo || (t === 'wardens' && isHostelDisabled)) && (t === 'wardens' || t === 'requests')) {
           sec.style.display = 'none';
         } else {
           sec.style.display = (t === _rolesState.currentTab) ? 'block' : 'none';
@@ -272,6 +431,8 @@
     if (deptControls) {
       deptControls.style.display = (_rolesState.currentTab === 'departments') ? 'flex' : 'none';
     }
+
+    setTimeout(function () { updateExecutiveTabIndicator(true); }, 20);
 
     if (_rolesState.currentTab === 'departments') {
       loadExecutiveRolesOverview();
@@ -286,7 +447,7 @@
 
   // ── 2. MANAGE PRIVILEGES DRAWER (§7.5) ──────────────────────────────────────
 
-  function openManagePrivilegesDrawer(deptId) {
+  function openManagePrivilegesDrawer(deptId, autoOpenRole) {
     _rolesState.activeDeptId = deptId;
     var drawer = document.getElementById('drawer-manage-privileges');
     var backdrop = document.getElementById('drawer-backdrop-privileges');
@@ -304,6 +465,15 @@
       .then(function (data) {
         _rolesState.activeDeptData = data;
         renderPrivilegesDrawerContent(data);
+        if (autoOpenRole && isCurrentUserSudo()) {
+          var roles = data.roles || {};
+          var holder = roles[autoOpenRole];
+          openStaffPickerForRole(
+            autoOpenRole,
+            holder ? holder.teacherId : '',
+            holder ? holder.teacherName : ''
+          );
+        }
       })
       .catch(function (err) {
         console.error('[openManagePrivilegesDrawer error]:', err);
@@ -329,22 +499,22 @@
     if (metaEl) metaEl.textContent = dept.code + (dept.number ? ' · ' + dept.number : '') + ' · Department Access & Delegated Authorities';
 
     // 1. Roles Section
-    function renderRoleItem(roleKey, roleLabel, holder, isLocked) {
+    function renderRoleItem(roleKey, roleLabel, holder, isLocked, isOptional) {
       var nameHtml = holder
         ? '<div style="font-weight:700;color:var(--td);font-size:13.5px;">' + escapeHtml(holder.teacherName) + '</div>' +
           '<div style="font-size:11.5px;color:var(--tmu);">' + escapeHtml(holder.teacherTrackId) + '</div>'
-        : '<div style="color:var(--tmu);font-size:13px;font-style:italic;">— Not Assigned —</div>';
+        : '<div style="color:var(--tmu);font-size:13px;font-style:italic;">' + (isOptional ? '— None (Optional) —' : '— Not Assigned —') + '</div>';
 
       var btnHtml = '';
       if (isLocked) {
         btnHtml = '<span title="Only Sudo Admin can reassign this role" style="color:var(--tmu);font-size:12px;display:flex;align-items:center;gap:4px;"><re-icon icon="lock" size="14"></re-icon> Locked</span>';
       } else {
         var actionText = holder ? 'Change ▾' : 'Assign ▾';
-        var removeBtn = (holder && ['ttCoordinator', 'placementCoordinator'].includes(roleKey))
-          ? '<button class="btn-sm btn-ghost text-danger" style="margin-left:4px;" onclick="removeDepartmentRole(\'' + roleKey + '\')" title="Remove"><re-icon icon="x" size="13"></re-icon></button>'
+        var removeBtn = (holder && ['ttCoordinator', 'secondaryTtCoordinator', 'placementCoordinator', 'secondaryHod'].includes(roleKey))
+          ? '<button class="btn-sm btn-ghost text-danger" style="margin-left:4px;" onclick="removeDepartmentRole(' + "'" + roleKey + "'" + ')" title="Remove"><re-icon icon="x" size="13"></re-icon></button>'
           : '';
         btnHtml = '<div style="display:flex;align-items:center;">' +
-          '<button class="btn-sm btn-out" onclick="openStaffPickerForRole(\'' + roleKey + '\', \'' + (holder ? holder.teacherId : '') + '\', \'' + (holder ? escapeHtml(holder.teacherName) : '') + '\')">' + actionText + '</button>' +
+          '<button class="btn-sm btn-out" onclick="openStaffPickerForRole(' + "'" + roleKey + "'" + ', ' + "'" + (holder ? holder.teacherId : '') + "'" + ', ' + "'" + (holder ? escapeHtml(holder.teacherName) : '') + "'" + ')">' + actionText + '</button>' +
           removeBtn +
           '</div>';
       }
@@ -362,10 +532,12 @@
     var rolesContainer = document.getElementById('dpriv-roles-list');
     if (rolesContainer) {
       rolesContainer.innerHTML =
-        renderRoleItem('hod', 'Head of Department (HOD)', roles.hod, !isSudo) +
-        renderRoleItem('superAdmin', 'Super Administrator', roles.superAdmin, !isSudo) +
-        renderRoleItem('ttCoordinator', 'Timetable Coordinator', roles.ttCoordinator, false) +
-        renderRoleItem('placementCoordinator', 'Placement Coordinator', roles.placementCoordinator, false);
+        renderRoleItem('hod', 'Head of Department (HOD) [Primary]', roles.hod, !isSudo, false) +
+        renderRoleItem('secondaryHod', 'Secondary HOD (Optional)', roles.secondaryHod, !isSudo, true) +
+        renderRoleItem('superAdmin', 'Super Administrator', roles.superAdmin, !isSudo, false) +
+        renderRoleItem('ttCoordinator', 'Timetable Coordinator [Primary]', roles.ttCoordinator, false, false) +
+        renderRoleItem('secondaryTtCoordinator', 'Secondary Timetable Coordinator (Optional)', roles.secondaryTtCoordinator, false, true) +
+        renderRoleItem('placementCoordinator', 'Placement Coordinator', roles.placementCoordinator, false, false);
     }
 
     // 2. Privileged Staff Section
@@ -472,19 +644,38 @@
 
     listEl.innerHTML = classes.map(function (c) {
       var hasAdvisor = Boolean(c.advisor);
-      var statusBadge = hasAdvisor
-        ? '<span class="badge" style="background:rgba(34,197,94,0.12);color:#16a34a;font-weight:600;padding:2px 8px;border-radius:6px;font-size:11px;">✅ Assigned</span>'
-        : '<span class="badge" style="background:rgba(239,68,68,0.12);color:#ef4444;font-weight:600;padding:2px 8px;border-radius:6px;font-size:11px;">⚠ Unassigned</span>';
+      var hasSecAdvisor = Boolean(c.secondaryAdvisor);
 
+      var statusBadge = '';
+      if (hasAdvisor && hasSecAdvisor) {
+        statusBadge = '<span class="badge" style="background:rgba(34,197,94,0.12);color:#16a34a;font-weight:600;padding:2px 8px;border-radius:6px;font-size:11px;">✅ Dual Assigned</span>';
+      } else if (hasAdvisor) {
+        statusBadge = '<span class="badge" style="background:rgba(34,197,94,0.12);color:#16a34a;font-weight:600;padding:2px 8px;border-radius:6px;font-size:11px;">✅ Primary Assigned</span>';
+      } else {
+        statusBadge = '<span class="badge" style="background:rgba(239,68,68,0.12);color:#ef4444;font-weight:600;padding:2px 8px;border-radius:6px;font-size:11px;">⚠ Primary Missing</span>';
+      }
+
+      // 1. Primary Advisor Row
       var advisorInfo = hasAdvisor
         ? '<div style="font-weight:700;font-size:13px;color:var(--td);">' + escapeHtml(c.advisor.fullName) + '</div>' +
-          '<div style="font-size:11.5px;color:var(--tmu);">' + escapeHtml(c.advisor.employeeNo || '') + ' · ' + escapeHtml(c.advisor.designation || '') + '</div>'
-        : '<div style="color:var(--tmu);font-size:12.5px;font-style:italic;">No advisor assigned</div>';
+          '<div style="font-size:11px;color:var(--tmu);">' + escapeHtml(c.advisor.employeeNo || '') + ' · ' + escapeHtml(c.advisor.designation || '') + '</div>'
+        : '<div style="color:var(--tmu);font-size:12.5px;font-style:italic;">No primary advisor assigned</div>';
 
       var actionBtn = hasAdvisor
         ? '<button class="btn-xs btn-out" onclick="openStaffPickerForClassAdvisor(\'' + c._id + '\', \'' + c.advisor._id + '\', \'' + escapeHtml(c.advisor.fullName) + '\')">Change ▾</button>' +
           '<button class="btn-xs btn-ghost text-danger" style="margin-left:4px;" onclick="removeClassAdvisor(\'' + c._id + '\')" title="Remove"><re-icon icon="x" size="13"></re-icon></button>'
         : '<button class="btn-xs btn-pri" onclick="openStaffPickerForClassAdvisor(\'' + c._id + '\', \'\', \'\')">Assign ▾</button>';
+
+      // 2. Secondary Advisor Row (Optional)
+      var secAdvisorInfo = hasSecAdvisor
+        ? '<div style="font-weight:700;font-size:13px;color:var(--td);">' + escapeHtml(c.secondaryAdvisor.fullName) + '</div>' +
+          '<div style="font-size:11px;color:var(--tmu);">' + escapeHtml(c.secondaryAdvisor.employeeNo || '') + ' · ' + escapeHtml(c.secondaryAdvisor.designation || '') + '</div>'
+        : '<div style="color:var(--tmu);font-size:12.5px;font-style:italic;">None (Optional)</div>';
+
+      var secActionBtn = hasSecAdvisor
+        ? '<button class="btn-xs btn-out" onclick="openStaffPickerForSecondaryClassAdvisor(\'' + c._id + '\', \'' + c.secondaryAdvisor._id + '\', \'' + escapeHtml(c.secondaryAdvisor.fullName) + '\')">Change ▾</button>' +
+          '<button class="btn-xs btn-ghost text-danger" style="margin-left:4px;" onclick="removeSecondaryClassAdvisor(\'' + c._id + '\')" title="Remove"><re-icon icon="x" size="13"></re-icon></button>'
+        : '<button class="btn-xs btn-out" onclick="openStaffPickerForSecondaryClassAdvisor(\'' + c._id + '\', \'\', \'\')">+ Add Secondary</button>';
 
       return '' +
         '<div class="adv-class-card">' +
@@ -495,9 +686,21 @@
             '</div>' +
             statusBadge +
           '</div>' +
-          '<div style="display:flex;justify-content:space-between;align-items:center;background:var(--bg2,#f8fafc);padding:10px 12px;border-radius:8px;">' +
-            '<div>' + advisorInfo + '</div>' +
-            '<div style="display:flex;align-items:center;">' + actionBtn + '</div>' +
+          '<div style="display:flex;flex-direction:column;gap:8px;">' +
+            '<div style="display:flex;justify-content:space-between;align-items:center;background:var(--bg2,#f8fafc);padding:8px 12px;border-radius:8px;">' +
+              '<div>' +
+                '<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--tmu);margin-bottom:2px;">Primary Advisor</div>' +
+                advisorInfo +
+              '</div>' +
+              '<div style="display:flex;align-items:center;">' + actionBtn + '</div>' +
+            '</div>' +
+            '<div style="display:flex;justify-content:space-between;align-items:center;background:var(--bg2,#f8fafc);padding:8px 12px;border-radius:8px;">' +
+              '<div>' +
+                '<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--tmu);margin-bottom:2px;">Secondary Advisor (Optional)</div>' +
+                secAdvisorInfo +
+              '</div>' +
+              '<div style="display:flex;align-items:center;">' + secActionBtn + '</div>' +
+            '</div>' +
           '</div>' +
         '</div>';
     }).join('');
@@ -517,12 +720,15 @@
     pickerModal.classList.add('open');
 
     var roleLabels = {
-      hod: 'Head of Department (HOD)',
+      hod: 'Head of Department (HOD) [Primary]',
+      secondaryHod: 'Secondary HOD (Optional)',
       superAdmin: 'Super Administrator',
-      ttCoordinator: 'Timetable Coordinator',
+      ttCoordinator: 'Timetable Coordinator [Primary]',
+      secondaryTtCoordinator: 'Secondary Timetable Coordinator (Optional)',
       placementCoordinator: 'Placement Coordinator',
       principal: 'College Principal',
       classAdvisor: 'Class Advisor',
+      secondaryClassAdvisor: 'Secondary Class Advisor (Optional)',
       warden: 'Hostel Warden'
     };
     var roleDisplay = roleLabels[roleKey] || roleKey.toUpperCase();
@@ -560,6 +766,33 @@
     if (listEl) listEl.innerHTML = '<div style="text-align:center;padding:20px;color:var(--tmu);">Loading eligible faculty members…</div>';
 
     apiCall('/api/roles/departments/' + _rolesState.activeDeptId + '/staff?role=classAdvisor')
+      .then(function (staff) {
+        _rolesState.eligibleStaff = staff;
+        renderStaffPickerList(staff);
+      })
+      .catch(function (err) {
+        console.error('[staff picker error]:', err);
+        showToast('Failed to load eligible faculty: ' + err.message, 'error');
+      });
+  }
+
+  function openStaffPickerForSecondaryClassAdvisor(classId, currentTeacherId, currentTeacherName) {
+    _rolesState.targetRole = 'secondaryClassAdvisor';
+    _rolesState.targetScopeId = classId;
+    _rolesState.expectedCurrentTeacherId = currentTeacherId || null;
+
+    var pickerModal = document.getElementById('modal-role-staff-picker');
+    if (!pickerModal) return;
+
+    pickerModal.style.display = 'flex';
+    pickerModal.classList.add('open');
+    var titleEl = document.getElementById('rsp-title');
+    if (titleEl) titleEl.textContent = 'Select Secondary Class Advisor (Optional)';
+
+    var listEl = document.getElementById('rsp-staff-list');
+    if (listEl) listEl.innerHTML = '<div style="text-align:center;padding:20px;color:var(--tmu);">Loading eligible faculty members…</div>';
+
+    apiCall('/api/roles/departments/' + _rolesState.activeDeptId + '/staff?role=secondaryClassAdvisor')
       .then(function (staff) {
         _rolesState.eligibleStaff = staff;
         renderStaffPickerList(staff);
@@ -639,11 +872,13 @@
 
     var url = (role === 'classAdvisor')
       ? '/api/roles/classes/' + scopeId + '/advisor'
-      : (role === 'warden')
-        ? '/api/roles/blocks/' + scopeId + '/warden'
-        : (role === 'principal')
-          ? '/api/roles/principal'
-          : '/api/roles/departments/' + scopeId + '/' + role;
+      : (role === 'secondaryClassAdvisor')
+        ? '/api/roles/classes/' + scopeId + '/secondary-advisor'
+        : (role === 'warden')
+          ? '/api/roles/blocks/' + scopeId + '/warden'
+          : (role === 'principal')
+            ? '/api/roles/principal'
+            : '/api/roles/departments/' + scopeId + '/' + role;
 
     apiCall(url, {
       method: 'PUT',
@@ -656,7 +891,7 @@
     .then(function (res) {
       showToast(res.message || 'Role assigned successfully', 'success');
       // Refresh active drawer & cards
-      if (role === 'classAdvisor') {
+      if (role === 'classAdvisor' || role === 'secondaryClassAdvisor') {
         openManageAdvisorsDrawer(_rolesState.activeDeptId);
       } else if (role === 'warden') {
         loadWardensOverview();
@@ -666,12 +901,37 @@
         openManagePrivilegesDrawer(_rolesState.activeDeptId);
       }
       loadExecutiveRolesOverview();
+
+      // ── LINK WITH DEPARTMENT CARDS (§EAMS INVARIANT) ──
+      if (role === 'hod' || role === 'secondaryHod') {
+        var localDepts = (typeof DB !== 'undefined' && DB.get('depts')) || [];
+        var targetDept = localDepts.find(function (d) { return String(d._id) === String(scopeId); });
+        if (targetDept) {
+          if (role === 'hod') {
+            targetDept.hodId = teacherId;
+            targetDept.hodName = teacher.fullName;
+          } else {
+            targetDept.secondaryHodId = teacherId;
+            targetDept.secondaryHodName = teacher.fullName;
+          }
+        }
+        if (typeof renderDepartments === 'function') {
+          renderDepartments();
+        }
+        if (typeof syncFromAPI === 'function') {
+          syncFromAPI('depts', '/depts').then(function () {
+            if (typeof renderDepartments === 'function') {
+              renderDepartments();
+            }
+          });
+        }
+      }
     })
     .catch(function (err) {
       console.error('[assign role error]:', err);
       if (err.status === 409) {
         showPopup('Conflict: This role slot was recently updated by another administrator. Reloading current state...', 'Role Conflict Detected', 'warn');
-        if (role === 'classAdvisor') {
+        if (role === 'classAdvisor' || role === 'secondaryClassAdvisor') {
           openManageAdvisorsDrawer(_rolesState.activeDeptId);
         } else if (role === 'warden') {
           loadWardensOverview();
@@ -701,6 +961,31 @@
       showToast(res.message || 'Role removed successfully', 'success');
       openManagePrivilegesDrawer(_rolesState.activeDeptId);
       loadExecutiveRolesOverview();
+
+      // ── LINK WITH DEPARTMENT CARDS (§EAMS INVARIANT) ──
+      if (roleKey === 'hod' || roleKey === 'secondaryHod') {
+        var localDepts = (typeof DB !== 'undefined' && DB.get('depts')) || [];
+        var targetDept = localDepts.find(function (d) { return String(d._id) === String(_rolesState.activeDeptId); });
+        if (targetDept) {
+          if (roleKey === 'hod') {
+            targetDept.hodId = null;
+            targetDept.hodName = '';
+          } else {
+            targetDept.secondaryHodId = null;
+            targetDept.secondaryHodName = '';
+          }
+        }
+        if (typeof renderDepartments === 'function') {
+          renderDepartments();
+        }
+        if (typeof syncFromAPI === 'function') {
+          syncFromAPI('depts', '/depts').then(function () {
+            if (typeof renderDepartments === 'function') {
+              renderDepartments();
+            }
+          });
+        }
+      }
     })
     .catch(function (err) {
       console.error('[remove role error]:', err);
@@ -720,7 +1005,7 @@
       body: { reason: reason }
     })
     .then(function (res) {
-      showToast(res.message || 'Advisor removed successfully', 'success');
+      showToast(res.message || 'Class advisor removed successfully', 'success');
       openManageAdvisorsDrawer(_rolesState.activeDeptId);
       loadExecutiveRolesOverview();
     })
@@ -730,17 +1015,25 @@
     });
   }
 
-  function toggleSuperAdminBulk(teacherId, enabled) {
-    apiCall('/api/roles/super-admin/bulk-toggle', {
-      method: 'PUT',
-      body: { teacherId: teacherId, enabled: enabled }
+  async function removeSecondaryClassAdvisor(classId) {
+    const ok = await showConfirm('Are you sure you want to remove this secondary class advisor?', 'Remove Secondary Advisor', null, null, { danger: true });
+    if (!ok) return;
+
+    var reason = await showPrompt('Please enter reason for removal:', 'Ended by administrator', 'Reason for Removal');
+    if (reason === null) return;
+
+    apiCall('/api/roles/classes/' + classId + '/secondary-advisor', {
+      method: 'DELETE',
+      body: { reason: reason }
     })
     .then(function (res) {
-      showToast(res.message || 'Bulk permission updated', 'success');
+      showToast(res.message || 'Secondary class advisor removed successfully', 'success');
+      openManageAdvisorsDrawer(_rolesState.activeDeptId);
+      loadExecutiveRolesOverview();
     })
     .catch(function (err) {
-      console.error('[bulk toggle error]:', err);
-      showToast('Failed to update bulk permission: ' + err.message, 'error');
+      console.error('[remove secondary advisor error]:', err);
+      showToast('Failed to remove secondary advisor: ' + err.message, 'error');
     });
   }
 
@@ -758,6 +1051,25 @@
     .catch(function (err) {
       console.error('[revoke grant error]:', err);
       showToast('Failed to revoke grant: ' + err.message, 'error');
+    });
+  }
+
+  function toggleSuperAdminBulk(teacherId, enabled) {
+    if (!teacherId) return;
+    apiCall('/api/roles/super-admin/bulk-toggle', {
+      method: 'PUT',
+      body: { teacherId: teacherId, enabled: Boolean(enabled) }
+    })
+    .then(function (res) {
+      var msg = (res && res.message) || ('Bulk upload permission ' + (enabled ? 'enabled' : 'disabled'));
+      if (typeof showToast === 'function') showToast(msg, 'success');
+      else if (typeof dbToast === 'function') dbToast(msg, 'success');
+    })
+    .catch(function (err) {
+      console.error('[toggleSuperAdminBulk error]:', err);
+      var errMsg = 'Failed to toggle bulk permission: ' + (err.message || err);
+      if (typeof showToast === 'function') showToast(errMsg, 'error');
+      else if (typeof dbToast === 'function') dbToast(errMsg, 'error');
     });
   }
 
@@ -1604,6 +1916,8 @@
   window.closeManageAdvisorsDrawer = closeManageAdvisorsDrawer;
   window.openStaffPickerForRole = openStaffPickerForRole;
   window.openStaffPickerForClassAdvisor = openStaffPickerForClassAdvisor;
+  window.openStaffPickerForSecondaryClassAdvisor = openStaffPickerForSecondaryClassAdvisor;
+  window.openStaffPickerForSecondaryClassAdvisor = openStaffPickerForSecondaryClassAdvisor;
   window.openStaffPickerForPrincipal = openStaffPickerForPrincipal;
   window.openAssignPrincipalModal = openStaffPickerForPrincipal;
   window.selectStaffForRole = selectStaffForRole;
@@ -1611,6 +1925,8 @@
   window.filterStaffPickerList = filterStaffPickerList;
   window.removeDepartmentRole = removeDepartmentRole;
   window.removeClassAdvisor = removeClassAdvisor;
+  window.removeSecondaryClassAdvisor = removeSecondaryClassAdvisor;
+  window.removeSecondaryClassAdvisor = removeSecondaryClassAdvisor;
   window.revokeStaffGrant = revokeStaffGrant;
   window.toggleSuperAdminBulk = toggleSuperAdminBulk;
   window.loadWardensOverview = loadWardensOverview;

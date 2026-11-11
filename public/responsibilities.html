@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Faculty Responsibilities & Workload — EAMS</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
+  <script src="js/core/escape.js"></script>
+  <script src="js/core/icons.js"></script>
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/admin.css">
+  <style>
+    .resp-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 16px; }
+    @media(max-width: 900px) { .resp-layout { grid-template-columns: 1fr; } }
+    .resp-card { background: var(--card, #fff); border: 1px solid var(--br, #e2e8f0); border-radius: 12px; padding: 16px; margin-bottom: 12px; transition: transform .15s, box-shadow .15s; }
+    .resp-card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.06); }
+    .resp-card.active { border-color: var(--pri, #2563eb); background: #f8fafc; }
+    .resp-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; }
+    .resp-title { font-size: 15px; font-weight: 700; color: var(--t, #0f172a); }
+    .resp-meta { display: flex; gap: 8px; align-items: center; margin-bottom: 12px; font-size: 12px; }
+    .resp-load-badge { background: #eff6ff; color: #1d4ed8; font-weight: 700; padding: 3px 8px; border-radius: 6px; font-size: 11.5px; }
+    .resp-scope-badge { font-size: 11px; padding: 2px 8px; border-radius: 12px; font-weight: 600; text-transform: uppercase; }
+    .scope-institute { background: #f3e8ff; color: #7e22ce; }
+    .scope-department { background: #fef3c7; color: #b45309; }
+    .assigned-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+    .t-chip { display: inline-flex; align-items: center; gap: 6px; background: #fff; border: 1px solid #cbd5e1; padding: 4px 10px; border-radius: 16px; font-size: 12px; }
+    .t-chip-rm { cursor: pointer; color: #ef4444; font-weight: 700; margin-left: 2px; }
+    .t-chip-rm:hover { color: #b91c1c; }
+  </style>
+</head>
+<body>
+  <!-- Header -->
+  <header class="topbar" style="background:#fff;border-bottom:1px solid var(--br,#e2e8f0);padding:12px 24px;display:flex;align-items:center;justify-content:space-between;">
+    <div style="display:flex;align-items:center;gap:12px;">
+      <a href="admin.html" class="btn-out" style="padding:6px 12px;font-size:12px;border-radius:8px;text-decoration:none;">← Admin Hub</a>
+      <div>
+        <h1 style="font-size:18px;font-weight:700;margin:0;">🌿 Faculty Responsibilities & Workload</h1>
+        <div style="font-size:12px;color:var(--tmu,#64748b);">Manage administrative responsibilities, workload period deductions and faculty assignments</div>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px;">
+      <button class="btn-pri" onclick="openAddRespModal()"><re-icon icon="plus" size="14"></re-icon> Add Responsibility</button>
+    </div>
+  </header>
+
+  <main style="max-width:1400px;margin:0 auto;padding:20px;">
+    <!-- Filter bar -->
+    <div class="panel" style="padding:14px;background:#fff;border-radius:12px;border:1px solid var(--br,#e2e8f0);display:flex;gap:14px;align-items:center;flex-wrap:wrap;">
+      <div style="flex:1;min-width:240px;">
+        <input type="text" id="resp-search" class="fc2" placeholder="Search responsibilities or teachers…" oninput="filterResponsibilities()" style="width:100%;font-size:13px;border-radius:8px;">
+      </div>
+      <div style="display:flex;gap:10px;">
+        <select id="resp-filter-scope" class="fc2" onchange="filterResponsibilities()" style="font-size:13px;border-radius:8px;">
+          <option value="all">All Scopes</option>
+          <option value="institute">Institute Level</option>
+          <option value="department">Department Level</option>
+        </select>
+        <button class="btn-out" onclick="loadResponsibilities()"><re-icon icon="refresh-cw" size="13"></re-icon> Refresh</button>
+      </div>
+    </div>
+
+    <!-- Main 2-column layout -->
+    <div class="resp-layout">
+      <!-- Left Column: Responsibilities List -->
+      <section>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+          <h2 style="font-size:15px;font-weight:700;margin:0;">Defined Responsibilities (<span id="resp-count">0</span>)</h2>
+        </div>
+        <div id="resp-list-container">
+          <div style="text-align:center;padding:40px;color:var(--tmu,#64748b);">Loading responsibilities…</div>
+        </div>
+      </section>
+
+      <!-- Right Column: Selected Responsibility & Teacher Assignment -->
+      <section>
+        <div id="resp-detail-card" class="panel" style="background:#fff;border-radius:12px;border:1px solid var(--br,#e2e8f0);padding:20px;min-height:300px;">
+          <div style="text-align:center;padding:60px 20px;color:var(--tmu,#64748b);">
+            <div style="font-size:32px;margin-bottom:8px;">📋</div>
+            <div style="font-weight:600;">Select a responsibility from the left to view assignments and attach faculty members.</div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <!-- Modal: Add/Edit Responsibility -->
+  <div class="modal-bg" id="modal-resp">
+    <div class="modal modal-sm" style="max-width:500px;background:#fff;border-radius:12px;padding:24px;">
+      <div class="modal-hd" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+        <h2 id="modal-resp-title" style="font-size:16px;font-weight:700;margin:0;">Add Responsibility</h2>
+        <button type="button" class="modal-close" onclick="closeModalBg('modal-resp')"><re-icon icon="x" size="18"></re-icon></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="modal-resp-id">
+        <div class="fg" style="margin-bottom:12px;">
+          <label class="fl">Responsibility Name *</label>
+          <input type="text" id="resp-name-input" class="fc2" placeholder="e.g. Examination Cell Coordinator" style="width:100%;">
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+          <div class="fg">
+            <label class="fl">Scope *</label>
+            <select id="resp-scope-input" class="fc2" onchange="toggleDeptSelect(this.value)" style="width:100%;">
+              <option value="institute">Institute Level</option>
+              <option value="department">Department Level</option>
+            </select>
+          </div>
+          <div class="fg">
+            <label class="fl">Workload (Periods/Week) *</label>
+            <input type="number" id="resp-workload-input" class="fc2" value="4" min="0" max="24" style="width:100%;">
+          </div>
+        </div>
+        <div class="fg" id="resp-dept-wrap" style="display:none;margin-bottom:12px;">
+          <label class="fl">Owning Department *</label>
+          <select id="resp-dept-input" class="fc2" style="width:100%;"></select>
+        </div>
+      </div>
+      <div class="modal-ft" style="display:flex;justify-content:flex-end;gap:10px;margin-top:18px;">
+        <button type="button" class="btn-out" onclick="closeModalBg('modal-resp')">Cancel</button>
+        <button type="button" class="btn-pri" id="resp-save-btn" onclick="saveResponsibility()">Save Responsibility</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/core/session.js"></script>
+  <script src="js/core/api.js"></script>
+  <script src="js/core/toast.js"></script>
+  <script src="js/core/modal.js"></script>
+  <script src="js/core/popup.js"></script>
+  <script src="js/pages/responsibilities.page.js"></script>
+</body>
+</html>

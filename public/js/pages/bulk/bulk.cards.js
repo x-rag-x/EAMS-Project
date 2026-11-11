@@ -94,11 +94,11 @@
         ]
       },
       student: {
-        headers: ['FullName', 'RegisterNo', 'Gender', 'AcademicYear', 'Batch', 'CourseType', 'Branch', 'Department', 'Class', 'Email', 'Username', 'Residency', 'Year', 'Password'],
+        headers: ['FullName', 'RegisterNo', 'Gender', 'AcademicYear', 'Batch', 'CourseType', 'Branch', 'Department', 'Class', 'Email', 'Username', 'Residency', 'AdmissionType', 'Password'],
         rows: [
-          ['Ananya Sharma', '2025104001', 'Female', '2025-26', '2025-29', 'UG', 'B.E', 'CSE', '25-29 CSE-A', 'ananya@inst.edu', 'ananya25', 'Dayscholar', 'I Year', 'Student@123'],
-          ['Ravi Kumar', '2025104002', 'Male', '2025-26', '2025-29', 'UG', 'B.E', 'CSE', '25-29 CSE-A', 'ravi@inst.edu', 'ravi25', 'Hosteller', 'I Year', 'Student@123'],
-          ['Priya Nair', '2025105001', 'Female', '2025-26', '2025-29', 'UG', 'B.E', 'ECE', '25-29 ECE-A', 'priya@inst.edu', 'priya25', 'Dayscholar', 'I Year', 'Student@123']
+          ['Ananya Sharma', '2025104001', 'Female', '2025-26', '2025-29', 'UG', 'B.E', 'CSE', '25-29 CSE-A', 'ananya@inst.edu', 'ananya25', 'Dayscholar', 'Regular', 'Student@123'],
+          ['Ravi Kumar', '2025104002', 'Male', '2025-26', '2025-29', 'UG', 'B.E', 'CSE', '25-29 CSE-A', 'ravi@inst.edu', 'ravi25', 'Hosteller', 'Regular', 'Student@123'],
+          ['Priya Nair', '2025105001', 'Female', '2025-26', '2025-29', 'UG', 'B.E', 'ECE', '25-29 ECE-A', 'priya@inst.edu', 'priya25', 'Dayscholar', 'Lateral Entry', 'Student@123']
         ],
         notes: [
           ['Column', 'Required?', 'Notes'],
@@ -114,7 +114,7 @@
           ['Email', 'Yes', 'Valid email address'],
           ['Username', 'Yes', 'Unique login (no SB-/TR- prefix)'],
           ['Residency', 'No', 'Dayscholar or Hosteller (default: Dayscholar)'],
-          ['Year', 'No', 'Year level e.g. I Year'],
+          ['AdmissionType', 'No', 'Regular or Lateral Entry (default: Regular)'],
           ['Password', 'No', 'Initial password (server default if blank)'],
           ['', '', ''],
           ['NOTE', '', 'Use standard Dept Code (e.g. CSE, IT, AIML) for Department to avoid naming mismatches.']
@@ -246,6 +246,7 @@
       { key: 'email', label: 'Email', required: true, aliases: ['email', 'mail', 'emailaddress'], example: 'alex.m@student.edu' },
       { key: 'username', label: 'Username', required: true, aliases: ['username', 'user', 'loginid'], example: 'amercer' },
       { key: 'residency', label: 'Residency', required: false, aliases: ['residency', 'residencetype', 'residence', 'stay'], example: 'dayscholar' },
+      { key: 'admissionType', label: 'AdmissionType', required: false, aliases: ['admissiontype', 'entrytype', 'admission', 'entry', 'regularorlateral', 'lateralentry'], example: 'Regular' },
       { key: 'password', label: 'Password', required: false, aliases: ['password', 'pass'], example: 'Student@123' }
     ]
   };

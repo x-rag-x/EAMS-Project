@@ -43,7 +43,9 @@ const SettingsSchema = new mongoose.Schema({
       'Teachers Management',
       'Evidence & Drive Storage',
       'Hostel Settings',
-      'Trust & Devices'
+      'Trust & Devices',
+      'Google Drive Sync',
+      'Mail Notifications'
     ], 
     required: true 
   },

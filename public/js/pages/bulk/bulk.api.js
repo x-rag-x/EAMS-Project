@@ -244,7 +244,7 @@
       return req('GET', '/api/bulk/batches' + qs);
     },
     getBatch: function (id, options) {
-      return req('GET', '/api/bulk/batches/' + id, null, options);
+      return req('GET', '/api/bulk/batches/' + id + '?includeAllRows=true', null, options);
     },
     getRows: function (id, params, options) {
       var qs = '';

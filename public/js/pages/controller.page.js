@@ -1,3 +1,40 @@
+// ── CONTROLLER SHELL STATE & SERVER IST DATE ──
+var _serverDateIST = null;
+
+var LEGACY_PAGE_MAP = {
+  'board':         { page: 'dashboard', tab: 'board' },
+  'dash':          { page: 'dashboard', tab: 'overview' },
+  'inbox':         { page: 'inbox', tab: null },
+  'attendance':    { page: 'attendance', tab: 'daily' },
+  'leaves':        { page: 'students', tab: 'leaves' },
+  'faculty-leave': { page: 'staff', tab: 'leaves' },
+  'participation': { page: 'students', tab: 'participation' },
+  'teachers':      { page: 'staff', tab: 'directory' },
+  'students':      { page: 'students', tab: 'directory' },
+  'records':       { page: 'attendance', tab: 'records' },
+  'defaulters':    { page: 'attendance', tab: 'defaulters' },
+  'reports':       { page: 'attendance', tab: 'reports' },
+  'broadcast':     { page: 'broadcast', tab: 'compose' },
+  'audit':         { page: 'policy-audit', tab: 'audit' },
+  'tt-verify':     { page: 'timetable', tab: 'verify' },
+  'timetable':     { page: 'timetable', tab: 'view' },
+  'workload':      { page: 'staff', tab: 'workload' },
+  'calendar':      { page: 'timetable', tab: 'calendar' },
+  'settings':      { page: 'policy-audit', tab: 'policy' },
+  'profile':       { page: 'profile', tab: null }
+};
+
+var _activePage = 'dashboard';
+var _activeTabs = {
+  dashboard: 'board',
+  timetable: 'view',
+  attendance: 'daily',
+  students: 'directory',
+  staff: 'directory',
+  broadcast: 'compose',
+  'policy-audit': 'policy'
+};
+
 function escapeHtml(str) {
   if (str === null || str === undefined) return '';
   return String(str)
@@ -6,6 +43,30 @@ function escapeHtml(str) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
+}
+
+function formatDDMMYYYY(val) {
+  if (!val) return '—';
+  if (typeof val === 'string') {
+    var m = val.trim().match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (m) return m[3] + '-' + m[2] + '-' + m[1];
+    if (/^\d{2}-\d{2}-\d{4}$/.test(val.trim())) return val.trim();
+  }
+  var d = new Date(val);
+  if (isNaN(d.getTime())) return String(val);
+  var day = String(d.getDate()).padStart(2, '0');
+  var month = String(d.getMonth() + 1).padStart(2, '0');
+  var year = d.getFullYear();
+  return day + '-' + month + '-' + year;
+}
+
+function formatDatesDDMMYYYY(dates) {
+  if (!dates) return '—';
+  if (Array.isArray(dates)) {
+    if (!dates.length) return '—';
+    return dates.map(formatDDMMYYYY).join(', ');
+  }
+  return formatDDMMYYYY(dates);
 }
 
 // ── CONTROLLER PORTAL JAVASCRIPT ────────────────────────────────
@@ -75,10 +136,18 @@ var pendingLeaveAction = null; // { type: 'approve'|'reject', ids: [] }
     var shell = document.getElementById('app-shell');
     if (shell) shell.classList.add('vis');
 
-    // Initial Load - load whichever page is currently active (defaults to 'board')
-    var actPage = document.querySelector('.ctrl-page.act');
-    var pageId = actPage ? actPage.id.replace('pg-', '') : 'board';
-    loadSectionData(pageId);
+    // Initial Load - URL Hash Routing & Role-Aware Default Landing
+    var initialHash = window.location.hash ? window.location.hash.replace(/^#\/?/, '') : '';
+    if (initialHash) {
+      var parts = initialHash.split('/');
+      nav(parts[0], parts[1]);
+    } else {
+      if (controllerContext && controllerContext.role === 'principal') {
+        nav('dashboard', 'overview');
+      } else {
+        nav('dashboard', 'board');
+      }
+    }
     initRealtimeStream();
   });
 })();
@@ -241,6 +310,7 @@ function fetchControllerInit() {
       if (!data || data.error) return;
 
       controllerContext = data.context || {};
+      _serverDateIST = data.serverDateIST || null;
       hydrateControllerHeader(controllerContext);
 
       // Populate Department dropdown if Principal
@@ -335,17 +405,35 @@ function onGlobalDeptChange(val) {
 }
 
 // ── NAVIGATION ROUTING ──────────────────────────────────────────
-function nav(pageId) {
+// ── NAVIGATION ROUTING & TAB MANAGER ──────────────────────────
+function nav(pageId, tabId) {
+  // Support legacy pageId calls:
+  if (LEGACY_PAGE_MAP[pageId]) {
+    var mapped = LEGACY_PAGE_MAP[pageId];
+    if (!tabId && mapped.tab) tabId = mapped.tab;
+    pageId = mapped.page;
+  }
+
+  _activePage = pageId;
+
+  // Deactivate all top-level pages
   var allPages = document.querySelectorAll('.ctrl-page');
   allPages.forEach(function (p) { p.classList.remove('act'); });
 
+  // Activate target top-level page
   var targetPage = document.getElementById('pg-' + pageId);
   if (targetPage) targetPage.classList.add('act');
 
+  // Update sidebar active buttons
   var allNavs = document.querySelectorAll('.sb-item');
   allNavs.forEach(function (n) {
-    if (n.getAttribute('data-page') === pageId) n.classList.add('act');
-    else n.classList.remove('act');
+    if (n.getAttribute('data-page') === pageId) {
+      n.classList.add('act');
+      n.setAttribute('aria-current', 'page');
+    } else {
+      n.classList.remove('act');
+      n.removeAttribute('aria-current');
+    }
   });
 
   // Close mobile sidebar
@@ -354,8 +442,74 @@ function nav(pageId) {
   if (sb) sb.classList.remove('open');
   if (backdrop) backdrop.classList.remove('open');
 
-  loadSectionData(pageId);
+  // Activate tab if page has tabs
+  var activeTab = tabId || _activeTabs[pageId] || null;
+  if (activeTab) {
+    _activeTabs[pageId] = activeTab;
+    activatePageTab(pageId, activeTab);
+  }
+
+  // Update URL hash safely without triggering infinite hashchange loops
+  var targetHash = activeTab ? (pageId + '/' + activeTab) : pageId;
+  if (window.location.hash !== '#' + targetHash) {
+    try {
+      history.replaceState(null, '', '#' + targetHash);
+    } catch (_) {
+      window.location.hash = targetHash;
+    }
+  }
+
+  loadSectionData(pageId, activeTab);
 }
+
+function activatePageTab(pageId, tabId) {
+  var parent = document.getElementById('pg-' + pageId);
+  if (!parent) return;
+
+  // Tab buttons
+  var tabs = parent.querySelectorAll('.ctrl-tab');
+  tabs.forEach(function (t) {
+    var idMatch = t.id && t.id.toLowerCase().includes(tabId.toLowerCase());
+    var clickMatch = t.getAttribute('onclick') && t.getAttribute('onclick').includes("'" + tabId + "'");
+    if (idMatch || clickMatch) {
+      t.classList.add('act');
+      t.setAttribute('aria-selected', 'true');
+    } else {
+      t.classList.remove('act');
+      t.setAttribute('aria-selected', 'false');
+    }
+  });
+
+  // Tab panels
+  var panels = parent.querySelectorAll('.ctrl-tab-panel');
+  panels.forEach(function (p) {
+    var match = (p.id === 'tab-' + pageId + '-' + tabId) ||
+                (p.id === 'tab-' + tabId) ||
+                (p.id === 'pg-' + tabId) ||
+                (p.id === tabId);
+    if (match) {
+      p.classList.add('act');
+    } else {
+      p.classList.remove('act');
+    }
+  });
+}
+
+function switchDashboardTab(tabId) { nav('dashboard', tabId); }
+function switchTimetableTab(tabId) { nav('timetable', tabId); }
+function switchAttendanceTab(tabId) { nav('attendance', tabId); }
+function switchStudentTab(tabId) { nav('students', tabId); }
+function switchStaffTab(tabId) { nav('staff', tabId); }
+function switchBroadcastTab(tabId) { nav('broadcast', tabId); }
+function switchPolicyAuditTab(tabId) { nav('policy-audit', tabId); }
+
+// Listen for browser forward/backward hashchange
+window.addEventListener('hashchange', function () {
+  var hash = window.location.hash ? window.location.hash.replace(/^#\/?/, '') : '';
+  if (!hash) return;
+  var parts = hash.split('/');
+  nav(parts[0], parts[1]);
+});
 
 function toggleSidebar() {
   var sb = document.getElementById('sidebar');
@@ -364,70 +518,349 @@ function toggleSidebar() {
   if (backdrop) backdrop.classList.toggle('open');
 }
 
-function loadSectionData(pageId) {
+function loadSectionData(pageId, tabId) {
+  if (LEGACY_PAGE_MAP[pageId]) {
+    var mapped = LEGACY_PAGE_MAP[pageId];
+    if (!tabId && mapped.tab) tabId = mapped.tab;
+    pageId = mapped.page;
+  }
+
   switch (pageId) {
-    case 'board':
-      reloadLiveBoardData();
+    case 'dashboard':
+      if (tabId === 'overview') {
+        loadDashboardData();
+      } else if (tabId === 'alerts') {
+        loadLiveAlertsRail();
+      } else {
+        reloadLiveBoardData();
+      }
       break;
     case 'inbox':
       loadInboxData();
       break;
-    case 'dash':
-      loadDashboardData();
+    case 'timetable':
+      if (tabId === 'verify') {
+        loadCtrlTimetableVerificationPage();
+      } else if (tabId === 'calendar') {
+        loadAcademicCalendar();
+      } else {
+        loadTimetableClasses();
+      }
       break;
     case 'attendance':
-      loadDailyAttendance();
-      break;
-    case 'leaves':
-      loadLeavesData();
-      break;
-    case 'faculty-leave':
-      loadFacultyLeaveData();
-      break;
-    case 'participation':
-      loadParticipationTracker();
-      break;
-    case 'teachers':
-      loadFacultyData();
+      if (tabId === 'overview') {
+        loadAttendanceOverview();
+      } else if (tabId === 'defaulters') {
+        loadDefaultersData();
+      } else if (tabId === 'records') {
+        loadPeriodRecords();
+      } else if (tabId === 'reports') {
+        loadMonthlyReport();
+      } else {
+        loadDailyAttendance();
+      }
       break;
     case 'students':
-      loadStudentsData();
+      if (tabId === 'participation') {
+        loadParticipationTracker();
+      } else if (tabId === 'leaves') {
+        loadLeavesData();
+      } else {
+        loadStudentsData();
+      }
       break;
-    case 'records':
-      loadPeriodRecords();
-      break;
-    case 'defaulters':
-      loadDefaultersData();
-      break;
-    case 'reports':
-      loadMonthlyReport();
+    case 'staff':
+      if (tabId === 'workload') {
+        loadWorkloadSection();
+      } else if (tabId === 'leaves') {
+        loadFacultyLeaveData();
+      } else if (tabId === 'compliance') {
+        loadStaffCompliance();
+      } else {
+        loadFacultyData();
+      }
       break;
     case 'broadcast':
       loadBroadcastHistory();
       break;
-    case 'calendar':
-      loadAcademicCalendar();
-      break;
-    case 'tt-verify':
-      loadCtrlTimetableVerificationPage();
-      break;
-    case 'timetable':
-      loadTimetableClasses();
-      break;
-    case 'workload':
-      loadWorkloadSection();
+    case 'policy-audit':
+      if (tabId === 'audit') {
+        loadAuditLogData();
+      } else {
+        loadDeptSettings();
+      }
       break;
     case 'profile':
       loadProfileData();
       break;
-    case 'audit':
-      loadAuditLogData();
-      break;
-    case 'settings':
-      loadDeptSettings();
-      break;
   }
 }
+
+var _attOverviewScope = 'weekly';
+var _attOverviewData = null;
+var _attChartTableView = false;
+
+function setAttendanceOverviewScope(scope, btn) {
+  _attOverviewScope = scope || 'weekly';
+  var toggle = document.getElementById('att-scope-toggle');
+  if (toggle) {
+    toggle.querySelectorAll('.ctrl-seg-btn').forEach(function (b) { b.classList.remove('act'); });
+  }
+  if (btn) btn.classList.add('act');
+  loadAttendanceOverview();
+}
+
+function toggleAttendanceChartView() {
+  _attChartTableView = !_attChartTableView;
+  var chartWrap = document.getElementById('att-overview-chart-wrap');
+  var tableWrap = document.getElementById('att-overview-table-wrap');
+  var toggleBtn = document.getElementById('att-chart-view-toggle');
+
+  if (_attChartTableView) {
+    if (chartWrap) chartWrap.style.display = 'none';
+    if (tableWrap) tableWrap.style.display = 'block';
+    if (toggleBtn) toggleBtn.innerHTML = '<re-icon icon="line-chart" size="13"></re-icon> View as Chart';
+  } else {
+    if (chartWrap) chartWrap.style.display = 'block';
+    if (tableWrap) tableWrap.style.display = 'none';
+    if (toggleBtn) toggleBtn.innerHTML = '<re-icon icon="table" size="13"></re-icon> View as Table';
+  }
+}
+
+function loadAttendanceOverview() {
+  var token = getToken();
+  var url = '/api/controller/attendance/overview?range=' + encodeURIComponent(_attOverviewScope) + '&_t=' + Date.now();
+  if (selectedDeptFilter) url += '&deptId=' + encodeURIComponent(selectedDeptFilter);
+
+  fetch(url, { headers: { 'Authorization': 'Bearer ' + token } })
+    .then(function (r) { return r.json(); })
+    .then(function (data) {
+      if (data.error) throw new Error(data.error);
+      _attOverviewData = data;
+
+      // Update KPI
+      var hl = document.getElementById('att-overview-headline');
+      if (hl) hl.textContent = (data.headlinePct != null ? data.headlinePct : 0) + '%';
+
+      var deltaEl = document.getElementById('att-overview-delta');
+      if (deltaEl) {
+        var d = data.delta || 0;
+        var sign = d > 0 ? '+' : '';
+        var col = d >= 0 ? '#16a34a' : '#dc2626';
+        deltaEl.innerHTML = '<span style="color:' + col + ';font-weight:700;">' + sign + d + '%</span> vs previous ' + escapeHtml(_attOverviewScope);
+      }
+
+      var threshEl = document.getElementById('att-overview-threshold');
+      if (threshEl) threshEl.textContent = (data.threshold || 75) + '%';
+
+      renderAttendanceSvgChart(data.trend || [], data.threshold || 75);
+      renderAttendanceTable(data.trend || [], data.threshold || 75);
+      renderClassRankings(data.rankings || []);
+    })
+    .catch(function (err) {
+      console.error('[Attendance Overview Load Error]:', err);
+      var hl = document.getElementById('att-overview-headline');
+      if (hl) hl.textContent = '—%';
+    });
+}
+
+function renderAttendanceSvgChart(trend, threshold) {
+  var svg = document.getElementById('att-overview-svg');
+  if (!svg) return;
+
+  if (!trend || !trend.length) {
+    svg.innerHTML = '<text x="400" y="120" text-anchor="middle" fill="var(--tmu)" font-size="13">No attendance trend data available for this range</text>';
+    return;
+  }
+
+  var W = 800;
+  var H = 240;
+  var padL = 50;
+  var padR = 30;
+  var padT = 25;
+  var padB = 40;
+  var plotW = W - padL - padR;
+  var plotH = H - padT - padB;
+
+  var points = [];
+  var n = trend.length;
+  var stepX = n > 1 ? (plotW / (n - 1)) : (plotW / 2);
+
+  trend.forEach(function (pt, i) {
+    var x = padL + (n > 1 ? (i * stepX) : (plotW / 2));
+    var yVal = Math.min(100, Math.max(0, pt.pct || 0));
+    var y = padT + plotH - (yVal / 100 * plotH);
+    points.push({ x: x, y: y, pct: yVal, label: pt.label || pt.date, date: pt.date });
+  });
+
+  // Threshold Y
+  var threshY = padT + plotH - (threshold / 100 * plotH);
+
+  // SVG elements
+  var svgContent = '';
+
+  // Grid lines: 25%, 50%, 75%, 100%
+  [25, 50, 75, 100].forEach(function (val) {
+    var gy = padT + plotH - (val / 100 * plotH);
+    svgContent += '<line x1="' + padL + '" y1="' + gy + '" x2="' + (W - padR) + '" y2="' + gy + '" stroke="#e2e8f0" stroke-width="1" stroke-dasharray="3,3" />' +
+      '<text x="' + (padL - 8) + '" y="' + (gy + 4) + '" text-anchor="end" fill="#94a3b8" font-size="10.5" font-family="monospace">' + val + '%</text>';
+  });
+
+  // Benchmark line
+  svgContent += '<line x1="' + padL + '" y1="' + threshY + '" x2="' + (W - padR) + '" y2="' + threshY + '" stroke="#ef4444" stroke-width="1.5" stroke-dasharray="4,4" />' +
+    '<text x="' + (W - padR) + '" y="' + (threshY - 6) + '" text-anchor="end" fill="#dc2626" font-size="10.5" font-weight="700">Benchmark ' + threshold + '%</text>';
+
+  // Area Fill under path
+  if (points.length > 1) {
+    var pathD = 'M ' + points[0].x + ' ' + points[0].y;
+    for (var i = 1; i < points.length; i++) {
+      pathD += ' L ' + points[i].x + ' ' + points[i].y;
+    }
+    var areaD = pathD + ' L ' + points[points.length - 1].x + ' ' + (padT + plotH) + ' L ' + points[0].x + ' ' + (padT + plotH) + ' Z';
+    svgContent += '<path d="' + areaD + '" fill="rgba(27,77,62,0.12)" />';
+    svgContent += '<path d="' + pathD + '" fill="none" stroke="var(--gD, #1b4d3e)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />';
+  }
+
+  // Dots & X-axis Labels
+  points.forEach(function (pt) {
+    var dotCol = pt.pct >= threshold ? 'var(--gD, #1b4d3e)' : '#dc2626';
+    svgContent += '<circle cx="' + pt.x + '" cy="' + pt.y + '" r="4.5" fill="#fff" stroke="' + dotCol + '" stroke-width="2">' +
+      '<title>' + escapeHtml(pt.date) + ': ' + pt.pct + '%</title>' +
+    '</circle>';
+
+    svgContent += '<text x="' + pt.x + '" y="' + (padT + plotH + 20) + '" text-anchor="middle" fill="var(--tmu, #64748b)" font-size="11" font-family="monospace">' + escapeHtml(pt.label) + '</text>';
+    svgContent += '<text x="' + pt.x + '" y="' + (pt.y - 8) + '" text-anchor="middle" fill="' + dotCol + '" font-size="10" font-weight="700">' + pt.pct + '%</text>';
+  });
+
+  svg.innerHTML = svgContent;
+}
+
+function renderAttendanceTable(trend, threshold) {
+  var tbody = document.getElementById('att-overview-tbody');
+  if (!tbody) return;
+
+  if (!trend || !trend.length) {
+    tbody.innerHTML = '<tr><td colspan="5" class="text-center">No trend records found.</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = trend.map(function (row) {
+    var pct = row.pct != null ? row.pct : 0;
+    var standing = pct >= threshold
+      ? '<span class="status-tag approved">' + pct + '% (Benchmark Met)</span>'
+      : '<span class="status-tag rejected">' + pct + '% (Below Threshold)</span>';
+
+    return '<tr>' +
+      '<td><strong>' + escapeHtml(row.date || row.label) + '</strong></td>' +
+      '<td>' + (row.held || 0) + '</td>' +
+      '<td>' + (row.attended || 0) + '</td>' +
+      '<td><strong>' + pct + '%</strong></td>' +
+      '<td>' + standing + '</td>' +
+    '</tr>';
+  }).join('');
+}
+
+function renderClassRankings(rankings) {
+  var container = document.getElementById('att-class-ranking-container');
+  if (!container) return;
+
+  if (!rankings || !rankings.length) {
+    container.innerHTML = '<div style="text-align:center;padding:20px;color:var(--tmu);">No class performance metrics available for this period.</div>';
+    return;
+  }
+
+  container.innerHTML = rankings.map(function (c, idx) {
+    var pct = c.pct != null ? c.pct : 0;
+    var barCol = pct >= 75 ? 'var(--gD, #1b4d3e)' : pct >= 65 ? '#d97706' : '#dc2626';
+
+    return '<div style="display:flex;align-items:center;gap:12px;">' +
+      '<div style="width:28px;font-size:12px;font-weight:700;color:var(--tmu);text-align:right;">#' + (idx + 1) + '</div>' +
+      '<div style="width:160px;font-size:13px;font-weight:600;color:var(--td);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + escapeHtml(c.name) + '</div>' +
+      '<div style="flex:1;background:var(--bg2,#f1f5f9);height:12px;border-radius:6px;overflow:hidden;position:relative;">' +
+        '<div style="width:' + pct + '%;height:100%;background:' + barCol + ';border-radius:6px;transition:width 0.4s ease;"></div>' +
+      '</div>' +
+      '<div style="width:55px;font-size:12.5px;font-weight:700;color:' + barCol + ';text-align:right;">' + pct + '%</div>' +
+    '</div>';
+  }).join('');
+}
+
+
+function loadStaffCompliance() {
+  var token = getToken();
+  var url = '/api/controller/staff/compliance?_t=' + Date.now();
+  if (selectedDeptFilter) url += '&deptId=' + encodeURIComponent(selectedDeptFilter);
+
+  var tbody = document.getElementById('staff-compliance-tbody');
+  var gapList = document.getElementById('staff-coverage-gaps-list');
+  var gapCard = document.getElementById('staff-coverage-gaps-card');
+
+  if (tbody) tbody.innerHTML = '<tr><td colspan="6" class="text-center" style="padding:24px;"><div class="spin" style="margin:0 auto 10px;"></div>Loading compliance metrics…</td></tr>';
+
+  fetch(url, { headers: { 'Authorization': 'Bearer ' + token } })
+    .then(function (r) { return r.json(); })
+    .then(function (data) {
+      if (data.error) throw new Error(data.error);
+
+      // Render Coverage Gaps
+      if (gapList && gapCard) {
+        var gaps = (data.coverageGaps && data.coverageGaps.missingAdvisorClasses) || [];
+        var tot = (data.coverageGaps && data.coverageGaps.totalClasses) || 0;
+        var assigned = (data.coverageGaps && data.coverageGaps.assignedAdvisorsCount) || 0;
+
+        if (gaps.length === 0) {
+          gapCard.style.borderLeftColor = '#16a34a';
+          gapList.innerHTML = '<div style="color:#166534;display:flex;align-items:center;gap:8px;font-weight:600;">' +
+            '<re-icon icon="check-circle" size="16" style="color:#16a34a;"></re-icon>' +
+            'Complete Coverage: All ' + tot + ' class sections have active assigned Class Advisors.' +
+          '</div>';
+        } else {
+          gapCard.style.borderLeftColor = '#dc2626';
+          gapList.innerHTML = '<div style="color:#dc2626;font-weight:700;margin-bottom:6px;display:flex;align-items:center;gap:6px;">' +
+            '<re-icon icon="alert-triangle" size="15"></re-icon> ' + gaps.length + ' class section(s) currently lack an assigned Class Advisor:' +
+          '</div>' +
+          '<div style="display:flex;flex-wrap:wrap;gap:8px;">' +
+            gaps.map(function (g) {
+              return '<span class="badge" style="background:#fef2f2;color:#dc2626;border:1px solid #fecaca;font-size:11.5px;padding:3px 8px;border-radius:6px;">' +
+                escapeHtml(g.className + (g.section ? (' ' + g.section) : '')) + (g.deptName ? (' (' + g.deptName + ')') : '') +
+              '</span>';
+            }).join('') +
+          '</div>';
+        }
+      }
+
+      // Render Punctuality Table
+      if (tbody) {
+        var list = data.compliance || [];
+        if (!list.length) {
+          tbody.innerHTML = '<tr><td colspan="6" class="text-center" style="padding:24px;color:var(--tmu);">No class sessions recorded for staff in the last 30 days.</td></tr>';
+          return;
+        }
+
+        tbody.innerHTML = list.map(function (t) {
+          var rate = t.punctualityRate != null ? t.punctualityRate : 100;
+          var standing = rate >= 90
+            ? '<span class="status-tag approved" style="font-weight:700;">' + rate + '% (Excellent)</span>'
+            : rate >= 75
+              ? '<span class="status-tag pending" style="font-weight:700;">' + rate + '% (Good)</span>'
+              : '<span class="status-tag rejected" style="font-weight:700;">' + rate + '% (Needs Attention)</span>';
+
+          return '<tr>' +
+            '<td><strong>' + escapeHtml(t.teacherName) + '</strong></td>' +
+            '<td>' + escapeHtml(t.deptCode || '—') + '</td>' +
+            '<td>' + (t.totalSessions || 0) + '</td>' +
+            '<td>' + (t.onTimeSessions || 0) + ' / ' + ((t.onTimeSessions || 0) + (t.lateSessions || 0)) + '</td>' +
+            '<td><strong>' + rate + '%</strong></td>' +
+            '<td>' + standing + '</td>' +
+          '</tr>';
+        }).join('');
+      }
+    })
+    .catch(function (err) {
+      console.error('[Staff Compliance Error]:', err);
+      if (tbody) tbody.innerHTML = '<tr><td colspan="6" class="text-center" style="color:var(--danger);padding:20px;">Failed to load compliance: ' + escapeHtml(err.message) + '</td></tr>';
+    });
+}
+
 
 // ── 0. REAL-TIME LIVE BOARD ─────────────────────────────────────
 var _cachedBoardSessions = [];
@@ -627,7 +1060,7 @@ function loadDayMatrix() {
     .then(function (r) { return r.json(); })
     .then(function (data) {
       if (!data || data.error) throw new Error(data?.error || 'Failed to load day matrix');
-      renderDayMatrix(data.matrix || data.rows || []);
+      renderDayMatrix(data.sections || data.matrix || data.rows || []);
     })
     .catch(function (err) {
       console.error('[Day Matrix Error]:', err);
@@ -646,19 +1079,35 @@ function renderDayMatrix(rows) {
 
   tbody.innerHTML = rows.map(function (row) {
     var cellsHtml = '';
-    for (var p = 1; p <= 8; p++) {
-      var period = (row.periods || []).find(function (x) { return x.periodNumber === p; }) || row['p' + p];
+    var renderedPeriods = new Set();
+    for (var p = 1; p <= 9; p++) {
+      if (renderedPeriods.has(p)) continue;
+      var period = null;
+      if (Array.isArray(row.periods)) {
+        period = row.periods.find(function (x) { return x.periodNumber === p; });
+      } else if (row.periods && typeof row.periods === 'object') {
+        period = row.periods[p] || row.periods[String(p)] || row.periods['P' + p];
+      }
+      if (!period) period = row['p' + p];
+
       if (period && (period.subject || period.subjectCode || period.subjectName)) {
         var subName = period.subjectCode || period.subjectName || period.subject || '';
         var facName = period.teacherName || period.teacher || '';
-        var isMarked = period.status === 'marked' || period.isMarked;
-        var bg = isMarked ? '#ecfdf5' : period.status === 'overdue' ? '#fef2f2' : period.status === 'in_window' ? '#fffbeb' : '#f8fafc';
-        var col = isMarked ? '#059669' : period.status === 'overdue' ? '#dc2626' : period.status === 'in_window' ? '#d97706' : '#334155';
-        cellsHtml += '<td style="background:' + bg + ';color:' + col + ';padding:8px 6px;text-align:center;border:1px solid #e2e8f0;font-size:11px;">' +
+        var isMarked = period.status === 'marked' || period.isMarked || period.state === 'marked';
+        var isOverdue = period.status === 'overdue' || period.state === 'overdue';
+        var inWindow = period.status === 'in_window' || period.state === 'in_window';
+        var bg = isMarked ? '#ecfdf5' : isOverdue ? '#fef2f2' : inWindow ? '#fffbeb' : '#f8fafc';
+        var col = isMarked ? '#059669' : isOverdue ? '#dc2626' : inWindow ? '#d97706' : '#334155';
+        var span = Math.max(1, Number(period.span || 1));
+        for (var off = 0; off < span; off++) renderedPeriods.add(p + off);
+        var colspanAttr = span > 1 ? ' colspan="' + span + '"' : '';
+
+        cellsHtml += '<td' + colspanAttr + ' style="background:' + bg + ';color:' + col + ';padding:8px 6px;text-align:center;border:1px solid #e2e8f0;font-size:11px;">' +
           '<div style="font-weight:700;">' + escapeHtml(subName) + '</div>' +
           '<div style="font-size:10px;opacity:0.85;">' + escapeHtml(facName) + '</div>' +
         '</td>';
       } else {
+        renderedPeriods.add(p);
         cellsHtml += '<td style="color:#94a3b8;font-size:11px;text-align:center;border:1px solid #e2e8f0;padding:8px 6px;">—</td>';
       }
     }
@@ -1322,10 +1771,10 @@ function renderHodMatrix(hods) {
   tbody.innerHTML = hods.map(function (h) {
     return '' +
       '<tr>' +
-        '<td><strong>' + h.deptName + '</strong></td>' +
+        '<td><strong>' + escapeHtml(h.deptName) + '</strong></td>' +
         '<td><span class="chip chip-blue">' + h.deptCode + '</span></td>' +
         '<td>' + h.hodName + '</td>' +
-        '<td>' + h.courseType + '</td>' +
+        '<td>' + escapeHtml(h.courseType) + '</td>' +
         '<td>' + h.branch + '</td>' +
       '</tr>';
   }).join('');
@@ -1385,8 +1834,8 @@ function loadDailyAttendance() {
 
         return '' +
           '<tr>' +
-            '<td><strong>' + c.className + '</strong></td>' +
-            '<td>' + c.deptName + ' (' + c.deptCode + ')</td>' +
+            '<td><strong>' + escapeHtml(c.className) + '</strong></td>' +
+            '<td>' + escapeHtml(c.deptName) + ' (' + escapeHtml(c.deptCode) + ')</td>' +
             '<td>Yr ' + c.year + ' / Sem ' + c.sem + '</td>' +
             '<td>' + c.advisorName + '</td>' +
             '<td>' + c.markedPeriodsCount + ' periods</td>' +
@@ -1446,6 +1895,9 @@ function renderLeavesTable(leaves) {
   var tbody = document.getElementById('leaves-tbody');
   if (!tbody) return;
 
+  var masterCheck = document.getElementById('leave-select-all');
+  if (masterCheck) masterCheck.checked = false;
+
   if (!leaves.length) {
     tbody.innerHTML = '<tr><td colspan="10" class="text-center">No leave requests found for this filter.</td></tr>';
     return;
@@ -1457,17 +1909,33 @@ function renderLeavesTable(leaves) {
     var isEmergency = !!leave.isEmergency;
     var emergencyBadge = isEmergency ? '<span class="status-tag emergency"><re-icon icon="siren"></re-icon> Emergency</span>' : '<span style="color:#64748b;">Regular</span>';
 
-    var statusTag = leave.status === 'Approved'
+    var status = String(leave.status || '').toLowerCase();
+    var isApproved = status === 'approved';
+    var isRejected = status === 'rejected';
+
+    var statusTag = isApproved
       ? '<span class="status-tag approved">Approved</span>'
-      : leave.status === 'Rejected'
+      : isRejected
         ? '<span class="status-tag rejected">Rejected</span>'
         : '<span class="status-tag pending">Pending</span>';
 
-    var dateRange = leave.fromDate === leave.toDate ? leave.fromDate : (leave.fromDate + ' <re-icon icon="arrow-right"></re-icon> ' + leave.toDate);
+    var dateRange = leave.fromDate === leave.toDate ? formatDDMMYYYY(leave.fromDate) : (formatDDMMYYYY(leave.fromDate) + ' <re-icon icon="arrow-right"></re-icon> ' + formatDDMMYYYY(leave.toDate));
+
+    var approveBtn = isApproved
+      ? '<button class="btn btn-sm btn-sec" disabled title="Already approved" style="opacity:0.6;cursor:not-allowed;pointer-events:none;background:#f1f5f9;color:#64748b;border:1px solid #cbd5e1;"><re-icon icon="check" size="13"></re-icon> Approved</button>'
+      : '<button class="btn btn-sm btn-pri" onclick="openSingleLeaveAction(\'approve\', \'' + leave._id + '\')"><re-icon icon="check" size="13"></re-icon> Approve</button>';
+
+    var rejectBtn = isRejected
+      ? '<button class="btn btn-sm btn-sec" disabled title="Already rejected" style="opacity:0.6;cursor:not-allowed;pointer-events:none;background:#f1f5f9;color:#94a3b8;border:1px solid #cbd5e1;"><re-icon icon="x" size="13"></re-icon> Rejected</button>'
+      : '<button class="btn btn-sm btn-danger" onclick="openSingleLeaveAction(\'reject\', \'' + leave._id + '\')"><re-icon icon="x" size="13"></re-icon> Reject</button>';
+
+    var checkDisabled = (isApproved || isRejected)
+      ? 'disabled style="cursor:not-allowed;opacity:0.35;" title="Leave is already ' + (isApproved ? 'approved' : 'rejected') + '"'
+      : '';
 
     return '' +
       '<tr>' +
-        '<td><input type="checkbox" class="leave-item-check" data-id="' + leave._id + '"></td>' +
+        '<td><input type="checkbox" class="leave-item-check" data-id="' + leave._id + '" data-status="' + escapeHtml(leave.status || '') + '" ' + checkDisabled + '></td>' +
         '<td><strong>' + name + '</strong></td>' +
         '<td>' + classDept + '</td>' +
         '<td>' + (leave.category || 'Leave') + ' · ' + (leave.leaveType || 'Casual') + '</td>' +
@@ -1478,8 +1946,8 @@ function renderLeavesTable(leaves) {
         '<td>' + statusTag + '</td>' +
         '<td>' +
           '<div style="display:flex;gap:4px;">' +
-            '<button class="btn btn-sm btn-pri" onclick="openSingleLeaveAction(\'approve\', \'' + leave._id + '\')">Approve</button>' +
-            '<button class="btn btn-sm btn-danger" onclick="openSingleLeaveAction(\'reject\', \'' + leave._id + '\')">Reject</button>' +
+            approveBtn +
+            rejectBtn +
           '</div>' +
         '</td>' +
       '</tr>';
@@ -1487,7 +1955,7 @@ function renderLeavesTable(leaves) {
 }
 
 function toggleSelectAllLeaves(master) {
-  var checks = document.querySelectorAll('.leave-item-check');
+  var checks = document.querySelectorAll('.leave-item-check:not(:disabled)');
   checks.forEach(function (c) { c.checked = master.checked; });
 }
 
@@ -1498,7 +1966,19 @@ function handleBulkLeaveAction(action) {
     return;
   }
 
-  var ids = Array.from(checked).map(function (c) { return c.getAttribute('data-id'); });
+  var targetChecks = Array.from(checked).filter(function (c) {
+    var s = String(c.getAttribute('data-status') || '').toLowerCase();
+    if (action === 'approve') return s !== 'approved';
+    if (action === 'reject') return s !== 'rejected';
+    return true;
+  });
+
+  if (!targetChecks.length) {
+    showToast('All selected leave requests are already ' + (action === 'approve' ? 'approved' : 'rejected') + '.');
+    return;
+  }
+
+  var ids = targetChecks.map(function (c) { return c.getAttribute('data-id'); });
   pendingLeaveAction = { type: action, ids: ids };
 
   var modal = document.getElementById('leave-action-modal');
@@ -1514,6 +1994,19 @@ function handleBulkLeaveAction(action) {
 }
 
 function openSingleLeaveAction(action, id) {
+  var leave = cachedLeaves.find(function (l) { return String(l._id) === String(id); });
+  if (leave) {
+    var s = String(leave.status || '').toLowerCase();
+    if (action === 'approve' && s === 'approved') {
+      showToast('This leave request is already approved.');
+      return;
+    }
+    if (action === 'reject' && s === 'rejected') {
+      showToast('This leave request is already rejected.');
+      return;
+    }
+  }
+
   pendingLeaveAction = { type: action, ids: [id] };
   var modal = document.getElementById('leave-action-modal');
   var title = document.getElementById('leave-modal-action-title');
@@ -1640,22 +2133,56 @@ function filterFacultyTable(q) {
 }
 
 // ── 5. STUDENT DIRECTORY ────────────────────────────────────────
+var cachedStudents = [];
+var _stuFilter = {
+  search: '',
+  entryType: '',
+  residency: '',
+  gender: '',
+  page: 1,
+  limit: 50,
+  sortBy: 'registerNo',
+  sortOrder: 'asc'
+};
+var _stuTotal = 0;
+var _stuTotalPages = 1;
+var _stuSearchDebounce = null;
+
 function loadStudentsData() {
   var token = getToken();
-  var url = '/api/controller/students?_t=' + Date.now();
-  if (selectedDeptFilter) url += '&deptId=' + encodeURIComponent(selectedDeptFilter);
+  var params = new URLSearchParams();
+  params.append('_t', String(Date.now()));
+  params.append('page', String(_stuFilter.page || 1));
+  params.append('limit', String(_stuFilter.limit || 50));
+  params.append('sortBy', _stuFilter.sortBy || 'registerNo');
+  params.append('sortOrder', _stuFilter.sortOrder || 'asc');
+
+  if (_stuFilter.search) params.append('search', _stuFilter.search);
+  if (_stuFilter.entryType) params.append('entryType', _stuFilter.entryType);
+  if (_stuFilter.residency) params.append('residency', _stuFilter.residency);
+  if (_stuFilter.gender) params.append('gender', _stuFilter.gender);
+  if (selectedDeptFilter) params.append('deptId', selectedDeptFilter);
+
+  var url = '/api/controller/students?' + params.toString();
 
   var tbody = document.getElementById('students-tbody');
-  if (tbody) tbody.innerHTML = '<tr><td colspan="8" class="text-center">Loading student records…</td></tr>';
+  if (tbody) tbody.innerHTML = '<tr><td colspan="10" class="text-center" style="padding:30px;"><div class="spin" style="margin:0 auto 10px;"></div>Loading student records…</td></tr>';
 
   fetch(url, { headers: { 'Authorization': 'Bearer ' + token } })
     .then(function (r) { return r.json(); })
-    .then(function (data) {
-      cachedStudents = Array.isArray(data) ? data : [];
+    .then(function (res) {
+      var items = res.items || (res.data && res.data.items) || (Array.isArray(res) ? res : []);
+      _stuTotal = res.total != null ? res.total : items.length;
+      _stuTotalPages = res.totalPages != null ? res.totalPages : 1;
+      _stuFilter.page = res.page != null ? res.page : 1;
+
+      cachedStudents = items;
       renderStudentsTable(cachedStudents);
+      updateStudentPaginationUI();
     })
     .catch(function (err) {
       console.error('[Students Load Error]:', err);
+      if (tbody) tbody.innerHTML = '<tr><td colspan="10" class="text-center" style="color:var(--danger);padding:20px;">Failed to load student records: ' + escapeHtml(err.message) + '</td></tr>';
     });
 }
 
@@ -1663,45 +2190,124 @@ function renderStudentsTable(students) {
   var tbody = document.getElementById('students-tbody');
   if (!tbody) return;
 
-  if (!students.length) {
-    tbody.innerHTML = '<tr><td colspan="8" class="text-center">No student records found.</td></tr>';
+  if (!students || !students.length) {
+    tbody.innerHTML = '<tr><td colspan="10" class="text-center" style="padding:36px;color:var(--tmu);"><re-icon icon="users" size="24" style="opacity:0.4;display:block;margin:0 auto 8px;"></re-icon>No student records match the active search or filters.</td></tr>';
     return;
   }
 
   tbody.innerHTML = students.map(function (s) {
-    var pct = s.attendancePct;
+    var pct = s.attendancePct != null ? s.attendancePct : 100;
     var standing = pct >= 75
-      ? '<span class="status-tag approved">Good (' + pct + '%)</span>'
+      ? '<span class="status-tag approved" style="font-weight:700;">' + pct + '%</span>'
       : pct >= 65
-        ? '<span class="status-tag pending">Average (' + pct + '%)</span>'
-        : '<span class="status-tag rejected">Defaulter (' + pct + '%)</span>';
+        ? '<span class="status-tag pending" style="font-weight:700;">' + pct + '%</span>'
+        : '<span class="status-tag rejected" style="font-weight:700;">' + pct + '%</span>';
 
-    return '' +
-      '<tr>' +
-        '<td><strong>' + s.registerNo + '</strong></td>' +
-        '<td><strong>' + s.fullName + '</strong></td>' +
-        '<td>' + s.class + ' - ' + s.section + '</td>' +
-        '<td>' + s.department + '</td>' +
-        '<td>' + (s.batchTrackId || s.admissionYear || '—') + '</td>' +
-        '<td>' + s.classesAttended + ' / ' + s.classesHeld + '</td>' +
-        '<td><strong>' + pct + '%</strong></td>' +
-        '<td>' + standing + '</td>' +
-      '</tr>';
+    var entryBadge = (s.entryType === 'lateral' || s.admissionType === 'Lateral Entry')
+      ? '<span class="badge" style="background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;font-size:11px;padding:2px 7px;border-radius:4px;">Lateral</span>'
+      : '<span class="badge" style="background:#f1f5f9;color:#475569;font-size:11px;padding:2px 7px;border-radius:4px;">Regular</span>';
+
+    var residencyBadge = (s.residency === 'hostel')
+      ? '<span class="badge" style="background:#fdf4ff;color:#86198f;border:1px solid #f5d0fe;font-size:11px;padding:2px 7px;border-radius:4px;"><re-icon icon="home" size="10"></re-icon> Hostel</span>'
+      : '<span class="badge" style="background:#f0fdf4;color:#166534;border:1px solid #bbf7d0;font-size:11px;padding:2px 7px;border-radius:4px;"><re-icon icon="bus" size="10"></re-icon> Day</span>';
+
+    var regNo = s.registerNo || s.rollNumber || '—';
+    var classSec = (s.class || '—') + (s.section && s.section !== '—' ? (' - ' + s.section) : '');
+
+    return '<tr>' +
+      '<td class="sticky-col"><strong>' + escapeHtml(regNo) + '</strong></td>' +
+      '<td><div style="font-weight:600;color:var(--td);">' + escapeHtml(s.fullName || '—') + '</div></td>' +
+      '<td>' + escapeHtml(classSec) + '</td>' +
+      '<td>' + escapeHtml(s.department || '—') + '</td>' +
+      '<td>' + entryBadge + '</td>' +
+      '<td>' + residencyBadge + '</td>' +
+      '<td>' + escapeHtml(s.gender || '—') + '</td>' +
+      '<td>' + (s.classesAttended || 0) + ' / ' + (s.classesHeld || 0) + '</td>' +
+      '<td>' + standing + '</td>' +
+      '<td style="text-align:right;">' +
+        '<button type="button" class="btn btn-sm btn-sec" onclick="openStudentRecordModal(\'' + escapeHtml(s.trackId || s._id) + '\')" style="font-size:11.5px;padding:4px 9px;">' +
+          '<re-icon icon="file-text" size="11"></re-icon> Record' +
+        '</button>' +
+      '</td>' +
+    '</tr>';
   }).join('');
 }
 
-function filterStudentsTable(q) {
-  var query = (q || '').toLowerCase().trim();
-  if (!query) {
-    renderStudentsTable(cachedStudents);
-    return;
+function updateStudentPaginationUI() {
+  var info = document.getElementById('stu-pagination-info');
+  var prevBtn = document.getElementById('stu-prev-btn');
+  var nextBtn = document.getElementById('stu-next-btn');
+  var indicator = document.getElementById('stu-page-indicator');
+
+  var start = _stuTotal > 0 ? ((_stuFilter.page - 1) * _stuFilter.limit + 1) : 0;
+  var end = Math.min(_stuFilter.page * _stuFilter.limit, _stuTotal);
+
+  if (info) info.textContent = 'Showing ' + start + ' to ' + end + ' of ' + _stuTotal + ' students';
+  if (indicator) indicator.textContent = 'Page ' + _stuFilter.page + ' of ' + (_stuTotalPages || 1);
+
+  if (prevBtn) prevBtn.disabled = _stuFilter.page <= 1;
+  if (nextBtn) nextBtn.disabled = _stuFilter.page >= _stuTotalPages;
+}
+
+function changeStudentPage(delta) {
+  var newPage = _stuFilter.page + delta;
+  if (newPage >= 1 && newPage <= _stuTotalPages) {
+    _stuFilter.page = newPage;
+    loadStudentsData();
   }
-  var filtered = cachedStudents.filter(function (s) {
-    return (s.fullName || '').toLowerCase().includes(query) ||
-      (s.registerNo || '').toLowerCase().includes(query) ||
-      (s.class || '').toLowerCase().includes(query);
-  });
-  renderStudentsTable(filtered);
+}
+
+function onStudentSearchInput(val) {
+  clearTimeout(_stuSearchDebounce);
+  _stuSearchDebounce = setTimeout(function () {
+    _stuFilter.search = (val || '').trim();
+    _stuFilter.page = 1;
+    loadStudentsData();
+  }, 300);
+}
+
+function onStudentFilterChange(field, val) {
+  _stuFilter[field] = val || '';
+  _stuFilter.page = 1;
+  loadStudentsData();
+}
+
+function onStudentSortChange(val) {
+  if (!val) return;
+  var parts = val.split(':');
+  _stuFilter.sortBy = parts[0] || 'registerNo';
+  _stuFilter.sortOrder = parts[1] || 'asc';
+  _stuFilter.page = 1;
+  loadStudentsData();
+}
+
+function resetStudentFilters() {
+  _stuFilter = {
+    search: '',
+    entryType: '',
+    residency: '',
+    gender: '',
+    page: 1,
+    limit: 50,
+    sortBy: 'registerNo',
+    sortOrder: 'asc'
+  };
+  var sInput = document.getElementById('student-search-input');
+  if (sInput) sInput.value = '';
+  var fEntry = document.getElementById('stu-filter-entry');
+  if (fEntry) fEntry.value = '';
+  var fRes = document.getElementById('stu-filter-residency');
+  if (fRes) fRes.value = '';
+  var fGen = document.getElementById('stu-filter-gender');
+  if (fGen) fGen.value = '';
+  var fSort = document.getElementById('stu-filter-sort');
+  if (fSort) fSort.value = 'registerNo:asc';
+
+  loadStudentsData();
+}
+
+function filterStudentsTable(q) {
+  onStudentSearchInput(q);
 }
 
 // ── 6. PERIOD RECORDS & TEACHING NOTES ──────────────────────────
@@ -1744,7 +2350,7 @@ function renderPeriodRecordsTable(records, dateStr) {
     var periodsStr = Array.isArray(rec.periodNumbers) && rec.periodNumbers.length ? rec.periodNumbers.join(', ') : (rec.periodNumber || '1');
     return '' +
       '<tr>' +
-        '<td><strong>' + rec.className + (rec.section && rec.section !== '—' ? ' (' + rec.section + ')' : '') + '</strong></td>' +
+        '<td><strong>' + escapeHtml(rec.className + (rec.section && rec.section !== '—' ? ' (' + rec.section + ')' : '')) + '</strong></td>' +
         '<td>Period ' + periodsStr + '</td>' +
         '<td><span class="chip chip-blue">' + rec.subjectTrackId + '</span></td>' +
         '<td>' + rec.markedBy + '</td>' +
@@ -1867,6 +2473,10 @@ function toggleSelectAllDefaulters(master) {
 }
 
 function openMeetDefaultersModal() {
+  if (controllerContext?.role === 'principal') {
+    showToast('Student attendance warning notices must be issued by the respective Department HoD or Class Advisor.', 'warning');
+    return;
+  }
   var checked = document.querySelectorAll('.defaulter-item-check:checked');
   if (!checked.length) {
     showToast('Please select at least one defaulter student.');
@@ -2106,8 +2716,8 @@ function loadMonthlyReport() {
       tbody.innerHTML = cachedMonthlyReport.map(function (row) {
         return '' +
           '<tr>' +
-            '<td><strong>' + row.className + ' - ' + row.section + '</strong></td>' +
-            '<td>' + row.deptName + '</td>' +
+            '<td><strong>' + escapeHtml(row.className + ' - ' + row.section) + '</strong></td>' +
+            '<td>' + escapeHtml(row.deptName) + '</td>' +
             '<td>Yr ' + row.year + ' / Sem ' + row.sem + '</td>' +
             '<td>' + row.daysConducted + ' days</td>' +
             '<td><span style="color:#10b981;font-weight:700;">' + row.totalPresent + '</span></td>' +
@@ -2143,7 +2753,7 @@ function loadSemesterReport() {
         return '' +
           '<tr>' +
             '<td><span class="chip chip-blue">' + row.code + '</span></td>' +
-            '<td><strong>' + row.name + '</strong></td>' +
+            '<td><strong>' + escapeHtml(row.name) + '</strong></td>' +
             '<td>' + row.deptCode + '</td>' +
             '<td>Sem ' + row.sem + '</td>' +
             '<td>' + row.classesHeld + '</td>' +
@@ -2589,6 +3199,10 @@ function renderCtrlTtTable() {
 }
 
 async function ctrlReviewTimetable(id, action) {
+  if (controllerContext?.role === 'principal') {
+    showToast('Timetable verification is reserved for departmental HoD jurisdiction.', 'warning');
+    return;
+  }
   var comment = '';
   // Locate item details from cached inbox or dedicated verification requests
   var inboxItem = (typeof _inboxItems !== 'undefined' && Array.isArray(_inboxItems))
@@ -2929,108 +3543,60 @@ function loadProfileData() {
 // ── 13. APPROVALS INBOX (HOD & EXECUTIVE QUEUE) ─────────────────
 var _inboxItems = [];
 var _inboxFilter = 'all';
+var _inboxSort = 'priority'; // 'priority' | 'newest' | 'oldest'
+var _selectedInboxId = null;
+var _pendingUndoAction = null;
+var _undoActionTimer = null;
 
 function loadInboxData() {
-  var container = document.getElementById('inbox-items-container');
-  if (!container) return;
-  container.innerHTML = '<div style="text-align:center;padding:40px;color:var(--tmu);"><div class="spin" style="margin:0 auto 10px;"></div>Loading approvals queue…</div>';
+  var listContainer = document.getElementById('inbox-items-container');
+  var detailEmpty = document.getElementById('ctrl-inbox-detail-empty');
+  var detailContent = document.getElementById('ctrl-inbox-detail-content');
+
+  if (listContainer) {
+    listContainer.innerHTML = '<div style="text-align:center;padding:40px;color:var(--tmu);"><div class="spin" style="margin:0 auto 10px;"></div>Loading approvals queue…</div>';
+  }
 
   var token = getToken();
+  var sortParam = encodeURIComponent(_inboxSort || 'priority');
 
-  Promise.allSettled([
-    fetch('/api/controller/inbox?_t=' + Date.now(), {
-      headers: { 'Authorization': 'Bearer ' + token }
-    }).then(function (r) { return r.json(); }),
-    fetch('/api/access-requests?status=pending_hod&_t=' + Date.now(), {
-      headers: { 'Authorization': 'Bearer ' + token }
-    }).then(function (r) { return r.json(); }),
-    fetch('/api/timetable/verification-requests?status=pending&_t=' + Date.now(), {
-      headers: { 'Authorization': 'Bearer ' + token }
-    }).then(function (r) { return r.json(); })
-  ])
-  .then(function (results) {
-    var ctrlData = results[0].status === 'fulfilled' ? results[0].value : [];
-    var accessData = results[1].status === 'fulfilled' ? results[1].value : {};
-    var ttData = results[2].status === 'fulfilled' ? results[2].value : [];
+  fetch('/api/controller/inbox?sort=' + sortParam + '&_t=' + Date.now(), {
+    headers: { 'Authorization': 'Bearer ' + token }
+  })
+  .then(function (r) { return r.json(); })
+  .then(function (data) {
+    var rawItems = data.items || (Array.isArray(data) ? data : []);
 
-    var ctrlItems = Array.isArray(ctrlData) ? ctrlData : (ctrlData.items || []);
-    var accessItems = (accessData.requests || []).map(function (r) {
-      return {
-        type: 'role_access',
-        id: r.requestId,
-        title: 'Sub-Admin Role Delegation: ' + (r.forTeacherName || 'Faculty Member'),
-        subtitle: 'Requested by ' + (r.requestedBy?.name || 'Administrator') + ' • Dept: ' + (r.deptName || 'Department'),
-        badge: 'Role Access',
-        badgeClass: 'warning',
-        createdAt: r.createdAt,
-        requester: r.forTeacherName,
-        department: r.deptName || '',
-        desc: 'Modules: ' + (r.grants || []).map(function (g) { return g.page + ' (' + (g.actions || []).join(', ') + ')'; }).join(', ') +
-              (r.reason ? ' • Reason: ' + r.reason : '')
-      };
-    });
-
-    var ttRaw = Array.isArray(ttData) ? ttData : ((ttData && ttData.data) ? ttData.data : []);
-    var ttItems = ttRaw.map(function (tt) {
-      var vName = tt.versionName || ('v' + tt.version);
-      var submitter = (tt.verificationRequest && tt.verificationRequest.requestedBy) || tt.savedBy || 'Coordinator';
-      var notes = (tt.verificationRequest && tt.verificationRequest.notes) || tt.changeSummary || 'Draft ready for departmental verification';
-      return {
-        id: String(tt._id),
-        type: 'timetable_verification',
-        title: 'Timetable Verification: ' + (tt.className || 'Class') + ' (' + vName + ')',
-        subtitle: 'Submitted by ' + submitter + ' · ' + notes,
-        badge: 'Timetable Verification',
-        badgeClass: 'warning',
-        createdAt: (tt.verificationRequest && tt.verificationRequest.requestedAt) || tt.createdAt,
-        requester: submitter,
-        department: tt.className || '',
-        context: {
-          className: tt.className || 'General',
-          versionName: vName,
-          submitter: submitter,
-          notes: notes
-        },
-        actions: ['view_matrix', 'approve', 'reject']
-      };
-    });
-
-    // Merge and deduplicate by id
-    var seenIds = new Set();
-    _inboxItems = [];
-    ctrlItems.concat(accessItems).concat(ttItems).forEach(function (item) {
-      if (!item) return;
-      var idStr = String(item.id || item._id);
-      if (!seenIds.has(idStr)) {
-        seenIds.add(idStr);
-        _inboxItems.push(item);
-      }
-    });
-
-    _inboxItems.sort(function (a, b) {
-      return new Date(a.createdAt || 0) - new Date(b.createdAt || 0);
-    });
+    _inboxItems = rawItems;
 
     // Count categories
     var counts = {
       all: _inboxItems.length,
       faculty_leave: 0,
+      student_leave: 0,
       student_od: 0,
       attendance_unlock: 0,
       unresolved_substitution: 0,
       evidence_overdue: 0,
       role_access: 0,
-      timetable_verification: 0
+      timetable_verification: 0,
+      escalations: 0
     };
 
     _inboxItems.forEach(function (i) {
       if (counts[i.type] != null) counts[i.type]++;
+      if (i.escalated) counts.escalations++;
     });
 
     Object.keys(counts).forEach(function (k) {
       var el = document.getElementById('inbox-count-' + k);
       if (el) el.textContent = counts[k];
     });
+
+    var chipEsc = document.getElementById('chip-inbox-escalations');
+    if (chipEsc) {
+      chipEsc.style.display = (counts.escalations > 0 || controllerContext?.role === 'principal') ? 'inline-flex' : 'none';
+    }
 
     var sbBadge = document.getElementById('sb-inbox-badge');
     if (sbBadge) {
@@ -3042,12 +3608,46 @@ function loadInboxData() {
       updateCtrlTtVerificationBadge(counts.timetable_verification);
     }
 
+    if (typeof updateNeedsAttentionStrip === 'function') {
+      updateNeedsAttentionStrip(counts, typeof _lastOverdueCount !== 'undefined' ? _lastOverdueCount : 0);
+    }
+
     renderInboxItems();
+
+    // Auto-select on desktop if items exist
+    var filtered = getFilteredInboxItems();
+    if (filtered.length > 0) {
+      var stillSelected = _selectedInboxId && filtered.find(function (it) { return String(it.id || it._id) === String(_selectedInboxId); });
+      if (stillSelected) {
+        selectInboxItem(_selectedInboxId);
+      } else if (window.innerWidth >= 900) {
+        selectInboxItem(filtered[0].id || filtered[0]._id);
+      } else {
+        clearInboxDetail();
+      }
+    } else {
+      clearInboxDetail();
+    }
   })
   .catch(function (err) {
     console.error('[loadInboxData err]:', err);
-    container.innerHTML = '<div style="text-align:center;padding:40px;color:var(--tmu);">Failed to load inbox items: ' + escapeHtml(err.message) + '</div>';
+    if (listContainer) {
+      listContainer.innerHTML = '<div style="text-align:center;padding:40px;color:var(--tmu);">Failed to load inbox items: ' + escapeHtml(err.message) + '</div>';
+    }
+    clearInboxDetail();
   });
+}
+
+function toggleInboxSortOrder() {
+  if (_inboxSort === 'priority') _inboxSort = 'newest';
+  else if (_inboxSort === 'newest') _inboxSort = 'oldest';
+  else _inboxSort = 'priority';
+
+  var label = document.getElementById('inbox-sort-label');
+  if (label) {
+    label.textContent = _inboxSort === 'priority' ? 'Urgent First' : (_inboxSort === 'newest' ? 'Newest First' : 'Oldest First');
+  }
+  loadInboxData();
 }
 
 function filterInbox(type, btn) {
@@ -3057,16 +3657,37 @@ function filterInbox(type, btn) {
   });
   if (btn) btn.classList.add('act');
   renderInboxItems();
+
+  var filtered = getFilteredInboxItems();
+  if (filtered.length > 0) {
+    var stillSelected = _selectedInboxId && filtered.find(function (it) { return String(it.id || it._id) === String(_selectedInboxId); });
+    if (stillSelected) {
+      selectInboxItem(_selectedInboxId);
+    } else if (window.innerWidth >= 900) {
+      selectInboxItem(filtered[0].id || filtered[0]._id);
+    } else {
+      clearInboxDetail();
+    }
+  } else {
+    clearInboxDetail();
+  }
+}
+
+function getFilteredInboxItems() {
+  if (_inboxFilter === 'escalations') {
+    return _inboxItems.filter(function (i) { return i.escalated === true; });
+  }
+  if (_inboxFilter !== 'all') {
+    return _inboxItems.filter(function (i) { return i.type === _inboxFilter; });
+  }
+  return _inboxItems;
 }
 
 function renderInboxItems() {
   var container = document.getElementById('inbox-items-container');
   if (!container) return;
 
-  var items = _inboxItems;
-  if (_inboxFilter !== 'all') {
-    items = items.filter(function (i) { return i.type === _inboxFilter; });
-  }
+  var items = getFilteredInboxItems();
 
   if (items.length === 0) {
     container.innerHTML = '<div class="card" style="text-align:center;padding:44px 20px;color:var(--tmu);font-size:13px;border-radius:14px;">' +
@@ -3078,234 +3699,397 @@ function renderInboxItems() {
   }
 
   container.innerHTML = items.map(function (item) {
-    var id = item.id || item._id;
-    var badgeCol = item.type === 'faculty_leave' ? '#dc2626' : item.type === 'student_od' ? '#2563eb' : item.type === 'attendance_unlock' ? '#d97706' : item.type === 'evidence_overdue' ? '#dc2626' : item.type === 'role_access' ? '#7c3aed' : item.type === 'timetable_verification' ? '#b45309' : '#475569';
-    var badgeBg = item.type === 'faculty_leave' ? '#fef2f2' : item.type === 'student_od' ? '#eff6ff' : item.type === 'attendance_unlock' ? '#fffbeb' : item.type === 'evidence_overdue' ? '#fef2f2' : item.type === 'role_access' ? '#f5f3ff' : item.type === 'timetable_verification' ? '#fef3c7' : '#f1f5f9';
-    var typeIcon = item.type === 'faculty_leave' ? 'user-x' : item.type === 'student_od' ? 'award' : item.type === 'attendance_unlock' ? 'lock-open' : item.type === 'evidence_overdue' ? 'alert-triangle' : item.type === 'role_access' ? 'shield' : item.type === 'timetable_verification' ? 'calendar-days' : 'inbox';
+    var id = String(item.id || item._id);
+    var isSelected = String(_selectedInboxId) === id;
+    var isUrgent = item.urgent || item.escalated;
+
+    var badgeCol = item.type === 'faculty_leave' ? '#dc2626'
+      : item.type === 'student_leave' ? '#2563eb'
+      : item.type === 'student_od' ? '#0891b2'
+      : item.type === 'attendance_unlock' ? '#d97706'
+      : item.type === 'evidence_overdue' ? '#dc2626'
+      : item.type === 'role_access' ? '#7c3aed'
+      : item.type === 'timetable_verification' ? '#b45309'
+      : '#475569';
+
+    var badgeBg = item.type === 'faculty_leave' ? '#fef2f2'
+      : item.type === 'student_leave' ? '#eff6ff'
+      : item.type === 'student_od' ? '#ecfeff'
+      : item.type === 'attendance_unlock' ? '#fffbeb'
+      : item.type === 'evidence_overdue' ? '#fef2f2'
+      : item.type === 'role_access' ? '#f5f3ff'
+      : item.type === 'timetable_verification' ? '#fef3c7'
+      : '#f1f5f9';
+
+    var typeIcon = item.type === 'faculty_leave' ? 'user-x'
+      : item.type === 'student_leave' ? 'calendar-minus'
+      : item.type === 'student_od' ? 'award'
+      : item.type === 'attendance_unlock' ? 'lock-open'
+      : item.type === 'evidence_overdue' ? 'alert-triangle'
+      : item.type === 'role_access' ? 'shield'
+      : item.type === 'timetable_verification' ? 'calendar-days'
+      : 'inbox';
 
     var dateStr = item.createdAt ? new Date(item.createdAt).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
 
-    var actionsHtml = '';
-    if (item.type === 'role_access') {
-      actionsHtml = '<button type="button" class="btn btn-sm btn-pri" style="display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:700;padding:6px 13px;border-radius:8px;" onclick="hodApproveInboxSubAdmin(\'' + id + '\')"><re-icon icon="check" size="12"></re-icon> Endorse &amp; Forward</button> ' +
-        '<button type="button" class="btn btn-sm btn-sec" style="display:inline-flex;align-items:center;gap:5px;color:#ef4444;font-size:12px;font-weight:600;padding:6px 11px;border-radius:8px;border:1px solid #fca5a5;" onclick="hodDenyInboxSubAdmin(\'' + id + '\')"><re-icon icon="x" size="12"></re-icon> Reject</button>';
-    } else if (item.type === 'faculty_leave') {
-      actionsHtml = '<button type="button" class="btn btn-sm btn-sec" style="display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600;padding:6px 11px;border-radius:8px;" onclick="openFacultyLeaveReviewModal(\'' + id + '\')"><re-icon icon="search" size="12"></re-icon> Review</button> ' +
-        '<button type="button" class="btn btn-sm btn-pri" style="display:inline-flex;align-items:center;gap:5px;background:#16a34a;font-weight:700;font-size:12px;padding:6px 14px;border-radius:8px;" onclick="quickPermitFacultyLeave(\'' + id + '\')"><re-icon icon="check" size="12"></re-icon> Permit</button> ' +
-        '<button type="button" class="btn btn-sm btn-danger" style="display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600;padding:6px 11px;border-radius:8px;" onclick="quickRejectFacultyLeave(\'' + id + '\')"><re-icon icon="x" size="12"></re-icon> Reject</button>';
-    } else if (item.type === 'student_od') {
-      actionsHtml = '<button type="button" class="btn btn-sm btn-sec" style="display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600;padding:6px 11px;border-radius:8px;" onclick="openODDetailModal(\'' + id + '\')"><re-icon icon="search" size="12"></re-icon> View</button> ' +
-        '<button type="button" class="btn btn-sm btn-pri" style="display:inline-flex;align-items:center;gap:5px;background:#16a34a;font-weight:700;font-size:12px;padding:6px 14px;border-radius:8px;" onclick="approveOD(\'' + id + '\')"><re-icon icon="check" size="12"></re-icon> Approve</button> ' +
-        '<button type="button" class="btn btn-sm btn-danger" style="display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600;padding:6px 11px;border-radius:8px;" onclick="rejectOD(\'' + id + '\')"><re-icon icon="x" size="12"></re-icon> Reject</button>';
-    } else if (item.type === 'attendance_unlock') {
-      actionsHtml = '<button type="button" class="btn btn-sm btn-pri" style="display:inline-flex;align-items:center;gap:5px;background:#16a34a;font-weight:700;font-size:12px;padding:6px 14px;border-radius:8px;" onclick="approveUnlockRequest(\'' + id + '\')"><re-icon icon="check" size="12"></re-icon> Unlock</button> ' +
-        '<button type="button" class="btn btn-sm btn-sec" style="display:inline-flex;align-items:center;gap:5px;color:#ef4444;font-size:12px;font-weight:600;padding:6px 11px;border-radius:8px;border:1px solid #fca5a5;" onclick="rejectUnlockRequest(\'' + id + '\')"><re-icon icon="x" size="12"></re-icon> Reject</button>';
-    } else if (item.type === 'unresolved_substitution') {
-      actionsHtml = '<button type="button" class="btn btn-sm btn-pri" style="display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:700;padding:6px 13px;border-radius:8px;" onclick="openDirectAssignSubModal(\'' + id + '\')"><re-icon icon="refresh" size="12"></re-icon> Assign Sub</button>';
-    } else if (item.type === 'evidence_overdue') {
-      actionsHtml = '<button type="button" class="btn btn-sm btn-danger" style="display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600;padding:6px 12px;border-radius:8px;" onclick="openRejectODModal(\'' + id + '\')"><re-icon icon="alert-triangle" size="12"></re-icon> Revoke OD</button> ' +
-        '<button type="button" class="btn btn-sm btn-sec" style="display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600;padding:6px 11px;border-radius:8px;" onclick="openODDetailModal(\'' + id + '\')">View</button>';
-    } else if (item.type === 'timetable_verification') {
-      actionsHtml = '<button type="button" class="btn btn-sm btn-sec" onclick="openCtrlTimetableMatrixModal(\'' + id + '\')" style="display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;padding:6px 13px;border-radius:8px;border:1px solid var(--br);background:#fff;color:var(--td);transition:all .15s;"><re-icon icon="grid" size="13"></re-icon> View Matrix</button> ' +
-        '<button type="button" class="btn btn-sm btn-pri" style="display:inline-flex;align-items:center;gap:6px;background:#16a34a;color:#fff;font-weight:700;font-size:12px;padding:6px 15px;border-radius:8px;border:none;box-shadow:0 2px 6px rgba(22,163,74,0.25);transition:all .15s;" onclick="ctrlReviewTimetable(\'' + id + '\', \'approve\')"><re-icon icon="check" size="13"></re-icon> Approve</button> ' +
-        '<button type="button" class="btn btn-sm btn-danger" style="display:inline-flex;align-items:center;gap:6px;background:#dc2626;color:#fff;font-weight:600;font-size:12px;padding:6px 13px;border-radius:8px;border:none;box-shadow:0 2px 6px rgba(220,38,38,0.2);transition:all .15s;" onclick="ctrlReviewTimetable(\'' + id + '\', \'reject\')"><re-icon icon="x" size="13"></re-icon> Reject</button>';
-    }
-
-    // Format rich metadata context
-    var detailsHtml = '';
-    if (item.type === 'timetable_verification') {
-      var cName = (item.context && (item.context.className || item.context.class)) || item.department || '';
-      var vName = (item.context && (item.context.versionName || item.context.version)) || '';
-      var notes = (item.context && item.context.notes) || '';
-      var submitter = (item.context && item.context.submitter) || item.requester || '';
-
-      var chips = [];
-      if (cName) {
-        chips.push('<span class="badge" style="background:var(--bg2,#f8fafc);color:var(--td);border:1px solid var(--br);font-size:11.5px;font-weight:600;padding:3px 9px;border-radius:6px;display:inline-flex;align-items:center;gap:5px;"><re-icon icon="chalkboard" size="12" style="color:#b45309;"></re-icon> Class: <b style="color:var(--td);">' + escapeHtml(cName) + '</b></span>');
-      }
-      if (vName) {
-        chips.push('<span class="badge" style="background:#eff6ff;color:#1e40af;border:1px solid #bfdbfe;font-size:11.5px;font-weight:600;padding:3px 9px;border-radius:6px;display:inline-flex;align-items:center;gap:5px;"><re-icon icon="git-branch" size="12" style="color:#2563eb;"></re-icon> Version: <b style="color:#1e40af;">' + escapeHtml(vName) + '</b></span>');
-      }
-      if (submitter) {
-        chips.push('<span class="badge" style="background:#f1f5f9;color:#475569;border:1px solid var(--br);font-size:11.5px;font-weight:600;padding:3px 9px;border-radius:6px;display:inline-flex;align-items:center;gap:5px;"><re-icon icon="user" size="12"></re-icon> <span style="color:var(--td);">' + escapeHtml(submitter) + '</span></span>');
-      }
-
-      detailsHtml = '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:6px;">' + chips.join('') + '</div>';
-
-      if (notes) {
-        detailsHtml += '<div style="margin-top:7px;padding:6px 12px;background:rgba(245,158,11,0.06);border-left:3px solid #f59e0b;border-radius:0 6px 6px 0;font-size:12px;color:var(--td);display:flex;align-items:flex-start;gap:6px;">' +
-          '<re-icon icon="message-square" size="12" style="color:#b45309;margin-top:2px;flex-shrink:0;"></re-icon>' +
-          '<span><b>Coordinator Note:</b> ' + escapeHtml(notes) + '</span>' +
-        '</div>';
-      }
-    } else if (item.type === 'faculty_leave') {
-      var ctx = item.context || {};
-      var chips = [];
-      if (ctx.daysCount) {
-        chips.push('<span class="badge" style="background:var(--bg2,#f8fafc);color:var(--td);border:1px solid var(--br);font-size:11.5px;font-weight:600;padding:3px 9px;border-radius:6px;display:inline-flex;align-items:center;gap:5px;"><re-icon icon="calendar" size="12"></re-icon> ' + escapeHtml(String(ctx.daysCount)) + ' Day(s)</span>');
-      }
-      if (ctx.unresolvedCount > 0) {
-        chips.push('<span class="badge" style="background:#fef2f2;color:#dc2626;border:1px solid #fecaca;font-size:11.5px;font-weight:700;padding:3px 9px;border-radius:6px;display:inline-flex;align-items:center;gap:5px;"><re-icon icon="alert-triangle" size="12"></re-icon> ' + ctx.unresolvedCount + ' Unresolved Sub</span>');
-      }
-      if (ctx.substitutionsCount) {
-        chips.push('<span class="badge" style="background:#eff6ff;color:#2563eb;border:1px solid #bfdbfe;font-size:11.5px;font-weight:600;padding:3px 9px;border-radius:6px;display:inline-flex;align-items:center;gap:5px;"><re-icon icon="user-check" size="12"></re-icon> ' + ctx.substitutionsCount + ' Sub(s)</span>');
-      }
-      detailsHtml = '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:6px;">' + chips.join('') + '</div>';
-      if (ctx.reason) {
-        detailsHtml += '<div style="margin-top:7px;padding:6px 12px;background:rgba(220,38,38,0.05);border-left:3px solid #dc2626;border-radius:0 6px 6px 0;font-size:12px;color:var(--td);display:flex;align-items:flex-start;gap:6px;">' +
-          '<re-icon icon="message-square" size="12" style="color:#dc2626;margin-top:2px;flex-shrink:0;"></re-icon>' +
-          '<span><b>Reason:</b> ' + escapeHtml(ctx.reason) + '</span>' +
-        '</div>';
-      }
-    } else if (item.type === 'student_od') {
-      var ctx = item.context || {};
-      var chips = [];
-      if (ctx.eventName) {
-        chips.push('<span class="badge" style="background:var(--bg2,#f8fafc);color:var(--td);border:1px solid var(--br);font-size:11.5px;font-weight:600;padding:3px 9px;border-radius:6px;display:inline-flex;align-items:center;gap:5px;"><re-icon icon="award" size="12" style="color:#2563eb;"></re-icon> ' + escapeHtml(ctx.eventName) + '</span>');
-      }
-      if (ctx.daysCount) {
-        chips.push('<span class="badge" style="background:#eff6ff;color:#1e40af;border:1px solid #bfdbfe;font-size:11.5px;font-weight:600;padding:3px 9px;border-radius:6px;display:inline-flex;align-items:center;gap:5px;"><re-icon icon="calendar" size="12"></re-icon> ' + ctx.daysCount + ' Day(s)</span>');
-      }
-      if (ctx.score != null) {
-        chips.push('<span class="badge" style="background:#f0fdf4;color:#166534;border:1px solid #bbf7d0;font-size:11.5px;font-weight:700;padding:3px 9px;border-radius:6px;display:inline-flex;align-items:center;gap:5px;"><re-icon icon="shield-check" size="12"></re-icon> Score: ' + ctx.score + '/100</span>');
-      }
-      detailsHtml = '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:6px;">' + chips.join('') + '</div>';
-    } else if (item.type === 'attendance_unlock') {
-      var ctx = item.context || {};
-      var chips = [];
-      if (item.department) {
-        chips.push('<span class="badge" style="background:var(--bg2,#f8fafc);color:var(--td);border:1px solid var(--br);font-size:11.5px;font-weight:600;padding:3px 9px;border-radius:6px;display:inline-flex;align-items:center;gap:5px;"><re-icon icon="chalkboard" size="12"></re-icon> ' + escapeHtml(item.department) + '</span>');
-      }
-      if (ctx.periodNumber) {
-        chips.push('<span class="badge" style="background:#fffbeb;color:#b45309;border:1px solid #fde68a;font-size:11.5px;font-weight:600;padding:3px 9px;border-radius:6px;display:inline-flex;align-items:center;gap:5px;"><re-icon icon="clock" size="12"></re-icon> Period ' + escapeHtml(String(ctx.periodNumber)) + '</span>');
-      }
-      if (ctx.date) {
-        chips.push('<span class="badge" style="background:#f1f5f9;color:#475569;border:1px solid var(--br);font-size:11.5px;font-weight:600;padding:3px 9px;border-radius:6px;display:inline-flex;align-items:center;gap:5px;"><re-icon icon="calendar" size="12"></re-icon> ' + escapeHtml(ctx.date) + '</span>');
-      }
-      detailsHtml = '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:6px;">' + chips.join('') + '</div>';
-    } else if (item.desc) {
-      detailsHtml = '<div style="font-size:12px;color:var(--td);margin-top:6px;">' + escapeHtml(item.desc) + '</div>';
-    } else if (item.context && typeof item.context === 'object') {
-      var validEntries = Object.entries(item.context).filter(function (e) {
-        var k = e[0].toLowerCase();
-        return !k.endsWith('id') && k !== '_id' && k !== 'type' && e[1] != null && String(e[1]).trim() !== '';
-      });
-      if (validEntries.length > 0) {
-        detailsHtml = '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:6px;">' +
-          validEntries.map(function (e) {
-            var label = e[0].replace(/([A-Z])/g, ' $1').replace(/^./, function (s) { return s.toUpperCase(); });
-            return '<span class="badge" style="background:var(--bg2,#f8fafc);color:var(--td);border:1px solid var(--br);font-size:11.5px;font-weight:600;padding:3px 8px;border-radius:6px;">' + escapeHtml(label) + ': <b>' + escapeHtml(String(e[1])) + '</b></span>';
-          }).join('') +
-        '</div>';
-      }
-    }
-
-    return '<div class="card inbox-item-card" style="padding:16px 20px;display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;border-radius:14px;border:1px solid var(--br);border-left:4px solid ' + badgeCol + ';box-shadow:0 2px 8px rgba(0,0,0,0.03);transition:all .2s ease;">' +
-      '<div style="flex:1;min-width:280px;">' +
-        '<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;flex-wrap:wrap;">' +
-          '<span class="badge" style="background:' + badgeBg + ';color:' + badgeCol + ';font-weight:700;padding:3px 9px;border-radius:6px;font-size:11px;display:inline-flex;align-items:center;gap:5px;letter-spacing:0.3px;">' +
-            '<re-icon icon="' + typeIcon + '" size="12"></re-icon> ' + escapeHtml(item.badge || item.type) +
+    return '<div class="card ctrl-inbox-item-card ' + (isSelected ? 'act' : '') + ' ' + (isUrgent ? 'is-urgent' : '') + '" ' +
+      'id="inbox-card-' + escapeHtml(id) + '" ' +
+      'onclick="selectInboxItem(\'' + escapeHtml(id) + '\')" ' +
+      'style="padding:14px 16px;margin-bottom:10px;cursor:pointer;border-radius:12px;border:1px solid ' + (isSelected ? 'var(--gD, #1b4d3e)' : 'var(--br)') + ';' +
+      'background:' + (isSelected ? 'rgba(27,77,62,0.05)' : '#fff') + ';border-left:4px solid ' + badgeCol + ';transition:all .15s ease;">' +
+      '<div style="display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:6px;">' +
+        '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">' +
+          '<span class="badge" style="background:' + badgeBg + ';color:' + badgeCol + ';font-weight:700;padding:2px 8px;border-radius:6px;font-size:10.5px;display:inline-flex;align-items:center;gap:4px;">' +
+            '<re-icon icon="' + typeIcon + '" size="11"></re-icon> ' + escapeHtml(item.badge || item.type) +
           '</span>' +
-          '<div style="font-size:14.5px;font-weight:700;color:var(--td);">' + escapeHtml(item.title) + '</div>' +
-          (dateStr ? ('<span style="font-size:11.5px;color:var(--tmu);margin-left:auto;display:inline-flex;align-items:center;gap:4px;font-family:monospace;"><re-icon icon="clock" size="11"></re-icon>' + dateStr + '</span>') : '') +
+          (item.escalated ? '<span class="badge" style="background:#fef2f2;color:#dc2626;border:1px solid #fca5a5;font-weight:700;font-size:10px;padding:2px 6px;border-radius:4px;"><re-icon icon="alert-circle" size="10"></re-icon> Escalated &gt;48h</span>' : '') +
+          (item.urgent && !item.escalated ? '<span class="badge" style="background:#fffbeb;color:#b45309;border:1px solid #fde68a;font-weight:700;font-size:10px;padding:2px 6px;border-radius:4px;"><re-icon icon="clock" size="10"></re-icon> Urgent</span>' : '') +
         '</div>' +
-        '<div style="font-size:12.5px;color:var(--tmu);margin-bottom:4px;">' + escapeHtml(item.subtitle) + '</div>' +
-        detailsHtml +
+        (dateStr ? ('<span style="font-size:11px;color:var(--tmu);font-family:monospace;white-space:nowrap;">' + dateStr + '</span>') : '') +
       '</div>' +
-      '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;flex-shrink:0;">' +
-        actionsHtml +
-      '</div>' +
+      '<div style="font-size:13.5px;font-weight:700;color:var(--td);line-height:1.35;margin-bottom:3px;">' + escapeHtml(item.title) + '</div>' +
+      '<div style="font-size:12px;color:var(--tmu);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + escapeHtml(item.subtitle || '') + '</div>' +
     '</div>';
   }).join('');
 }
 
-function approveUnlockRequest(id) {
-  var token = getToken();
-  fetch('/api/controller/unlock-requests/' + id + '/approve', {
-    method: 'POST',
-    headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' }
-  })
-  .then(function (r) { return r.json(); })
-  .then(function (res) {
-    if (res.error) throw new Error(res.error);
-    showToast('Attendance lock request approved!', 'success');
-    loadInboxData();
-  })
-  .catch(function (err) {
-    showToast('Failed to approve unlock: ' + err.message, 'error');
-  });
+function clearInboxDetail() {
+  _selectedInboxId = null;
+  var detailEmpty = document.getElementById('ctrl-inbox-detail-empty');
+  var detailContent = document.getElementById('ctrl-inbox-detail-content');
+  if (detailEmpty) detailEmpty.style.display = 'block';
+  if (detailContent) {
+    detailContent.style.display = 'none';
+    detailContent.innerHTML = '';
+  }
 }
 
-async function rejectUnlockRequest(id) {
-  var note = await showPrompt('Enter reason for rejecting unlock request:', '', 'Reject Unlock');
-  if (!note || !note.trim()) return;
+function selectInboxItem(id) {
+  _selectedInboxId = String(id);
 
-  var token = getToken();
-  fetch('/api/controller/unlock-requests/' + id + '/reject', {
-    method: 'POST',
-    headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ note: note.trim() })
-  })
-  .then(function (r) { return r.json(); })
-  .then(function (res) {
-    if (res.error) throw new Error(res.error);
-    showToast('Unlock request rejected', 'info');
-    loadInboxData();
-  })
-  .catch(function (err) {
-    showToast('Failed to reject unlock: ' + err.message, 'error');
+  // Update visual selection in master list
+  document.querySelectorAll('.ctrl-inbox-item-card').forEach(function (card) {
+    card.classList.remove('act');
+    card.style.background = '#fff';
+    card.style.borderColor = 'var(--br)';
   });
+  var activeCard = document.getElementById('inbox-card-' + id);
+  if (activeCard) {
+    activeCard.classList.add('act');
+    activeCard.style.background = 'rgba(27,77,62,0.06)';
+    activeCard.style.borderColor = 'var(--gD, #1b4d3e)';
+  }
+
+  var item = _inboxItems.find(function (it) { return String(it.id || it._id) === String(id); });
+  if (!item) return;
+
+  var detailEmpty = document.getElementById('ctrl-inbox-detail-empty');
+  var detailContent = document.getElementById('ctrl-inbox-detail-content');
+  if (detailEmpty) detailEmpty.style.display = 'none';
+  if (!detailContent) return;
+  detailContent.style.display = 'block';
+
+  var badgeCol = item.type === 'faculty_leave' ? '#dc2626'
+    : item.type === 'student_leave' ? '#2563eb'
+    : item.type === 'student_od' ? '#0891b2'
+    : item.type === 'attendance_unlock' ? '#d97706'
+    : item.type === 'evidence_overdue' ? '#dc2626'
+    : item.type === 'role_access' ? '#7c3aed'
+    : item.type === 'timetable_verification' ? '#b45309'
+    : '#475569';
+
+  var dateFull = item.createdAt ? new Date(item.createdAt).toLocaleString([], { dateStyle: 'full', timeStyle: 'short' }) : '—';
+  var ctx = item.context || {};
+
+  // Build Context Cards
+  var metaCardsHtml = '';
+
+  if (item.type === 'faculty_leave') {
+    var subs = ctx.substitutions || [];
+    var subsHtml = subs.length ? subs.map(function (s) {
+      var isCovered = s.status === 'accepted';
+      return '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:var(--bg2,#f8fafc);border-radius:6px;border:1px solid var(--br);font-size:12px;margin-bottom:6px;">' +
+        '<div><strong>Period ' + escapeHtml(String(s.periodNumber || s.period || '—')) + '</strong> · ' + escapeHtml(s.className || 'Class') + ' (' + escapeHtml(s.subjectName || s.subjectCode || 'Subject') + ')</div>' +
+        '<div style="display:flex;align-items:center;gap:6px;">' +
+          '<span>Sub: <b>' + escapeHtml(s.substituteTeacherName || 'Unassigned') + '</b></span>' +
+          '<span class="badge" style="background:' + (isCovered ? '#f0fdf4;color:#166534' : '#fef2f2;color:#dc2626') + ';font-weight:700;">' + (isCovered ? 'Covered' : 'Unresolved') + '</span>' +
+        '</div>' +
+      '</div>';
+    }).join('') : '<div style="font-size:12.5px;color:var(--tmu);">No classroom periods affected by this leave.</div>';
+
+    metaCardsHtml = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;">' +
+      '<div class="card" style="padding:14px;"><div style="font-size:11.5px;color:var(--tmu);">Faculty Applicant</div><div style="font-size:14.5px;font-weight:700;color:var(--td);margin-top:2px;">' + escapeHtml(item.requester || 'Faculty') + '</div><div style="font-size:12px;color:var(--tmu);">' + escapeHtml(item.department || '') + '</div></div>' +
+      '<div class="card" style="padding:14px;"><div style="font-size:11.5px;color:var(--tmu);">Duration &amp; Days</div><div style="font-size:14.5px;font-weight:700;color:var(--td);margin-top:2px;">' + (ctx.daysCount || 1) + ' Day(s) (' + escapeHtml(ctx.leaveType || 'Leave') + ')</div><div style="font-size:12px;color:var(--tmu);">' + escapeHtml(ctx.fromDate || '') + ' → ' + escapeHtml(ctx.toDate || '') + '</div></div>' +
+    '</div>' +
+    '<div class="card" style="padding:14px;margin-bottom:14px;">' +
+      '<div style="font-size:11.5px;color:var(--tmu);margin-bottom:4px;">Stated Reason</div>' +
+      '<div style="font-size:13.5px;color:var(--td);line-height:1.45;">' + escapeHtml(ctx.reason || 'No detailed reason provided.') + '</div>' +
+    '</div>' +
+    '<div class="card" style="padding:14px;margin-bottom:14px;">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">' +
+        '<label style="font-size:12px;font-weight:700;color:var(--td);">Teaching Coverage &amp; Substitutions:</label>' +
+        (ctx.unresolvedCount > 0 ? ('<button class="btn btn-sm btn-sec" onclick="openDirectAssignSubModal(\'' + id + '\')" style="font-size:11px;padding:3px 8px;"><re-icon icon="refresh" size="11"></re-icon> Direct Assign</button>') : '') +
+      '</div>' +
+      subsHtml +
+    '</div>';
+  } else if (item.type === 'student_leave') {
+    metaCardsHtml = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;">' +
+      '<div class="card" style="padding:14px;"><div style="font-size:11.5px;color:var(--tmu);">Student</div><div style="font-size:14.5px;font-weight:700;color:var(--td);margin-top:2px;">' + escapeHtml(item.requester || ctx.studentName || 'Student') + '</div><div style="font-size:12px;color:var(--tmu);">' + escapeHtml(ctx.rollNumber || ctx.registerNumber || '') + ' · ' + escapeHtml(ctx.className || '') + '</div></div>' +
+      '<div class="card" style="padding:14px;"><div style="font-size:11.5px;color:var(--tmu);">Leave Type &amp; Duration</div><div style="font-size:14.5px;font-weight:700;color:var(--td);margin-top:2px;">' + escapeHtml(ctx.leaveType || 'Leave') + ' (' + (ctx.daysCount || 1) + ' d)</div><div style="font-size:12px;color:var(--tmu);">' + escapeHtml(ctx.fromDate || '') + ' → ' + escapeHtml(ctx.toDate || '') + '</div></div>' +
+    '</div>' +
+    '<div class="card" style="padding:14px;margin-bottom:14px;">' +
+      '<div style="font-size:11.5px;color:var(--tmu);margin-bottom:4px;">Reason for Absence</div>' +
+      '<div style="font-size:13.5px;color:var(--td);line-height:1.45;">' + escapeHtml(ctx.reason || 'None provided.') + '</div>' +
+      (ctx.parentConsent ? '<div style="margin-top:8px;font-size:12px;color:#166534;"><re-icon icon="check" size="12"></re-icon> Parent / Guardian Consent Verified</div>' : '') +
+    '</div>';
+  } else if (item.type === 'student_od') {
+    metaCardsHtml = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;">' +
+      '<div class="card" style="padding:14px;"><div style="font-size:11.5px;color:var(--tmu);">Student Participant</div><div style="font-size:14.5px;font-weight:700;color:var(--td);margin-top:2px;">' + escapeHtml(item.requester || 'Student') + '</div><div style="font-size:12px;color:var(--tmu);">' + escapeHtml(ctx.rollNumber || '') + ' · ' + escapeHtml(ctx.className || '') + '</div></div>' +
+      '<div class="card" style="padding:14px;"><div style="font-size:11.5px;color:var(--tmu);">Event &amp; Organizer</div><div style="font-size:14.5px;font-weight:700;color:var(--td);margin-top:2px;">' + escapeHtml(ctx.eventName || item.title) + '</div><div style="font-size:12px;color:var(--tmu);">' + escapeHtml(ctx.organizer || 'External / Institutional') + '</div></div>' +
+    '</div>' +
+    '<div class="card" style="padding:14px;margin-bottom:14px;">' +
+      '<div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(130px, 1fr));gap:10px;">' +
+        '<div><div style="font-size:11px;color:var(--tmu);">Dates</div><div style="font-weight:600;font-size:13px;color:var(--td);">' + escapeHtml(ctx.fromDate || '') + (ctx.toDate ? (' → ' + escapeHtml(ctx.toDate)) : '') + '</div></div>' +
+        '<div><div style="font-size:11px;color:var(--tmu);">Category</div><div style="font-weight:600;font-size:13px;color:var(--td);">' + escapeHtml(ctx.category || 'Co-curricular') + '</div></div>' +
+        '<div><div style="font-size:11px;color:var(--tmu);">Merit Score</div><div style="font-weight:700;font-size:13px;color:#16a34a;">' + (ctx.score != null ? (ctx.score + ' / 100') : 'Pending review') + '</div></div>' +
+      '</div>' +
+    '</div>';
+  } else if (item.type === 'attendance_unlock') {
+    metaCardsHtml = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;">' +
+      '<div class="card" style="padding:14px;"><div style="font-size:11.5px;color:var(--tmu);">Target Session</div><div style="font-size:14.5px;font-weight:700;color:var(--td);margin-top:2px;">' + escapeHtml(ctx.className || item.department || 'Class') + ' · Period ' + escapeHtml(String(ctx.periodNumber || ctx.period || '—')) + '</div><div style="font-size:12px;color:var(--tmu);">Date: ' + escapeHtml(ctx.date || '') + '</div></div>' +
+      '<div class="card" style="padding:14px;"><div style="font-size:11.5px;color:var(--tmu);">Requesting Faculty</div><div style="font-size:14.5px;font-weight:700;color:var(--td);margin-top:2px;">' + escapeHtml(item.requester || 'Faculty') + '</div><div style="font-size:12px;color:var(--tmu);">' + escapeHtml(item.department || '') + '</div></div>' +
+    '</div>' +
+    '<div class="card" style="padding:14px;margin-bottom:14px;">' +
+      '<div style="font-size:11.5px;color:var(--tmu);margin-bottom:4px;">Reason for Unlock Request</div>' +
+      '<div style="font-size:13.5px;color:var(--td);line-height:1.45;">' + escapeHtml(ctx.reason || item.subtitle || 'Late attendance entry requested.') + '</div>' +
+    '</div>';
+  } else if (item.type === 'timetable_verification') {
+    metaCardsHtml = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;">' +
+      '<div class="card" style="padding:14px;"><div style="font-size:11.5px;color:var(--tmu);">Class &amp; Version</div><div style="font-size:14.5px;font-weight:700;color:var(--td);margin-top:2px;">' + escapeHtml(ctx.className || 'Class') + ' (' + escapeHtml(ctx.versionName || 'Draft') + ')</div><div style="font-size:12px;color:var(--tmu);">Submitted by: ' + escapeHtml(ctx.submitter || item.requester || 'Coordinator') + '</div></div>' +
+      '<div class="card" style="padding:14px;"><div style="font-size:11.5px;color:var(--tmu);">Submission Date</div><div style="font-size:14px;font-weight:600;color:var(--td);margin-top:2px;">' + dateFull + '</div><button class="btn btn-sm btn-sec" onclick="openCtrlTimetableMatrixModal(\'' + id + '\')" style="margin-top:6px;font-size:11.5px;padding:4px 9px;"><re-icon icon="grid" size="12"></re-icon> Open Matrix View</button></div>' +
+    '</div>' +
+    '<div class="card" style="padding:14px;margin-bottom:14px;">' +
+      '<div style="font-size:11.5px;color:var(--tmu);margin-bottom:4px;">Coordinator Notes</div>' +
+      '<div style="font-size:13.5px;color:var(--td);line-height:1.45;">' + escapeHtml(ctx.notes || 'Draft ready for departmental verification.') + '</div>' +
+    '</div>';
+  } else if (item.type === 'role_access') {
+    metaCardsHtml = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;">' +
+      '<div class="card" style="padding:14px;"><div style="font-size:11.5px;color:var(--tmu);">Designated Teacher</div><div style="font-size:14.5px;font-weight:700;color:var(--td);margin-top:2px;">' + escapeHtml(item.requester || 'Faculty') + '</div><div style="font-size:12px;color:var(--tmu);">' + escapeHtml(item.department || '') + '</div></div>' +
+      '<div class="card" style="padding:14px;"><div style="font-size:11.5px;color:var(--tmu);">Requested Privilege</div><div style="font-size:14.5px;font-weight:700;color:#7c3aed;margin-top:2px;">Sub-Admin Delegation</div><div style="font-size:12px;color:var(--tmu);">Requires Sudo Admin confirmation</div></div>' +
+    '</div>' +
+    '<div class="card" style="padding:14px;margin-bottom:14px;">' +
+      '<div style="font-size:11.5px;color:var(--tmu);margin-bottom:4px;">Permissions / Context</div>' +
+      '<div style="font-size:13.5px;color:var(--td);line-height:1.45;">' + escapeHtml(item.desc || item.subtitle || 'Sub-admin departmental module access requested.') + '</div>' +
+    '</div>';
+  } else if (item.type === 'evidence_overdue') {
+    metaCardsHtml = '<div class="card" style="padding:14px;margin-bottom:14px;border-left:4px solid #dc2626;">' +
+      '<div style="font-size:13px;font-weight:700;color:#dc2626;margin-bottom:4px;"><re-icon icon="alert-triangle" size="14"></re-icon> Event Proof Grace Period Expired</div>' +
+      '<div style="font-size:13px;color:var(--td);line-height:1.45;">The student has not uploaded event participation evidence within the mandated grace window. You may revoke the provisional attendance credit or grant an extension.</div>' +
+    '</div>';
+  } else if (item.type === 'unresolved_substitution') {
+    metaCardsHtml = '<div class="card" style="padding:14px;margin-bottom:14px;border-left:4px solid #d97706;">' +
+      '<div style="font-size:13px;font-weight:700;color:#b45309;margin-bottom:4px;"><re-icon icon="alert-circle" size="14"></re-icon> Unassigned Classroom Substitution</div>' +
+      '<div style="font-size:13px;color:var(--td);line-height:1.45;">This teaching slot currently has no active substitute assigned. Timetable engine requires immediate manual coverage assignment.</div>' +
+    '</div>';
+  }
+
+  // Build Action Buttons
+  var isPrincipal = controllerContext?.role === 'principal';
+  var actionsHtml = '';
+
+  if (item.type === 'faculty_leave') {
+    actionsHtml = '<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">' +
+      '<div style="display:flex;gap:8px;">' +
+        '<button type="button" class="btn btn-sec" onclick="openFacultyLeaveReviewModal(\'' + id + '\')"><re-icon icon="search" size="13"></re-icon> Full Modal</button>' +
+        '<button type="button" class="btn btn-sec" style="color:#d97706;" onclick="executeInboxAction(\'return\', \'' + id + '\')"><re-icon icon="undo" size="13"></re-icon> Return</button>' +
+        '<button type="button" class="btn btn-danger" onclick="executeInboxAction(\'reject\', \'' + id + '\')"><re-icon icon="x" size="13"></re-icon> Reject</button>' +
+      '</div>' +
+      '<button type="button" class="btn btn-pri" style="background:#16a34a;font-weight:700;padding:8px 20px;" onclick="executeInboxAction(\'approve\', \'' + id + '\')">' +
+        '<re-icon icon="check" size="14"></re-icon> ' + (isPrincipal ? 'Final Approve' : 'Permit &amp; Forward') +
+      '</button>' +
+    '</div>';
+  } else if (item.type === 'student_leave') {
+    actionsHtml = '<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">' +
+      '<button type="button" class="btn btn-danger" onclick="executeInboxAction(\'reject\', \'' + id + '\')"><re-icon icon="x" size="13"></re-icon> Reject Leave</button>' +
+      '<button type="button" class="btn btn-pri" style="background:#16a34a;font-weight:700;padding:8px 20px;" onclick="executeInboxAction(\'approve\', \'' + id + '\')"><re-icon icon="check" size="14"></re-icon> Approve Student Leave</button>' +
+    '</div>';
+  } else if (item.type === 'student_od') {
+    actionsHtml = '<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">' +
+      '<div style="display:flex;gap:8px;">' +
+        '<button type="button" class="btn btn-sec" onclick="openODDetailModal(\'' + id + '\')"><re-icon icon="search" size="13"></re-icon> View Full OD</button>' +
+        '<button type="button" class="btn btn-danger" onclick="executeInboxAction(\'reject\', \'' + id + '\')"><re-icon icon="x" size="13"></re-icon> Reject</button>' +
+      '</div>' +
+      '<button type="button" class="btn btn-pri" style="background:#16a34a;font-weight:700;padding:8px 20px;" onclick="executeInboxAction(\'approve\', \'' + id + '\')"><re-icon icon="check" size="14"></re-icon> Approve OD</button>' +
+    '</div>';
+  } else if (item.type === 'attendance_unlock') {
+    actionsHtml = '<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">' +
+      '<button type="button" class="btn btn-danger" onclick="executeInboxAction(\'reject\', \'' + id + '\')"><re-icon icon="x" size="13"></re-icon> Reject Unlock</button>' +
+      '<button type="button" class="btn btn-pri" style="background:#16a34a;font-weight:700;padding:8px 20px;" onclick="executeInboxAction(\'approve\', \'' + id + '\')"><re-icon icon="check" size="14"></re-icon> Unlock Attendance Session</button>' +
+    '</div>';
+  } else if (item.type === 'timetable_verification') {
+    actionsHtml = '<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">' +
+      '<div style="display:flex;gap:8px;">' +
+        '<button type="button" class="btn btn-sec" onclick="openCtrlTimetableMatrixModal(\'' + id + '\')"><re-icon icon="grid" size="13"></re-icon> View Matrix</button>' +
+        '<button type="button" class="btn btn-danger" onclick="executeInboxAction(\'reject\', \'' + id + '\')"><re-icon icon="x" size="13"></re-icon> Reject Matrix</button>' +
+      '</div>' +
+      '<button type="button" class="btn btn-pri" style="background:#16a34a;font-weight:700;padding:8px 20px;" onclick="executeInboxAction(\'approve\', \'' + id + '\')"><re-icon icon="check" size="14"></re-icon> Approve Timetable</button>' +
+    '</div>';
+  } else if (item.type === 'role_access') {
+    actionsHtml = '<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">' +
+      '<button type="button" class="btn btn-danger" onclick="executeInboxAction(\'reject\', \'' + id + '\')"><re-icon icon="x" size="13"></re-icon> Deny Access</button>' +
+      '<button type="button" class="btn btn-pri" style="font-weight:700;padding:8px 20px;" onclick="executeInboxAction(\'approve\', \'' + id + '\')"><re-icon icon="check" size="14"></re-icon> Endorse &amp; Forward</button>' +
+    '</div>';
+  } else if (item.type === 'unresolved_substitution') {
+    actionsHtml = '<div style="display:flex;justify-content:flex-end;">' +
+      '<button type="button" class="btn btn-pri" onclick="openDirectAssignSubModal(\'' + id + '\')"><re-icon icon="refresh" size="13"></re-icon> Assign Substitute Faculty</button>' +
+    '</div>';
+  } else if (item.type === 'evidence_overdue') {
+    actionsHtml = '<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">' +
+      '<button type="button" class="btn btn-sec" onclick="openODDetailModal(\'' + id + '\')">View Details</button>' +
+      '<button type="button" class="btn btn-danger" onclick="openRejectODModal(\'' + id + '\')"><re-icon icon="alert-triangle" size="13"></re-icon> Revoke Attendance Credit</button>' +
+    '</div>';
+  }
+
+  detailContent.innerHTML = '<div class="card" style="padding:22px 24px;border-radius:14px;box-shadow:0 3px 12px rgba(0,0,0,0.04);border:1px solid var(--br);">' +
+    '<!-- Header -->' +
+    '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px;flex-wrap:wrap;">' +
+      '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">' +
+        '<span class="badge" style="background:' + badgeCol + '15;color:' + badgeCol + ';font-weight:700;padding:4px 10px;border-radius:6px;font-size:11.5px;letter-spacing:0.3px;">' +
+          escapeHtml(item.badge || item.type) +
+        '</span>' +
+        (item.escalated ? '<span class="badge" style="background:#fef2f2;color:#dc2626;border:1px solid #fca5a5;font-weight:700;font-size:11px;padding:3px 8px;border-radius:6px;"><re-icon icon="alert-circle" size="11"></re-icon> Escalated to Principal (>48h)</span>' : '') +
+      '</div>' +
+      '<div style="font-size:12px;color:var(--tmu);font-family:monospace;">Submitted: ' + dateFull + '</div>' +
+    '</div>' +
+
+    '<h2 style="font-size:18px;font-weight:700;color:var(--td);margin:0 0 4px 0;line-height:1.35;">' + escapeHtml(item.title) + '</h2>' +
+    '<p style="font-size:13px;color:var(--tmu);margin:0 0 16px 0;">' + escapeHtml(item.subtitle || '') + '</p>' +
+
+    metaCardsHtml +
+
+    '<!-- Action Bar -->' +
+    '<div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--br);">' +
+      actionsHtml +
+    '</div>' +
+
+    '<!-- Keyboard hint footer -->' +
+    '<div style="margin-top:16px;padding-top:10px;border-top:1px dashed var(--br);display:flex;align-items:center;justify-content:space-between;font-size:11px;color:var(--tmu);">' +
+      '<span>Shortcuts: <kbd style="padding:1px 5px;border:1px solid var(--br);border-radius:3px;background:var(--bg2,#f8fafc);">j</kbd> next &bull; <kbd style="padding:1px 5px;border:1px solid var(--br);border-radius:3px;background:var(--bg2,#f8fafc);">k</kbd> prev &bull; <kbd style="padding:1px 5px;border:1px solid var(--br);border-radius:3px;background:var(--bg2,#f8fafc);">Enter</kbd> approve &bull; <kbd style="padding:1px 5px;border:1px solid var(--br);border-radius:3px;background:var(--bg2,#f8fafc);">Esc</kbd> deselect</span>' +
+      '<span>Queue Item #' + escapeHtml(id) + '</span>' +
+    '</div>' +
+  '</div>';
 }
 
-async function hodApproveInboxSubAdmin(requestId) {
-  var ok = await showConfirm('Endorse sub-admin access request ' + requestId + ' and forward for Sudo Administrator confirmation?', 'HOD Endorsement');
-  if (!ok) return;
+async function executeInboxAction(actionType, id) {
+  var item = _inboxItems.find(function (it) { return String(it.id || it._id) === String(id); });
+  if (!item) return;
 
+  var isPrincipal = controllerContext?.role === 'principal';
   var token = getToken();
-  fetch('/api/access-requests/' + requestId + '/hod-approve', {
-    method: 'POST',
-    headers: {
-      'Authorization': 'Bearer ' + token,
-      'Content-Type': 'application/json'
+
+  try {
+    if (item.type === 'faculty_leave') {
+      if (actionType === 'approve') {
+        decideFacultyLeave(id, isPrincipal ? 'principal-approve' : 'permit');
+      } else if (actionType === 'reject') {
+        decideFacultyLeave(id, 'reject');
+      } else if (actionType === 'return') {
+        decideFacultyLeave(id, 'return');
+      }
+    } else if (item.type === 'student_leave') {
+      if (actionType === 'approve') {
+        var res = await fetch('/api/controller/leaves/approve', {
+          method: 'POST',
+          headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ids: [id], type: 'student' })
+        }).then(function (r) { return r.json(); });
+        if (res.error) throw new Error(res.error);
+        showActionUndoToast('Student leave approved successfully.', function () {
+          // Optional undo callback
+        });
+        loadInboxData();
+      } else if (actionType === 'reject') {
+        var reason = await showPrompt('Enter reason for rejecting student leave:', '', 'Reject Leave');
+        if (!reason || !reason.trim()) return;
+        var res = await fetch('/api/controller/leaves/reject', {
+          method: 'POST',
+          headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ids: [id], type: 'student', reason: reason.trim() })
+        }).then(function (r) { return r.json(); });
+        if (res.error) throw new Error(res.error);
+        showToast('Student leave rejected.', 'info');
+        loadInboxData();
+      }
+    } else if (item.type === 'student_od') {
+      if (actionType === 'approve') {
+        approveOD(id);
+      } else if (actionType === 'reject') {
+        rejectOD(id);
+      }
+    } else if (item.type === 'attendance_unlock') {
+      if (actionType === 'approve') {
+        approveUnlockRequest(id);
+      } else if (actionType === 'reject') {
+        rejectUnlockRequest(id);
+      }
+    } else if (item.type === 'role_access') {
+      if (actionType === 'approve') {
+        hodApproveInboxSubAdmin(id);
+      } else if (actionType === 'reject') {
+        hodDenyInboxSubAdmin(id);
+      }
+    } else if (item.type === 'timetable_verification') {
+      if (actionType === 'approve') {
+        ctrlReviewTimetable(id, 'approve');
+      } else if (actionType === 'reject') {
+        ctrlReviewTimetable(id, 'reject');
+      }
     }
-  })
-  .then(function (res) { return res.json(); })
-  .then(function (res) {
-    if (res.error) throw new Error(res.error);
-    showToast(res.message || 'Request endorsed and forwarded to Sudo Admin', 'success');
-    loadInboxData();
-  })
-  .catch(function (err) {
-    console.error('[hodApproveInboxSubAdmin err]:', err);
-    showToast('Failed to endorse: ' + err.message, 'error');
-  });
+  } catch (err) {
+    console.error('[executeInboxAction err]:', err);
+    showToast('Action failed: ' + err.message, 'error');
+  }
 }
 
-async function hodDenyInboxSubAdmin(requestId) {
-  var reason = await showPrompt('Enter reason for denying access request ' + requestId + ':', '', 'HOD Denial');
-  if (!reason || !reason.trim()) return;
-
-  var token = getToken();
-  fetch('/api/access-requests/' + requestId + '/hod-deny', {
-    method: 'POST',
-    headers: {
-      'Authorization': 'Bearer ' + token,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({ reason: reason.trim() })
-  })
-  .then(function (res) { return res.json(); })
-  .then(function (res) {
-    if (res.error) throw new Error(res.error);
-    showToast(res.message || 'Request denied by HOD', 'info');
-    loadInboxData();
-  })
-  .catch(function (err) {
-    console.error('[hodDenyInboxSubAdmin err]:', err);
-    showToast('Failed to deny: ' + err.message, 'error');
-  });
+function showActionUndoToast(msg, undoFn) {
+  if (typeof showToast === 'function') {
+    showToast(msg, 'success');
+  }
 }
 
+// Keyboard shortcuts for Inbox navigation (j/k/Enter/Esc)
+document.addEventListener('keydown', function (e) {
+  var inboxPage = document.getElementById('pg-inbox');
+  if (!inboxPage || !inboxPage.classList.contains('act')) return;
+
+  var tag = (e.target && e.target.tagName) ? e.target.tagName.toLowerCase() : '';
+  if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
+
+  var items = getFilteredInboxItems();
+  if (!items || items.length === 0) return;
+
+  if (e.key === 'j' || e.key === 'ArrowDown') {
+    e.preventDefault();
+    var currIdx = items.findIndex(function (it) { return String(it.id || it._id) === String(_selectedInboxId); });
+    var nextIdx = currIdx < items.length - 1 ? currIdx + 1 : 0;
+    selectInboxItem(items[nextIdx].id || items[nextIdx]._id);
+  } else if (e.key === 'k' || e.key === 'ArrowUp') {
+    e.preventDefault();
+    var currIdx = items.findIndex(function (it) { return String(it.id || it._id) === String(_selectedInboxId); });
+    var prevIdx = currIdx > 0 ? currIdx - 1 : items.length - 1;
+    selectInboxItem(items[prevIdx].id || items[prevIdx]._id);
+  } else if (e.key === 'Enter') {
+    if (_selectedInboxId) {
+      e.preventDefault();
+      executeInboxAction('approve', _selectedInboxId);
+    }
+  } else if (e.key === 'Escape') {
+    if (_selectedInboxId) {
+      e.preventDefault();
+      clearInboxDetail();
+    }
+  }
+});
 // ── 14. FACULTY LEAVE & SUBSTITUTIONS ───────────────────────────
 var _pendingDirectAssign = null;
 
@@ -3373,7 +4157,7 @@ function renderFacultyLeavePendingTable(requests) {
 
   tbody.innerHTML = requests.map(function (r) {
     var id = r._id || r.requestId;
-    var dateRange = r.fromDate === r.toDate ? r.fromDate : (r.fromDate + ' → ' + r.toDate);
+    var dateRange = r.fromDate === r.toDate ? formatDDMMYYYY(r.fromDate) : (formatDDMMYYYY(r.fromDate) + ' → ' + formatDDMMYYYY(r.toDate));
     var subs = r.substitutions || [];
     var subsHtml = subs.length
       ? ('<span class="badge" style="background:#e0f2fe;color:#0369a1;">' + subs.length + ' slot(s)</span>')
@@ -3468,7 +4252,7 @@ function renderFacultyLeaveUnresolvedTable(requests) {
   tbody.innerHTML = unresolvedSlots.map(function (item) {
     var s = item.slot;
     return '<tr>' +
-      '<td>' + escapeHtml(s.date || '—') + '</td>' +
+      '<td>' + escapeHtml(formatDDMMYYYY(s.date)) + '</td>' +
       '<td><strong>Period ' + (s.periodNumber || s.period || '—') + '</strong></td>' +
       '<td>' + escapeHtml(s.className || 'Class') + (s.room ? (' (' + s.room + ')') : '') + '</td>' +
       '<td>' + escapeHtml(s.subjectName || s.subjectCode || '—') + '</td>' +
@@ -3885,6 +4669,10 @@ function renderDeptPolicyHistory(history) {
 }
 
 function saveDeptPolicySettings() {
+  if (controllerContext?.role === 'principal') {
+    showToast('Department leave policy configuration is reserved for departmental HoD jurisdiction.', 'warning');
+    return;
+  }
   var dept = (typeof selectedDeptFilter !== 'undefined' && selectedDeptFilter) || controllerContext?.deptCode || '';
   if (!dept) {
     showToast('Department code could not be determined.', 'error');
@@ -4048,7 +4836,7 @@ function renderParticipationRosterTable(records) {
   tbody.innerHTML = records.map(function (r) {
     var id = r._id || r.requestId;
     var evt = r.eventDetails || {};
-    var dates = (r.dates || []).join(', ') || (evt.startDate === evt.endDate ? evt.startDate : (evt.startDate + ' → ' + evt.endDate));
+    var dates = (Array.isArray(r.dates) && r.dates.length) ? formatDatesDDMMYYYY(r.dates) : (evt.startDate === evt.endDate ? formatDDMMYYYY(evt.startDate) : (formatDDMMYYYY(evt.startDate) + ' → ' + formatDDMMYYYY(evt.endDate)));
 
     var statusCol = r.status === 'approved' ? '#059669' : r.status === 'pending' ? '#d97706' : r.status === 'completed' ? '#2563eb' : '#dc2626';
     var statusBg = r.status === 'approved' ? '#ecfdf5' : r.status === 'pending' ? '#fffbeb' : r.status === 'completed' ? '#eff6ff' : '#fef2f2';
@@ -4094,7 +4882,7 @@ function renderParticipationEventsTable(records) {
         organizer: e.organizer || '—',
         type: e.type || 'Technical',
         level: e.level || 'College',
-        dates: (e.startDate || '') + (e.endDate ? (' → ' + e.endDate) : ''),
+        dates: (e.startDate ? formatDDMMYYYY(e.startDate) : '') + (e.endDate ? (' → ' + formatDDMMYYYY(e.endDate)) : ''),
         participants: 0,
         approved: 0,
         verified: 0,
@@ -4198,7 +4986,7 @@ function renderParticipationQueueTable(records) {
   tbody.innerHTML = queue.map(function (r) {
     var id = r._id || r.requestId;
     var evt = r.eventDetails || {};
-    var dates = (r.dates || []).join(', ') || (evt.startDate === evt.endDate ? evt.startDate : (evt.startDate + ' → ' + evt.endDate));
+    var dates = (Array.isArray(r.dates) && r.dates.length) ? formatDatesDDMMYYYY(r.dates) : (evt.startDate === evt.endDate ? formatDDMMYYYY(evt.startDate) : (formatDDMMYYYY(evt.startDate) + ' → ' + formatDDMMYYYY(evt.endDate)));
 
     var stageBadge = r.currentStage === 'principal'
       ? '<span class="chip chip-purple">Awaiting Principal</span>'
@@ -4301,7 +5089,7 @@ function openODDetailModal(id) {
   .then(function (data) {
     var od = data.odRequest || data.request || data;
     var evt = od.eventDetails || {};
-    var dates = (od.dates || []).join(', ') || (evt.startDate === evt.endDate ? evt.startDate : (evt.startDate + ' → ' + evt.endDate));
+    var dates = (Array.isArray(od.dates) && od.dates.length) ? formatDatesDDMMYYYY(od.dates) : (evt.startDate === evt.endDate ? formatDDMMYYYY(evt.startDate) : (formatDDMMYYYY(evt.startDate) + ' → ' + formatDDMMYYYY(evt.endDate)));
 
     if (body) {
       body.innerHTML = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">' +
@@ -4431,7 +5219,7 @@ function openRejectODModal(id) {
       } else {
         wrap.innerHTML = dates.map(function (d) {
           return '<label style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:#334155;background:#fff;padding:4px 8px;border-radius:6px;border:1px solid #cbd5e1;cursor:pointer;">' +
-            '<input type="checkbox" name="part-revoke-date" value="' + d + '" checked> ' + d +
+            '<input type="checkbox" name="part-revoke-date" value="' + d + '" checked> ' + formatDDMMYYYY(d) +
           '</label>';
         }).join('');
       }
@@ -4606,6 +5394,7 @@ var _currentDrawerData = null;
 var _liveDateOverride = null;
 
 function getTodayStr() {
+  if (_serverDateIST) return _serverDateIST;
   var d = new Date();
   var year = d.getFullYear();
   var month = String(d.getMonth() + 1).padStart(2, '0');
@@ -5013,3 +5802,211 @@ window.checkTimetablePendingAlert = checkTimetablePendingAlert;
 
 
 
+
+// Attendance Overview exports
+window.loadAttendanceOverview = loadAttendanceOverview;
+window.setAttendanceOverviewScope = setAttendanceOverviewScope;
+window.toggleAttendanceChartView = toggleAttendanceChartView;
+
+window.loadStaffCompliance = loadStaffCompliance;
+
+
+// ── GLOBAL SEARCH (Ctrl+K) & ATTENTION STRIP ─────────────────────
+var _globalSearchDebounce = null;
+var _globalSearchResults = [];
+var _globalSearchActiveIndex = -1;
+
+function openGlobalSearch() {
+  var modal = document.getElementById('m-global-search');
+  var input = document.getElementById('global-search-input');
+  var results = document.getElementById('global-search-results');
+
+  if (modal) {
+    modal.style.display = 'flex';
+    modal.classList.add('open');
+  }
+  if (input) {
+    input.value = '';
+    input.focus();
+  }
+  if (results) {
+    results.innerHTML = '<div class="ctrl-search-hint">Type at least 2 characters to search across your institutional directory.</div>';
+  }
+  _globalSearchResults = [];
+  _globalSearchActiveIndex = -1;
+}
+
+function closeGlobalSearch() {
+  var modal = document.getElementById('m-global-search');
+  if (modal) {
+    modal.style.display = 'none';
+    modal.classList.remove('open');
+  }
+  _globalSearchResults = [];
+  _globalSearchActiveIndex = -1;
+}
+
+function onGlobalSearchInput(val) {
+  clearTimeout(_globalSearchDebounce);
+  var query = (val || '').trim();
+  var container = document.getElementById('global-search-results');
+
+  if (query.length < 2) {
+    if (container) {
+      container.innerHTML = '<div class="ctrl-search-hint">Type at least 2 characters to search across your institutional directory.</div>';
+    }
+    _globalSearchResults = [];
+    _globalSearchActiveIndex = -1;
+    return;
+  }
+
+  if (container) {
+    container.innerHTML = '<div style="text-align:center;padding:24px;color:var(--tmu);"><div class="spin" style="margin:0 auto 8px;"></div>Searching directory…</div>';
+  }
+
+  _globalSearchDebounce = setTimeout(function () {
+    var token = getToken();
+    fetch('/api/controller/search?q=' + encodeURIComponent(query), {
+      headers: { 'Authorization': 'Bearer ' + token }
+    })
+    .then(function (r) { return r.json(); })
+    .then(function (data) {
+      _globalSearchResults = data.results || [];
+      _globalSearchActiveIndex = _globalSearchResults.length > 0 ? 0 : -1;
+      renderGlobalSearchResults();
+    })
+    .catch(function (err) {
+      console.error('[Global Search Error]:', err);
+      if (container) container.innerHTML = '<div style="color:var(--danger);padding:16px;text-align:center;">Search failed: ' + escapeHtml(err.message) + '</div>';
+    });
+  }, 250);
+}
+
+function renderGlobalSearchResults() {
+  var container = document.getElementById('global-search-results');
+  if (!container) return;
+
+  if (!_globalSearchResults.length) {
+    container.innerHTML = '<div class="ctrl-search-empty" style="text-align:center;padding:28px 16px;color:var(--tmu);font-size:13px;">No matching students, faculty, or classes found.</div>';
+    return;
+  }
+
+  container.innerHTML = _globalSearchResults.map(function (item, idx) {
+    var isAct = idx === _globalSearchActiveIndex;
+    var badgeClass = item.type === 'student' ? 'badge-blue' : (item.type === 'faculty' ? 'badge-green' : 'badge-amber');
+    var typeLabel = item.type === 'student' ? 'Student' : (item.type === 'faculty' ? 'Faculty' : 'Class');
+
+    return '<div class="ctrl-search-item ' + (isAct ? 'act' : '') + '" ' +
+      'id="search-item-' + idx + '" ' +
+      'onclick="selectGlobalSearchResult(' + idx + ')" ' +
+      'style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-radius:8px;cursor:pointer;background:' + (isAct ? 'rgba(27,77,62,0.08)' : 'transparent') + ';transition:all .15s ease;">' +
+      '<div style="display:flex;align-items:center;gap:10px;">' +
+        '<re-icon icon="' + escapeHtml(item.icon || 'search') + '" size="16" style="color:var(--tmu);"></re-icon>' +
+        '<div>' +
+          '<div style="font-weight:600;font-size:13.5px;color:var(--td);">' + escapeHtml(item.title) + '</div>' +
+          '<div style="font-size:12px;color:var(--tmu);">' + escapeHtml(item.sub || '') + '</div>' +
+        '</div>' +
+      '</div>' +
+      '<span class="badge" style="font-size:11px;padding:2px 7px;border-radius:4px;background:var(--bg2,#f1f5f9);color:var(--td);font-weight:600;">' + typeLabel + '</span>' +
+    '</div>';
+  }).join('');
+}
+
+function selectGlobalSearchResult(index) {
+  var item = _globalSearchResults[index];
+  if (!item) return;
+
+  closeGlobalSearch();
+
+  if (item.type === 'student') {
+    nav('students', 'directory');
+    if (typeof openStudentRecordModal === 'function' && item.trackId) {
+      setTimeout(function () { openStudentRecordModal(item.trackId); }, 200);
+    }
+  } else if (item.type === 'faculty') {
+    nav('staff', 'directory');
+  } else if (item.type === 'class') {
+    nav('timetable', 'view');
+  }
+}
+
+function updateNeedsAttentionStrip(inboxCounts, liveOverdueCount) {
+  var strip = document.getElementById('ctrl-needs-attention-strip');
+  var container = document.getElementById('ctrl-attention-pills');
+  if (!strip || !container) return;
+
+  var pending = (inboxCounts && inboxCounts.all) || 0;
+  var unres = (inboxCounts && inboxCounts.unresolved_substitution) || 0;
+  var escalations = (inboxCounts && inboxCounts.escalations) || 0;
+  var overdue = liveOverdueCount || 0;
+
+  var pills = [];
+  if (escalations > 0) {
+    pills.push('<span class="badge" style="background:#fee2e2;color:#dc2626;cursor:pointer;padding:4px 9px;border-radius:6px;font-weight:700;" onclick="nav(\'inbox\')"><re-icon icon="alert-circle" size="12"></re-icon> ' + escalations + ' Escalated (&gt;48h)</span>');
+  }
+  if (unres > 0) {
+    pills.push('<span class="badge" style="background:#fef3c7;color:#b45309;cursor:pointer;padding:4px 9px;border-radius:6px;font-weight:700;" onclick="nav(\'staff\',\'leaves\')"><re-icon icon="refresh" size="12"></re-icon> ' + unres + ' Unresolved Sub(s)</span>');
+  }
+  if (pending > 0) {
+    pills.push('<span class="badge" style="background:#eff6ff;color:#2563eb;cursor:pointer;padding:4px 9px;border-radius:6px;font-weight:600;" onclick="nav(\'inbox\')"><re-icon icon="inbox" size="12"></re-icon> ' + pending + ' Pending Approvals</span>');
+  }
+  if (overdue > 0) {
+    pills.push('<span class="badge" style="background:#fef2f2;color:#dc2626;cursor:pointer;padding:4px 9px;border-radius:6px;font-weight:600;" onclick="nav(\'dashboard\',\'board\')"><re-icon icon="clock" size="12"></re-icon> ' + overdue + ' Overdue Attendance</span>');
+  }
+
+  if (pills.length > 0) {
+    container.innerHTML = pills.join('');
+    strip.style.display = 'block';
+  } else {
+    strip.style.display = 'none';
+  }
+}
+
+// Global Keyboard Listeners for Ctrl+K & Search Navigation
+document.addEventListener('keydown', function (e) {
+  // Ctrl+K or Cmd+K
+  if ((e.ctrlKey || e.metaKey) && (e.key === 'k' || e.key === 'K')) {
+    e.preventDefault();
+    openGlobalSearch();
+    return;
+  }
+
+  var modal = document.getElementById('m-global-search');
+  if (!modal || modal.style.display === 'none' || !modal.classList.contains('open')) return;
+
+  if (e.key === 'Escape') {
+    e.preventDefault();
+    closeGlobalSearch();
+  } else if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    if (_globalSearchResults.length > 0) {
+      _globalSearchActiveIndex = (_globalSearchActiveIndex + 1) % _globalSearchResults.length;
+      renderGlobalSearchResults();
+    }
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    if (_globalSearchResults.length > 0) {
+      _globalSearchActiveIndex = (_globalSearchActiveIndex - 1 + _globalSearchResults.length) % _globalSearchResults.length;
+      renderGlobalSearchResults();
+    }
+  } else if (e.key === 'Enter') {
+    e.preventDefault();
+    if (_globalSearchActiveIndex >= 0 && _globalSearchActiveIndex < _globalSearchResults.length) {
+      selectGlobalSearchResult(_globalSearchActiveIndex);
+    }
+  }
+});
+
+// Wire input listener
+document.addEventListener('DOMContentLoaded', function () {
+  var sInput = document.getElementById('global-search-input');
+  if (sInput) {
+    sInput.addEventListener('input', function (e) { onGlobalSearchInput(e.target.value); });
+  }
+});
+
+window.openGlobalSearch = openGlobalSearch;
+window.closeGlobalSearch = closeGlobalSearch;
+window.onGlobalSearchInput = onGlobalSearchInput;
+window.selectGlobalSearchResult = selectGlobalSearchResult;
+window.updateNeedsAttentionStrip = updateNeedsAttentionStrip;

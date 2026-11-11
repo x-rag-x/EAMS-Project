@@ -54,7 +54,7 @@ LoginHistorySchema.index({ trackId: 1, "history.sessionId": 1 });
 LoginHistorySchema.index({ "history.sessionId": 1 });
 
 const NotificationSchema = new mongoose.Schema({
-  type:          { type: String, enum: ['request','error','info','attendance-alert','leave-request','leave-approval','leave-rejection','trust-dispute','timetable-verification'], default: 'request' },
+  type:          { type: String, enum: ['request','error','info','attendance-alert','leave-request','leave-approval','leave-rejection','trust-dispute','timetable-verification','timetable-conflict','timetable-share','timetable-deploy','timetable-approval','timetable-subjectset-request'], default: 'request' },
   from:          { type: String, required: true },
   fromRole:      { type: String, default: 'Teacher' },
   toTeacherId:   { type: mongoose.Schema.Types.ObjectId, ref: 'Teacher', default: null },
@@ -77,6 +77,7 @@ const NotificationSchema = new mongoose.Schema({
   solvedAt:      { type: Date },
   cancelledAt:   { type: Date },
   time:          { type: Date, default: Date.now },
+  dedupeKey:     { type: String, default: null, index: true },
 }, { timestamps: true });
 
 const GrievanceSchema = new mongoose.Schema({

@@ -9,13 +9,18 @@ const { getNextRequestId } = require('../utils/requestIds');
 const { recordApprovalHistory } = require('../utils/approvalWorkflow');
 const { calculateParticipationRecord, calculateODVerificationScore, calculateRequestEvidence } = require('../utils/participationScore');
 const { getTodayIST } = require('../middleware/scope');
+const { participationLimiter } = require('../utils/rateLimiters');
 
 router.use(authMiddleware);
+router.use(participationLimiter);
 
 // Helper to escape CSV fields
 function escapeCsv(val) {
   if (val === null || val === undefined) return '""';
-  const str = String(val).replace(/"/g, '""');
+  let str = String(val).replace(/"/g, '""');
+  if (/^[=+\-@\t\r]/.test(str)) {
+    str = `'${str}`;
+  }
   return `"${str}"`;
 }
 
@@ -202,6 +207,43 @@ router.get('/student/:trackId', async (req, res) => {
     const student = await M.Student.findOne({ trackId }).lean();
     if (!student) return res.status(404).json({ error: 'Student not found' });
 
+    // Authorization (§5 S3): Owner or staff in scope only
+    const isOwner = (req.user.trackId && req.user.trackId === trackId) ||
+                    (req.user._id && student._id && String(req.user._id) === String(student._id));
+
+    const isStaff = ['teacher', 'admin', 'principal', 'hod', 'sudo'].includes(req.user.role) ||
+                    req.user.isPrincipal || req.user.isHod || req.user.isAdmin || req.user.isSuperAdmin ||
+                    req.user.isSudoAdmin || ['superAdmin', 'sudoAdmin'].includes(req.user.accessRole) ||
+                    isSudo(req) || isSudoAdmin(req.user);
+
+    if (!isOwner && !isStaff) {
+      return res.status(403).json({ error: 'Access denied: You do not have permission to view this student\'s participation profile' });
+    }
+
+    const hasInstitutionReach = isSudo(req) || isSudoAdmin(req.user) || req.user.isPrincipal ||
+                                req.user.role === 'principal' || req.user.isSuperAdmin ||
+                                ['superAdmin', 'sudoAdmin', 'admin'].includes(req.user.accessRole) ||
+                                req.user.role === 'admin' || req.user.role === 'sudo';
+
+    if (!isOwner && !hasInstitutionReach) {
+      const callerDeptId = req.user.deptId ? String(req.user.deptId) : null;
+      const studentDeptId = student.deptId ? String(student.deptId._id || student.deptId) : null;
+      const callerDeptCode = req.user.deptCode ? String(req.user.deptCode).toUpperCase() : null;
+      const studentDeptCode = (student.department || student.deptCode) ? String(student.department || student.deptCode).toUpperCase() : null;
+
+      const isDeptMatch = (callerDeptId && studentDeptId && callerDeptId === studentDeptId) ||
+                          (callerDeptCode && studentDeptCode && callerDeptCode === studentDeptCode);
+
+      const isAdvisorOrMentor = Boolean(
+        req.user.trackId &&
+        (student.advisorTrackId === req.user.trackId || student.mentorTrackId === req.user.trackId)
+      );
+
+      if ((callerDeptId || callerDeptCode) && !isDeptMatch && !isAdvisorOrMentor) {
+        return res.status(403).json({ error: 'Access denied: Student belongs to another department' });
+      }
+    }
+
     const activities = await M.ODRequest.find({ studentTrackId: trackId }).sort({ createdAt: -1 }).lean();
     const recordScore = await calculateParticipationRecord(trackId);
 
@@ -223,11 +265,46 @@ router.get('/student/:trackId', async (req, res) => {
       byLevel[l] = (byLevel[l] || 0) + 1;
     }
 
+    // Projection (§5 S3): Trimmed activity projection instead of leaking whole raw OD documents
+    const trimmedActivities = activities.map(a => ({
+      _id: a._id,
+      requestId: a.requestId || a.trackId,
+      trackId: a.trackId || a.requestId,
+      eventName: a.eventDetails?.name || '',
+      organizer: a.eventDetails?.organizer || '',
+      type: a.eventDetails?.type || 'Technical',
+      subType: a.eventDetails?.subType || 'Hackathon',
+      level: a.eventDetails?.level || 'College',
+      mode: a.eventDetails?.mode || 'Offline',
+      hostCollege: a.eventDetails?.hostCollege || '',
+      city: a.eventDetails?.city || '',
+      venue: a.eventDetails?.venue || '',
+      startDate: a.eventDetails?.startDate || '',
+      endDate: a.eventDetails?.endDate || '',
+      daysCount: a.daysCount || 0,
+      dates: a.dates || [],
+      coverage: a.coverage || 'full_day',
+      status: a.status,
+      outcome: a.outcome ? {
+        primaryOutcome: a.outcome.primaryOutcome || null,
+        submittedAt: a.outcome.submittedAt || null,
+        evidence: a.outcome.evidence ? {
+          fileName: a.outcome.evidence.fileName || null,
+          webViewLink: a.outcome.evidence.webViewLink || null
+        } : null
+      } : null,
+      verification: a.verification ? {
+        status: a.verification.status || 'pending',
+        verifiedAt: a.verification.verifiedAt || null
+      } : null,
+      createdAt: a.createdAt
+    }));
+
     return res.json({
       ok: true,
       student: {
         trackId: student.trackId,
-        name: student.name,
+        name: student.fullName || student.name,
         registerNo: student.registerNo,
         class: student.class,
         department: student.department || student.deptCode,
@@ -242,7 +319,7 @@ router.get('/student/:trackId', async (req, res) => {
       },
       byType,
       byLevel,
-      activities
+      activities: trimmedActivities
     });
   } catch (err) {
     console.error('[Participation Student Error]:', err);
@@ -559,4 +636,5 @@ router.get('/score', async (req, res) => {
   }
 });
 
+router.escapeCsv = escapeCsv;
 module.exports = router;

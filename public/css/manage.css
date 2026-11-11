@@ -126,4 +126,200 @@
 /* ── FORM GRID (page-specific) ──────────────────────────────────────── */
 .fgrid{ display:grid; gap:12px; margin-bottom:12px; }
 .fg2{ grid-template-columns:1fr 1fr; }
-.fg3{ grid-template-columns:1fr 1fr 1fr; }
+.fg3{ grid-template-columns:1fr 1fr 1fr; }
+
+/* ── SUBJECTS MANAGER FILTER RIBBON & DROPDOWNS ────────────────────────── */
+.sm-filter-card {
+  border-radius: 14px;
+  border: 1.5px solid var(--br, rgba(27, 94, 32, 0.16));
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.03);
+  background: #ffffff;
+  overflow: visible !important;
+  position: relative;
+  z-index: 20;
+}
+
+.sm-filter-ribbon {
+  padding: 14px 18px;
+  display: flex;
+  gap: 14px;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  position: relative;
+}
+
+.sm-filter-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 130px;
+  flex: 1 1 130px;
+  position: relative;
+}
+
+.sm-filter-field.sm-field-dept {
+  flex: 2 1 240px;
+  min-width: 220px;
+}
+
+.sm-filter-field.sm-field-sm {
+  flex: 0.8 1 110px;
+  min-width: 105px;
+}
+
+.sm-filter-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--tmu, #5a7a5a);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  line-height: 1;
+}
+
+.sm-filter-label re-icon {
+  color: var(--gM, #2e7d32);
+}
+
+/* Fallback & native select dropdown styling */
+.sm-filter-select,
+select.fc2 {
+  min-height: 40px;
+  height: 40px;
+  border-radius: 10px;
+  border: 1.5px solid var(--br, rgba(27, 94, 32, 0.2)) !important;
+  background-color: #ffffff !important;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%232e7d32' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E") !important;
+  background-repeat: no-repeat !important;
+  background-position: right 12px center !important;
+  background-size: 13px !important;
+  padding: 8px 36px 8px 12px !important;
+  font-size: 12.5px !important;
+  font-weight: 600 !important;
+  font-family: 'Poppins', sans-serif !important;
+  color: var(--td, #1a2e1a) !important;
+  outline: none;
+  cursor: pointer;
+  width: 100%;
+  box-sizing: border-box;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+}
+
+.sm-filter-select:hover:not(:disabled),
+select.fc2:hover:not(:disabled) {
+  border-color: var(--gM, #2e7d32) !important;
+  background-color: #fbfdfb !important;
+  box-shadow: 0 2px 8px rgba(46, 125, 50, 0.08);
+}
+
+.sm-filter-select:focus,
+select.fc2:focus {
+  border-color: var(--gD, #1b5e20) !important;
+  background-color: #ffffff !important;
+  box-shadow: 0 0 0 3.5px rgba(46, 125, 50, 0.14) !important;
+}
+
+select.fc2 option,
+.sm-filter-select option {
+  background-color: #ffffff;
+  color: var(--td, #1a2e1a);
+  padding: 8px 12px;
+  font-size: 12.5px;
+  font-weight: 500;
+  font-family: 'Poppins', sans-serif;
+}
+
+/* Custom Searchable Dropdown Integration in Filter Ribbon */
+.sm-filter-ribbon .tt-custom-dropdown {
+  width: 100%;
+  position: relative;
+}
+
+.sm-filter-ribbon .tt-dropdown-trigger {
+  min-height: 40px;
+  height: 40px;
+  border-radius: 10px;
+  padding: 8px 12px;
+  border: 1.5px solid var(--br, rgba(27, 94, 32, 0.2));
+  background: #ffffff;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--td, #1a2e1a);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.sm-filter-ribbon .tt-dropdown-trigger:hover:not(:disabled) {
+  border-color: var(--gM, #2e7d32);
+  background: #fbfdfb;
+  box-shadow: 0 2px 8px rgba(46, 125, 50, 0.08);
+}
+
+.sm-filter-ribbon .tt-custom-dropdown.is-open .tt-dropdown-trigger {
+  border-color: var(--gD, #1b5e20);
+  background: #ffffff;
+  box-shadow: 0 0 0 3.5px rgba(46, 125, 50, 0.14);
+}
+
+.sm-filter-ribbon .tt-dropdown-menu {
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(27, 94, 32, 0.08);
+  border: 1.5px solid var(--br, rgba(27, 94, 32, 0.22));
+  z-index: 1050;
+}
+
+.sm-filter-actions {
+  margin-left: auto;
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+  flex-shrink: 0;
+}
+
+.sm-refresh-btn {
+  height: 40px;
+  border-radius: 10px;
+  padding: 0 16px;
+  font-weight: 600;
+  font-size: 12.5px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1.5px solid var(--br, #cbd5e1);
+  background: #ffffff;
+  color: var(--td, #1a2e1a);
+  transition: all 0.18s ease;
+  cursor: pointer;
+}
+
+.sm-refresh-btn:hover {
+  border-color: var(--gM, #2e7d32);
+  background: var(--gLt, #e8f5e9);
+  color: var(--gD, #1b5e20);
+}
+
+@media (max-width: 900px) {
+  .sm-filter-ribbon {
+    gap: 10px;
+  }
+  .sm-filter-field {
+    min-width: calc(50% - 6px);
+    flex: 1 1 calc(50% - 6px);
+  }
+  .sm-filter-field.sm-field-dept {
+    min-width: 100%;
+    flex: 1 1 100%;
+  }
+  .sm-filter-actions {
+    margin-left: 0;
+    width: 100%;
+    justify-content: flex-end;
+    margin-top: 6px;
+  }
+}

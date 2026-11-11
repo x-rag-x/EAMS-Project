@@ -20,7 +20,25 @@ const SUITES = [
   'tests/test-bulk-f39-f40.js',
   'tests/bulk-golden-test.js',
   'tests/bulk-p4-p5-test.js',
-  'scripts/check-xss-patterns.js'
+  'tests/test-rooms-floor-auto-assign.js',
+  'tests/test-bulk-load-all-records.js',
+  'tests/test-qr-generation.js',
+  'tests/test-board-class-linking-unit.js',
+  'tests/timetable-p0-test.js',
+  'tests/timetable-deploy-test.js',
+  'tests/timetable-workspaces-test.js',
+  'tests/timetable-compare-test.js',
+  'tests/timetable-conflicts-test.js',
+  'tests/timetable-merge-test.js',
+  'tests/timetable-share-test.js',
+  'tests/timetable-permissions-test.js',
+  'tests/timetable-p6-test.js',
+  'tests/test-b5-b8-teacher-audit-fixes.js',
+  'tests/test-b9-b14-teacher-audit-fixes.js',
+  'tests/test-controller-sidebar-rearch.js',
+  'tests/test-mass-assignment-hardening.js',
+  'scripts/check-xss-patterns.js',
+  'scripts/check-storage-patterns.js'
 ];
 
 console.log('======================================================');

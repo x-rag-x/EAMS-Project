@@ -45,7 +45,7 @@ router.get('/overview', authMiddleware, requirePage('admin', 'view', { tab: 'rol
         deptId: { $in: deptIds },
         active: true
       }).lean(),
-      M.Class.find({ deptId: { $in: deptIds } }).select('deptId advisorTeacherId').lean(),
+      M.Class.find({ deptId: { $in: deptIds } }).select('deptId advisorTeacherId secondaryAdvisorTeacherId').lean(),
       M.Teacher.aggregate([
         { $match: { deptId: { $in: deptIds } } },
         { $group: { _id: '$deptId', count: { $sum: 1 } } }
@@ -62,13 +62,16 @@ router.get('/overview', authMiddleware, requirePage('admin', 'view', { tab: 'rol
       const deptClasses = classes.filter(c => String(c.deptId) === dIdStr);
 
       const hodAssign = deptAssigns.find(a => a.role === 'hod');
+      const secondaryHodAssign = deptAssigns.find(a => a.role === 'secondaryHod');
       const superAdminAssign = deptAssigns.find(a => a.role === 'superAdmin');
       const ttAssign = deptAssigns.find(a => a.role === 'ttCoordinator');
+      const secondaryTtAssign = deptAssigns.find(a => a.role === 'secondaryTtCoordinator');
       const placementAssign = deptAssigns.find(a => a.role === 'placementCoordinator');
       const actingHod = actingRoles.find(ar => String(ar.deptId) === dIdStr && ar.role === 'hod');
 
       const totalClasses = deptClasses.length;
       const assignedAdvisors = deptClasses.filter(c => c.advisorTeacherId).length;
+      const secondaryAssignedAdvisors = deptClasses.filter(c => c.secondaryAdvisorTeacherId).length;
 
       return {
         _id: dept._id,
@@ -77,6 +80,7 @@ router.get('/overview', authMiddleware, requirePage('admin', 'view', { tab: 'rol
         number: dept.number,
         twoLetterCode: dept.twoLetterCode,
         threeLetterCode: dept.threeLetterCode,
+        category: (dept.category === 'supporting' || ['MAB', 'PHY', 'CHY', 'ENG', 'S&H', 'MATH', 'MATHS'].includes((dept.code || '').toUpperCase()) || /mathematics|physics|chemistry|humanities/i.test(dept.name || '')) ? 'supporting' : (dept.category || 'programme'),
         icon: dept.icon || 'building2',
         staffCount: teacherCountMap.get(dIdStr) || 0,
         classCount: totalClasses,
@@ -85,6 +89,11 @@ router.get('/overview', authMiddleware, requirePage('admin', 'view', { tab: 'rol
           name: hodAssign.teacherName,
           trackId: hodAssign.teacherTrackId
         } : (dept.hodName ? { name: dept.hodName, teacherId: dept.hodId } : null),
+        secondaryHod: secondaryHodAssign ? {
+          teacherId: secondaryHodAssign.teacherId,
+          name: secondaryHodAssign.teacherName,
+          trackId: secondaryHodAssign.teacherTrackId
+        } : (dept.secondaryHodName ? { name: dept.secondaryHodName, teacherId: dept.secondaryHodId } : null),
         superAdmin: superAdminAssign ? {
           teacherId: superAdminAssign.teacherId,
           name: superAdminAssign.teacherName,
@@ -95,6 +104,11 @@ router.get('/overview', authMiddleware, requirePage('admin', 'view', { tab: 'rol
           name: ttAssign.teacherName,
           trackId: ttAssign.teacherTrackId
         } : null,
+        secondaryTtCoordinator: secondaryTtAssign ? {
+          teacherId: secondaryTtAssign.teacherId,
+          name: secondaryTtAssign.teacherName,
+          trackId: secondaryTtAssign.teacherTrackId
+        } : null,
         placementCoordinator: placementAssign ? {
           teacherId: placementAssign.teacherId,
           name: placementAssign.teacherName,
@@ -103,6 +117,7 @@ router.get('/overview', authMiddleware, requirePage('admin', 'view', { tab: 'rol
         advisors: {
           total: totalClasses,
           assigned: assignedAdvisors,
+          secondaryAssigned: secondaryAssignedAdvisors,
           open: Math.max(0, totalClasses - assignedAdvisors)
         },
         actingHod: actingHod ? {
@@ -155,8 +170,10 @@ router.get('/departments/:deptId', authMiddleware, requirePage('admin', 'view', 
       department: dept,
       roles: {
         hod: assignments.find(a => a.role === 'hod') || null,
+        secondaryHod: assignments.find(a => a.role === 'secondaryHod') || null,
         superAdmin: superAdminTeacher || null,
         ttCoordinator: assignments.find(a => a.role === 'ttCoordinator') || null,
+        secondaryTtCoordinator: assignments.find(a => a.role === 'secondaryTtCoordinator') || null,
         placementCoordinator: assignments.find(a => a.role === 'placementCoordinator') || null
       },
       privilegedStaff: privilegedStaff.map(p => ({
@@ -214,6 +231,13 @@ router.get('/departments/:deptId/staff', authMiddleware, requirePage('admin', 'v
         .filter(a => String(a.teacherId) === tIdStr)
         .map(a => a.role);
 
+      let isEligible = true;
+      if (targetRole === 'superAdmin' && t.pageRights?.accessRole === 'sudoAdmin') isEligible = false;
+      if (targetRole === 'secondaryHod' && rolesHeld.includes('hod')) isEligible = false;
+      if (targetRole === 'hod' && rolesHeld.includes('secondaryHod')) isEligible = false;
+      if (targetRole === 'secondaryTtCoordinator' && rolesHeld.includes('ttCoordinator')) isEligible = false;
+      if (targetRole === 'ttCoordinator' && rolesHeld.includes('secondaryTtCoordinator')) isEligible = false;
+
       return {
         _id: t._id,
         fullName: t.fullName,
@@ -225,7 +249,8 @@ router.get('/departments/:deptId/staff', authMiddleware, requirePage('admin', 'v
         isSudoAdmin: t.pageRights?.accessRole === 'sudoAdmin' || (t.specials || []).some(s => s.option === 'isAdmin' && t.pageRights?.accessRole === 'sudoAdmin'),
         isSuperAdmin: rolesHeld.includes('superAdmin'),
         isHod: rolesHeld.includes('hod'),
-        isEligible: !(targetRole === 'superAdmin' && t.pageRights?.accessRole === 'sudoAdmin')
+        isSecondaryHod: rolesHeld.includes('secondaryHod'),
+        isEligible
       };
     });
 
@@ -250,7 +275,7 @@ router.put('/departments/:deptId/:role', authMiddleware, requirePage('admin', 'a
     assertInScope(req, deptId);
 
     // Permission Matrix (§7.2): Super Admin can only assign ttCoordinator, placementCoordinator
-    if (!req.user.isSudoAdmin && !['ttCoordinator', 'placementCoordinator'].includes(role)) {
+    if (!req.user.isSudoAdmin && !['ttCoordinator', 'secondaryTtCoordinator', 'placementCoordinator'].includes(role)) {
       return res.status(403).json({
         error: `Super Admins cannot assign or modify "${role}". Only Sudo Admin can manage HODs and Super Admins.`,
         code: 'FORBIDDEN'
@@ -307,7 +332,7 @@ router.delete('/departments/:deptId/:role', authMiddleware, requirePage('admin',
 
     assertInScope(req, deptId);
 
-    if (!req.user.isSudoAdmin && !['ttCoordinator', 'placementCoordinator'].includes(role)) {
+    if (!req.user.isSudoAdmin && !['ttCoordinator', 'secondaryTtCoordinator', 'placementCoordinator'].includes(role)) {
       return res.status(403).json({
         error: `Super Admins cannot remove "${role}". Only Sudo Admin can manage HODs and Super Admins.`,
         code: 'FORBIDDEN'
@@ -348,6 +373,7 @@ router.get('/departments/:deptId/advisors', authMiddleware, requirePage('admin',
 
     const classes = await M.Class.find({ deptId })
       .populate('advisorTeacherId', 'fullName employeeNo designation trackId')
+      .populate('secondaryAdvisorTeacherId', 'fullName employeeNo designation trackId')
       .sort({ academicYear: -1, year: 1, section: 1 })
       .lean();
 
@@ -363,6 +389,12 @@ router.get('/departments/:deptId/advisors', authMiddleware, requirePage('admin',
         fullName: c.advisorTeacherId.fullName,
         employeeNo: c.advisorTeacherId.employeeNo,
         designation: c.advisorTeacherId.designation
+      } : null,
+      secondaryAdvisor: c.secondaryAdvisorTeacherId ? {
+        _id: c.secondaryAdvisorTeacherId._id,
+        fullName: c.secondaryAdvisorTeacherId.fullName,
+        employeeNo: c.secondaryAdvisorTeacherId.employeeNo,
+        designation: c.secondaryAdvisorTeacherId.designation
       } : null
     })));
   } catch (err) {
@@ -448,6 +480,85 @@ router.delete('/classes/:classId/advisor', authMiddleware, requirePage('admin', 
     }
     console.error('[DELETE /api/roles/classes/:classId/advisor error]:', err);
     res.status(500).json({ error: 'Failed to remove class advisor', details: err.message });
+  }
+});
+
+/**
+ * PUT /api/roles/classes/:classId/secondary-advisor
+ * Assign / replace secondary class advisor (optional)
+ */
+router.put('/classes/:classId/secondary-advisor', authMiddleware, requirePage('admin', 'assign', { tab: 'roles' }), async (req, res) => {
+  try {
+    const classId = sanitizeToObjectId(req.params.classId);
+    if (!classId) return res.status(400).json({ error: 'Invalid class ID' });
+
+    const classDoc = await M.Class.findById(classId).lean();
+    if (!classDoc) return res.status(404).json({ error: 'Class not found' });
+
+    assertInScope(req, classDoc.deptId);
+
+    const teacherId = sanitizeToObjectId(req.body.teacherId);
+    if (!teacherId) return res.status(400).json({ error: 'Secondary advisor faculty member ID is required' });
+
+    const expectedCurrentTeacherId = req.body.expectedCurrentTeacherId !== undefined
+      ? (sanitizeToObjectId(req.body.expectedCurrentTeacherId) || null)
+      : undefined;
+
+    const assignment = await assignRole({
+      role: 'secondaryClassAdvisor',
+      scopeId: classId,
+      teacherId,
+      expectedCurrentTeacherId,
+      actor: getActor(req),
+      reason: sanitizeToString(req.body.reason)
+    });
+
+    res.json({
+      ok: true,
+      message: 'Secondary class advisor assigned successfully.',
+      assignment
+    });
+  } catch (err) {
+    if (err.status) {
+      return res.status(err.status).json({ error: err.message, code: err.code });
+    }
+    console.error('[PUT /api/roles/classes/:classId/secondary-advisor error]:', err);
+    res.status(500).json({ error: 'Failed to assign secondary class advisor', details: err.message });
+  }
+});
+
+/**
+ * DELETE /api/roles/classes/:classId/secondary-advisor
+ * Remove secondary class advisor (optional)
+ */
+router.delete('/classes/:classId/secondary-advisor', authMiddleware, requirePage('admin', 'assign', { tab: 'roles' }), async (req, res) => {
+  try {
+    const classId = sanitizeToObjectId(req.params.classId);
+    if (!classId) return res.status(400).json({ error: 'Invalid class ID' });
+
+    const classDoc = await M.Class.findById(classId).lean();
+    if (!classDoc) return res.status(404).json({ error: 'Class not found' });
+
+    assertInScope(req, classDoc.deptId);
+
+    const assignment = await endRole({
+      role: 'secondaryClassAdvisor',
+      scopeId: classId,
+      actor: getActor(req),
+      reason: sanitizeToString(req.body.reason) || 'Removed secondary advisor'
+    });
+
+    res.json({
+      ok: true,
+      message: 'Secondary class advisor removed successfully.',
+      assignment
+    });
+  } catch (err) {
+    if (err.status) {
+      return res.status(err.status).json({ error: err.message, code: err.code });
+    }
+    console.error('[DELETE /api/roles/classes/:classId/secondary-advisor error]:', err);
+    res.status(500).json({ error: 'Failed to remove secondary class advisor', details: err.message });
   }
 });
 

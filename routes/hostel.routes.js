@@ -4,6 +4,7 @@ const crypto = require('crypto');
 const M = require('../models');
 const { authMiddleware } = require('../middleware/auth');
 const { hostelScopeMiddleware } = require('../middleware/hostelScope');
+const { checkHostelPortalGuard } = require('../middleware/portalGuard');
 const { generateQRToken, verifyQRToken } = require('../utils/qrToken');
 const { canOverrideStatus } = require('../utils/hostelPrecedence');
 const { runHostelCrossChecks } = require('../utils/hostelCrossCheck');
@@ -28,8 +29,8 @@ function getTodayIST() {
   return `${year}-${month}-${day}`;
 }
 
-// All hostel routes require authentication and hostel scope resolution
-router.use(authMiddleware, hostelScopeMiddleware);
+// All hostel routes require authentication, portal enablement guard, and hostel scope resolution
+router.use(authMiddleware, checkHostelPortalGuard, hostelScopeMiddleware);
 
 // ── 1. SETUP ENDPOINTS (Admin Only) ──────────────────────────────────────────
 

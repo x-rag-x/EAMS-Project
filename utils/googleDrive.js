@@ -1,14 +1,15 @@
 /**
  * utils/googleDrive.js
  *
- * Integrates with Google Drive CLI / API to upload encrypted EAMS backup archives
- * and generate shareable web access links.
+ * Integrates with Google Drive CLI / API to upload encrypted EAMS backup archives,
+ * student OD evidence files, and generate shareable web access links.
  */
 
 const { exec } = require('child_process');
 const path = require('path');
 const os = require('os');
 const fs = require('fs');
+const crypto = require('crypto');
 
 const BACKUP_FOLDER_ID = process.env.GDRIVE_BACKUP_FOLDER_ID || '10b4EV1DJ-ASRugnLjdIhjjuxeoZkPaUJ';
 const BULK_BACKUP_FOLDER_ID = process.env.GDRIVE_BULK_FOLDER_ID || '1A05LHiBo_Nj0iglj0kY9iNEcq_FR3UOL';
@@ -322,7 +323,7 @@ async function uploadBufferToDrive(buffer, fileName, mimeType, parentFolderId) {
       'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
       JSON.stringify(metadata) +
       delimiter +
-      `Content-Type: ${mimeType || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}\r\n` +
+      `Content-Type: ${mimeType || 'application/octet-stream'}\r\n` +
       'Content-Transfer-Encoding: binary\r\n\r\n'
     );
     const multipartFooter = Buffer.from(closeDelim);
@@ -353,11 +354,206 @@ async function uploadBufferToDrive(buffer, fileName, mimeType, parentFolderId) {
   }
 }
 
+/**
+ * Validates evidence file for security:
+ * - Max size: 10MB
+ * - Whitelist extensions: jpg, jpeg, png, webp, pdf
+ * - MIME type whitelist
+ * - Magic bytes verification (PDF, JPEG, PNG, WEBP)
+ * - Anti-script / executable / polyglot inspection
+ */
+function validateEvidenceSecurity({ buffer, originalName, mimeType }) {
+  const MAX_SIZE = 10 * 1024 * 1024; // 10MB
+  if (!buffer || buffer.length === 0) {
+    return { valid: false, error: 'Uploaded file is empty' };
+  }
+  if (buffer.length > MAX_SIZE) {
+    return { valid: false, error: `File size (${(buffer.length / (1024 * 1024)).toFixed(2)} MB) exceeds 10MB limit` };
+  }
+
+  const ext = (path.extname(originalName || '').toLowerCase().replace('.', '')) || '';
+  const allowedExts = ['jpg', 'jpeg', 'png', 'webp', 'pdf'];
+  if (!allowedExts.includes(ext)) {
+    return { valid: false, error: `Invalid file extension '.${ext}'. Allowed formats: IMG, JPG, PNG, PDF` };
+  }
+
+  const allowedMimes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'application/pdf', 'application/octet-stream'];
+  const cleanMime = (mimeType || '').toLowerCase().split(';')[0].trim();
+  if (!allowedMimes.includes(cleanMime)) {
+    return { valid: false, error: `Invalid MIME type '${cleanMime}'. Allowed types: JPG, PNG, PDF` };
+  }
+
+  // Magic bytes checks
+  // PDF: %PDF- (0x25 0x50 0x44 0x46)
+  if (ext === 'pdf' || cleanMime === 'application/pdf') {
+    const isPdf = buffer.length >= 4 &&
+      buffer[0] === 0x25 && buffer[1] === 0x50 && buffer[2] === 0x44 && buffer[3] === 0x46;
+    if (!isPdf) {
+      return { valid: false, error: 'Security validation failed: File claims to be PDF but magic bytes header does not match.' };
+    }
+  }
+
+  // JPEG: 0xFF 0xD8 0xFF
+  if (['jpg', 'jpeg'].includes(ext) || ['image/jpeg', 'image/jpg'].includes(cleanMime)) {
+    const isJpg = buffer.length >= 3 &&
+      buffer[0] === 0xFF && buffer[1] === 0xD8 && buffer[2] === 0xFF;
+    if (!isJpg) {
+      return { valid: false, error: 'Security validation failed: File claims to be JPEG but magic bytes header does not match.' };
+    }
+  }
+
+  // PNG: 0x89 0x50 0x4E 0x47 0x0D 0x0A 0x1A 0x0A
+  if (ext === 'png' || cleanMime === 'image/png') {
+    const isPng = buffer.length >= 8 &&
+      buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4E && buffer[3] === 0x47 &&
+      buffer[4] === 0x0D && buffer[5] === 0x0A && buffer[6] === 0x1A && buffer[7] === 0x0A;
+    if (!isPng) {
+      return { valid: false, error: 'Security validation failed: File claims to be PNG but magic bytes header does not match.' };
+    }
+  }
+
+  // WEBP: RIFF....WEBP
+  if (ext === 'webp' || cleanMime === 'image/webp') {
+    const isWebp = buffer.length >= 12 &&
+      buffer[0] === 0x52 && buffer[1] === 0x49 && buffer[2] === 0x46 && buffer[3] === 0x46 &&
+      buffer[8] === 0x57 && buffer[9] === 0x45 && buffer[10] === 0x42 && buffer[11] === 0x50;
+    if (!isWebp) {
+      return { valid: false, error: 'Security validation failed: File claims to be WEBP but magic bytes header does not match.' };
+    }
+  }
+
+  // Content inspection for embedded scripts/exploits
+  const headerSlice = buffer.slice(0, 1024).toString('utf8').toLowerCase();
+  const dangerousPatterns = ['<script', '<?php', '<html', '<svg', 'eval(', 'base64_decode', 'system('];
+  for (const pattern of dangerousPatterns) {
+    if (headerSlice.includes(pattern)) {
+      return { valid: false, error: 'Security validation failed: Potentially malicious script detected in file header.' };
+    }
+  }
+
+  return { valid: true, cleanExt: ext, cleanMime };
+}
+
+/**
+ * Ensures folder path exists in Google Drive:
+ * EAMS_PROJECT / STUDENTS / {dept} / {class} / {trackId}
+ */
+async function ensureDriveFolderPath(pathSegments, rootParentId = null) {
+  const token = await getDriveAccessToken();
+  if (!token) return null;
+
+  let currentParentId = rootParentId || null;
+
+  for (const segment of pathSegments) {
+    const cleanName = String(segment || 'UNKNOWN').trim().replace(/['\\]/g, '');
+    if (!cleanName) continue;
+
+    try {
+      let q = `name = '${cleanName}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false`;
+      if (currentParentId) {
+        q = `'${currentParentId}' in parents and ` + q;
+      }
+      const searchRes = await fetch(`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id,name)`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const searchData = await searchRes.json();
+      if (searchData.files && searchData.files.length > 0) {
+        currentParentId = searchData.files[0].id;
+      } else {
+        const bodyObj = {
+          name: cleanName,
+          mimeType: 'application/vnd.google-apps.folder'
+        };
+        if (currentParentId) bodyObj.parents = [currentParentId];
+        const createRes = await fetch('https://www.googleapis.com/drive/v3/files', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(bodyObj)
+        });
+        const createData = await createRes.json();
+        currentParentId = createData.id || currentParentId;
+      }
+    } catch (err) {
+      console.warn(`[GoogleDrive] Error ensuring folder segment '${cleanName}':`, err.message);
+      break;
+    }
+  }
+
+  return currentParentId;
+}
+
+/**
+ * Uploads OD evidence file:
+ * Checks security, then uploads to Google Drive at:
+ * EAMS_PROJECT/STUDENTS/{dept}/{class}/{trackId}/OD_EvidenceFile_{odtrackid}.{ext}
+ */
+async function uploadODEvidence({ buffer, originalName, mimeType, dept, className, studentTrackId, odTrackId }) {
+  // 1. Check security
+  const sec = validateEvidenceSecurity({ buffer, originalName, mimeType });
+  if (!sec.valid) {
+    return { success: false, error: sec.error };
+  }
+
+  const ext = path.extname(originalName) || (sec.cleanExt ? `.${sec.cleanExt}` : '.pdf');
+  const targetFileName = `OD_EvidenceFile_${odTrackId}${ext}`;
+  const md5Checksum = crypto.createHash('md5').update(buffer).digest('hex');
+
+  const pathSegments = [
+    'EAMS_PROJECT',
+    'STUDENTS',
+    dept || 'GENERAL',
+    className || 'CLASS',
+    studentTrackId || 'STUDENT'
+  ];
+
+  let driveResult = null;
+  try {
+    const folderId = await ensureDriveFolderPath(pathSegments);
+    driveResult = await uploadBufferToDrive(buffer, targetFileName, sec.cleanMime || mimeType, folderId);
+  } catch (dErr) {
+    console.warn('[GoogleDrive] Drive upload failed, trying fallback:', dErr.message);
+  }
+
+  // Local fallback storage if drive is offline / unconfigured
+  let localUrl = null;
+  if (!driveResult || !driveResult.fileId) {
+    try {
+      const uploadDir = path.join(process.cwd(), 'public', 'uploads', 'od-evidence', dept || 'general', className || 'class', studentTrackId || 'student');
+      fs.mkdirSync(uploadDir, { recursive: true });
+      const localFilePath = path.join(uploadDir, targetFileName);
+      fs.writeFileSync(localFilePath, buffer);
+      localUrl = `/uploads/od-evidence/${dept || 'general'}/${className || 'class'}/${studentTrackId || 'student'}/${targetFileName}`;
+    } catch (fsErr) {
+      console.warn('[GoogleDrive] Local file fallback save error:', fsErr.message);
+    }
+  }
+
+  const fileId = driveResult?.fileId || `local_${Date.now()}`;
+  const driveUrl = driveResult?.driveUrl || localUrl || '';
+
+  return {
+    success: true,
+    fileId,
+    driveUrl,
+    fileName: targetFileName,
+    mimeType: sec.cleanMime || mimeType,
+    sizeBytes: buffer.length,
+    md5Checksum,
+    folderPath: `EAMS_PROJECT/STUDENTS/${dept || 'GENERAL'}/${className || 'CLASS'}/${studentTrackId || 'STUDENT'}/`
+  };
+}
+
 module.exports = {
   uploadFileToDrive,
   uploadBufferToDrive,
   createBatchFolder,
   getOrCreateBulkUploadsFolder,
+  validateEvidenceSecurity,
+  ensureDriveFolderPath,
+  uploadODEvidence,
   BACKUP_FOLDER_ID,
   BULK_BACKUP_FOLDER_ID,
   getDriveAccessToken

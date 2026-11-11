@@ -266,7 +266,7 @@
   function switchTrustSubTab(tabName) {
     _trustState.currentSubTab = tabName;
 
-    var tabs = ['students', 'windows', 'queues', 'history'];
+    var tabs = ['students', 'windows', 'queues', 'history', 'settings'];
     tabs.forEach(function (t) {
       var btn = document.getElementById('trust-tab-btn-' + t);
       var view = document.getElementById('trust-subtab-' + t);
@@ -284,7 +284,125 @@
       loadDeviceShareCases();
     } else if (tabName === 'history') {
       loadTrustHistory();
+    } else if (tabName === 'settings') {
+      loadTrustSettingsSubTab();
     }
+  }
+
+  function loadTrustSettingsSubTab() {
+    var c = document.getElementById('trust-embedded-settings-container');
+    if (!c) return;
+    c.innerHTML = '<div style="text-align:center;padding:36px;color:var(--tmu);"><re-icon icon="loader" size="20" class="spin"></re-icon> Loading trust policies…</div>';
+    if (typeof reIconReplace === 'function') reIconReplace();
+
+    apiCall('GET', '/settings')
+      .then(function (data) {
+        var dev = (data && data.device) || {};
+        var tr = (data && data.trust) || {};
+        var sec = (data && data.security) || {};
+        var bands = tr.bands || { normal: 80, monitor: 60, verify: 40 };
+        var weights = tr.deviceWeights || { key: 25, match: 10, location: 10, campusIp: 5, spoofPenalty: 10 };
+
+        var html = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:16px;">'
+          // Card 1: Device Registration & Credential Policies
+          + '<div class="card" style="padding:16px;">'
+          + '  <div style="font-weight:700;font-size:14px;display:flex;align-items:center;gap:8px;margin-bottom:12px;color:var(--pri);">'
+          + '    <re-icon icon="smartphone" size="16"></re-icon> Device Registration &amp; Sessions'
+          + '  </div>'
+          + '  <div style="display:flex;flex-direction:column;gap:10px;font-size:12.5px;">'
+          + '    <div style="display:flex;justify-content:space-between;border-bottom:1px solid var(--brl);padding-bottom:6px;">'
+          + '      <span style="color:var(--tmu);">Require Bound Smartphone</span>'
+          + '      <span style="font-weight:600;color:' + (dev.requireRegisteredDevice !== false ? '#16a34a' : '#dc2626') + ';">' + (dev.requireRegisteredDevice !== false ? 'Enabled' : 'Disabled') + '</span>'
+          + '    </div>'
+          + '    <div style="display:flex;justify-content:space-between;border-bottom:1px solid var(--brl);padding-bottom:6px;">'
+          + '      <span style="color:var(--tmu);">Student Session Lifetime</span>'
+          + '      <span style="font-weight:600;">' + (dev.studentSessionDays || 15) + ' days</span>'
+          + '    </div>'
+          + '    <div style="display:flex;justify-content:space-between;border-bottom:1px solid var(--brl);padding-bottom:6px;">'
+          + '      <span style="color:var(--tmu);">Registration Credential TTL</span>'
+          + '      <span style="font-weight:600;">' + (dev.credentialTtlMin || 10) + ' mins (' + (dev.credentialMaxAttempts || 5) + ' max attempts)</span>'
+          + '    </div>'
+          + '    <div style="display:flex;justify-content:space-between;border-bottom:1px solid var(--brl);padding-bottom:6px;">'
+          + '      <span style="color:var(--tmu);">6-Digit Verification Code TTL</span>'
+          + '      <span style="font-weight:600;">' + (dev.verifyCodeTtlMin || 5) + ' mins (' + (dev.verifyCodeMaxAttempts || 3) + ' max attempts)</span>'
+          + '    </div>'
+          + '    <div style="display:flex;justify-content:space-between;">'
+          + '      <span style="color:var(--tmu);">Replacement Limit</span>'
+          + '      <span style="font-weight:600;">' + (dev.replacementRequestsPerDay || 3) + ' requests / student / day</span>'
+          + '    </div>'
+          + '  </div>'
+          + '</div>'
+
+          // Card 2: Trust Score Bands & Anti-Fraud Thresholds
+          + '<div class="card" style="padding:16px;">'
+          + '  <div style="font-weight:700;font-size:14px;display:flex;align-items:center;gap:8px;margin-bottom:12px;color:#dc2626;">'
+          + '    <re-icon icon="shield-alert" size="16"></re-icon> Trust Bands &amp; Penalties'
+          + '  </div>'
+          + '  <div style="display:flex;flex-direction:column;gap:10px;font-size:12.5px;">'
+          + '    <div style="display:flex;justify-content:space-between;border-bottom:1px solid var(--brl);padding-bottom:6px;">'
+          + '      <span style="color:var(--tmu);">Trust Evaluation Gating</span>'
+          + '      <span style="font-weight:600;color:' + (tr.enabled !== false ? '#16a34a' : '#dc2626') + ';">' + (tr.enabled !== false ? 'Active' : 'Bypassed') + '</span>'
+          + '    </div>'
+          + '    <div style="display:flex;justify-content:space-between;border-bottom:1px solid var(--brl);padding-bottom:6px;">'
+          + '      <span style="color:var(--tmu);">Baseline Score Floor</span>'
+          + '      <span style="font-weight:600;">' + (tr.startScore || 100) + ' pts (Normal: &ge;' + (bands.normal || 80) + ', Monitor: ' + (bands.monitor || 60) + ', Verify: ' + (bands.verify || 40) + ')</span>'
+          + '    </div>'
+          + '    <div style="display:flex;justify-content:space-between;border-bottom:1px solid var(--brl);padding-bottom:6px;">'
+          + '      <span style="color:var(--tmu);">Uninformed Absence Penalty</span>'
+          + '      <span style="font-weight:600;color:#dc2626;">-' + (tr.uninformedAbsencePenalty || 4) + ' pts</span>'
+          + '    </div>'
+          + '    <div style="display:flex;justify-content:space-between;border-bottom:1px solid var(--brl);padding-bottom:6px;">'
+          + '      <span style="color:var(--tmu);">Frequent Absence Penalty</span>'
+          + '      <span style="font-weight:600;color:#dc2626;">-' + (tr.frequentAbsencePenalty || 2) + ' pts (Threshold: &gt;' + (tr.frequentAbsenceThreshold || 6) + ' days)</span>'
+          + '    </div>'
+          + '    <div style="display:flex;justify-content:space-between;">'
+          + '      <span style="color:var(--tmu);">Teacher Denied Proxy Penalty</span>'
+          + '      <span style="font-weight:600;color:#dc2626;">-' + (tr.teacherDeniedPenalty || 40) + ' pts (' + (tr.teacherDeniedLockDays || 2) + ' days lock)</span>'
+          + '    </div>'
+          + '  </div>'
+          + '</div>'
+
+          // Card 3: Cryptographic Device Signals (0-50 formula)
+          + '<div class="card" style="padding:16px;">'
+          + '  <div style="font-weight:700;font-size:14px;display:flex;align-items:center;gap:8px;margin-bottom:12px;color:#16a34a;">'
+          + '    <re-icon icon="signal" size="16"></re-icon> Device Signal Weights (0–50 Formula)'
+          + '  </div>'
+          + '  <div style="display:flex;flex-direction:column;gap:10px;font-size:12.5px;">'
+          + '    <div style="display:flex;justify-content:space-between;border-bottom:1px solid var(--brl);padding-bottom:6px;">'
+          + '      <span style="color:var(--tmu);">ECDSA Key Signature</span>'
+          + '      <span style="font-weight:600;color:#16a34a;">+' + (weights.key || 25) + ' pts</span>'
+          + '    </div>'
+          + '    <div style="display:flex;justify-content:space-between;border-bottom:1px solid var(--brl);padding-bottom:6px;">'
+          + '      <span style="color:var(--tmu);">Install ID &amp; Fingerprint Match</span>'
+          + '      <span style="font-weight:600;color:#16a34a;">+' + (weights.match || 10) + ' pts</span>'
+          + '    </div>'
+          + '    <div style="display:flex;justify-content:space-between;border-bottom:1px solid var(--brl);padding-bottom:6px;">'
+          + '      <span style="color:var(--tmu);">Classroom GPS Inside Radius</span>'
+          + '      <span style="font-weight:600;color:#16a34a;">+' + (weights.location || 10) + ' pts</span>'
+          + '    </div>'
+          + '    <div style="display:flex;justify-content:space-between;border-bottom:1px solid var(--brl);padding-bottom:6px;">'
+          + '      <span style="color:var(--tmu);">Campus Wi-Fi / IP Match</span>'
+          + '      <span style="font-weight:600;color:#16a34a;">+' + (weights.campusIp || 5) + ' pts</span>'
+          + '    </div>'
+          + '    <div style="display:flex;justify-content:space-between;">'
+          + '      <span style="color:var(--tmu);">Spoofing Detection Penalty</span>'
+          + '      <span style="font-weight:600;color:#dc2626;">-' + (weights.spoofPenalty || 10) + ' pts</span>'
+          + '    </div>'
+          + '  </div>'
+          + '</div>'
+          + '</div>'
+          + '<div style="margin-top:16px;text-align:right;">'
+          + '  <a href="settings.html?tab=trust" class="btn-pri" style="text-decoration:none;display:inline-flex;align-items:center;gap:6px;">'
+          + '    <re-icon icon="settings" size="14"></re-icon> Configure All Weights &amp; Rules in Settings Hub'
+          + '  </a>'
+          + '</div>';
+
+        c.innerHTML = html;
+        if (typeof reIconReplace === 'function') reIconReplace();
+      })
+      .catch(function (err) {
+        c.innerHTML = '<div style="color:#ef4444;padding:24px;text-align:center;">Failed to load trust policies: ' + escapeHtml(err.message || 'Network error') + '</div>';
+      });
   }
 
   // ─────────────────────────────────────────────────────────
@@ -1605,6 +1723,7 @@
   window.renderDeviceShareCasesTable = renderDeviceShareCasesTable;
   window.openDeviceShareCaseDrawer = openDeviceShareCaseDrawer;
   window.submitDeviceShareDecision = submitDeviceShareDecision;
+  window.loadTrustSettingsSubTab = loadTrustSettingsSubTab;
 
 })(window, document);
 

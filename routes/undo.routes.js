@@ -3,6 +3,7 @@ const router = express.Router();
 const M = require('../models');
 const { authMiddleware, requirePage } = require('../middleware/auth');
 const { logAction } = require('../utils/logAction');
+const countService = require('../services/countService');
 
 /**
  * Helper: Restore a single UndoLog entry into its corresponding database collection
@@ -34,12 +35,16 @@ async function restoreSingleEntry(entry, reqUser, reqIp, reqSessionId) {
 
   if (col === 'departments' || col === 'department' || col === 'depts') {
     restored = await insertWithIdPreservation(M.Department, cleanBody, _id);
+    await countService.modifyCount('departments', 1).catch(() => {});
   } else if (col === 'classes' || col === 'class') {
     restored = await insertWithIdPreservation(M.Class, cleanBody, _id);
+    await countService.modifyCount('classes', 1).catch(() => {});
   } else if (col === 'subjects' || col === 'subject') {
     restored = await insertWithIdPreservation(M.Subject, cleanBody, _id);
+    await countService.modifyCount('subjects', 1).catch(() => {});
   } else if (col === 'students' || col === 'student') {
     restored = await insertWithIdPreservation(M.Student, cleanBody, _id);
+    await countService.modifyCount('students', 1).catch(() => {});
     // Reactivate or recreate shadow user
     const uName = restored.username || cleanBody.username;
     if (uName) {
@@ -68,6 +73,8 @@ async function restoreSingleEntry(entry, reqUser, reqIp, reqSessionId) {
       designation: cleanBody.designation || cleanBody.desig
     };
     restored = await insertWithIdPreservation(M.Teacher, teacherData, _id);
+    await countService.modifyCount('teachers', 1).catch(() => {});
+    await countService.modifyCount('activeTeachers', 1).catch(() => {});
     const uName = restored.username || cleanBody.username;
     if (uName) {
       const existingUser = await M.User.findOne({ username: uName });
@@ -147,6 +154,7 @@ async function restoreSingleEntry(entry, reqUser, reqIp, reqSessionId) {
     restored = await insertWithIdPreservation(M.Notification, cleanBody, _id);
   } else if (col === 'attendance' || col === 'classattendance') {
     restored = await insertWithIdPreservation(M.ClassAttendance, cleanBody, _id);
+    await countService.modifyCount('attendanceRecords', 1).catch(() => {});
   } else if (col === 'templates' || col === 'exporttemplate') {
     restored = await insertWithIdPreservation(M.ExportTemplate, cleanBody, _id);
   } else {

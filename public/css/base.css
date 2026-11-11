@@ -4,13 +4,32 @@
   --gL: #66bb6a; --gLr: #a5d6a7; --gLt: #e8f5e9; --gP: #f4f7f4;
   --teal: #00897b; --amber: #f59e0b; --red: #ef4444; --blue: #3b82f6;
   --purple: #8b5cf6; --orange: #f97316;
-  --td: #1a2e1a; --tmu: #5a7a5a; --tdi: #8aab8a;
+  --td: #1a2e1a; --tmu: #385a38; --tdi: #4b6b4b;
   --br: rgba(27,94,32,0.1); --brl: rgba(27,94,32,0.06);
   --sh: 0 4px 24px rgba(27,94,32,0.10); --shd: 0 8px 32px rgba(0,0,0,0.08);
   --danger: #dc2626; --danger-lt: #fef2f2; --danger-br: #fecaca;
   --warn: #d97706; --warn-lt: #fffbeb; --warn-br: #fde68a;
   --success: #16a34a; --success-lt: #f0fdf4; --success-br: #bbf7d0;
   --sb-w: 236px;
+  --dur-fast: 120ms;
+  --dur-base: 220ms;
+  --dur-slow: 380ms;
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+body.modal-open {
+  overflow: hidden !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 /* ── RESET ──────────────────────────────────────────── */
@@ -503,6 +522,43 @@ re-icon[weight="filled"] .reicon-o { display: none; }
 .btn-pri:active, .btnp:active { transform: translateY(0); }
 .btn-pri:disabled, .btnp:disabled, .btn-pri[disabled], .btnp[disabled] {
   opacity: .5; cursor: not-allowed; transform: none; box-shadow: none; pointer-events: none;
+}
+
+/* ── BUTTON LOADING & SPINNER STATE ─────────────────── */
+.btn-loading,
+.btn[data-loading="true"],
+.btn-pri.btn-loading,
+.btn-out.btn-loading {
+  pointer-events: none !important;
+  cursor: wait !important;
+  opacity: .88 !important;
+}
+
+.btn-spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255, 255, 255, .35);
+  border-top-color: #ffffff;
+  border-radius: 50%;
+  animation: btnSpin .65s linear infinite;
+  display: inline-block;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+
+.btn-out .btn-spinner,
+.btno .btn-spinner {
+  border-color: rgba(27, 94, 32, .25);
+  border-top-color: var(--gD, #1b5e20);
+}
+
+@keyframes btnSpin {
+  to { transform: rotate(360deg); }
+}
+
+.spin {
+  animation: btnSpin .65s linear infinite;
+  display: inline-block;
 }
 
 .btn-out, .btno {

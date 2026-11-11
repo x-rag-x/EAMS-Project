@@ -68,7 +68,7 @@
   // ─────────────────────────────────────────────────────────
   async function init() {
     try {
-      var res = await fetch('/api/devices/advisor-classes?_t=' + Date.now(), { headers: authHeaders() });
+      var res = await api('/api/devices/advisor-classes?_t=' + Date.now(), { headers: authHeaders() });
       if (!res.ok) {
         removeTabIfActive();
         return;
@@ -159,7 +159,7 @@
     }
 
     try {
-      var res = await fetch('/api/devices/classes/' + classId + '/students?_t=' + Date.now(), { headers: authHeaders() });
+      var res = await api('/api/devices/classes/' + classId + '/students?_t=' + Date.now(), { headers: authHeaders() });
       var data = await res.json();
       if (!res.ok || !data.ok) {
         if (res.status === 403 && (data.code === 'WINDOW_CLOSED' || (data.error && data.error.includes('window')))) {
@@ -268,7 +268,7 @@
     }
 
     try {
-      var res = await fetch('/api/devices/tickets', {
+      var res = await api('/api/devices/tickets', {
         method: 'POST',
         headers: authHeaders(),
         body: JSON.stringify({ studentId: studentId, kind: kind || 'new' })
@@ -320,7 +320,7 @@
 
     document.getElementById('btn-queue-request').onclick = async function () {
       try {
-        var res = await fetch('/api/devices/queue-request', {
+        var res = await api('/api/devices/queue-request', {
           method: 'POST',
           headers: authHeaders(),
           body: JSON.stringify({ studentId: studentId, reason: 'Advisor request outside window' })
@@ -420,7 +420,7 @@
     }
 
     try {
-      var res = await fetch('/api/devices/tickets/' + ticketId + '/verify', {
+      var res = await api('/api/devices/tickets/' + ticketId + '/verify', {
         method: 'POST',
         headers: authHeaders(),
         body: JSON.stringify({ code: code })
@@ -460,7 +460,7 @@
   async function cancelTicket(ticketId) {
     if (currentTicketTimer) clearInterval(currentTicketTimer);
     try {
-      await fetch('/api/devices/tickets/' + ticketId + '/cancel', {
+      await api('/api/devices/tickets/' + ticketId + '/cancel', {
         method: 'POST',
         headers: authHeaders()
       });
@@ -505,7 +505,7 @@
     var tbody = document.getElementById('dv-disputes-tbody');
     if (tbody) tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:24px;color:var(--tdi);">Loading disputes queue…</td></tr>';
     try {
-      var res = await fetch('/api/trust/disputes?_t=' + Date.now(), { headers: authHeaders() });
+      var res = await api('/api/trust/disputes?_t=' + Date.now(), { headers: authHeaders() });
       if (!res.ok) throw new Error('Failed to load disputes');
       var data = await res.json();
       currentDisputes = data.disputes || [];
@@ -632,7 +632,7 @@
     }
 
     try {
-      var res = await fetch('/api/trust/disputes/' + disputeId + '/teacher-statement', {
+      var res = await api('/api/trust/disputes/' + disputeId + '/teacher-statement', {
         method: 'POST',
         headers: authHeaders(),
         body: JSON.stringify({ statement: statement })
@@ -655,7 +655,7 @@
     }
 
     try {
-      var res = await fetch('/api/trust/disputes/' + disputeId + '/advisor', {
+      var res = await api('/api/trust/disputes/' + disputeId + '/advisor', {
         method: 'POST',
         headers: authHeaders(),
         body: JSON.stringify({ action: action, note: note })

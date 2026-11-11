@@ -344,8 +344,13 @@
     var byCode = {}; sets.forEach(function (s) { byCode[s.code] = s; });
     var defCode = (sets.filter(function (s) { return s.isDefault; })[0] || sets[0]).code;
 
+    // Filter out continuation slots so multi-period blocks are not treated as overlapping self-clashes
+    var nonContinuationSlots = (rawSlots || []).filter(function (s) {
+      return !s.isSpanContinuation && !(Number(s.spanIndex) > 0);
+    });
+
     var resolved = [], unplaced = [];
-    (rawSlots || []).forEach(function (raw) {
+    nonContinuationSlots.forEach(function (raw) {
       var r = resolveSlot(raw, byCode, defCode);
       if (r) resolved.push(r); else unplaced.push(raw);
     });
@@ -377,7 +382,7 @@
       return { day: d, slots: list, laneCount: Math.max(1, laneEnds.length) };
     });
 
-    var classColorMap = buildClassColorMap(rawSlots);
+    var classColorMap = buildClassColorMap(nonContinuationSlots);
 
     return { empty: false, sets: sets, visible: visible, axis: axis, rows: rows, unplaced: unplaced,
              clashes: shown.filter(function (r) { return r.clash; }).length,
@@ -539,7 +544,11 @@
       model.rows.forEach(function (row) {
         var rEnd = r0 + row.laneCount;
         var isToday = dayKey(row.day[0]) === todayKey;
-        var dl = h('div', 'ttx-day' + (isToday ? ' is-today' : ''), row.day[0]);
+        var dl = h('div', 'ttx-day' + (isToday ? ' is-today' : ''));
+        dl.appendChild(h('div', 'ttx-day-name', row.day[0]));
+        if (opts.dayDates && opts.dayDates[row.day[0]]) {
+          dl.appendChild(h('div', 'ttx-day-date', opts.dayDates[row.day[0]]));
+        }
         if (isToday) dl.appendChild(h('em', null, 'Today'));
         grid.appendChild(place(dl, 1, 2, r0, rEnd));
 
@@ -575,8 +584,10 @@
 
           var meta = h('div', 'ttx-meta');
           var room = raw.hallNo || raw.room;
+          var stuCount = (opts.getStudentCount && opts.getStudentCount(raw));
+          var stuText = stuCount ? (' · ' + stuCount + (stuCount === 1 ? ' student' : ' students')) : '';
           var clsWrap = h('span', 'ttx-cls-wrap');
-          var clsSpan = h('span', 'ttx-cls-name', raw.className || '');
+          var clsSpan = h('span', 'ttx-cls-name', (raw.className || '') + stuText);
           if (col) {
             clsSpan.style.color = col.text;
             clsSpan.style.fontWeight = '700';
@@ -590,7 +601,7 @@
           var badge = null;
           if (r.variant === 'sub') badge = h('span', 'ttx-badge sub', 'Sub');
           else if (r.variant === 'lab') {
-            badge = h('span', 'ttx-badge lab-badge', 'Lab (' + r.span + 'P)');
+            badge = h('span', 'ttx-badge lab-badge', 'Lab · ' + r.span + 'P');
             if (col) {
               badge.style.background = col.badgeBg;
               badge.style.color = col.badgeText;
@@ -607,6 +618,19 @@
             timeEl.style.color = col.text;
           }
           card.appendChild(timeEl);
+
+          if (isToday && opts.onTakeAttendance) {
+            var isMarked = opts.isMarked && opts.isMarked(raw);
+            if (!isMarked && raw.status !== 'cancelled' && raw.status !== 'leave') {
+              var actBtn = h('button', 'ttx-card-act-btn', 'Take Attendance');
+              actBtn.type = 'button';
+              actBtn.addEventListener('click', function(ev) {
+                ev.stopPropagation();
+                opts.onTakeAttendance(raw, ev);
+              });
+              card.appendChild(actBtn);
+            }
+          }
 
           card.title = (raw.subjectName || raw.subject || '') + '\n' + (raw.className || '') + (room ? ' • ' + room : '') +
                        '\n' + range(r.s, r.e, tf) + ' · ' + r.setCode + (r.clash ? '\n⚠ overlaps another slot' : '') +
@@ -803,7 +827,7 @@
 
         html += '<div class="faculty-slot-meta">';
         if (clsName) {
-          html += '<span class="pill pri" style="font-size:10px;padding:1px 6px;"><re-icon icon="chalkboard"></re-icon> ' + escHtml(clsName) + '</span>';
+          html += '<span style="font-size:11px;font-weight:600;color:var(--td,#1e293b);display:inline-flex;align-items:center;gap:3px;"><re-icon icon="chalkboard"></re-icon> ' + escHtml(clsName) + '</span>';
         }
         if (room) {
           html += '<span style="font-size:11px;color:var(--tmu);"><re-icon icon="pin"></re-icon> ' + escHtml(room) + '</span>';

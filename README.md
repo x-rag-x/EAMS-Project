@@ -232,6 +232,21 @@ All uploads accept `.xlsx`, `.xls`, or `.csv`.
 ---
 
 
+## Attendance Records & Forensics (Admin Control Panel)
+
+Admin-only endpoints mounted at /api/attendance-records for Roster day forensics and Registry spreadsheet registers:
+
+| Endpoint | Method | Role | Description |
+|----------|--------|------|-------------|
+| /api/attendance-records/roster/options | GET | Admin | Cascading Department & Class selectors |
+| /api/attendance-records/roster?classId=&date= | GET | Admin | Full-day matrix view with working/holiday status & KPIs |
+| /api/attendance-records/roster?classId=&date=&period= | GET | Admin | Forensic period detail joined to LoginHistory with device trust scores |
+| /api/attendance-records/roster/student?classId=&date=&studentTrackId= | GET | Admin | Student dossier drawer with signal-by-signal trust breakdown |
+| /api/attendance-records/registry?classId=&from=&to=&view= | GET | Admin | Spreadsheet-style attendance register matrix (period grid & day summary) |
+| /api/attendance-records/registry/export?classId=&from=&to=&format=xlsx|pdf | GET | Admin | Server-side Excel (live =COUNTIF formulas) & PDF export |
+
+---
+
 ## Deployment — Railway.app
 
 1. Push your project to a GitHub repository (without `.env`)

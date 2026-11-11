@@ -35,6 +35,19 @@ router.get('/me', authMiddleware, async (req, res) => {
 
     if (req.user.role === 'teacher') {
       const specials = Array.isArray(userDoc.specials) ? userDoc.specials : [];
+      const advisedClassDoc = await M.Class.findOne({
+        $or: [
+          ...(mongoose.isValidObjectId(userDoc._id) ? [{ advisorTeacherId: userDoc._id }] : []),
+          ...(userDoc.trackId ? [{ advisorTeacherTrackId: userDoc.trackId }] : []),
+          ...(mongoose.isValidObjectId(userDoc._id) ? [{ secondaryAdvisorTeacherId: userDoc._id }] : []),
+          ...(userDoc.trackId ? [{ secondaryAdvisorTeacherTrackId: userDoc.trackId }] : [])
+        ]
+      }).select('_id name trackId').lean();
+
+      const hasAdvisorSpecial = specials.some(s => s.option === 'isClassAdvisor');
+      const isClassAdvisor = hasAdvisorSpecial || !!advisedClassDoc;
+      const advClassName = (specials.find(s => s.option === 'isClassAdvisor') || {}).key || (specials.find(s => s.option === 'isClassAdvisor') || {}).value || (advisedClassDoc ? advisedClassDoc.name : '');
+
       Object.assign(base, {
         fullName: userDoc.fullName,
         firstName: userDoc.firstName || '',
@@ -52,9 +65,9 @@ router.get('/me', authMiddleware, async (req, res) => {
           if (typeof s.key === 'string' && s.key.trim() && !s.key.startsWith('isHod') && s.key !== 'true') return s.key.trim();
           return (userDoc.department || '').trim();
         })(),
-        isClassAdvisor: specials.some(s => s.option === 'isClassAdvisor'),
-        className: (specials.find(s => s.option === 'isClassAdvisor') || {}).key || (specials.find(s => s.option === 'isClassAdvisor') || {}).value || '',
-        advisorClassName: (specials.find(s => s.option === 'isClassAdvisor') || {}).key || (specials.find(s => s.option === 'isClassAdvisor') || {}).value || '',
+        isClassAdvisor: isClassAdvisor,
+        className: advClassName,
+        advisorClassName: advClassName,
         isTimeTableCoordinator: specials.some(s => s.option === 'isTimeTableCoordinator'),
         TTdeptName: (() => {
           const s = specials.find(x => x.option === 'isTimeTableCoordinator');
@@ -72,6 +85,10 @@ router.get('/me', authMiddleware, async (req, res) => {
         access: getPrecomputedAccess(userDoc),
         adminFlag: isSudoAdmin(userDoc) ? 'superadmin' : (hasSpecial(userDoc, 'isPrincipal') ? 'principal' : (hasSpecial(userDoc, 'isAdmin') ? 'subadmin' : 'none')),
         specials: specials,
+        joiningDate: userDoc.joiningDate || null,
+        strongSubjects: userDoc.strongSubjects || [],
+        unavailableSlots: userDoc.unavailableSlots || [],
+        responsibilities: userDoc.responsibilities || [],
         preferences: Object.assign({
           defaultAttendanceStatus: 'Present',
           autoAttendancePrompt: true,
@@ -95,6 +112,9 @@ router.get('/me', authMiddleware, async (req, res) => {
         currentYear: userDoc.currentYear || '',
         academicYear: userDoc.admissionYear || '',
         isRep: userDoc.isRep || false,
+        gender: userDoc.gender || 'Male',
+        residency: userDoc.residency || 'dayscholar',
+        admissionType: userDoc.admissionType || 'Regular',
       });
     }
 
@@ -233,6 +253,37 @@ router.get('/users', authMiddleware, async (req, res) => {
 // ── PUT /api/profile/users/:id — redirect legacy callers to canonical /api/users/:id ──
 router.put('/users/:id', authMiddleware, (req, res) => {
   res.redirect(307, `/api/users/${req.params.id}`);
+});
+
+
+// PUT /api/profile/strong-subjects
+router.put('/strong-subjects', authMiddleware, async (req, res) => {
+  try {
+    if (req.user.role !== 'teacher') return res.status(403).json({ error: 'Only faculty can configure strong subjects' });
+    const { subjectIds } = req.body;
+    if (!Array.isArray(subjectIds)) return res.status(400).json({ error: 'subjectIds array required' });
+    const teacher = await M.Teacher.findOneAndUpdate(
+      { username: req.user.username },
+      { $set: { strongSubjects: subjectIds } },
+      { returnDocument: 'after' }
+    ).populate('strongSubjects', 'name code shortName courseCode shortForm credits').lean();
+    res.json({ ok: true, message: 'Strong subjects updated', data: teacher ? teacher.strongSubjects : [] });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// PUT /api/profile/unavailable-slots
+router.put('/unavailable-slots', authMiddleware, async (req, res) => {
+  try {
+    if (req.user.role !== 'teacher') return res.status(403).json({ error: 'Only faculty can configure unavailable slots' });
+    const { slots } = req.body;
+    if (!Array.isArray(slots)) return res.status(400).json({ error: 'slots array required' });
+    const teacher = await M.Teacher.findOneAndUpdate(
+      { username: req.user.username },
+      { $set: { unavailableSlots: slots } },
+      { returnDocument: 'after' }
+    ).lean();
+    res.json({ ok: true, message: 'Unavailable slots updated', data: teacher ? teacher.unavailableSlots : [] });
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 module.exports = router;

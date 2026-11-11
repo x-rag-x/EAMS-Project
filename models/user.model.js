@@ -26,7 +26,9 @@ const TeacherSchema = new mongoose.Schema({
       enum: [
         'isAdmin', 'isPrincipal', 'isHod', 'isClassAdvisor',
         'isTimeTableCoordinator', 'isExamCoordinator', 'isPlacementCoordinator', 'isWarden',
-        'HodDeptTrackId', 'ClassAdvisorTrackId', 'TTDeptTrackId'
+        'HodDeptTrackId', 'ClassAdvisorTrackId', 'TTDeptTrackId',
+        'isSecondaryHod', 'isSecondaryTimeTableCoordinator', 'isSecondaryClassAdvisor',
+        'SecondaryHodDeptTrackId', 'SecondaryClassAdvisorTrackId', 'SecondaryTTDeptTrackId'
       ]
     },
     key:        { type: String, default: '', trim: true },
@@ -40,7 +42,17 @@ const TeacherSchema = new mongoose.Schema({
 
   accessVersion: { type: Number, default: 0 },
 
-  responsibilities: { type: [String], default: [] },
+  responsibilities: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Responsibility' }],
+
+  joiningDate: { type: Date, default: null },
+  strongSubjects: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Subject' }],
+  unavailableSlots: [{
+    day: { type: String, enum: ['Mon','Tue','Wed','Thu','Fri','Sat'] },
+    period: { type: Number },
+    reason: { type: String, default: '' },
+    hodApproved: { type: Boolean, default: false },
+    approvedBy: { type: String, default: '' },
+  }],
 
   preferences: {
     defaultAttendanceStatus: { type: String, enum: ['Present', 'Absent', 'Unmarked'], default: 'Present' },
@@ -91,6 +103,7 @@ const StudentSchema = new mongoose.Schema({
   },
   trackId: { type: String, required: true, unique: true, trim: true },
   registerNo:   { type: String, default: '', trim: true },
+  rollNo:       { type: String, default: '', trim: true },
   class:        { type: String, default: '' },
   classId:      { type: mongoose.Schema.Types.ObjectId, ref: 'Class' },
   courseType:    { type: String, enum: ['None', 'UG','PG'], default: 'None'},
@@ -111,6 +124,17 @@ const StudentSchema = new mongoose.Schema({
     enum: ['hostel', 'dayscholar'],
     default: 'dayscholar',
     set: v => (v && String(v).toLowerCase().includes('hostel') ? 'hostel' : (v ? String(v).toLowerCase().trim() : 'dayscholar'))
+  },
+  admissionType:        {
+    type: String,
+    enum: ['Regular', 'Lateral Entry'],
+    default: 'Regular',
+    set: v => {
+      if (!v) return 'Regular';
+      const s = String(v).trim().toLowerCase();
+      if (s.includes('lateral')) return 'Lateral Entry';
+      return 'Regular';
+    }
   },
   hostelId:             { type: mongoose.Schema.Types.ObjectId, ref: 'Hostel', default: null },
   blockId:              { type: mongoose.Schema.Types.ObjectId, ref: 'Block', default: null },
@@ -159,6 +183,7 @@ StudentSchema.index({ attendancePercentage: 1 });
 StudentSchema.index({ 'trust.score': 1 });
 StudentSchema.index({ 'trust.lockedUntil': 1 });
 StudentSchema.index({ residency: 1 });
+StudentSchema.index({ admissionType: 1 });
 StudentSchema.index({ gender: 1 });
 
 // Base shadow user schema for session and status tracking
@@ -166,7 +191,7 @@ const UserSchema = new mongoose.Schema({
   username:   { type: String, required: true, unique: true, trim: true, lowercase: true },
   role:       { type: String, enum: ['teacher','student'], required: true },
   trackId:    { type: String,  unique: true, sparse: true },
-  status:     { type: String, enum: ['active', 'inactive', 'locked'], default: 'active' },
+  status:     { type: String, enum: ['active', 'inactive', 'locked', 'restricted', 'suspended'], default: 'active' },
   online:     { type: Boolean, default: false },
   failedLogins: { type: Number, default: 0 },
   lockedUntil:  { type: Date, default: null },

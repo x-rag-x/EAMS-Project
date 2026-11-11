@@ -116,10 +116,22 @@ function sanitizeToObjectId(value) {
   return undefined;
 }
 
+/**
+ * Escape regular expression special characters to safely use in new RegExp().
+ *
+ * @param {string} string - Input string
+ * @returns {string} Escaped string
+ */
+function escapeRegex(string) {
+  if (typeof string !== 'string') return '';
+  return string.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&');
+}
+
 module.exports = {
   sanitizeQueryValue,
   sanitizeQuery,
   sanitizeToString,
   sanitizeToNumber,
   sanitizeToObjectId,
+  escapeRegex,
 };

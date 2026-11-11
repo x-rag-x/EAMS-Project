@@ -29,6 +29,11 @@ const DEFAULT_SETTINGS_MAP = {
       bulkChatUi:     true,
       pageTimeTable:  'enabled',
       pageSelector:   'enabled',
+      pageHostel:     'enabled',
+      pageTrust:      'enabled',
+      pageExport:     'enabled',
+      pageControl:    'enabled',
+      pageLogs:       'enabled',
     }
   },
 
@@ -50,6 +55,9 @@ const DEFAULT_SETTINGS_MAP = {
       defaultAttendanceStatus:   'Present',
       timetableMatch:            'warn',
       forceTimetableSlots:       false,
+      enforceAttendanceGeofence: true,
+      attendanceMaxRadiusM:      200,
+      attendanceMaxAccuracyM:    100,
     }
   },
 
@@ -75,6 +83,8 @@ const DEFAULT_SETTINGS_MAP = {
     card: 'Models & Features',
     value: {
       modelLeave:            true,
+      modelStudentLeave:     true,
+      modelStaffLeave:       true,
       modelGrievances:       true,
       modelExams:            true,
       modelNotifications:    true,
@@ -84,7 +94,21 @@ const DEFAULT_SETTINGS_MAP = {
       modelExportSheet:      true,
       moduleDelUseAdminPass: true,
       requireHodApproval:    true,
+      bulkMailCredentials:   true,
       modelSmartBoards:      true,
+      timetable: {
+        workspaceV2: true,
+        sharingLinks: true,
+        visualPublishDiff: true,
+        boardWsSync: true,
+        offlineDrafts: true,
+        conflictMatrix: true,
+        undoRedo: true,
+        smartFill: true,
+        attendanceLink: true,
+        hotfixLane: true,
+        productionReadOnly: true,
+      },
     }
   },
 
@@ -98,6 +122,7 @@ const DEFAULT_SETTINGS_MAP = {
       lowAttendanceThreshold: 65,
       workingDays:            6,
       periodsPerDay:          7,
+      fnPeriods:              4,
       regulationMinAttendance: {},
     }
   },
@@ -109,7 +134,8 @@ const DEFAULT_SETTINGS_MAP = {
       forcePasswordChange:        true,
       requireStrongPassword:      true,
       sessionTimeout:             true,
-      sessionTimeoutMins:         7,
+      sessionTimeoutMins:         10,
+      teacherInactivityMins:      10,
       maxSessionLifetimeHours:    24,
       studentDeviceSessionLifetimeDays: 15,
       maxLoginAttempts:           3,
@@ -120,6 +146,12 @@ const DEFAULT_SETTINGS_MAP = {
       loginLocationAccuracyCheck: true,
       loginLocationMaxAccuracyM:  2000,
       loginLocationMaxAgeSec:     300,
+      sudoMfaRequired:             false,
+      sudoAllowedIps:              '',
+      sudoMaxSessionLifetimeHours: 8,
+      sudoSessionTimeoutMins:      15,
+      sudoNotifyOnLogin:           true,
+      sudoForcePasswordChangeDays: 90,
     }
   },
 
@@ -277,6 +309,35 @@ const DEFAULT_SETTINGS_MAP = {
       disputeWindowDays:               7,
       disputeBonusPct:                 2,
       deviceWeights:                   { key: 25, match: 10, location: 10, campusIp: 5, spoofPenalty: 10 },
+    }
+  },
+
+  // Google Drive Cloud Synchronization & Backup
+  driveSync: {
+    card: 'Google Drive Sync',
+    value: {
+      enabled:                 true,
+      autoBackupSync:          true,
+      backupFolderId:          '10b4EV1DJ-ASRugnLjdIhjjuxeoZkPaUJ',
+      evidenceFolderId:        '1A05LHiBo_Nj0iglj0kY9iNEcq_FR3UOL',
+      syncFrequencyHours:      24,
+      retainCloudDays:         30,
+    }
+  },
+
+  // Outgoing Email & Notification Services
+  mailer: {
+    card: 'Mail Notifications',
+    value: {
+      enabled:                  true,
+      provider:                 'gmail_api',
+      senderName:               'EAMS Notifications',
+      senderEmail:              'no-reply@institution.edu',
+      notifyWelcomeCredentials: true,
+      notifyDefaulterAlerts:    true,
+      notifyLeaveStatus:        true,
+      notifySecurityAlerts:     true,
+      notifySudoOnBackup:       true,
     }
   }
 };

@@ -4,6 +4,7 @@ const M = require('../models');
 const { authMiddleware, requirePage } = require('../middleware/auth');
 const { logAction } = require('../utils/logAction');
 const { sanitizeToString } = require('../utils/sanitizeQuery');
+const { syncClassSubjectSet } = require('../services/subjectSetService');
 
 router.get('/', authMiddleware, async (req, res) => {
   const filter = {};
@@ -17,10 +18,38 @@ router.get('/', authMiddleware, async (req, res) => {
 
 router.post('/', authMiddleware, requirePage('admin', 'create', { tab: 'struct' }), async (req, res) => {
   try {
-    const existing = await M.Assignment.findOne({ teacherId: req.body.teacherId, classId: req.body.classId, subjectId: req.body.subjectId });
+    const teacherId = sanitizeToString(req.body.teacherId);
+    const classId = sanitizeToString(req.body.classId);
+    const subjectId = sanitizeToString(req.body.subjectId);
+
+    if (!teacherId || !classId || !subjectId) {
+      return res.status(400).json({ error: 'teacherId, classId, and subjectId are required' });
+    }
+
+    const existing = await M.Assignment.findOne({ teacherId, classId, subjectId });
     if (existing) return res.status(409).json({ error: 'Assignment already exists' });
-    const asgn = await M.Assignment.create(req.body);
-    await logAction(req.user._id, req.user.name, req.user.role, 'Assignment Created', `${req.body.subjectName} → ${req.body.className}`, 'data', 'info', req.ip);
+    const allowedFields = [
+      'teacherId', 'teacherName', 'classId', 'className',
+      'subjectId', 'subjectName', 'hallNo', 'roomId',
+      'periodsPerWeek', 'isLab', 'deptName', 'deptCode',
+      'remarks', 'source', 'timetableTrackId'
+    ];
+    const safeData = {};
+    for (const f of allowedFields) {
+      if (req.body[f] !== undefined) safeData[f] = req.body[f];
+    }
+    safeData.teacherId = teacherId;
+    safeData.classId = classId;
+    safeData.subjectId = subjectId;
+    if (req.body.teacherName) safeData.teacherName = String(req.body.teacherName).trim();
+    if (req.body.className) safeData.className = String(req.body.className).trim();
+    if (req.body.subjectName) safeData.subjectName = String(req.body.subjectName).trim();
+    const asgn = await M.Assignment.create(safeData);
+    if (classId) {
+      const allForClass = await M.Assignment.find({ classId }).lean();
+      await syncClassSubjectSet(classId, allForClass, req.user).catch(e => console.warn('[SubjectSet Sync Warn]:', e.message));
+    }
+    await logAction(req.user._id, req.user.name, req.user.role, 'Assignment Created', `${safeData.subjectName || req.body.subjectName || ''} → ${safeData.className || req.body.className || ''}`, 'data', 'info', req.ip);
     res.status(201).json(asgn);
   } catch (err) { res.status(400).json({ error: err.message }); }
 });
@@ -56,7 +85,14 @@ router.post('/bulk', authMiddleware, requirePage('admin', 'create', { tab: 'stru
       const deleted = await M.Assignment.deleteMany({ subjectId });
 
       // Insert all new rows in one shot
-      const saved = await M.Assignment.insertMany(assignments);
+      const actorInfo = { userId: req.user._id, name: req.user.name, trackId: req.user.trackId || '' };
+      const prepared = assignments.map(a => ({ ...a, createdBy: actorInfo, updatedBy: actorInfo }));
+      const saved = await M.Assignment.insertMany(prepared);
+      const affectedClassIds = [...new Set(saved.map(s => s.classId).filter(Boolean))];
+      for (const cid of affectedClassIds) {
+        const allForClass = await M.Assignment.find({ classId: cid }).lean();
+        await syncClassSubjectSet(cid, allForClass, req.user).catch(e => console.warn('[SubjectSet Sync Warn]:', e.message));
+      }
 
       await logAction(
         req.user._id, req.user.name, req.user.role,
@@ -77,7 +113,14 @@ router.post('/bulk', authMiddleware, requirePage('admin', 'create', { tab: 'stru
       const deleted = await M.Assignment.deleteMany({ classId });
 
       // Insert all new rows in one shot
-      const saved = await M.Assignment.insertMany(assignments);
+      const actorInfo = { userId: req.user._id, name: req.user.name, trackId: req.user.trackId || '' };
+      const prepared = assignments.map(a => ({ ...a, createdBy: actorInfo, updatedBy: actorInfo }));
+      const saved = await M.Assignment.insertMany(prepared);
+      const affectedClassIds = [...new Set(saved.map(s => s.classId).filter(Boolean))];
+      for (const cid of affectedClassIds) {
+        const allForClass = await M.Assignment.find({ classId: cid }).lean();
+        await syncClassSubjectSet(cid, allForClass, req.user).catch(e => console.warn('[SubjectSet Sync Warn]:', e.message));
+      }
 
       await logAction(
         req.user._id, req.user.name, req.user.role,
@@ -98,7 +141,14 @@ router.post('/bulk', authMiddleware, requirePage('admin', 'create', { tab: 'stru
       const deleted = await M.Assignment.deleteMany({ teacherId });
 
       // Insert all new rows in one shot
-      const saved = await M.Assignment.insertMany(assignments);
+      const actorInfo = { userId: req.user._id, name: req.user.name, trackId: req.user.trackId || '' };
+      const prepared = assignments.map(a => ({ ...a, createdBy: actorInfo, updatedBy: actorInfo }));
+      const saved = await M.Assignment.insertMany(prepared);
+      const affectedClassIds = [...new Set(saved.map(s => s.classId).filter(Boolean))];
+      for (const cid of affectedClassIds) {
+        const allForClass = await M.Assignment.find({ classId: cid }).lean();
+        await syncClassSubjectSet(cid, allForClass, req.user).catch(e => console.warn('[SubjectSet Sync Warn]:', e.message));
+      }
 
       await logAction(
         req.user._id, req.user.name, req.user.role,
@@ -127,6 +177,10 @@ router.delete('/:id', authMiddleware, requirePage('admin', 'delete', { tab: 'str
         expiresAt: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000)
       }).catch(err => console.warn('[UndoLog Error]:', err.message));
       await M.Assignment.findByIdAndDelete(req.params.id);
+      if (asgn.classId) {
+        const remaining = await M.Assignment.find({ classId: asgn.classId }).lean();
+        await syncClassSubjectSet(asgn.classId, remaining, req.user).catch(e => console.warn('[SubjectSet Sync Warn]:', e.message));
+      }
     }
     await logAction(req.user._id, req.user.name, req.user.role, 'Assignment Removed', asgn?.subjectName || req.params.id, 'data', 'warning', req.ip);
     res.json({ deleted: true });

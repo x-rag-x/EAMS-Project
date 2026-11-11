@@ -7,10 +7,11 @@ const { todayInInstitutionTz } = require('./institutionTime');
 
 /**
  * Define canonical stages for request types
+ * OD Approval Flow: Student -> Mentor -> Advisor -> HOD
  */
 const WORKFLOW_STAGES = {
   student_leave: ['advisor'],
-  od: ['advisor', 'mentor', 'hod', 'principal'],
+  od: ['mentor', 'advisor', 'hod'],
   faculty_leave: ['hod', 'principal']
 };
 
@@ -93,7 +94,7 @@ async function recordApprovalHistory({
  *
  * @param {Object} params
  * @param {string} params.requestType - 'student_leave' | 'od' | 'faculty_leave'
- * @param {string} params.currentStage - 'advisor' | 'mentor' | 'hod'
+ * @param {string} params.currentStage - 'mentor' | 'advisor' | 'hod'
  * @param {Object} params.stageApproverMap - Map of stage -> trackId
  * @param {string} params.actorTrackId
  * @param {string} params.actorName
@@ -120,7 +121,7 @@ function getNextWorkflowStage({
   while (nextIdx < stages.length) {
     const stageName = stages[nextIdx];
 
-    // For OD, principal stage is only reached if requested
+    // For OD, principal stage is only reached if requested and explicitly included
     if (stageName === 'principal' && requestType === 'od' && !requestPrincipal) {
       return { nextStage: null, isComplete: true, mergedStages };
     }

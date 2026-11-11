@@ -68,6 +68,12 @@ function getRoleKeys(role, scopeId, teacherId) {
     case 'hod':
       slotKey = `hod:${scopeId}`;
       holderKey = `hod:${teacherId}`;
+
+      break;
+    case 'secondaryHod':
+      slotKey = `secondaryHod:${scopeId}`;
+      holderKey = `secondaryHod:${teacherId}`;
+
       break;
     case 'superAdmin':
       slotKey = `superAdmin:${scopeId}`;
@@ -76,11 +82,17 @@ function getRoleKeys(role, scopeId, teacherId) {
     case 'ttCoordinator':
       slotKey = `ttCoordinator:${scopeId}`;
       break;
+    case 'secondaryTtCoordinator':
+      slotKey = `secondaryTtCoordinator:${scopeId}`;
+      break;
     case 'placementCoordinator':
       slotKey = `placementCoordinator:${scopeId}`;
       break;
     case 'classAdvisor':
       slotKey = `classAdvisor:${scopeId}`;
+      break;
+    case 'secondaryClassAdvisor':
+      slotKey = `secondaryClassAdvisor:${scopeId}`;
       break;
     case 'warden':
       slotKey = `warden:${scopeId}`;
@@ -112,18 +124,46 @@ async function revertProjections(assignment, session) {
       updatedSpecials = updatedSpecials.filter(s => s.option !== 'isPrincipal');
       break;
 
-    case 'hod':
-      updatedSpecials = updatedSpecials.filter(s => s.option !== 'isHod' && s.option !== 'HodDeptTrackId');
+    case 'hod': {
       if (deptId || scopeId) {
         await M.Department.updateOne(
           { _id: deptId || scopeId, hodId: tId },
           { $set: { hodId: null, hodName: '' } }
         ).session(session || null);
       }
+      const hasOtherHod = await M.RoleAssignment.findOne({
+        teacherId: tId,
+        role: { $in: ['hod', 'secondaryHod'] },
+        active: true,
+        _id: { $ne: assignment._id }
+      }).session(session || null);
+      if (!hasOtherHod) {
+        updatedSpecials = updatedSpecials.filter(s => s.option !== 'isHod' && s.option !== 'HodDeptTrackId');
+      }
       break;
+    }
+
+    case 'secondaryHod': {
+      updatedSpecials = updatedSpecials.filter(s => s.option !== 'isSecondaryHod' && s.option !== 'SecondaryHodDeptTrackId');
+      if (deptId || scopeId) {
+        await M.Department.updateOne(
+          { _id: deptId || scopeId, secondaryHodId: tId },
+          { $set: { secondaryHodId: null, secondaryHodName: '' } }
+        ).session(session || null);
+      }
+      const hasOtherHod = await M.RoleAssignment.findOne({
+        teacherId: tId,
+        role: { $in: ['hod', 'secondaryHod'] },
+        active: true,
+        _id: { $ne: assignment._id }
+      }).session(session || null);
+      if (!hasOtherHod) {
+        updatedSpecials = updatedSpecials.filter(s => s.option !== 'isHod' && s.option !== 'HodDeptTrackId');
+      }
+      break;
+    }
 
     case 'superAdmin': {
-      // Check if user still holds sudoAdmin or other admin rights
       const isSudo = teacher.pageRights?.accessRole === 'sudoAdmin' ||
                      (teacher.pageRights?.grants || []).some(g => g.scope === 'institution' && g.accessRole === 'sudoAdmin');
       if (!isSudo) {
@@ -137,23 +177,75 @@ async function revertProjections(assignment, session) {
       break;
     }
 
-    case 'ttCoordinator':
-      updatedSpecials = updatedSpecials.filter(s => s.option !== 'isTimeTableCoordinator' && s.option !== 'TTDeptTrackId');
+    case 'ttCoordinator': {
+      const hasOtherTtc = await M.RoleAssignment.findOne({
+        teacherId: tId,
+        role: { $in: ['ttCoordinator', 'secondaryTtCoordinator'] },
+        active: true,
+        _id: { $ne: assignment._id }
+      }).session(session || null);
+      if (!hasOtherTtc) {
+        updatedSpecials = updatedSpecials.filter(s => s.option !== 'isTimeTableCoordinator' && s.option !== 'TTDeptTrackId');
+      }
       break;
+    }
+
+    case 'secondaryTtCoordinator': {
+      updatedSpecials = updatedSpecials.filter(s => s.option !== 'isSecondaryTimeTableCoordinator' && s.option !== 'SecondaryTTDeptTrackId');
+      const hasOtherTtc = await M.RoleAssignment.findOne({
+        teacherId: tId,
+        role: { $in: ['ttCoordinator', 'secondaryTtCoordinator'] },
+        active: true,
+        _id: { $ne: assignment._id }
+      }).session(session || null);
+      if (!hasOtherTtc) {
+        updatedSpecials = updatedSpecials.filter(s => s.option !== 'isTimeTableCoordinator' && s.option !== 'TTDeptTrackId');
+      }
+      break;
+    }
 
     case 'placementCoordinator':
       updatedSpecials = updatedSpecials.filter(s => s.option !== 'isPlacementCoordinator');
       break;
 
-    case 'classAdvisor':
-      updatedSpecials = updatedSpecials.filter(s => s.option !== 'isClassAdvisor' && s.option !== 'ClassAdvisorTrackId');
+    case 'classAdvisor': {
       if (scopeId) {
         await M.Class.updateOne(
           { _id: scopeId, advisorTeacherId: tId },
-          { $set: { advisorTeacherId: null, advisorTeacherName: '', advisorTrackId: '' } }
+          { $set: { advisorTeacherId: null, advisorTeacherName: '', advisorTrackId: '', advisorTeacherTrackId: '' } }
         ).session(session || null);
       }
+      const hasOtherAdv = await M.RoleAssignment.findOne({
+        teacherId: tId,
+        role: { $in: ['classAdvisor', 'secondaryClassAdvisor'] },
+        active: true,
+        _id: { $ne: assignment._id }
+      }).session(session || null);
+      if (!hasOtherAdv) {
+        updatedSpecials = updatedSpecials.filter(s => s.option !== 'isClassAdvisor' && s.option !== 'ClassAdvisorTrackId');
+      }
       break;
+    }
+
+    case 'secondaryClassAdvisor': {
+      updatedSpecials = updatedSpecials.filter(s => s.option !== 'isSecondaryClassAdvisor' && s.option !== 'SecondaryClassAdvisorTrackId');
+      if (scopeId) {
+        await M.Class.updateOne(
+          { _id: scopeId, secondaryAdvisorTeacherId: tId },
+          { $set: { secondaryAdvisorTeacherId: null, secondaryAdvisorTeacherName: '', secondaryAdvisorTeacherTrackId: '' } }
+        ).session(session || null);
+      }
+      const hasOtherAdv = await M.RoleAssignment.findOne({
+        teacherId: tId,
+        role: { $in: ['classAdvisor', 'secondaryClassAdvisor'] },
+        active: true,
+        _id: { $ne: assignment._id }
+      }).session(session || null);
+      if (!hasOtherAdv) {
+        updatedSpecials = updatedSpecials.filter(s => s.option !== 'isClassAdvisor' && s.option !== 'ClassAdvisorTrackId');
+      }
+      break;
+    }
 
     case 'warden':
       updatedSpecials = updatedSpecials.filter(s => s.option !== 'isWarden');
@@ -205,6 +297,28 @@ async function applyProjections(assignment, scopeDoc, session) {
       break;
     }
 
+    case 'secondaryHod': {
+      const dDoc = scopeDoc || (deptId ? await M.Department.findById(deptId).session(session || null) : null);
+      updatedSpecials = updatedSpecials.filter(s => s.option !== 'isSecondaryHod' && s.option !== 'SecondaryHodDeptTrackId');
+      updatedSpecials.push({ option: 'isSecondaryHod', value: true, key: '' });
+      if (dDoc && dDoc.trackId) {
+        updatedSpecials.push({ option: 'SecondaryHodDeptTrackId', value: dDoc.trackId, key: '' });
+      }
+      if (!updatedSpecials.some(s => s.option === 'isHod')) {
+        updatedSpecials.push({ option: 'isHod', value: true, key: '' });
+      }
+      if (dDoc && dDoc.trackId && !updatedSpecials.some(s => s.option === 'HodDeptTrackId')) {
+        updatedSpecials.push({ option: 'HodDeptTrackId', value: dDoc.trackId, key: '' });
+      }
+      if (dDoc) {
+        await M.Department.updateOne(
+          { _id: dDoc._id },
+          { $set: { secondaryHodId: teacher._id, secondaryHodName: teacher.fullName } }
+        ).session(session || null);
+      }
+      break;
+    }
+
     case 'superAdmin': {
       const dDoc = scopeDoc || (deptId ? await M.Department.findById(deptId).session(session || null) : null);
       if (!updatedSpecials.some(s => s.option === 'isAdmin')) {
@@ -226,6 +340,20 @@ async function applyProjections(assignment, scopeDoc, session) {
       const dName = dDoc?.name || teacher.department || '';
       updatedSpecials = updatedSpecials.filter(s => s.option !== 'isTimeTableCoordinator');
       updatedSpecials.push({ option: 'isTimeTableCoordinator', value: dName, key: dName });
+      break;
+    }
+
+    case 'secondaryTtCoordinator': {
+      const dDoc = scopeDoc || (deptId ? await M.Department.findById(deptId).session(session || null) : null);
+      const dName = dDoc?.name || teacher.department || '';
+      updatedSpecials = updatedSpecials.filter(s => s.option !== 'isSecondaryTimeTableCoordinator' && s.option !== 'SecondaryTTDeptTrackId');
+      updatedSpecials.push({ option: 'isSecondaryTimeTableCoordinator', value: dName, key: dName });
+      if (dDoc && dDoc.trackId) {
+        updatedSpecials.push({ option: 'SecondaryTTDeptTrackId', value: dDoc.trackId, key: '' });
+      }
+      if (!updatedSpecials.some(s => s.option === 'isTimeTableCoordinator')) {
+        updatedSpecials.push({ option: 'isTimeTableCoordinator', value: dName, key: dName });
+      }
       break;
     }
 
@@ -251,7 +379,36 @@ async function applyProjections(assignment, scopeDoc, session) {
             $set: {
               advisorTeacherId: teacher._id,
               advisorTeacherName: teacher.fullName,
-              advisorTrackId: teacher.trackId
+              advisorTrackId: teacher.trackId,
+              advisorTeacherTrackId: teacher.trackId
+            }
+          }
+        ).session(session || null);
+      }
+      break;
+    }
+
+    case 'secondaryClassAdvisor': {
+      const cDoc = scopeDoc || (scopeId ? await M.Class.findById(scopeId).session(session || null) : null);
+      updatedSpecials = updatedSpecials.filter(s => s.option !== 'isSecondaryClassAdvisor' && s.option !== 'SecondaryClassAdvisorTrackId');
+      updatedSpecials.push({ option: 'isSecondaryClassAdvisor', value: true, key: '' });
+      if (cDoc && cDoc.trackId) {
+        updatedSpecials.push({ option: 'SecondaryClassAdvisorTrackId', value: cDoc.trackId, key: '' });
+      }
+      if (!updatedSpecials.some(s => s.option === 'isClassAdvisor')) {
+        updatedSpecials.push({ option: 'isClassAdvisor', value: true, key: '' });
+      }
+      if (cDoc && cDoc.trackId && !updatedSpecials.some(s => s.option === 'ClassAdvisorTrackId')) {
+        updatedSpecials.push({ option: 'ClassAdvisorTrackId', value: cDoc.trackId, key: '' });
+      }
+      if (cDoc) {
+        await M.Class.updateOne(
+          { _id: cDoc._id },
+          {
+            $set: {
+              secondaryAdvisorTeacherId: teacher._id,
+              secondaryAdvisorTeacherName: teacher.fullName,
+              secondaryAdvisorTeacherTrackId: teacher.trackId
             }
           }
         ).session(session || null);
@@ -292,10 +449,13 @@ async function assignRole({
   const allowedRoles = [
     'principal',
     'hod',
+    'secondaryHod',
     'superAdmin',
     'ttCoordinator',
+    'secondaryTtCoordinator',
     'placementCoordinator',
     'classAdvisor',
+    'secondaryClassAdvisor',
     'warden',
     'sudoAdmin'
   ];
@@ -321,7 +481,7 @@ async function assignRole({
   let scopeType = 'institution';
   let scopeDoc = null;
 
-  if (['hod', 'superAdmin', 'ttCoordinator', 'placementCoordinator'].includes(role)) {
+  if (['hod', 'secondaryHod', 'superAdmin', 'ttCoordinator', 'secondaryTtCoordinator', 'placementCoordinator'].includes(role)) {
     scopeType = 'department';
     scopeDoc = await M.Department.findById(scopeId);
     if (!scopeDoc) {
@@ -356,7 +516,7 @@ async function assignRole({
         throw err;
       }
     }
-  } else if (role === 'classAdvisor') {
+  } else if (['classAdvisor', 'secondaryClassAdvisor'].includes(role)) {
     scopeType = 'class';
     scopeDoc = await M.Class.findById(scopeId);
     if (!scopeDoc) {
@@ -395,6 +555,57 @@ async function assignRole({
         err.code = 'FEMALE_WARDEN_REQUIRED';
         throw err;
       }
+    }
+  }
+
+  // 2b. Mutual Exclusivity between Primary and Secondary Roles
+  if (role === 'secondaryHod') {
+    const activePrimaryHod = await M.RoleAssignment.findOne({ deptId: resolvedDeptId, role: 'hod', active: true });
+    if (activePrimaryHod && String(activePrimaryHod.teacherId) === String(teacher._id)) {
+      const err = new Error(`Faculty ${teacher.fullName} is already the primary HOD of this department.`);
+      err.status = 400;
+      err.code = 'MUTUAL_EXCLUSION_CONFLICT';
+      throw err;
+    }
+  } else if (role === 'hod') {
+    const activeSecHod = await M.RoleAssignment.findOne({ deptId: resolvedDeptId, role: 'secondaryHod', active: true });
+    if (activeSecHod && String(activeSecHod.teacherId) === String(teacher._id)) {
+      const err = new Error(`Faculty ${teacher.fullName} is currently the secondary HOD of this department. Remove or replace their secondary role first.`);
+      err.status = 400;
+      err.code = 'MUTUAL_EXCLUSION_CONFLICT';
+      throw err;
+    }
+  } else if (role === 'secondaryTtCoordinator') {
+    const activePrimaryTtc = await M.RoleAssignment.findOne({ deptId: resolvedDeptId, role: 'ttCoordinator', active: true });
+    if (activePrimaryTtc && String(activePrimaryTtc.teacherId) === String(teacher._id)) {
+      const err = new Error(`Faculty ${teacher.fullName} is already the primary Timetable Coordinator of this department.`);
+      err.status = 400;
+      err.code = 'MUTUAL_EXCLUSION_CONFLICT';
+      throw err;
+    }
+  } else if (role === 'ttCoordinator') {
+    const activeSecTtc = await M.RoleAssignment.findOne({ deptId: resolvedDeptId, role: 'secondaryTtCoordinator', active: true });
+    if (activeSecTtc && String(activeSecTtc.teacherId) === String(teacher._id)) {
+      const err = new Error(`Faculty ${teacher.fullName} is currently the secondary Timetable Coordinator of this department. Remove or replace their secondary role first.`);
+      err.status = 400;
+      err.code = 'MUTUAL_EXCLUSION_CONFLICT';
+      throw err;
+    }
+  } else if (role === 'secondaryClassAdvisor') {
+    const activePrimaryAdv = await M.RoleAssignment.findOne({ scopeId: scopeDoc._id, role: 'classAdvisor', active: true });
+    if (activePrimaryAdv && String(activePrimaryAdv.teacherId) === String(teacher._id)) {
+      const err = new Error(`Faculty ${teacher.fullName} is already the primary advisor of this class.`);
+      err.status = 400;
+      err.code = 'MUTUAL_EXCLUSION_CONFLICT';
+      throw err;
+    }
+  } else if (role === 'classAdvisor') {
+    const activeSecAdv = await M.RoleAssignment.findOne({ scopeId: scopeDoc._id, role: 'secondaryClassAdvisor', active: true });
+    if (activeSecAdv && String(activeSecAdv.teacherId) === String(teacher._id)) {
+      const err = new Error(`Faculty ${teacher.fullName} is currently the secondary advisor of this class. Remove or replace their secondary role first.`);
+      err.status = 400;
+      err.code = 'MUTUAL_EXCLUSION_CONFLICT';
+      throw err;
     }
   }
 

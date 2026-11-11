@@ -195,6 +195,32 @@ function timeAgo(isoDate) {
 var currentUser = null;
 var YEAR_CONFIG = { current: '', batches: [], all: [], yearsData: [] };
 
+function getActiveBatches() {
+  var batchSet = new Set(Array.isArray(YEAR_CONFIG.batches) ? YEAR_CONFIG.batches : []);
+  if (YEAR_CONFIG.yearsData && Array.isArray(YEAR_CONFIG.yearsData)) {
+    YEAR_CONFIG.yearsData.forEach(function (y) {
+      if (Array.isArray(y.batches)) {
+        y.batches.forEach(function (b) {
+          if (b && (b.batch || b.name)) batchSet.add(b.batch || b.name);
+        });
+      }
+    });
+  }
+  var classes = (typeof DB !== 'undefined' && DB.get) ? (DB.get('classes') || []) : [];
+  if (Array.isArray(classes)) {
+    classes.forEach(function (c) {
+      if (c && c.batch) batchSet.add(c.batch);
+    });
+  }
+  if (typeof _studentData !== 'undefined' && Array.isArray(_studentData)) {
+    _studentData.forEach(function (s) {
+      if (s && s.batch) batchSet.add(s.batch);
+    });
+  }
+  return Array.from(batchSet).filter(Boolean).sort().reverse();
+}
+window.getActiveBatches = getActiveBatches;
+
 function getBatchYearLevel(batchStr, refAcadYear) {
   if (!batchStr) return '';
   var acadYear = refAcadYear || YEAR_CONFIG.current;
@@ -395,7 +421,7 @@ function bootApp() {
     if (fetchCb) fetchCb();
   }
 
-  setTimeout(function () { timerDone = true; tryReveal(); }, 500);
+  setTimeout(function () { timerDone = true; tryReveal(); }, 150);
 
   syncAllFromDB(function () {
     fetchCb = function () {
@@ -521,6 +547,25 @@ window.updateStructureUrlParams = updateStructureUrlParams;
 var PAGE_NAMES = ['dash', 'depts', 'struct', 'students', 'teachers', 'roles', 'reports', 'logs', 'trust', 'grievance'];
 
 function nav(pageName) {
+  var pub = window._pubSettings || {};
+  if (pageName === 'trust' && pub.pages) {
+    var pTrust = String(pub.pages.pageTrust || 'enabled').toLowerCase();
+    if (pTrust === 'hidden') {
+      pageName = 'dash';
+    } else if (pTrust === 'disabled') {
+      if (typeof showPopup === 'function') {
+        showPopup({
+          title: 'Portal Disabled',
+          message: 'Trust & Devices Management is currently disabled by administrator for maintenance.',
+          type: 'warn'
+        });
+      } else if (typeof showToast === 'function') {
+        showToast('Trust & Devices Management is currently disabled by administrator.', 'warn');
+      }
+      pageName = 'dash';
+    }
+  }
+
   if (PAGE_NAMES.indexOf(pageName) === -1) pageName = 'dash';
 
   window._currentPage = pageName;
@@ -2298,6 +2343,15 @@ function setDeptFilter(cat) {
 }
 window.setDeptFilter = setDeptFilter;
 
+function getSubjectDeptId(s) {
+  if (!s) return '';
+  var raw = (s.deptId !== undefined && s.deptId !== null) ? s.deptId : s.departmentId;
+  if (!raw) return '';
+  if (typeof raw === 'object' && raw._id) return String(raw._id);
+  return String(raw);
+}
+window.getSubjectDeptId = getSubjectDeptId;
+
 // ─── SUPPORTING DEPARTMENT SUBJECT & CLASS LINKAGE HELPERS ───
 function _getDeptSubjects(dept) {
   if (!dept) return [];
@@ -2307,7 +2361,8 @@ function _getDeptSubjects(dept) {
   var allSubjs = DB.get('subjects') || [];
 
   return allSubjs.filter(function (s) {
-    if (s.deptId && String(s.deptId) === deptIdStr) return true;
+    var sDept = getSubjectDeptId(s);
+    if (sDept && sDept === deptIdStr) return true;
     if (deptName && (s.deptName === deptName || s.department === deptName)) return true;
     if (dept.category === 'supporting' && deptCodeClean) {
       if (s.deptCode && s.deptCode.trim().toUpperCase() === deptCodeClean) return true;
@@ -2461,14 +2516,47 @@ function _getDeptStudyingClasses(dept) {
 }
 window._getDeptStudyingClasses = _getDeptStudyingClasses;
 
+function _getHodInitials(name) {
+  if (!name) return 'HD';
+  var cleaned = name.replace(/^(Dr\.|Prof\.|Mr\.|Mrs\.|Ms\.)\s+/i, '').trim();
+  var parts = cleaned.split(/\s+/).filter(Boolean);
+  if (parts.length >= 2) {
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  } else if (parts.length === 1 && parts[0].length >= 2) {
+    return parts[0].slice(0, 2).toUpperCase();
+  }
+  return (name.slice(0, 2) || 'HD').toUpperCase();
+}
+
+function _getDeptHod(dept) {
+  if (!dept) return null;
+  if (dept.hodName && dept.hodName.trim()) {
+    return { name: dept.hodName.trim(), id: dept.hodId || null };
+  }
+  var allTch = (_teacherData && _teacherData.length) ? _teacherData : (DB.get('users') || []);
+  var deptIdStr = String(dept._id || '');
+  var deptName = dept.name || '';
+  var deptCode = dept.code || '';
+  var found = allTch.find(function (t) {
+    var matchDept = String(t.deptId) === deptIdStr || (t.dept && (t.dept === deptName || t.dept === deptCode));
+    var isHod = t.role === 'hod' || t.isHod === true ||
+      (t.designation && /head of department|hod/i.test(t.designation)) ||
+      (t.desig && /head of department|hod/i.test(t.desig));
+    return matchDept && isHod;
+  });
+  if (found) {
+    return { name: found.fullName || found.name || 'Head of Department', id: found._id || found.trackId || null };
+  }
+  return null;
+}
+
 function renderDepartments() {
   var depts = DB.get('depts') || [];
   var classes = DB.get('classes') || [];
   var subjects = DB.get('subjects') || [];
   var grid = document.getElementById('dg2');
-  grid.className = 'tgrd';
-
   if (!grid) return;
+  grid.className = 'tgrd';
 
   _renderDeptStats(depts);
 
@@ -2517,34 +2605,129 @@ function renderDepartments() {
     var classCount = isClassesLoaded ? (isSupporting ? studyingClasses.length : deptClasses.length) : '<re-icon icon="hourglass"></re-icon>';
     var subjectCount = isSubjectsLoaded ? deptSubjects.length : '<re-icon icon="hourglass"></re-icon>';
     var studentCount = isClassesLoaded ? (isSupporting ? studyingClasses.reduce(function (sum, item) { return sum + (Number(item.cls.studentCount) || 0); }, 0) : deptClasses.reduce(function (sum, c) { return sum + (c.studentCount || 0); }, 0)) : '<re-icon icon="hourglass"></re-icon>';
-    var teacherCount = isUsersLoaded ? DB.get('users').filter(function (u) {
-      return u.role === 'teacher' && (u.dept === dept.name || u.deptId === dept._id);
-    }).length : '<re-icon icon="hourglass"></re-icon>';
 
-    var isSupporting = dept.category === 'supporting';
-    var catBadge = '<span style="font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:6px;background:' + (isSupporting ? 'rgba(2,132,199,0.1)' : 'var(--gLt)') + ';color:' + (isSupporting ? '#0284c7' : 'var(--gD)') + ';border:1px solid ' + (isSupporting ? 'rgba(2,132,199,0.25)' : 'rgba(16,185,129,0.25)') + ';">' + (isSupporting ? 'Supporting' : 'Programme') + '</span>';
+    var allTch = (_teacherData && _teacherData.length) ? _teacherData : (DB.get('users') || []);
+    var deptTeachers = allTch.filter(function (t) {
+      var isTchRole = (t.role === 'teacher' || t.role === 'hod' || !t.role);
+      var matchDept = String(t.deptId) === String(dept._id) || (t.dept && (t.dept === dept.name || t.dept === dept.code));
+      return isTchRole && matchDept;
+    });
+    var teacherCount = isUsersLoaded ? deptTeachers.length : '<re-icon icon="hourglass"></re-icon>';
 
-    return '<div class="tcrd dcrd" onclick="openDeptModal(\'' + dept._id + '\', \'overview\')" style="cursor:pointer;">'
-      + '<div class="tcrd-head">'
-      + '<div class="tav" style="font-size:20px;">' + deptIcon(dept.icon) + '</div>'
-      + '<div style="display:flex;align-items:center;gap:6px;"><span class="tcrd-code">' + dept.code + '</span>' + catBadge + '</div>'
+    var deptDesc = dept.description || (isSupporting ? 'Teaches courses to programme departments' : 'Runs its own classes and student batches');
+
+    var heroHtml = '';
+    if (isSupporting) {
+      var allDepts = DB.get('depts') || [];
+      var servedCodesSet = new Set();
+      studyingClasses.forEach(function (item) {
+        var c = item.cls;
+        if (!c) return;
+        var d = allDepts.find(function (dp) {
+          return (c.deptId && String(dp._id) === String(c.deptId)) ||
+                 (c.dept && (dp.name === c.dept || dp.code === c.dept)) ||
+                 (c.deptCode && dp.code === c.deptCode) ||
+                 (c.deptName && dp.name === c.deptName);
+        });
+        if (d && d.code && d.category !== 'supporting') {
+          servedCodesSet.add(d.code);
+        } else if (c.deptCode) {
+          servedCodesSet.add(c.deptCode);
+        }
+      });
+      var servedCodes = Array.from(servedCodesSet);
+      var servedPills = servedCodes.length > 0
+        ? servedCodes.map(function (cd) { return '<i>' + escapeHtml(cd) + '</i>'; }).join('')
+        : '<i>All Programmes</i>';
+
+      var servedHtml = '<div class="sv">'
+        + '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"></path></svg> '
+        + 'Serves ' + servedPills
+        + '</div>';
+
+      heroHtml = '<div class="hero">'
+        + '<div><span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V3H6.5A2.5 2.5 0 0 0 4 5.5z"></path></svg> Subjects offered</span><b>' + subjectCount + '</b></div>'
+        + '<div><span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"></circle><path d="M4 21c0-4 4-6 8-6s8 2 8 6"></path></svg> Teachers</span><b>' + teacherCount + '</b></div>'
+        + '</div>'
+        + servedHtml;
+    } else {
+      heroHtml = '<div class="hero">'
+        + '<div><span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"></rect><rect x="14" y="3" width="7" height="7" rx="1.5"></rect><rect x="3" y="14" width="7" height="7" rx="1.5"></rect><rect x="14" y="14" width="7" height="7" rx="1.5"></rect></svg> Classes</span><b>' + classCount + '</b></div>'
+        + '<div><span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 9l10-5 10 5-10 5z"></path><path d="M6 11.5V16c0 1.5 3 3 6 3s6-1.5 6-3v-4.5"></path></svg> Students</span><b>' + studentCount + '</b></div>'
+        + '</div>'
+        + '<div class="sc2">'
+        + '<span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V3H6.5A2.5 2.5 0 0 0 4 5.5z"></path></svg> Subjects<b>' + subjectCount + '</b></span>'
+        + '<span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"></circle><path d="M4 21c0-4 4-6 8-6s8 2 8 6"></path></svg> Teachers<b>' + teacherCount + '</b></span>'
+        + '</div>';
+    }
+
+    var hod = _getDeptHod(dept);
+    var hodHtml = '';
+    if (hod && hod.name) {
+      var initials = _getHodInitials(hod.name);
+      hodHtml = '<div class="hd2" onclick="event.stopPropagation(); openDeptAssignHod(\'' + dept._id + '\')" title="Manage HoD in Executive Roles & Access" style="cursor:pointer;">'
+        + '<span class="av2">' + escapeHtml(initials) + '</span>'
+        + '<span><b>' + escapeHtml(hod.name) + '</b><i>Head of Department</i></span>'
+        + '</div>';
+    } else {
+      hodHtml = '<div class="hd2">'
+        + '<span class="no">'
+        + '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 8h.01M11 12h1v5h1"></path></svg> '
+        + 'No HoD assigned</span>'
+        + '<button type="button" class="ab" onclick="event.stopPropagation(); openDeptAssignHod(\'' + dept._id + '\')">Assign HoD</button>'
+        + '</div>';
+    }
+
+    return '<article class="dc' + (isSupporting ? ' sp' : '') + '" onclick="openDeptModal(\'' + dept._id + '\', \'overview\')">'
+      + '<div class="tp">'
+      + '  <i class="ib"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 21V5l8-3v19M12 9h8v12M2 21h20M8 8h1M8 12h1M8 16h1"></path></svg></i>'
+      + '  <span class="cd">' + escapeHtml(dept.code || '') + '</span>'
+      + '  <span class="tg">' + (isSupporting ? 'Supporting' : 'Programme') + '</span>'
       + '</div>'
-      + '<div class="tcrd-label">Department</div>'
-      + '<div class="tnm">' + dept.name + '</div>'
-      + '<div class="tsts">'
-      + '<div class="tst2"><div class="tst2-head"><re-icon icon="layout-grid" size="13"></re-icon>Classes</div><span class="tst2-val">' + classCount + '</span></div>'
-      + '<div class="tst2"><div class="tst2-head"><re-icon icon="book-open" size="13"></re-icon>Subjects</div><span class="tst2-val">' + subjectCount + '</span></div>'
-      + '<div class="tst2"><div class="tst2-head"><re-icon icon="graduation-cap" size="13"></re-icon>Students</div><span class="tst2-val">' + studentCount + '</span></div>'
-      + '<div class="tst2"><div class="tst2-head"><re-icon icon="users" size="13"></re-icon>Teachers</div><span class="tst2-val">' + teacherCount + '</span></div>'
-      + '</div>'
-      + (typeof teacherCount === 'number' && teacherCount === 0 ? '<div class="tcrd-notice"><re-icon icon="info"></re-icon>No HoD assigned</div>' : '')
-      + '</div>';
+      + '<small class="ey">' + (isSupporting ? 'SUPPORTING DEPARTMENT' : 'PROGRAMME DEPARTMENT') + '</small>'
+      + '<h3>' + escapeHtml(dept.name || '') + '</h3>'
+      + '<p class="ds">' + escapeHtml(deptDesc) + '</p>'
+      + heroHtml
+      + hodHtml
+      + '</article>';
   }).join('');
 }
 var rdepts = renderDepartments; // alias
 // Wrap dept mutations to auto-update badges
 var _origRenderDepts = renderDepartments;
 renderDepartments = function () { _origRenderDepts(); };
+
+function openDeptAssignHod(deptId) {
+  if (!deptId) return;
+
+  // 1. Navigate to Executive Roles & Access tab
+  nav('roles');
+
+  // 2. Ensure executive tab is on 'departments'
+  if (typeof switchExecutiveTab === 'function') {
+    switchExecutiveTab('departments');
+  }
+
+  // 3. Open that department's popup (Manage Privileges drawer)
+  var attempts = 0;
+  function triggerDeptPopup() {
+    attempts++;
+    if (typeof window.openManagePrivilegesDrawer === 'function') {
+      window.openManagePrivilegesDrawer(deptId, 'hod');
+      setTimeout(function () {
+        var dcard = document.getElementById('dcard-' + deptId);
+        if (dcard && typeof dcard.scrollIntoView === 'function') {
+          dcard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }, 100);
+    } else if (attempts < 10) {
+      setTimeout(triggerDeptPopup, 80);
+    }
+  }
+
+  setTimeout(triggerDeptPopup, 120);
+}
+window.openDeptAssignHod = openDeptAssignHod;
 
 function openDeptStructure(deptId, targetTab) {
   var dept = (DB.get('depts') || []).find(function (d) { return String(d._id) === String(deptId); });
@@ -3180,6 +3363,9 @@ function saveEditDept() {
     if (!d) return;
     addLog('Department Updated', '"' + name + '" (' + code + ')');
     renderDepartments();
+    if (typeof window.loadExecutiveRolesOverview === 'function') {
+      window.loadExecutiveRolesOverview();
+    }
     openDeptModal(id, 'overview');
     dbToast('Department updated', 'success', '"' + name + '" <re-icon icon="arrow-right"></re-icon> Database');
   });
@@ -3267,6 +3453,13 @@ function showStructureView(viewName) {
   var statsEl = document.getElementById('cls-stat-cards');
   if (statsEl) statsEl.style.display = viewName === 'cs' ? '' : 'none';
   updateBreadcrumb();
+  if (viewName === 'cs') {
+    setTimeout(function () {
+      if (typeof updateStructureTabIndicator === 'function') {
+        updateStructureTabIndicator(false);
+      }
+    }, 20);
+  }
 }
 var showSV = showStructureView;
 
@@ -3398,7 +3591,7 @@ function renderDepartmentSelector() {
   grid.innerHTML = depts.map(function (dept) {
     var isSupporting = dept.category === 'supporting';
     var classCount = _loaded.classes ? classes.filter(function (c) { return c.deptId === dept._id; }).length : '<re-icon icon="hourglass"></re-icon>';
-    var subjectCount = _loaded.subjects ? subjects.filter(function (s) { return s.deptId === dept._id; }).length : '<re-icon icon="hourglass"></re-icon>';
+    var subjectCount = _loaded.subjects ? subjects.filter(function (s) { return getSubjectDeptId(s) === String(dept._id); }).length : '<re-icon icon="hourglass"></re-icon>';
     var catBadge = '<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:5px;background:' + (isSupporting ? 'rgba(2,132,199,0.1)' : 'var(--gLt)') + ';color:' + (isSupporting ? '#0284c7' : 'var(--gD)') + ';border:1px solid ' + (isSupporting ? 'rgba(2,132,199,0.25)' : 'rgba(16,185,129,0.25)') + ';">' + (isSupporting ? 'Supporting' : 'Programme') + '</span>';
 
     var statsHtml = isSupporting
@@ -3481,7 +3674,7 @@ function _renderClassStats() {
   var deptId = structureContext.deptId;
   var isSupporting = structureContext && structureContext.category === 'supporting';
 
-  var allSubjects = DB.get('subjects').filter(function (s) { return !deptId || s.deptId === deptId; }) || [];
+  var allSubjects = DB.get('subjects').filter(function (s) { return !deptId || getSubjectDeptId(s) === String(deptId); }) || [];
   var totalSubjects = _loaded.subjects ? allSubjects.length : (_counts.subjects || '<re-icon icon="hourglass"></re-icon>');
 
   var cards;
@@ -3547,20 +3740,114 @@ function _renderClassStats() {
   }).join('');
 }
 
+function _getClassAdvisorInfo(cls) {
+  if (!cls) return { name: '', initials: '' };
+  var allTeachers = typeof _getAllTeachersList === 'function' ? _getAllTeachersList() : (DB.get('users') || []);
+  var assignedTeacher = null;
+
+  if (cls.advisorTeacherId) {
+    assignedTeacher = allTeachers.find(function (t) {
+      return String(t._id) === String(cls.advisorTeacherId) ||
+        String(t.shadowId) === String(cls.advisorTeacherId) ||
+        String(t.trackId) === String(cls.advisorTeacherId);
+    });
+  }
+  if (!assignedTeacher && cls.advisorTeacherTrackId) {
+    assignedTeacher = allTeachers.find(function (t) {
+      return String(t.trackId) === String(cls.advisorTeacherTrackId);
+    });
+  }
+  if (!assignedTeacher) {
+    assignedTeacher = allTeachers.find(function (t) {
+      return Array.isArray(t.specials) && t.specials.some(function (s) {
+        return (s.option === 'isClassAdvisor' || s.option === 'ClassAdvisorTrackId') &&
+          (s.key === cls.name || s.key === cls.trackId || s.value === cls.name || s.value === cls.trackId);
+      });
+    });
+  }
+  var advName = (assignedTeacher ? (assignedTeacher.name || assignedTeacher.fullName) : cls.advisorTeacherName) || '';
+  var initials = '';
+  if (advName) {
+    var clean = advName.replace(/^(dr|prof|mr|mrs|ms)\.?\s+/i, '').trim();
+    var parts = clean.split(/\s+/).filter(Boolean);
+    if (parts.length >= 2) {
+      initials = (parts[0][0] + parts[1][0]).toUpperCase();
+    } else if (clean.length) {
+      initials = clean.slice(0, 2).toUpperCase();
+    }
+  }
+  return { name: advName, initials: initials };
+}
+
 function _renderClassGrid(classes) {
   var classGrid = document.getElementById('scg');
   if (!classGrid) return;
   classGrid.innerHTML = classes.length
     ? classes.map(function (cls) {
       var studentCount = cls.studentCount || 0;
-      var assignmentCount = DB.get('assignments').filter(function (a) { return a.classId === cls._id; }).length;
-      var hallDisplay = (cls.roomId && cls.roomId.hallNo) || cls.hallNo || '—';
-      return '<div class="ec" onclick="openCD(\'' + cls._id + '\')">'
-        + '<div class="ech"><div class="eci" style="background:var(--gLt)"><re-icon icon="chalkboard"></re-icon></div>'
-        + '<div><div class="ecn">' + cls.name + '</div>'
-        + '<div class="ecsu">Hall: ' + hallDisplay + ' · Sec ' + (cls.section || '—') + ' · ' + cls.deptName + '</div></div></div>'
-        + '<div class="ecb"><div class="emt">' + studentCount + ' students · ' + assignmentCount + ' subjects</div></div>'
-        + '</div>';
+      var rawHall = (cls.roomId && cls.roomId.hallNo) || cls.hallNo || cls.room || '';
+      var hasHall = Boolean(rawHall && rawHall !== '—');
+      var hallHtml = hasHall ? ('<b>' + escapeHtml(rawHall) + '</b>') : '<b class="mu">—</b>';
+
+      var section = cls.section;
+      if (!section && cls.name) {
+        var mSec = cls.name.match(/(?:SEC\s*|[- ])([A-Za-z0-9]{1,3})$/i);
+        if (mSec) section = mSec[1].toUpperCase();
+      }
+      var sectionDisplay = escapeHtml(section || 'A');
+
+      var dept = (DB.get('depts') || []).find(function (d) { return String(d._id) === String(cls.deptId); });
+      var deptCode = (dept && (dept.code || dept.deptCode)) || cls.deptCode || (typeof structureContext !== 'undefined' && structureContext && structureContext.deptCode) || '';
+      if (!deptCode && cls.deptName) {
+        var mD = cls.deptName.match(/\b([A-Z]{2,5})\b/);
+        if (mD) deptCode = mD[1];
+      }
+      if (!deptCode && cls.name) {
+        var mC = cls.name.match(/\b([A-Za-z]{2,5})[- ]?[A-Za-z0-9]?$/);
+        if (mC) deptCode = mC[1].toUpperCase();
+      }
+      if (!deptCode) deptCode = 'CSE';
+
+      var rawBatch = String(cls.batch || cls.year || '').trim();
+      var batchText = '';
+      if (rawBatch) {
+        batchText = /^batch\b/i.test(rawBatch) ? rawBatch : ('Batch ' + rawBatch);
+      } else {
+        batchText = 'Batch —';
+      }
+
+      var advInfo = _getClassAdvisorInfo(cls);
+      var advisorHtml = '';
+      if (advInfo.name) {
+        advisorHtml = '<p><i class="av">' + escapeHtml(advInfo.initials || 'CA') + '</i><b>' + escapeHtml(advInfo.name) + '</b></p>';
+      } else {
+        advisorHtml = '<p><i class="av mu">—</i><b class="mu">Not assigned</b></p>';
+      }
+
+      return '<article class="cc" onclick="openCD(\'' + cls._id + '\')">'
+        + '<div class="r1">'
+        + '  <i class="sec">' + sectionDisplay + '</i>'
+        + '  <div class="nm">'
+        + '    <h3>' + escapeHtml(cls.name || 'Untitled Class') + '</h3>'
+        + '    <div class="dp"><b>' + escapeHtml(deptCode) + '</b><span>' + escapeHtml(batchText) + '</span></div>'
+        + '  </div>'
+        + '  <i class="go"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"></path></svg></i>'
+        + '</div>'
+        + '<div class="tb">'
+        + '  <div>'
+        + '    <s><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="4"></circle><path d="M2 21c0-4 3-6 7-6s7 2 7 6M17 11a4 4 0 0 0 0-7"></path></svg> Students</s>'
+        + '    <b>' + studentCount + '</b>'
+        + '  </div>'
+        + '  <div>'
+        + '    <s><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 21V4h9v17M3 21h18M11 12h.01M14 6h5v15"></path></svg> Hall</s>'
+        + '    ' + hallHtml
+        + '  </div>'
+        + '  <div class="ad">'
+        + '    <s><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 9l10-5 10 5-10 5z"></path><path d="M6 11.5V16c0 1.5 3 3 6 3s6-1.5 6-3v-4.5"></path></svg> Class advisor</s>'
+        + '    ' + advisorHtml
+        + '  </div>'
+        + '</div>'
+        + '</article>';
     }).join('')
     : '<div class="emst"><span class="emico"><re-icon icon="chalkboard"></re-icon></span><div class="emtx">No classes. Click "+ Add Class".</div></div>';
 }
@@ -3810,7 +4097,7 @@ function _groupSubjectsByRegulation(subjects) {
 function setSubjectRegulationFilter(regKey) {
   _activeSubjectRegulationFilter = regKey;
   var deptId = structureContext ? structureContext.deptId : null;
-  var subjects = (DB.get('subjects') || []).filter(function (s) { return !deptId || s.deptId === deptId; });
+  var subjects = (DB.get('subjects') || []).filter(function (s) { return !deptId || getSubjectDeptId(s) === String(deptId); });
   _renderSubjectGrid(subjects);
   _renderSubjectTable(subjects);
   toggleStructureView(_classViewMode || 'grid');
@@ -3954,13 +4241,14 @@ function _renderSubjectTable(subjects) {
 
       html += '<tr onclick="openSubjectModal(\'' + subj._id + '\')" style="cursor:pointer;" title="Click to manage subject: ' + escapeHtml(displayCode + ' (' + (subj.name || '') + ')') + '">';
       html += '  <td style="width:40px;color:var(--tmu);font-size:12px;">' + (rowIndex++) + '</td>';
+      var blendBadge = subj.isBlend ? ' <span class="pill" style="font-size:10px;background:#f3e8ff;color:#7e22ce;margin-left:4px;"><re-icon icon="git-merge" size="10"></re-icon> Blend (' + (subj.blendTheorySlots || 0) + 'T + ' + (subj.blendLabSlots || 0) + 'L)</span>' : '';
       html += '  <td class="b">';
-      html += '    <div style="font-weight:700;color:var(--td);font-size:13px;letter-spacing:0.2px;">' + displayHtml + '</div>';
+      html += '    <div style="font-weight:700;color:var(--td);font-size:13px;letter-spacing:0.2px;display:flex;align-items:center;flex-wrap:wrap;gap:4px;">' + displayHtml + blendBadge + '</div>';
       html += '    <div style="font-size:11.5px;color:var(--tmu);font-weight:normal;margin-top:2px;">' + escapeHtml(subj.name || '—') + '</div>';
       html += '  </td>';
       html += '  <td><span style="font-family:monospace;font-size:12px;font-weight:600;color:var(--gD);background:var(--gLt);padding:2px 6px;border-radius:4px;">' + escapeHtml(subj.courseCode || subj.code || subj.subjectCode || '—') + '</span></td>';
       html += '  <td><span style="font-size:11.5px;font-weight:500;color:var(--td);">' + escapeHtml(subj.type || 'Theory') + '</span></td>';
-      html += '  <td><span style="font-size:12px;font-weight:600;">' + (subj.credits != null && subj.credits !== '' ? subj.credits : '—') + '</span></td>';
+      html += '  <td><div><span style="font-size:12px;font-weight:600;">' + (subj.credits != null && subj.credits !== '' ? subj.credits : '—') + ' Cr</span></div><div style="font-size:10.5px;color:var(--tmu);">' + (subj.slotsTarget || 5) + ' cl/wk (' + (subj.slotsMin || 4) + '–' + (subj.slotsMax || 7) + ')</div></td>';
       html += '  <td><span style="font-size:12px;font-weight:600;color:' + (sectionCount ? 'var(--gD)' : 'var(--tmu)') + ';">' + (sectionCount ? sectionCount + ' section' + (sectionCount === 1 ? '' : 's') : '0 sections') + '</span></td>';
       html += '  <td><span style="font-size:11px;font-weight:600;padding:2px 7px;border-radius:4px;background:var(--gLt);color:var(--gD);">' + escapeHtml(regBadge) + '</span></td>';
       html += '  <td style="text-align:right;">';
@@ -3978,7 +4266,7 @@ function _renderSubjectTable(subjects) {
 function renderClassSubjectView(deptId) {
   _renderClassStats();
   var classes = DB.get('classes').filter(function (c) { return !deptId || c.deptId === deptId; }) || [];
-  var subjects = DB.get('subjects').filter(function (s) { return !deptId || s.deptId === deptId; }) || [];
+  var subjects = DB.get('subjects').filter(function (s) { return !deptId || getSubjectDeptId(s) === String(deptId); }) || [];
   _renderClassGrid(classes);
   _renderClassTable(classes);
   _renderSubjectGrid(subjects);
@@ -4036,8 +4324,57 @@ function switchStructureTab(tabName) {
   }
 
   toggleStructureView(_classViewMode || 'grid');
+  updateStructureTabIndicator(true);
 }
 var sst = switchStructureTab;
+
+function updateStructureTabIndicator(animate) {
+  var switcher = document.getElementById('cs-type-tabs');
+  var ind = document.getElementById('cs-tab-ind');
+  if (!switcher || !ind) return;
+
+  var activeBtn = switcher.querySelector('.cs-tab-btn.act');
+  if (!activeBtn || activeBtn.style.display === 'none') {
+    var visibleBtns = Array.prototype.filter.call(switcher.querySelectorAll('.cs-tab-btn'), function (b) {
+      return b.style.display !== 'none';
+    });
+    activeBtn = visibleBtns.find(function (b) { return b.classList.contains('act'); }) || visibleBtns[0];
+  }
+  if (!activeBtn) return;
+
+  var left = activeBtn.offsetLeft;
+  var width = activeBtn.offsetWidth;
+
+  if (width === 0) {
+    setTimeout(function () {
+      updateStructureTabIndicator(animate);
+    }, 40);
+    return;
+  }
+
+  if (animate === false) {
+    ind.classList.add('no-anim');
+  } else {
+    ind.classList.remove('no-anim');
+    ind.classList.remove('popping');
+    void ind.offsetWidth; // force reflow for pop animation
+    ind.classList.add('popping');
+  }
+
+  ind.style.transform = 'translateX(' + left + 'px)';
+  ind.style.width = width + 'px';
+
+  if (animate === false) {
+    requestAnimationFrame(function () {
+      ind.classList.remove('no-anim');
+    });
+  }
+}
+window.updateStructureTabIndicator = updateStructureTabIndicator;
+
+window.addEventListener('resize', function () {
+  updateStructureTabIndicator(false);
+});
 
 function _getAllTeachersList() {
   var list = [];
@@ -4217,8 +4554,7 @@ function _populateClassAdvisorSection(cls, teachers) {
       return '<option value="' + tid + '"' + sel +
         ' data-name="' + escapeHtml(tName) + '"' +
         ' data-badge="' + escapeHtml(deptCode) + '"' +
-        ' data-dept="' + escapeHtml(deptCode) + '"' +
-        (empNo ? ' data-sub="' + escapeHtml(empNo) + '"' : '') + '>' +
+        ' data-dept="' + escapeHtml(deptCode) + '">' +
         escapeHtml(tName) +
         '</option>';
     }).join('');
@@ -4228,6 +4564,261 @@ function _populateClassAdvisorSection(cls, teachers) {
       SearchableDropdown.sync('cd-advisor-select');
     }
   }
+}
+
+function _populateClassRepresentativesSection(cls) {
+  var nameEl = document.getElementById('cd-rep-name');
+  var subEl = document.getElementById('cd-rep-sub');
+  var btnEl = document.getElementById('cd-rep-btn');
+  if (!cls || !nameEl) return;
+
+  var reps = [];
+  if (Array.isArray(cls.classRepresentatives) && cls.classRepresentatives.length > 0) {
+    reps = cls.classRepresentatives.filter(Boolean);
+  } else if (cls.representative1Name) {
+    reps.push({
+      studentId: cls.representative1Id,
+      studentTrackId: cls.representative1TrackId || cls.repTrackId || cls.rep1TrackId || '',
+      studentName: cls.representative1Name,
+      registerNo: cls.representative1RegisterNo
+    });
+    if (cls.representative2Name) {
+      reps.push({
+        studentId: cls.representative2Id,
+        studentTrackId: cls.representative2TrackId || cls.rep2TrackId || '',
+        studentName: cls.representative2Name,
+        registerNo: cls.representative2RegisterNo
+      });
+    }
+  }
+
+  // Fallback: resolve student names from DB.get('students') if names are missing
+  var allStudents = DB.get('students') || [];
+  if (reps.length > 0) {
+    reps.forEach(function (r) {
+      if (!r.studentName && (r.studentTrackId || r.studentId)) {
+        var s = allStudents.find(function (stu) {
+          return (r.studentTrackId && String(stu.trackId) === String(r.studentTrackId)) ||
+                 (r.studentId && String(stu._id) === String(r.studentId));
+        });
+        if (s) {
+          r.studentName = s.fullName || s.name || '';
+          r.registerNo = s.registerNo || s.rollNo || '';
+        }
+      }
+    });
+  } else {
+    var rep1Target = cls.repTrackId || cls.rep1TrackId || cls.representative1TrackId || cls.representative1Id;
+    if (rep1Target) {
+      var s1 = allStudents.find(function (s) {
+        return String(s.trackId) === String(rep1Target) || String(s._id) === String(rep1Target);
+      });
+      if (s1) {
+        reps.push({
+          studentId: s1._id,
+          studentTrackId: s1.trackId || '',
+          studentName: s1.fullName || s1.name || 'Student',
+          registerNo: s1.registerNo || s1.rollNo || ''
+        });
+      }
+    }
+    var rep2Target = cls.rep2TrackId || cls.representative2TrackId || cls.representative2Id;
+    if (rep2Target) {
+      var s2 = allStudents.find(function (s) {
+        return String(s.trackId) === String(rep2Target) || String(s._id) === String(rep2Target);
+      });
+      if (s2) {
+        reps.push({
+          studentId: s2._id,
+          studentTrackId: s2.trackId || '',
+          studentName: s2.fullName || s2.name || 'Student',
+          registerNo: s2.registerNo || s2.rollNo || ''
+        });
+      }
+    }
+  }
+
+  // Filter out any entries that couldn't be resolved
+  reps = reps.filter(function (r) {
+    return r && (r.studentName || r.studentTrackId || r.studentId);
+  });
+
+  if (reps.length >= 2) {
+    var name1 = reps[0].studentName || reps[0].fullName || reps[0].name || reps[0].studentTrackId || 'Representative 1';
+    var name2 = reps[1].studentName || reps[1].fullName || reps[1].name || reps[1].studentTrackId || 'Representative 2';
+    nameEl.innerHTML = '<span style="color:var(--gD);font-weight:700;">' + escapeHtml(name1) + '</span>'
+      + '<span style="color:var(--tmu);font-weight:400;margin:0 4px;">&amp;</span>'
+      + '<span style="color:var(--td);font-weight:600;">' + escapeHtml(name2) + '</span>';
+    if (subEl) subEl.textContent = '2 Class Reps Designated';
+    if (btnEl) btnEl.innerHTML = '<re-icon icon="edit" size="11"></re-icon> Change Reps';
+  } else if (reps.length === 1) {
+    var name1 = reps[0].studentName || reps[0].fullName || reps[0].name || reps[0].studentTrackId || 'Representative';
+    nameEl.innerHTML = '<span style="color:var(--gD);font-weight:700;">' + escapeHtml(name1) + '</span>';
+    if (subEl) subEl.textContent = 'Primary Rep Designated · 1 Optional Open';
+    if (btnEl) btnEl.innerHTML = '<re-icon icon="edit" size="11"></re-icon> Change / Add Rep';
+  } else {
+    nameEl.innerHTML = '<span style="color:#d97706;font-weight:600;">Not Assigned</span>';
+    if (subEl) subEl.textContent = '2 max · 1 required';
+    if (btnEl) btnEl.innerHTML = '<re-icon icon="users" size="11"></re-icon> Assign Rep';
+  }
+}
+
+function _renderStudentOptions(selectEl, studentsList, selectedId, excludeId, placeholderText) {
+  if (!selectEl) return;
+  var html = '<option value="">' + escapeHtml(placeholderText) + '</option>';
+  studentsList.forEach(function (s) {
+    var sId = String(s._id || s.trackId);
+    // When one student is selected, hide that name in the other dropdown!
+    if (excludeId && String(excludeId) === sId) {
+      return;
+    }
+    var sName = s.fullName || s.name || 'Student';
+    var reg = s.registerNo || s.rollNo || '';
+    var isSel = (sId === String(selectedId));
+    html += '<option value="' + escapeHtml(sId) + '"'
+      + ' data-name="' + escapeHtml(sName) + '"'
+      + (reg ? ' data-sub="' + escapeHtml(reg) + '"' : '')
+      + (isSel ? ' selected' : '') + '>'
+      + escapeHtml(sName + (reg ? ' [' + reg + ']' : ''))
+      + '</option>';
+  });
+  selectEl.innerHTML = html;
+  if (selectedId && String(selectedId) !== String(excludeId)) {
+    selectEl.value = selectedId;
+  } else {
+    selectEl.value = '';
+  }
+}
+
+function _populateRepSelectOptions(select1, select2, students, reps) {
+  if (!select1 || !select2) return;
+  var rep1Id = reps && reps[0] ? String(reps[0].studentId || reps[0]._id || '') : '';
+  var rep2Id = reps && reps[1] ? String(reps[1].studentId || reps[1]._id || '') : '';
+  if (rep1Id && rep2Id && String(rep1Id) === String(rep2Id)) {
+    rep2Id = '';
+  }
+
+  var studentsList = Array.isArray(students) ? students : [];
+
+  // Initial render with mutual exclusion
+  _renderStudentOptions(select1, studentsList, rep1Id, rep2Id, '— Select Primary Representative —');
+  _renderStudentOptions(select2, studentsList, rep2Id, rep1Id, '— None (Secondary Optional) —');
+
+  // Initialize SearchableDropdown with live filter search
+  if (typeof SearchableDropdown !== 'undefined') {
+    var inst1 = SearchableDropdown.get(select1.id);
+    if (inst1) {
+      if (inst1.searchInput) {
+        inst1.searchInput.value = '';
+        if (inst1.clearBtn) inst1.clearBtn.style.display = 'none';
+      }
+      inst1.rebuild();
+    } else {
+      SearchableDropdown.attach(select1.id, {
+        kind: 'student',
+        showIcon: true,
+        width: '100%',
+        placeholder: '— Select Primary Representative —',
+        searchPlaceholder: 'Search student name, register no…',
+        search: true
+      });
+    }
+
+    var inst2 = SearchableDropdown.get(select2.id);
+    if (inst2) {
+      if (inst2.searchInput) {
+        inst2.searchInput.value = '';
+        if (inst2.clearBtn) inst2.clearBtn.style.display = 'none';
+      }
+      inst2.rebuild();
+    } else {
+      SearchableDropdown.attach(select2.id, {
+        kind: 'student',
+        showIcon: true,
+        width: '100%',
+        placeholder: '— None (Optional) —',
+        searchPlaceholder: 'Search student name, register no…',
+        search: true
+      });
+    }
+  }
+
+  // Mutual exclusion: when one student is selected, hide that name in the other dropdown
+  var isSyncing = false;
+
+  select1.onchange = function () {
+    if (isSyncing) return;
+    isSyncing = true;
+    try {
+      var cur1 = select1.value;
+      var cur2 = select2.value;
+      if (cur2 && String(cur2) === String(cur1)) {
+        cur2 = '';
+      }
+      _renderStudentOptions(select2, studentsList, cur2, cur1, '— None (Secondary Optional) —');
+      if (typeof SearchableDropdown !== 'undefined') {
+        var s2 = SearchableDropdown.get(select2.id);
+        if (s2) s2.rebuild();
+      }
+    } finally {
+      isSyncing = false;
+    }
+  };
+
+  select2.onchange = function () {
+    if (isSyncing) return;
+    isSyncing = true;
+    try {
+      var cur1 = select1.value;
+      var cur2 = select2.value;
+      if (cur1 && String(cur1) === String(cur2)) {
+        cur1 = '';
+      }
+      _renderStudentOptions(select1, studentsList, cur1, cur2, '— Select Primary Representative —');
+      if (typeof SearchableDropdown !== 'undefined') {
+        var s1 = SearchableDropdown.get(select1.id);
+        if (s1) s1.rebuild();
+      }
+    } finally {
+      isSyncing = false;
+    }
+  };
+}
+
+function _populateEditClassRepDropdowns(cls) {
+  var ecRep1 = document.getElementById('ec-rep1');
+  var ecRep2 = document.getElementById('ec-rep2');
+  if (!ecRep1 || !ecRep2 || !cls) return;
+
+  var reps = Array.isArray(cls.classRepresentatives) ? cls.classRepresentatives : [];
+  var rep1Val = cls.representative1Id ? String(cls.representative1Id) : (reps[0] ? String(reps[0].studentId || reps[0]._id || '') : '');
+  var rep2Val = cls.representative2Id ? String(cls.representative2Id) : (reps[1] ? String(reps[1].studentId || reps[1]._id || '') : '');
+
+  ecRep1.innerHTML = '<option value="">Loading students…</option>';
+  ecRep2.innerHTML = '<option value="">Loading students…</option>';
+
+  var localStudents = (DB.get('students') || []).filter(function (s) {
+    return String(s.classId) === String(cls._id) || (s.class && s.class.toLowerCase() === (cls.name || '').toLowerCase());
+  });
+
+  if (localStudents.length > 0) {
+    _populateRepSelectOptions(ecRep1, ecRep2, localStudents, [{ studentId: rep1Val }, { studentId: rep2Val }]);
+  }
+
+  apiCall('GET', '/students?classId=' + encodeURIComponent(cls._id) + '&limit=500')
+    .then(function (res) {
+      var stuList = Array.isArray(res) ? res : ((res && (res.data || res.students)) || []);
+      if (!stuList.length) stuList = localStudents;
+      stuList.sort(function (a, b) {
+        return (a.name || a.fullName || '').localeCompare(b.name || b.fullName || '');
+      });
+      _populateRepSelectOptions(ecRep1, ecRep2, stuList, [{ studentId: rep1Val }, { studentId: rep2Val }]);
+    })
+    .catch(function () {
+      if (localStudents.length > 0) {
+        _populateRepSelectOptions(ecRep1, ecRep2, localStudents, [{ studentId: rep1Val }, { studentId: rep2Val }]);
+      }
+    });
 }
 
 // ─── UNIFIED CLASS MANAGEMENT MODULE (Overview, Subjects, Students, Edit) ───
@@ -4240,7 +4831,15 @@ function _updateClassUnifiedModalHeader(cls) {
 
   var deptName = cls.deptName || 'Department';
   var displayHall = (cls.roomId && cls.roomId.hallNo) || cls.hallNo || '—';
-  var section = cls.section || 'A';
+  var resolvedSection = cls.section;
+  if (!resolvedSection && cls.name) {
+    var m = cls.name.match(/(?:SEC\s*|[- ])([A-Za-z0-9]{1,3})$/i);
+    if (m) resolvedSection = m[1].toUpperCase();
+  }
+  if (!cls.section && resolvedSection) {
+    cls.section = resolvedSection;
+  }
+  var section = resolvedSection || '';
   var batch = cls.batch || '—';
   var year = cls.year || '—';
   var sem = cls.sem || '—';
@@ -4249,7 +4848,6 @@ function _updateClassUnifiedModalHeader(cls) {
     titleEl.innerHTML = '<re-icon icon="chalkboard" size="20" style="flex-shrink:0;color:var(--gD);"></re-icon>'
       + '<span style="display:inline-flex;align-items:center;gap:8px;flex-wrap:wrap;font-family:\'Poppins\',-apple-system,BlinkMacSystemFont,\'Segoe UI\',Roboto,sans-serif;font-weight:700;">'
       + escapeHtml(cls.name || 'Class Section')
-      + '<span style="font-size:11.5px;font-weight:700;padding:2px 8px;border-radius:6px;background:var(--gLt);color:var(--gD);letter-spacing:0.3px;">SEC ' + escapeHtml(section) + '</span>'
       + '</span>';
   }
 
@@ -4299,21 +4897,46 @@ function _populateEditClassForm(cls) {
     if (cls.deptId) deptSel.value = cls.deptId;
   }
 
-  var batches = (typeof getActiveBatches === 'function' ? getActiveBatches() : (DB.get('batches') || []));
+  var batches = (typeof getActiveBatches === 'function' ? getActiveBatches() : (YEAR_CONFIG.batches || []));
+  var batchSet = new Set(Array.isArray(batches) ? batches : []);
+  if (cls.batch) batchSet.add(cls.batch);
+  var bList = Array.from(batchSet).filter(Boolean).sort().reverse();
+
   var batchSel = document.getElementById('ec-batch');
   if (batchSel) {
-    var bList = Array.isArray(batches) ? batches : [];
     batchSel.innerHTML = '<option value="">— Select Batch —</option>'
       + bList.map(function (b) {
         var val = typeof b === 'object' ? (b.name || b.batch) : b;
-        var isSel = String(val) === String(cls.batch);
+        var isSel = (String(val) === String(cls.batch) ||
+                     (typeof formatBatchShort === 'function' && formatBatchShort(val) === formatBatchShort(cls.batch)));
         return '<option value="' + escapeHtml(val) + '"' + (isSel ? ' selected' : '') + '>' + escapeHtml(val) + '</option>';
       }).join('');
-    if (cls.batch) batchSel.value = cls.batch;
+
+    if (cls.batch) {
+      batchSel.value = cls.batch;
+      if (!batchSel.value) {
+        var targetShort = typeof formatBatchShort === 'function' ? formatBatchShort(cls.batch) : cls.batch;
+        for (var i = 0; i < batchSel.options.length; i++) {
+          if (typeof formatBatchShort === 'function' && formatBatchShort(batchSel.options[i].value) === targetShort) {
+            batchSel.selectedIndex = i;
+            break;
+          }
+        }
+      }
+    }
+    if (typeof SearchableDropdown !== 'undefined') SearchableDropdown.sync('ec-batch');
   }
 
+  var resolvedSection = cls.section;
+  if (!resolvedSection && cls.name) {
+    var m = cls.name.match(/(?:SEC\s*|[- ])([A-Za-z0-9]{1,3})$/i);
+    if (m) resolvedSection = m[1].toUpperCase();
+  }
+  if (!cls.section && resolvedSection) {
+    cls.section = resolvedSection;
+  }
   var secInput = document.getElementById('ec-sec');
-  if (secInput) secInput.value = cls.section || '';
+  if (secInput) secInput.value = resolvedSection || '';
 
   var yrSel = document.getElementById('ec-yr');
   if (yrSel && cls.year) yrSel.value = cls.year;
@@ -4333,6 +4956,7 @@ function _populateEditClassForm(cls) {
   ecAutoName();
   var nmInput = document.getElementById('ec-nm');
   if (nmInput && cls.name) nmInput.value = cls.name;
+  _populateEditClassRepDropdowns(cls);
 }
 
 function _renderClassUnifiedOverview(cls, customAssignments) {
@@ -4445,8 +5069,8 @@ function _renderClassUnifiedOverview(cls, customAssignments) {
     + '    </div>'
     + '  </div>'
     + '</div>'
-    + '<!-- 3. ADVISOR & FACILITIES ROW -->'
-    + '<div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(280px, 1fr));gap:12px;">'
+    + '<!-- 3. ADVISOR, REPRESENTATIVES & FACILITIES ROW -->'
+    + '<div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(260px, 1fr));gap:12px;">'
     + '  <div class="subj-section-card" style="margin:0;">'
     + '    <div class="subj-section-hd" style="padding:10px 14px;">'
     + '      <div class="subj-section-title" style="font-size:12.5px;"><re-icon icon="user-check" size="14"></re-icon> <span>Class Advisor</span></div>'
@@ -4459,6 +5083,21 @@ function _renderClassUnifiedOverview(cls, customAssignments) {
     + '      <div style="flex:1;min-width:0;">'
     + '        <div id="cd-advisor-name" style="font-size:13.5px;font-weight:700;color:var(--td);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">Not Assigned</div>'
     + '        <div id="cd-advisor-sub" style="font-size:11px;color:var(--tmu);margin-top:2px;">Designated Student Mentor</div>'
+    + '      </div>'
+    + '    </div>'
+    + '  </div>'
+    + '  <div class="subj-section-card" style="margin:0;">'
+    + '    <div class="subj-section-hd" style="padding:10px 14px;">'
+    + '      <div class="subj-section-title" style="font-size:12.5px;"><re-icon icon="sparkles" size="14"></re-icon> <span>Class Representatives</span></div>'
+    + '      <button type="button" class="btn-xs btn-out" id="cd-rep-btn" onclick="openRepresentativeModal()" style="padding:3px 8px;font-size:11px;"><re-icon icon="users" size="11"></re-icon> Assign Rep</button>'
+    + '    </div>'
+    + '    <div class="subj-section-bd" style="padding:12px 14px;display:flex;align-items:center;gap:12px;">'
+    + '      <div style="width:38px;height:38px;border-radius:10px;background:rgba(16,185,129,0.12);color:#059669;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;">'
+    + '        <re-icon icon="users" size="18"></re-icon>'
+    + '      </div>'
+    + '      <div style="flex:1;min-width:0;">'
+    + '        <div id="cd-rep-name" style="font-size:13px;font-weight:700;color:var(--td);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">Not Assigned</div>'
+    + '        <div id="cd-rep-sub" style="font-size:11px;color:var(--tmu);margin-top:2px;">2 max · 1 required</div>'
     + '      </div>'
     + '    </div>'
     + '  </div>'
@@ -4495,7 +5134,7 @@ function _renderClassUnifiedOverview(cls, customAssignments) {
     + '<div class="subj-section-card">'
     + '  <div class="subj-section-hd">'
     + '    <div class="subj-section-title"><re-icon icon="users" size="14"></re-icon> <span>Enrolled Students Roster</span><span style="background:var(--gLt);color:var(--gD);font-size:11px;font-weight:700;padding:2px 8px;border-radius:10px;margin-left:4px;">' + studentCount + '</span></div>'
-    + '    <button type="button" class="btn-xs btn-out" onclick="switchClassTab(\'students\')"><re-icon icon="users" size="12"></re-icon> Open Students Tab</button>'
+    + '    <button type="button" class="btn-xs btn-out" onclick="switchClassTab(\'students\')"><re-icon icon="trend-up" size="12"></re-icon> View Demographics &amp; Stats</button>'
     + '  </div>'
     + '  <div class="subj-section-bd" style="padding:14px 18px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;background:#fbfcfd;border-radius:8px;">'
     + '    <div style="display:flex;align-items:center;gap:10px;">'
@@ -4503,11 +5142,11 @@ function _renderClassUnifiedOverview(cls, customAssignments) {
     + '        <re-icon icon="users" size="18"></re-icon>'
     + '      </div>'
     + '      <div>'
-    + '        <div style="font-size:13px;font-weight:700;color:var(--td);">' + studentCount + ' Enrolled Students in Section ' + escapeHtml(cls.section || 'A') + '</div>'
-    + '        <div style="font-size:11.5px;color:var(--tmu);">Search, sort, or inspect individual register numbers in the Students Roster tab.</div>'
+    + '        <div style="font-size:13px;font-weight:700;color:var(--td);">' + studentCount + ' Enrolled Students' + (cls.section ? (' in Section ' + escapeHtml(cls.section)) : '') + '</div>'
+    + '        <div style="font-size:11.5px;color:var(--tmu);">View gender ratio, dayscholar &amp; hosteller distribution for this class.</div>'
     + '      </div>'
     + '    </div>'
-    + '    <button type="button" class="btn-out btn-sm" onclick="switchClassTab(\'students\')"><re-icon icon="arrow-right" size="13"></re-icon> View Roster</button>'
+    + '    <button type="button" class="btn-out btn-sm" onclick="switchClassTab(\'students\')"><re-icon icon="arrow-right" size="13"></re-icon> View Roster Stats</button>'
     + '  </div>'
     + '</div>'
     + '<!-- 6. FOOTER TOOLBAR -->'
@@ -4520,6 +5159,7 @@ function _renderClassUnifiedOverview(cls, customAssignments) {
     + '</div>';
 
   _populateClassAdvisorSection(cls, _getAllTeachersList());
+  _populateClassRepresentativesSection(cls);
   _populateClassRoomBoardSection(cls);
 }
 
@@ -4601,11 +5241,11 @@ function _renderClassStudentsTab(cls, students) {
   if (!container) return;
 
   if (students === null || students === undefined) {
-    container.innerHTML = '<div style="text-align:center;padding:36px 18px;color:var(--tmu);font-size:13px;background:var(--bg2,#f8faf8);">'
-      + '<div style="font-size:28px;margin-bottom:6px;color:var(--tdi);"><re-icon icon="users" size="28"></re-icon></div>'
-      + '<div style="font-weight:700;color:var(--td);font-size:14px;margin-bottom:4px;">Students Roster Not Loaded</div>'
-      + '<div style="max-width:360px;margin:0 auto 12px;font-size:12px;color:var(--tmu);">Click below to load the live enrolled student list from the institution database.</div>'
-      + '<button type="button" class="btn-pri btn-sm" onclick="loadClassStudents()"><re-icon icon="users" size="13"></re-icon> Load Students</button>'
+    container.innerHTML = '<div style="text-align:center;padding:36px 18px;color:var(--tmu);font-size:13px;background:var(--bg2,#f8faf8);border-radius:12px;border:1px dashed var(--br);">'
+      + '<div style="font-size:28px;margin-bottom:6px;color:var(--tdi);"><re-icon icon="trend-up" size="28"></re-icon></div>'
+      + '<div style="font-weight:700;color:var(--td);font-size:14px;margin-bottom:4px;">Demographics &amp; Stats Not Loaded</div>'
+      + '<div style="max-width:360px;margin:0 auto 12px;font-size:12px;color:var(--tmu);">Click below to load live enrolled student demographics from the institution database.</div>'
+      + '<button type="button" class="btn-pri btn-sm" onclick="loadClassStudents()"><re-icon icon="refresh" size="13"></re-icon> Load Demographics</button>'
       + '</div>';
     return;
   }
@@ -4617,52 +5257,246 @@ function _renderClassStudentsTab(cls, students) {
   if (badgeEl) badgeEl.textContent = list.length;
 
   if (!list.length) {
-    container.innerHTML = '<div style="text-align:center;padding:32px 18px;color:var(--tmu);font-size:13px;background:var(--bg2,#f8faf8);">'
-      + '<re-icon icon="users" size="24" style="color:var(--tdi);margin-bottom:6px;"></re-icon>'
-      + '<div>No students enrolled matching current criteria.</div>'
+    container.innerHTML = '<div style="text-align:center;padding:36px 18px;color:var(--tmu);font-size:13px;background:var(--bg2,#f8faf8);border-radius:12px;border:1px dashed var(--br);">'
+      + '<re-icon icon="users" size="28" style="color:var(--tdi);margin-bottom:8px;"></re-icon>'
+      + '<div style="font-weight:700;color:var(--td);font-size:14px;margin-bottom:4px;">No Students Enrolled</div>'
+      + '<div style="font-size:12px;color:var(--tmu);max-width:320px;margin:0 auto 14px;">This class section currently has 0 enrolled students in the database.</div>'
+      + '<button type="button" class="btn-out btn-sm" onclick="openClassInStudentsTab()"><re-icon icon="users" size="13"></re-icon> Manage in Students Tab</button>'
       + '</div>';
     return;
   }
 
-  var rowsHtml = list.map(function (s, idx) {
-    return '<tr style="border-bottom:1px solid var(--br);">'
-      + '<td style="padding:9px 14px;font-size:12px;color:var(--tmu);font-weight:600;width:38px;">' + (idx + 1) + '</td>'
-      + '<td style="padding:9px 14px;font-weight:700;color:var(--td);font-size:13px;">' + escapeHtml(s.name || 'Student') + '</td>'
-      + '<td style="padding:9px 14px;font-family:monospace;font-size:12.5px;color:var(--gD);font-weight:700;">' + escapeHtml(s.regNo || '—') + '</td>'
-      + '<td style="padding:9px 14px;font-size:12px;color:var(--tmu);">' + escapeHtml(s.rollNo || s.roll || '—') + '</td>'
-      + '<td style="padding:9px 14px;text-align:right;">'
-      + '  <span class="pill pri" style="font-size:11px;padding:2px 8px;border-radius:10px;">Enrolled</span>'
-      + '</td>'
-      + '</tr>';
-  }).join('');
+  var total = list.length;
+  var boys = 0;
+  var girls = 0;
+  var othersGender = 0;
+  var dayScholars = 0;
+  var hostellers = 0;
 
-  container.innerHTML = '<table class="tbl" style="width:100%;margin:0;border-collapse:collapse;">'
-    + '<thead><tr style="background:#f8fafc;border-bottom:1px solid var(--br);">'
-    + '<th style="padding:10px 14px;font-size:11px;font-weight:700;color:var(--tmu);text-align:left;text-transform:uppercase;">#</th>'
-    + '<th style="padding:10px 14px;font-size:11px;font-weight:700;color:var(--tmu);text-align:left;text-transform:uppercase;">Student Name</th>'
-    + '<th style="padding:10px 14px;font-size:11px;font-weight:700;color:var(--tmu);text-align:left;text-transform:uppercase;">Register No.</th>'
-    + '<th style="padding:10px 14px;font-size:11px;font-weight:700;color:var(--tmu);text-align:left;text-transform:uppercase;">Roll No.</th>'
-    + '<th style="padding:10px 14px;font-size:11px;font-weight:700;color:var(--tmu);text-align:right;text-transform:uppercase;">Status</th>'
-    + '</tr></thead>'
-    + '<tbody>' + rowsHtml + '</tbody>'
-    + '</table>';
+  var hostellerBoys = 0;
+  var hostellerGirls = 0;
+  var hostellerOthers = 0;
+
+  var dayScholarBoys = 0;
+  var dayScholarGirls = 0;
+  var dayScholarOthers = 0;
+
+  list.forEach(function (s) {
+    var g = String(s.gender || '').toLowerCase().trim();
+    var isBoy = (g === 'male' || g === 'boy');
+    var isGirl = (g === 'female' || g === 'girl');
+    var isOther = (!isBoy && !isGirl);
+
+    if (isBoy) boys++;
+    else if (isGirl) girls++;
+    else othersGender++;
+
+    var res = String(s.residency || '').toLowerCase().trim();
+    var isHostel = res.includes('hostel');
+
+    if (isHostel) {
+      hostellers++;
+      if (isBoy) hostellerBoys++;
+      else if (isGirl) hostellerGirls++;
+      else hostellerOthers++;
+    } else {
+      dayScholars++;
+      if (isBoy) dayScholarBoys++;
+      else if (isGirl) dayScholarGirls++;
+      else dayScholarOthers++;
+    }
+  });
+
+  function getPct(num, denom) {
+    if (!denom || denom <= 0) return '0%';
+    return Math.round((num / denom) * 100) + '%';
+  }
+
+  var boysPct = getPct(boys, total);
+  var girlsPct = getPct(girls, total);
+  var dayScholarsPct = getPct(dayScholars, total);
+  var hostellersPct = getPct(hostellers, total);
+
+  var hGirlsClassPct = getPct(hostellerGirls, total);
+  var hGirlsHostelPct = getPct(hostellerGirls, hostellers);
+  var hGirlsGenderPct = getPct(hostellerGirls, girls);
+
+  var hBoysClassPct = getPct(hostellerBoys, total);
+  var hBoysHostelPct = getPct(hostellerBoys, hostellers);
+  var hBoysGenderPct = getPct(hostellerBoys, boys);
+
+  var dsGirlsClassPct = getPct(dayScholarGirls, total);
+  var dsGirlsDsPct = getPct(dayScholarGirls, dayScholars);
+  var dsGirlsGenderPct = getPct(dayScholarGirls, girls);
+
+  var dsBoysClassPct = getPct(dayScholarBoys, total);
+  var dsBoysDsPct = getPct(dayScholarBoys, dayScholars);
+  var dsBoysGenderPct = getPct(dayScholarBoys, boys);
+
+  var boysWidthPct = total > 0 ? (boys / total) * 100 : 0;
+  var girlsWidthPct = total > 0 ? (girls / total) * 100 : 0;
+  var otherWidthPct = total > 0 ? (othersGender / total) * 100 : 0;
+
+  var dsWidthPct = total > 0 ? (dayScholars / total) * 100 : 0;
+  var hWidthPct = total > 0 ? (hostellers / total) * 100 : 0;
+
+  container.innerHTML =
+    '<div style="display:flex;flex-direction:column;gap:16px;">'
+
+    + '<!-- 1. TOP OVERALL STATS KPI GRID -->'
+    + '<div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));gap:12px;">'
+    + '  <div class="subj-stat-card stat-green">'
+    + '    <div class="subj-stat-hd"><span class="subj-stat-label">Total Count</span><div class="subj-stat-ic"><re-icon icon="users" size="15"></re-icon></div></div>'
+    + '    <div class="subj-stat-val">' + total + ' <span class="subj-stat-unit">Students</span></div>'
+    + '    <div class="subj-stat-sub">100% Class Roster</div>'
+    + '  </div>'
+
+    + '  <div class="subj-stat-card stat-blue">'
+    + '    <div class="subj-stat-hd"><span class="subj-stat-label">Boys</span><div class="subj-stat-ic"><re-icon icon="user" size="15"></re-icon></div></div>'
+    + '    <div class="subj-stat-val">' + boys + ' <span class="subj-stat-unit">' + boysPct + '</span></div>'
+    + '    <div class="subj-stat-sub">Male students</div>'
+    + '  </div>'
+
+    + '  <div class="subj-stat-card stat-pink">'
+    + '    <div class="subj-stat-hd"><span class="subj-stat-label">Girls</span><div class="subj-stat-ic"><re-icon icon="user" size="15"></re-icon></div></div>'
+    + '    <div class="subj-stat-val">' + girls + ' <span class="subj-stat-unit">' + girlsPct + '</span></div>'
+    + '    <div class="subj-stat-sub">Female students</div>'
+    + '  </div>'
+    + '</div>'
+
+    + '<!-- 2. SEPARATE STATS: HOSTELLER/DAYSCHOLAR x BOYS/GIRLS -->'
+    + '<div class="subj-section-card" style="margin:0;">'
+    + '  <div class="subj-section-hd" style="padding:11px 16px;">'
+    + '    <div class="subj-section-title" style="font-size:13px;"><re-icon icon="trend-up" size="14"></re-icon> <span>Demographic Cross-Segment Stats</span></div>'
+    + '    <span style="font-size:11px;color:var(--tmu);">Separate counts for hostellers &amp; day scholars by gender</span>'
+    + '  </div>'
+    + '  <div class="subj-section-bd" style="padding:14px 16px;">'
+    + '    <div style="display:grid;grid-template-columns:repeat(2, minmax(0, 1fr));gap:12px;">'
+
+    + '      <!-- Hostellers - Girls -->'
+    + '      <div style="background:rgba(236,72,153,0.04);border:1px solid rgba(236,72,153,0.22);border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;justify-content:space-between;position:relative;">'
+    + '        <div>'
+    + '          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">'
+    + '            <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.4px;color:#db2777;">Hostellers — Girls</span>'
+    + '            <span style="background:rgba(236,72,153,0.14);color:#db2777;font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:8px;">Hostel · Female</span>'
+    + '          </div>'
+    + '          <div style="font-size:26px;font-weight:800;color:var(--td);line-height:1.1;display:flex;align-items:baseline;gap:6px;">'
+    + '            ' + hostellerGirls
+    + '            <span style="font-size:12px;font-weight:600;color:var(--tmu);">' + hGirlsClassPct + ' of class</span>'
+    + '          </div>'
+    + '        </div>'
+    + '        <div style="margin-top:10px;padding-top:10px;border-top:1px dashed rgba(236,72,153,0.2);display:flex;align-items:center;justify-content:space-between;font-size:11.5px;color:var(--tmu);">'
+    + '          <span>Share of Hostellers: <b style="color:var(--td);">' + hGirlsHostelPct + '</b></span>'
+    + '          <span>Share of Girls: <b style="color:var(--td);">' + hGirlsGenderPct + '</b></span>'
+    + '        </div>'
+    + '      </div>'
+
+    + '      <!-- Hostellers - Boys -->'
+    + '      <div style="background:rgba(99,102,241,0.04);border:1px solid rgba(99,102,241,0.22);border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;justify-content:space-between;position:relative;">'
+    + '        <div>'
+    + '          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">'
+    + '            <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.4px;color:#4f46e5;">Hostellers — Boys</span>'
+    + '            <span style="background:rgba(99,102,241,0.14);color:#4f46e5;font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:8px;">Hostel · Male</span>'
+    + '          </div>'
+    + '          <div style="font-size:26px;font-weight:800;color:var(--td);line-height:1.1;display:flex;align-items:baseline;gap:6px;">'
+    + '            ' + hostellerBoys
+    + '            <span style="font-size:12px;font-weight:600;color:var(--tmu);">' + hBoysClassPct + ' of class</span>'
+    + '          </div>'
+    + '        </div>'
+    + '        <div style="margin-top:10px;padding-top:10px;border-top:1px dashed rgba(99,102,241,0.2);display:flex;align-items:center;justify-content:space-between;font-size:11.5px;color:var(--tmu);">'
+    + '          <span>Share of Hostellers: <b style="color:var(--td);">' + hBoysHostelPct + '</b></span>'
+    + '          <span>Share of Boys: <b style="color:var(--td);">' + hBoysGenderPct + '</b></span>'
+    + '        </div>'
+    + '      </div>'
+
+    + '      <!-- Day Scholars - Girls -->'
+    + '      <div style="background:rgba(245,158,11,0.04);border:1px solid rgba(245,158,11,0.22);border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;justify-content:space-between;position:relative;">'
+    + '        <div>'
+    + '          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">'
+    + '            <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.4px;color:#d97706;">Day Scholars — Girls</span>'
+    + '            <span style="background:rgba(245,158,11,0.14);color:#d97706;font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:8px;">Day Scholar · Female</span>'
+    + '          </div>'
+    + '          <div style="font-size:26px;font-weight:800;color:var(--td);line-height:1.1;display:flex;align-items:baseline;gap:6px;">'
+    + '            ' + dayScholarGirls
+    + '            <span style="font-size:12px;font-weight:600;color:var(--tmu);">' + dsGirlsClassPct + ' of class</span>'
+    + '          </div>'
+    + '        </div>'
+    + '        <div style="margin-top:10px;padding-top:10px;border-top:1px dashed rgba(245,158,11,0.2);display:flex;align-items:center;justify-content:space-between;font-size:11.5px;color:var(--tmu);">'
+    + '          <span>Share of Day Scholars: <b style="color:var(--td);">' + dsGirlsDsPct + '</b></span>'
+    + '          <span>Share of Girls: <b style="color:var(--td);">' + dsGirlsGenderPct + '</b></span>'
+    + '        </div>'
+    + '      </div>'
+
+    + '      <!-- Day Scholars - Boys -->'
+    + '      <div style="background:rgba(59,130,246,0.04);border:1px solid rgba(59,130,246,0.22);border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;justify-content:space-between;position:relative;">'
+    + '        <div>'
+    + '          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">'
+    + '            <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.4px;color:#2563eb;">Day Scholars — Boys</span>'
+    + '            <span style="background:rgba(59,130,246,0.14);color:#2563eb;font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:8px;">Day Scholar · Male</span>'
+    + '          </div>'
+    + '          <div style="font-size:26px;font-weight:800;color:var(--td);line-height:1.1;display:flex;align-items:baseline;gap:6px;">'
+    + '            ' + dayScholarBoys
+    + '            <span style="font-size:12px;font-weight:600;color:var(--tmu);">' + dsBoysClassPct + ' of class</span>'
+    + '          </div>'
+    + '        </div>'
+    + '        <div style="margin-top:10px;padding-top:10px;border-top:1px dashed rgba(59,130,246,0.2);display:flex;align-items:center;justify-content:space-between;font-size:11.5px;color:var(--tmu);">'
+    + '          <span>Share of Day Scholars: <b style="color:var(--td);">' + dsBoysDsPct + '</b></span>'
+    + '          <span>Share of Boys: <b style="color:var(--td);">' + dsBoysGenderPct + '</b></span>'
+    + '        </div>'
+    + '      </div>'
+
+    + '    </div>'
+    + '  </div>'
+    + '</div>'
+
+    + '<!-- 3. VISUAL DISTRIBUTION BARS -->'
+    + '<div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(280px, 1fr));gap:12px;">'
+    + '  <!-- Gender Balance Bar -->'
+    + '  <div style="background:#f8fafc;padding:12px 16px;border-radius:12px;border:1px solid var(--br);">'
+    + '    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;font-size:12px;">'
+    + '      <span style="font-weight:700;color:var(--td);display:flex;align-items:center;gap:6px;">'
+    + '        <re-icon icon="users" size="14" style="color:var(--gD);"></re-icon> Gender Ratio'
+    + '      </span>'
+    + '      <span style="font-size:11px;font-weight:600;color:var(--tmu);">' + boys + ' Boys (' + boysPct + ') · ' + girls + ' Girls (' + girlsPct + ')' + (othersGender > 0 ? (' · ' + othersGender + ' Other') : '') + '</span>'
+    + '    </div>'
+    + '    <div style="height:10px;border-radius:5px;background:#e2e8f0;overflow:hidden;display:flex;">'
+    + '      <div style="width:' + boysWidthPct + '%;background:#3b82f6;" title="Boys: ' + boys + ' (' + boysPct + ')"></div>'
+    + '      <div style="width:' + girlsWidthPct + '%;background:#ec4899;" title="Girls: ' + girls + ' (' + girlsPct + ')"></div>'
+    +        (othersGender > 0 ? '<div style="width:' + otherWidthPct + '%;background:#8b5cf6;" title="Other: ' + othersGender + '"></div>' : '')
+    + '    </div>'
+    + '    <div style="display:flex;gap:14px;margin-top:6px;font-size:11px;color:var(--tmu);">'
+    + '      <span style="display:inline-flex;align-items:center;gap:4px;"><span style="width:8px;height:8px;border-radius:2px;background:#3b82f6;"></span> Boys ' + boysPct + '</span>'
+    + '      <span style="display:inline-flex;align-items:center;gap:4px;"><span style="width:8px;height:8px;border-radius:2px;background:#ec4899;"></span> Girls ' + girlsPct + '</span>'
+    +        (othersGender > 0 ? '<span style="display:inline-flex;align-items:center;gap:4px;"><span style="width:8px;height:8px;border-radius:2px;background:#8b5cf6;"></span> Other ' + getPct(othersGender, total) + '</span>' : '')
+    + '    </div>'
+    + '  </div>'
+
+    + '  <!-- Residency Balance Bar -->'
+    + '  <div style="background:#f8fafc;padding:12px 16px;border-radius:12px;border:1px solid var(--br);">'
+    + '    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;font-size:12px;">'
+    + '      <span style="font-weight:700;color:var(--td);display:flex;align-items:center;gap:6px;">'
+    + '        <re-icon icon="home" size="14" style="color:#d97706;"></re-icon> Residency Ratio'
+    + '      </span>'
+    + '      <span style="font-size:11px;font-weight:600;color:var(--tmu);">' + dayScholars + ' Day Scholars (' + dayScholarsPct + ') · ' + hostellers + ' Hostellers (' + hostellersPct + ')</span>'
+    + '    </div>'
+    + '    <div style="height:10px;border-radius:5px;background:#e2e8f0;overflow:hidden;display:flex;">'
+    + '      <div style="width:' + dsWidthPct + '%;background:#f59e0b;" title="Day Scholars: ' + dayScholars + ' (' + dayScholarsPct + ')"></div>'
+    + '      <div style="width:' + hWidthPct + '%;background:#6366f1;" title="Hostellers: ' + hostellers + ' (' + hostellersPct + ')"></div>'
+    + '    </div>'
+    + '    <div style="display:flex;gap:14px;margin-top:6px;font-size:11px;color:var(--tmu);">'
+    + '      <span style="display:inline-flex;align-items:center;gap:4px;"><span style="width:8px;height:8px;border-radius:2px;background:#f59e0b;"></span> Day Scholars ' + dayScholarsPct + '</span>'
+    + '      <span style="display:inline-flex;align-items:center;gap:4px;"><span style="width:8px;height:8px;border-radius:2px;background:#6366f1;"></span> Hostellers ' + hostellersPct + '</span>'
+    + '    </div>'
+    + '  </div>'
+    + '</div>'
+
+    + '</div>';
 }
 
 function filterClassRoster(query) {
-  var q = (query || '').trim().toLowerCase();
   if (!_classRosterCache) return;
   var cls = DB.get('classes').find(function (c) { return c._id === currentClassId; });
-  if (!q) {
-    _renderClassStudentsTab(cls, _classRosterCache);
-    return;
-  }
-  var filtered = _classRosterCache.filter(function (s) {
-    var name = (s.name || '').toLowerCase();
-    var reg = (s.regNo || '').toLowerCase();
-    var roll = (s.rollNo || s.roll || '').toLowerCase();
-    return name.includes(q) || reg.includes(q) || roll.includes(q);
-  });
-  _renderClassStudentsTab(cls, filtered);
+  _renderClassStudentsTab(cls, _classRosterCache);
 }
 window.filterClassRoster = filterClassRoster;
 
@@ -4673,17 +5507,17 @@ function loadClassStudents() {
 
   if (loadBtn) {
     loadBtn.disabled = true;
-    loadBtn.innerHTML = '<re-icon icon="hourglass" size="13"></re-icon> Loading roster…';
+    loadBtn.innerHTML = '<re-icon icon="hourglass" size="13"></re-icon> Loading stats…';
   }
   if (container) {
-    container.innerHTML = '<div style="text-align:center;padding:28px 18px;color:var(--tmu);font-size:13px;"><re-icon icon="hourglass" size="20"></re-icon><div style="margin-top:6px;">Loading enrolled student roster…</div></div>';
+    container.innerHTML = '<div style="text-align:center;padding:28px 18px;color:var(--tmu);font-size:13px;"><re-icon icon="hourglass" size="20"></re-icon><div style="margin-top:6px;">Loading enrolled student demographics &amp; stats…</div></div>';
   }
 
   var tok = getToken();
   if (!tok) {
     if (loadBtn) {
       loadBtn.disabled = false;
-      loadBtn.innerHTML = '<re-icon icon="refresh" size="13"></re-icon> Refresh Roster';
+      loadBtn.innerHTML = '<re-icon icon="refresh" size="13"></re-icon> Refresh Stats';
     }
     return;
   }
@@ -4708,13 +5542,13 @@ function loadClassStudents() {
 
       if (loadBtn) {
         loadBtn.disabled = false;
-        loadBtn.innerHTML = '<re-icon icon="refresh" size="13"></re-icon> Refresh Roster';
+        loadBtn.innerHTML = '<re-icon icon="refresh" size="13"></re-icon> Refresh Stats';
       }
     })
     .catch(function (err) {
       console.warn('Failed to load roster:', err);
       if (container) {
-        container.innerHTML = '<div style="text-align:center;padding:24px;color:#dc2626;font-size:12.5px;"><re-icon icon="alert-circle" size="18"></re-icon><div style="margin-top:4px;">Failed to load student roster. Please check network connection.</div></div>';
+        container.innerHTML = '<div style="text-align:center;padding:24px;color:#dc2626;font-size:12.5px;"><re-icon icon="alert-circle" size="18"></re-icon><div style="margin-top:4px;">Failed to load student statistics. Please check network connection.</div></div>';
       }
       if (loadBtn) {
         loadBtn.disabled = false;
@@ -4833,14 +5667,51 @@ function _populateClassRoomBoardSection(cls) {
   if (!titleEl || !subEl) return;
 
   var rm = (cls.roomId && typeof cls.roomId === 'object') ? cls.roomId : null;
-  if (!rm && cls.roomId && _facilityRooms.length) {
-    rm = _facilityRooms.find(function (r) { return String(r._id) === String(cls.roomId); });
+  var rId = rm ? String(rm._id) : (cls.roomId ? String(cls.roomId) : '');
+
+  // Cross-reference with _facilityRooms to get enriched board data
+  var facilityRoom = null;
+  if (_facilityRooms && _facilityRooms.length) {
+    if (rId) {
+      facilityRoom = _facilityRooms.find(function (r) { return String(r._id) === rId; });
+    }
+    if (!facilityRoom && cls.hallNo) {
+      facilityRoom = _facilityRooms.find(function (r) {
+        return (r.hallNo && r.hallNo.toLowerCase() === cls.hallNo.toLowerCase()) ||
+          (r.name && r.name.toLowerCase() === cls.hallNo.toLowerCase());
+      });
+    }
   }
-  if (!rm && cls.hallNo && _facilityRooms.length) {
-    rm = _facilityRooms.find(function (r) {
-      return (r.hallNo && r.hallNo.toLowerCase() === cls.hallNo.toLowerCase()) ||
-        (r.name && r.name.toLowerCase() === cls.hallNo.toLowerCase());
-    });
+
+  if (facilityRoom) {
+    if (!rm) {
+      rm = facilityRoom;
+    } else if (!rm.board && facilityRoom.board) {
+      rm.board = facilityRoom.board;
+    }
+  }
+
+  // Lazy-fetch board details if room is known but board info is missing
+  if (rm && !rm.board && !rm._fetchingBoard && (rId || rm.hallNo || cls.hallNo)) {
+    rm._fetchingBoard = true;
+    var fetchPath = rId ? ('/timetable/rooms/' + encodeURIComponent(rId)) : ('/timetable/rooms?search=' + encodeURIComponent(rm.hallNo || cls.hallNo || ''));
+    apiCall('GET', fetchPath).then(function (res) {
+      var foundBoard = null;
+      if (res && res.data && (res.data.board || (res.data.assignedBoards && res.data.assignedBoards[0]))) {
+        foundBoard = res.data.board || res.data.assignedBoards[0];
+      } else if (res && res.board) {
+        foundBoard = res.board;
+      } else if (Array.isArray(res) && res.length && res[0].board) {
+        foundBoard = res[0].board;
+      }
+      if (foundBoard) {
+        rm.board = foundBoard;
+        if (cls.roomId && typeof cls.roomId === 'object') cls.roomId.board = foundBoard;
+        if (typeof currentClassId !== 'undefined' && String(currentClassId) === String(cls._id)) {
+          _populateClassRoomBoardSection(cls);
+        }
+      }
+    }).catch(function () {});
   }
 
   _currentClassRoom = rm;
@@ -4858,8 +5729,10 @@ function _populateClassRoomBoardSection(cls) {
     if (isLab) {
       subParts.push('<re-icon icon="flask"></re-icon> Laboratory (No Board Required)');
     } else if (rm.board) {
-      var bInfo = typeof rm.board === 'object' ? (rm.board.boardId || 'Board Online') : 'Board Linked';
-      subParts.push('<re-icon icon="tv"></re-icon> ' + bInfo);
+      var bObj = (typeof rm.board === 'object') ? rm.board : {};
+      var bDevice = bObj.deviceId || bObj.boardName || bObj.boardId || 'Board Linked';
+      var bStatus = bObj.connectionStatus || 'Connected';
+      subParts.push('<re-icon icon="tv"></re-icon> ' + escapeHtml(bDevice) + ' (' + escapeHtml(bStatus) + ')');
     } else {
       subParts.push('<re-icon icon="tv"></re-icon> No Board Linked');
     }
@@ -4919,10 +5792,15 @@ function ecAutoName() {
   var deptId = getFieldValue('ec-dept') || cls.deptId;
   var batch = getFieldValue('ec-batch') || cls.batch;
   var dept = DB.get('depts').find(function (d) { return d._id === deptId; });
-  var section = (document.getElementById('ec-sec').value || '').trim() || cls.section;
-  if (dept && batch && section) {
+  var section = (document.getElementById('ec-sec') ? getFieldValue('ec-sec') : '') || cls.section;
+  if (!section && cls.name) {
+    var m = cls.name.match(/(?:SEC\s*|[- ])([A-Za-z0-9]{1,3})$/i);
+    if (m) section = m[1].toUpperCase();
+  }
+  if (dept && batch) {
     var batchV = formatBatchShort(batch);
-    document.getElementById('ec-nm').value = batchV + ' ' + dept.code + '-' + section;
+    var nmEl = document.getElementById('ec-nm');
+    if (nmEl) nmEl.value = batchV + ' ' + dept.code + (section ? ('-' + section) : '');
   }
 }
 
@@ -4938,7 +5816,11 @@ function saveEditCls() {
   if (!currentClassId) return;
   var cls = DB.get('classes').find(function (c) { return c._id === currentClassId; });
   var deptId = getFieldValue('ec-dept') || (cls ? cls.deptId : '');
-  var section = (getFieldValue('ec-sec') || '').trim();
+  var section = (document.getElementById('ec-sec') ? getFieldValue('ec-sec') : '') || (cls ? (cls.section || '') : '');
+  if (!section && cls && cls.name) {
+    var m = cls.name.match(/(?:SEC\s*|[- ])([A-Za-z0-9]{1,3})$/i);
+    if (m) section = m[1].toUpperCase();
+  }
   var roomId = getFieldValue('ec-room') || null;
   var hallNo = getFieldValue('ec-hall');
   if (roomId && !hallNo) {
@@ -4949,21 +5831,50 @@ function saveEditCls() {
   }
   var year = getFieldValue('ec-yr');
   var sem = getFieldValue('ec-sem');
-  var batch = getFieldValue('ec-batch');
+  var batch = getFieldValue('ec-batch') || (cls ? cls.batch : '');
   var dept = DB.get('depts').find(function (d) { return d && (d._id === deptId || (cls && d._id === cls.deptId)); });
   var deptName = dept ? dept.name : (cls ? cls.deptName : '');
-  var name = getFieldValue('ec-nm') || (dept ? (formatBatchShort(batch) + ' ' + dept.code + '-' + section) : (cls ? cls.name : ''));
+  var name = getFieldValue('ec-nm') || (dept ? (formatBatchShort(batch) + ' ' + dept.code + (section ? ('-' + section) : '')) : (cls ? cls.name : ''));
 
-  if (!section) {
-    showToast('Section is required', 'warn');
+  if (!batch) {
+    showToast('Batch is required', 'warn');
     return;
   }
 
+  var ecRep1 = document.getElementById('ec-rep1');
+  var ecRep2 = document.getElementById('ec-rep2');
+  var rep1Id = ecRep1 ? ecRep1.value : '';
+  var rep2Id = ecRep2 ? ecRep2.value : '';
+  if (rep1Id && rep2Id && String(rep1Id) === String(rep2Id)) {
+    dbToast('Representative 1 and Representative 2 must be different students', 'warn');
+    return;
+  }
+
+  var updatePayload = {
+    section: section, roomId: roomId, hallNo: hallNo, name: name,
+    year: year, sem: sem, batch: batch, deptId: deptId, deptName: deptName
+  };
+  if (rep1Id) {
+    updatePayload.representative1Id = rep1Id;
+    updatePayload.representative2Id = rep2Id || null;
+  }
+
   dbToast('Saving changes...', 'saving');
-  apiUpdateClass(currentClassId, { section: section, roomId: roomId, hallNo: hallNo, name: name, year: year, sem: sem, batch: batch, deptId: deptId, deptName: deptName }).then(function (d) {
+  apiUpdateClass(currentClassId, updatePayload).then(function (d) {
     if (!d || d.error) {
       dbToast('Update failed: ' + (d && d.error ? d.error : 'Unknown'), 'error');
       return;
+    }
+    if (cls) {
+      cls.section = section;
+      cls.batch = batch;
+      cls.name = name;
+      cls.deptId = deptId;
+      cls.deptName = deptName;
+      cls.year = year;
+      cls.sem = sem;
+      cls.roomId = roomId;
+      cls.hallNo = hallNo;
     }
     addLog('Class Updated', '"' + name + '"');
     openClassModal(currentClassId, 'overview');
@@ -5061,9 +5972,12 @@ function openAdvisorModal() {
         var tid = t._id || t.shadowId || t.trackId;
         var sel = (String(tid) === String(selectedId) || (assignedTeacher && String(t.trackId) === String(assignedTeacher.trackId))) ? ' selected' : '';
         var tName = (t.name || t.fullName || 'Teacher').trim();
-        var empNo = (t.empId || t.employeeNo || '').trim();
         var deptCode = resolveTeacherDeptCode(t, cls);
-        return '<option value="' + tid + '"' + sel + '>' + escapeHtml(tName) + ' (' + escapeHtml(deptCode) + (empNo ? ' • ' + escapeHtml(empNo) : '') + ')</option>';
+        return '<option value="' + tid + '"' + sel +
+          ' data-name="' + escapeHtml(tName) + '"' +
+          ' data-badge="' + escapeHtml(deptCode) + '"' +
+          ' data-dept="' + escapeHtml(deptCode) + '">' +
+          escapeHtml(tName) + ' (' + escapeHtml(deptCode) + ')</option>';
       }).join('');
       optionsHtml += '</optgroup>';
     }
@@ -5074,20 +5988,46 @@ function openAdvisorModal() {
         var tid = t._id || t.shadowId || t.trackId;
         var sel = (String(tid) === String(selectedId) || (assignedTeacher && String(t.trackId) === String(assignedTeacher.trackId))) ? ' selected' : '';
         var tName = (t.name || t.fullName || 'Teacher').trim();
-        var empNo = (t.empId || t.employeeNo || '').trim();
         var deptCode = resolveTeacherDeptCode(t, cls);
-        return '<option value="' + tid + '"' + sel + '>' + escapeHtml(tName) + ' (' + escapeHtml(deptCode) + (empNo ? ' • ' + escapeHtml(empNo) : '') + ')</option>';
+        return '<option value="' + tid + '"' + sel +
+          ' data-name="' + escapeHtml(tName) + '"' +
+          ' data-badge="' + escapeHtml(deptCode) + '"' +
+          ' data-dept="' + escapeHtml(deptCode) + '">' +
+          escapeHtml(tName) + ' (' + escapeHtml(deptCode) + ')</option>';
       }).join('');
       optionsHtml += '</optgroup>';
     }
 
     selectEl.innerHTML = optionsHtml;
+
+    if (typeof SearchableDropdown !== 'undefined') {
+      var sInst = SearchableDropdown.get('adv-modal-select');
+      if (sInst) {
+        if (sInst.searchInput) {
+          sInst.searchInput.value = '';
+          if (sInst.clearBtn) sInst.clearBtn.style.display = 'none';
+        }
+        sInst.rebuild();
+      } else {
+        SearchableDropdown.attach('adv-modal-select', {
+          kind: 'advisor',
+          showIcon: true,
+          width: '100%',
+          placeholder: '— None (Unassigned) —',
+          searchPlaceholder: 'Search faculty name, ID, dept…',
+          search: true
+        });
+      }
+    }
   }
 
   openModal_('m-assign-advisor');
 }
 
 function closeAdvisorModal(returnToDetail) {
+  if (typeof SearchableDropdown !== 'undefined') {
+    SearchableDropdown.closeAll();
+  }
   closeModalBg('m-assign-advisor');
   if (returnToDetail && currentClassId) {
     var detailEl = document.getElementById('m-cls-detail');
@@ -5124,13 +6064,14 @@ function saveClassAdvisorFromModal() {
 
       closeAdvisorModal(true);
       _populateClassAdvisorSection(cls, _getAllTeachersList());
-      if (structureContext.deptId) renderClassSubjectView(structureContext.deptId);
+      if (typeof renderClassSubjectView === 'function') renderClassSubjectView(structureContext && structureContext.deptId);
       dbToast('Class Advisor saved successfully', 'success');
 
       return syncUsersWithTeacherDetails().then(function () {
         return apiCall('GET', '/teachers').then(function (list) {
           if (Array.isArray(list)) _teacherData = list;
           _populateClassAdvisorSection(cls, _getAllTeachersList());
+          if (typeof renderClassSubjectView === 'function') renderClassSubjectView(structureContext && structureContext.deptId);
         });
       });
     })
@@ -5158,44 +6099,416 @@ function saveClassAdvisor() {
   saveClassAdvisorFromModal();
 }
 
+function openRepresentativeModal(targetClassId) {
+  var classIdToUse = targetClassId || currentClassId || (structureContext && structureContext.classId);
+  if (!classIdToUse) return;
+  currentClassId = classIdToUse;
+  window._currentRepClassId = classIdToUse;
+
+  var cls = (DB.get('classes') || []).find(function (c) {
+    return String(c._id) === String(classIdToUse) || (c.trackId && String(c.trackId) === String(classIdToUse));
+  });
+  if (!cls) return;
+
+  var subEl = document.getElementById('rep-modal-sub');
+  if (subEl) {
+    subEl.textContent = cls.name + ' — ' + (cls.deptName || 'Department');
+  }
+
+  var currentEl = document.getElementById('rep-modal-current');
+  var badgeEl = document.getElementById('rep-modal-status-badge');
+  var reps = [];
+  if (Array.isArray(cls.classRepresentatives) && cls.classRepresentatives.length > 0) {
+    reps = cls.classRepresentatives.filter(Boolean);
+  } else if (cls.representative1Name) {
+    reps.push({
+      studentId: cls.representative1Id,
+      studentTrackId: cls.representative1TrackId || cls.repTrackId || cls.rep1TrackId || '',
+      studentName: cls.representative1Name,
+      registerNo: cls.representative1RegisterNo
+    });
+    if (cls.representative2Name) {
+      reps.push({
+        studentId: cls.representative2Id,
+        studentTrackId: cls.representative2TrackId || cls.rep2TrackId || '',
+        studentName: cls.representative2Name,
+        registerNo: cls.representative2RegisterNo
+      });
+    }
+  }
+
+  // Fallback: resolve student names from DB.get('students') if names are missing
+  var allStudents = DB.get('students') || [];
+  if (reps.length > 0) {
+    reps.forEach(function (r) {
+      if (!r.studentName && (r.studentTrackId || r.studentId)) {
+        var s = allStudents.find(function (stu) {
+          return (r.studentTrackId && String(stu.trackId) === String(r.studentTrackId)) ||
+                 (r.studentId && String(stu._id) === String(r.studentId));
+        });
+        if (s) {
+          r.studentName = s.fullName || s.name || '';
+          r.registerNo = s.registerNo || s.rollNo || '';
+        }
+      }
+    });
+  } else {
+    var rep1Target = cls.repTrackId || cls.rep1TrackId || cls.representative1TrackId || cls.representative1Id;
+    if (rep1Target) {
+      var s1 = allStudents.find(function (s) {
+        return String(s.trackId) === String(rep1Target) || String(s._id) === String(rep1Target);
+      });
+      if (s1) {
+        reps.push({
+          studentId: s1._id,
+          studentTrackId: s1.trackId || '',
+          studentName: s1.fullName || s1.name || 'Student',
+          registerNo: s1.registerNo || s1.rollNo || ''
+        });
+      }
+    }
+    var rep2Target = cls.rep2TrackId || cls.representative2TrackId || cls.representative2Id;
+    if (rep2Target) {
+      var s2 = allStudents.find(function (s) {
+        return String(s.trackId) === String(rep2Target) || String(s._id) === String(rep2Target);
+      });
+      if (s2) {
+        reps.push({
+          studentId: s2._id,
+          studentTrackId: s2.trackId || '',
+          studentName: s2.fullName || s2.name || 'Student',
+          registerNo: s2.registerNo || s2.rollNo || ''
+        });
+      }
+    }
+  }
+
+  reps = reps.filter(function (r) {
+    return r && (r.studentName || r.studentTrackId || r.studentId);
+  });
+
+  if (currentEl) {
+    if (reps.length > 0) {
+      currentEl.innerHTML = reps.map(function (r, idx) {
+        var sName = r.studentName || r.fullName || r.name || r.studentTrackId || 'Representative';
+        var reg = r.registerNo || r.rollNo || '';
+        return '<div style="display:flex;align-items:center;gap:6px;margin-top:2px;">'
+          + '<span class="pill ' + (idx === 0 ? 'pri' : 'neu') + '" style="font-size:10px;padding:1px 5px;">' + (idx === 0 ? 'Rep 1' : 'Rep 2') + '</span> '
+          + '<b>' + escapeHtml(sName) + '</b>'
+          + (reg ? ' <span style="font-family:monospace;font-size:11px;color:var(--tmu);">(' + escapeHtml(reg) + ')</span>' : '')
+          + '</div>';
+      }).join('');
+    } else {
+      currentEl.innerHTML = '<span style="color:var(--tmu);font-style:italic;">No representatives assigned yet (1 required)</span>';
+    }
+  }
+  if (badgeEl) {
+    badgeEl.textContent = reps.length + ' / 2 Assigned';
+  }
+
+  var select1 = document.getElementById('rep-modal-select-1');
+  var select2 = document.getElementById('rep-modal-select-2');
+  if (select1) select1.innerHTML = '<option value="">Loading enrolled students…</option>';
+  if (select2) select2.innerHTML = '<option value="">Loading enrolled students…</option>';
+
+  openModal_('m-assign-representatives');
+
+  apiCall('GET', '/students?classId=' + encodeURIComponent(classIdToUse) + '&limit=500')
+    .then(function (res) {
+      var students = [];
+      if (Array.isArray(res)) students = res;
+      else if (res && Array.isArray(res.data)) students = res.data;
+      else if (res && Array.isArray(res.students)) students = res.students;
+
+      if (!students.length && DB.get('students')) {
+        students = (DB.get('students') || []).filter(function (s) {
+          return String(s.classId) === String(classIdToUse) || (s.class && s.class.toLowerCase() === (cls.name || '').toLowerCase());
+        });
+      }
+
+      students.sort(function (a, b) {
+        return (a.name || a.fullName || '').localeCompare(b.name || b.fullName || '');
+      });
+
+      _populateRepSelectOptions(select1, select2, students, reps);
+    })
+    .catch(function (err) {
+      console.warn('Failed to load students for rep modal:', err);
+      var localStudents = (DB.get('students') || []).filter(function (s) {
+        return String(s.classId) === String(classIdToUse) || (s.class && s.class.toLowerCase() === (cls.name || '').toLowerCase());
+      });
+      _populateRepSelectOptions(select1, select2, localStudents, reps);
+    });
+}
+
+function closeRepresentativeModal(returnToDetail) {
+  closeModalBg('m-assign-representatives');
+  var classIdToUse = window._currentRepClassId || currentClassId;
+  if (returnToDetail && classIdToUse) {
+    var detailEl = document.getElementById('m-cls-detail');
+    if (detailEl && !detailEl.classList.contains('open')) {
+      openModal_('m-cls-detail');
+    }
+  }
+}
+
+function saveClassRepresentativesFromModal() {
+  var classIdToUse = window._currentRepClassId || currentClassId || (structureContext && structureContext.classId);
+  if (!classIdToUse) {
+    dbToast('Active class not found', 'error');
+    return;
+  }
+  var cls = (DB.get('classes') || []).find(function (c) {
+    return String(c._id) === String(classIdToUse) || (c.trackId && String(c.trackId) === String(classIdToUse));
+  });
+  if (!cls) {
+    dbToast('Active class not found in workspace', 'error');
+    return;
+  }
+
+  var s1 = document.getElementById('rep-modal-select-1');
+  var s2 = document.getElementById('rep-modal-select-2');
+  var rep1Id = s1 ? s1.value : '';
+  var rep2Id = s2 ? s2.value : '';
+
+  if (!rep1Id) {
+    dbToast('Please select at least 1 Class Representative (Primary is required)', 'warn');
+    if (s1) s1.focus();
+    return;
+  }
+
+  if (rep2Id && String(rep1Id) === String(rep2Id)) {
+    dbToast('Representative 1 and Representative 2 must be different students', 'warn');
+    if (s2) s2.focus();
+    return;
+  }
+
+  var saveBtn = document.getElementById('rep-modal-save-btn');
+  if (saveBtn) {
+    saveBtn.disabled = true;
+    saveBtn.innerHTML = '<re-icon icon="hourglass" size="14"></re-icon> Saving…';
+  }
+
+  dbToast('Saving Class Representatives...', 'saving');
+  var payload = { rep1Id: rep1Id };
+  if (rep2Id) payload.rep2Id = rep2Id;
+
+  apiCall('PUT', '/classes/' + encodeURIComponent(cls._id || classIdToUse) + '/representatives', payload)
+    .then(function (res) {
+      if (res && res.error) {
+        dbToast(res.error, 'error');
+        return;
+      }
+      var updatedCls = (res && res.class) ? res.class : null;
+      var reps = (res && res.representatives) ? res.representatives : [];
+      if (updatedCls) {
+        Object.assign(cls, updatedCls);
+      }
+      if (reps && reps.length) {
+        cls.classRepresentatives = reps;
+      }
+
+      // Update in DB classes list
+      var classesList = DB.get('classes') || [];
+      var idx = classesList.findIndex(function (c) {
+        return String(c._id) === String(cls._id) || (cls.trackId && String(c.trackId) === String(cls.trackId));
+      });
+      if (idx !== -1) {
+        classesList[idx] = Object.assign({}, classesList[idx], cls);
+        DB.set('classes', classesList);
+      }
+
+      // Immediately refresh overview card (Image 1) and edit class dropdowns
+      closeRepresentativeModal(true);
+      _populateClassRepresentativesSection(cls);
+      if (typeof _populateEditClassRepDropdowns === 'function') {
+        _populateEditClassRepDropdowns(cls);
+      }
+      dbToast('Class Representatives saved successfully', 'success');
+
+      // Refresh classes list from server in background and re-verify
+      apiCall('GET', '/classes').then(function (clsList) {
+        if (Array.isArray(clsList)) {
+          DB.set('classes', clsList);
+          var freshCls = clsList.find(function (c) {
+            return String(c._id) === String(cls._id) || (cls.trackId && String(c.trackId) === String(cls.trackId));
+          });
+          if (freshCls) {
+            _populateClassRepresentativesSection(freshCls);
+          }
+        }
+      }).catch(function () {});
+    })
+    .catch(function (err) {
+      console.error('Failed to save class representatives:', err);
+      dbToast((err && err.message) || 'Failed to update representatives', 'error');
+    })
+    .finally(function () {
+      if (saveBtn) {
+        saveBtn.disabled = false;
+        saveBtn.innerHTML = '<re-icon icon="check" size="14"></re-icon> Save Representatives';
+      }
+    });
+}
+
 window.openAdvisorModal = openAdvisorModal;
 window.closeAdvisorModal = closeAdvisorModal;
 window.saveClassAdvisorFromModal = saveClassAdvisorFromModal;
 window.resolveTeacherDeptCode = resolveTeacherDeptCode;
+window.openRepresentativeModal = openRepresentativeModal;
+window.closeRepresentativeModal = closeRepresentativeModal;
+window.saveClassRepresentativesFromModal = saveClassRepresentativesFromModal;
 
 function _buildCaSubjectOptions(selectedId, deptId) {
   var subjects = DB.get('subjects') || [];
   if (!Array.isArray(subjects)) subjects = [];
 
-  // Prioritize department subjects if deptId matches
-  var listToRender = subjects;
-  if (deptId) {
-    var deptMatches = subjects.filter(function (s) {
-      return String(s.deptId || '') === String(deptId) || String(s.departmentId || '') === String(deptId);
+  var depts = DB.get('departments') || [];
+  var deptMap = {};
+  if (Array.isArray(depts)) {
+    depts.forEach(function (d) {
+      if (d && d._id) deptMap[String(d._id)] = d.code || d.name || '';
     });
-    if (deptMatches.length > 0) {
-      var otherSubjects = subjects.filter(function (s) {
-        return String(s.deptId || '') !== String(deptId) && String(s.departmentId || '') !== String(deptId);
-      });
-      listToRender = deptMatches.concat(otherSubjects);
-    }
   }
 
-  return '<option value="">— Select Subject —</option>'
-    + listToRender.map(function (s) {
-      var sName = (s.name || 'Subject').trim();
-      var code = (s.courseCode || s.code || s.shortForm || '').trim();
-      var isSel = (String(s._id) === String(selectedId)) ? ' selected' : '';
-      var credits = (s.credits != null) ? s.credits + ' Credits' : '';
-      return '<option value="' + s._id + '"'
-        + ' data-name="' + escapeHtml(sName) + '"'
-        + (code ? ' data-badge="' + escapeHtml(code) + '"' : '')
-        + (credits ? ' data-sub="' + escapeHtml(credits) + '"' : '')
-        + isSel + '>'
-        + escapeHtml(sName + (code ? ' (' + code + ')' : ''))
-        + '</option>';
-    }).join('');
+  function resolveSubjDeptCode(s) {
+    if (s.deptCode) return s.deptCode;
+    var dId = getSubjectDeptId(s);
+    return deptMap[dId] || '';
+  }
+
+  function renderSubjOption(s, groupLabel) {
+    var sName = (s.name || 'Subject').trim();
+    var code = (s.courseCode || s.code || s.shortForm || '').trim();
+    var isSel = (String(s._id) === String(selectedId)) ? ' selected' : '';
+    var credits = (s.credits != null) ? s.credits + ' Credits' : '';
+    var dCode = resolveSubjDeptCode(s);
+    return '<option value="' + s._id + '"'
+      + ' data-name="' + escapeHtml(sName) + '"'
+      + (code ? ' data-badge="' + escapeHtml(code) + '"' : '')
+      + (credits ? ' data-sub="' + escapeHtml(credits) + '"' : '')
+      + (dCode ? ' data-dept="' + escapeHtml(dCode) + '"' : '')
+      + (groupLabel ? ' data-group="' + escapeHtml(groupLabel) + '"' : '')
+      + isSel + '>'
+      + escapeHtml(sName + (code ? ' (' + code + ')' : '') + (dCode ? ' [' + dCode + ']' : ''))
+      + '</option>';
+  }
+
+  var html = '<option value="">— Select Subject —</option>';
+  if (deptId) {
+    var deptMatches = subjects.filter(function (s) {
+      return getSubjectDeptId(s) === String(deptId);
+    });
+    var otherSubjects = subjects.filter(function (s) {
+      return getSubjectDeptId(s) !== String(deptId);
+    });
+
+    if (deptMatches.length > 0) {
+      var clsDeptName = deptMap[String(deptId)] || 'Department';
+      html += '<optgroup label="' + escapeHtml(clsDeptName + ' Subjects') + '">';
+      deptMatches.forEach(function (s) {
+        html += renderSubjOption(s, clsDeptName + ' Subjects');
+      });
+      html += '</optgroup>';
+    }
+
+    if (otherSubjects.length > 0) {
+      html += '<optgroup label="Other Department Subjects">';
+      otherSubjects.forEach(function (s) {
+        html += renderSubjOption(s, 'Other Department Subjects');
+      });
+      html += '</optgroup>';
+    }
+
+    if (!deptMatches.length && !otherSubjects.length) {
+      subjects.forEach(function (s) { html += renderSubjOption(s, ''); });
+    }
+  } else {
+    subjects.forEach(function (s) { html += renderSubjOption(s, ''); });
+  }
+
+  return html;
 }
+
+function addAllDeptSubjectsToClassAssign() {
+  if (!currentClassId) {
+    showToast('No class selected', 'warn');
+    return;
+  }
+  var cls = (DB.get('classes') || []).find(function (c) { return String(c._id) === String(currentClassId); });
+  if (!cls) {
+    showToast('Class not found', 'error');
+    return;
+  }
+
+  var deptId = cls.deptId || '';
+  if (!deptId) {
+    showToast('Class has no assigned department', 'warn');
+    return;
+  }
+
+  var subjects = DB.get('subjects') || [];
+  var deptSubjects = subjects.filter(function (s) {
+    return getSubjectDeptId(s) === String(deptId);
+  });
+
+  if (!deptSubjects.length) {
+    showToast('No subjects registered under this class department', 'warn');
+    return;
+  }
+
+  var tbody = document.getElementById('ca-rows');
+  if (!tbody) return;
+
+  var existingSelects = tbody.querySelectorAll('.ca-subj');
+  var existingSubjIds = new Set();
+  var emptyRow = null;
+
+  existingSelects.forEach(function (sel) {
+    if (sel.value) {
+      existingSubjIds.add(String(sel.value));
+    } else if (!emptyRow) {
+      emptyRow = sel.closest('tr');
+    }
+  });
+
+  var defaultHall = (cls && ((cls.roomId && cls.roomId.hallNo) || cls.hallNo)) || '';
+  var addedCount = 0;
+
+  deptSubjects.forEach(function (subj) {
+    var sId = String(subj._id);
+    if (existingSubjIds.has(sId)) return;
+
+    if (emptyRow) {
+      var subjSel = emptyRow.querySelector('.ca-subj');
+      if (subjSel) {
+        subjSel.value = sId;
+        if (typeof SearchableDropdown !== 'undefined') {
+          var sInst = SearchableDropdown.get(subjSel);
+          if (sInst) sInst.sync();
+        }
+      }
+      var hallInput = emptyRow.querySelector('.ca-hall');
+      if (hallInput && !hallInput.value && defaultHall) {
+        hallInput.value = defaultHall;
+      }
+      emptyRow = null;
+      existingSubjIds.add(sId);
+      addedCount++;
+    } else {
+      addClassAssignRow(sId, '', defaultHall);
+      existingSubjIds.add(sId);
+      addedCount++;
+    }
+  });
+
+  if (addedCount > 0) {
+    showToast('Added ' + addedCount + ' department subject(s)', 'success');
+  } else {
+    showToast('All department subjects (' + deptSubjects.length + ') are already in the assignment table', 'info');
+  }
+}
+window.addAllDeptSubjectsToClassAssign = addAllDeptSubjectsToClassAssign;
 
 function addClassAssignRow(subjectId, teacherId, hallNo) {
   var tbody = document.getElementById('ca-rows');
@@ -5694,6 +7007,19 @@ function openSubjectModal(subjectId, initialTab) {
   }
   _populateRegulationDropdown('es-reg', subj.regulation || '2025');
 
+  if (document.getElementById('es-cat')) document.getElementById('es-cat').value = subj.category || 'easy';
+  if (document.getElementById('es-bl')) document.getElementById('es-bl').value = subj.blockLength || 1;
+  if (document.getElementById('es-smin')) document.getElementById('es-smin').value = subj.slotsMin ?? 4;
+  if (document.getElementById('es-stgt')) document.getElementById('es-stgt').value = subj.slotsTarget ?? 5;
+  if (document.getElementById('es-smax')) document.getElementById('es-smax').value = subj.slotsMax ?? 7;
+  var isBlend = Boolean(subj.isBlend);
+  var esBlendChk = document.getElementById('es-blend-chk');
+  if (esBlendChk) esBlendChk.checked = isBlend;
+  if (document.getElementById('es-blend-theory')) document.getElementById('es-blend-theory').value = subj.blendTheorySlots || 4;
+  if (document.getElementById('es-blend-lab')) document.getElementById('es-blend-lab').value = subj.blendLabSlots || 2;
+  toggleEsBlend(isBlend);
+  renderEsBlendMappingWrap(subj);
+
   var esDept = document.getElementById('es-dept');
   if (esDept) {
     var depts = Array.isArray(DB.get('depts')) ? DB.get('depts') : [];
@@ -5830,6 +7156,377 @@ function onEsDeptChange() {
 }
 window.onEsDeptChange = onEsDeptChange;
 
+// ── Blend & Slot Helpers for Admin Portal ─────────────────────────
+function toggleNsBlend(isChecked) {
+  var wrap = document.getElementById('ns-blend-wrap');
+  if (wrap) wrap.style.display = isChecked ? 'block' : 'none';
+  var sw = document.getElementById('ns-blend-sw');
+  if (sw) sw.classList.toggle('on', !!isChecked);
+  if (isChecked) {
+    onNsBlendSlotsChange();
+    renderNsBlendMappingWrap();
+  }
+}
+window.toggleNsBlend = toggleNsBlend;
+
+function toggleNsBlendSwitch() {
+  var chk = document.getElementById('ns-blend-chk');
+  if (!chk) return;
+  chk.checked = !chk.checked;
+  var sw = document.getElementById('ns-blend-sw');
+  if (sw) sw.classList.toggle('on', chk.checked);
+  toggleNsBlend(chk.checked);
+  if (typeof updateNsSubjPreview === 'function') updateNsSubjPreview();
+}
+window.toggleNsBlendSwitch = toggleNsBlendSwitch;
+
+function toggleNsAutoLabSwitch() {
+  var chk = document.getElementById('ns-blend-autolab-chk');
+  if (!chk) return;
+  chk.checked = !chk.checked;
+  var sw = document.getElementById('ns-autolab-sw');
+  if (sw) sw.classList.toggle('on', chk.checked);
+  var f = document.getElementById('ns-blend-autolab-fields');
+  if (f) f.style.display = chk.checked ? 'grid' : 'none';
+  if (typeof updateNsSubjPreview === 'function') updateNsSubjPreview();
+}
+window.toggleNsAutoLabSwitch = toggleNsAutoLabSwitch;
+
+function stepNsVal(id, delta, slotType) {
+  var el = document.getElementById(id);
+  if (!el) return;
+  var min = el.min !== '' ? parseInt(el.min) : 0;
+  var max = el.max !== '' ? parseInt(el.max) : 99;
+  var cur = parseInt(el.value) || min;
+  var next = Math.max(min, Math.min(max, cur + delta));
+  el.value = next;
+  if (slotType && typeof validateNsSlotsOrder === 'function') {
+    validateNsSlotsOrder(slotType);
+  }
+  if (id === 'ns-blend-theory' || id === 'ns-blend-lab') {
+    if (typeof onNsBlendSlotsChange === 'function') onNsBlendSlotsChange();
+  }
+  if (typeof updateNsSubjPreview === 'function') {
+    updateNsSubjPreview();
+  }
+}
+window.stepNsVal = stepNsVal;
+
+function onNsDetailsInput() {
+  if (typeof nsScAuto === 'function') nsScAuto();
+  if (typeof updateNsSubjPreview === 'function') updateNsSubjPreview();
+  if (typeof renderNsBlendMappingWrap === 'function') renderNsBlendMappingWrap();
+}
+window.onNsDetailsInput = onNsDetailsInput;
+
+function onNsTypeChange() {
+  if (typeof nsScAuto === 'function') nsScAuto();
+  if (typeof updateNsSubjPreview === 'function') updateNsSubjPreview();
+  if (typeof renderNsBlendMappingWrap === 'function') renderNsBlendMappingWrap();
+}
+window.onNsTypeChange = onNsTypeChange;
+
+function updateNsSubjPreview() {
+  var name = (getFieldValue('ns-nm') || '').trim();
+  var courseCode = (getFieldValue('ns-cd') || '').trim().toUpperCase();
+  var shortForm = (getFieldValue('ns-ssc') || '').trim().toUpperCase();
+  var subjectCode = (courseCode && shortForm) ? (courseCode + '-' + shortForm) : courseCode;
+  var credits = parseInt(getFieldValue('ns-cr')) || 3;
+  var type = getFieldValue('ns-tp') || 'Theory';
+  var isBlend = document.getElementById('ns-blend-chk')?.checked === true;
+  var smin = parseInt(getFieldValue('ns-smin')) || 4;
+  var stgt = parseInt(getFieldValue('ns-stgt')) || 5;
+  var smax = parseInt(getFieldValue('ns-smax')) || 7;
+  var blk = parseInt(getFieldValue('ns-bl')) || 1;
+
+  var bTheory = isBlend ? (parseInt(getFieldValue('ns-blend-theory')) || 0) : (type === 'Lab' ? 0 : stgt);
+  var bLab = isBlend ? (parseInt(getFieldValue('ns-blend-lab')) || 0) : (type === 'Lab' ? stgt : 0);
+
+  // Left card avatar
+  var avEl = document.getElementById('subj-preview-avatar');
+  if (avEl) {
+    avEl.textContent = (shortForm || (name ? name.substring(0, 3) : 'DSA')).toUpperCase();
+  }
+
+  // Name
+  var nmEl = document.getElementById('subj-preview-name');
+  if (nmEl) nmEl.textContent = name || 'Data Structures Algorithm';
+
+  // Code
+  var cdEl = document.getElementById('subj-preview-code');
+  if (cdEl) cdEl.textContent = subjectCode || '25CSS301-DSA';
+
+  // Chip
+  var chpEl = document.getElementById('subj-preview-chip');
+  if (chpEl) {
+    chpEl.textContent = credits + ' credits · ' + (isBlend ? 'Blend' : type);
+  }
+
+  // Weekly load bars
+  var barsEl = document.getElementById('subj-preview-bars');
+  if (barsEl) {
+    var totalSlots = isBlend ? (bTheory + bLab) : stgt;
+    var maxBars = Math.max(7, totalSlots);
+    var html = '';
+    for (var i = 0; i < maxBars; i++) {
+      if (i < bTheory) {
+        html += '<i class="t"></i>';
+      } else if (i < (bTheory + bLab)) {
+        html += '<i class="l"></i>';
+      } else {
+        html += '<i></i>';
+      }
+    }
+    barsEl.innerHTML = html;
+  }
+
+  // Legend
+  var tCnt = document.getElementById('subj-preview-theory-cnt');
+  if (tCnt) tCnt.textContent = bTheory;
+  var lItem = document.getElementById('subj-preview-lab-item');
+  var lCnt = document.getElementById('subj-preview-lab-cnt');
+  if (lItem && lCnt) {
+    if (isBlend || type === 'Lab') {
+      lItem.style.display = 'inline-flex';
+      lCnt.textContent = bLab;
+    } else {
+      lItem.style.display = 'none';
+    }
+  }
+
+  // Summary
+  var totEl = document.getElementById('subj-preview-tot');
+  if (totEl) {
+    var tot = isBlend ? (bTheory + bLab) : stgt;
+    totEl.textContent = tot + ' classes';
+  }
+  var rngEl = document.getElementById('subj-preview-range');
+  if (rngEl) rngEl.textContent = smin + ' – ' + smax;
+  var blkEl = document.getElementById('subj-preview-block');
+  if (blkEl) blkEl.textContent = blk + (blk === 1 ? ' period' : ' periods');
+  var shrEl = document.getElementById('subj-preview-shared');
+  if (shrEl) shrEl.textContent = courseCode || '25CSS301';
+
+  // Required status in footer
+  var missing = [];
+  if (!name) missing.push('Subject name');
+  if (!courseCode) missing.push('Course code');
+  if (!shortForm) missing.push('Short form');
+
+  var leadEl = document.getElementById('ns-req-lead');
+  var descEl = document.getElementById('ns-req-desc');
+  var addBtn = document.getElementById('ns-add-btn');
+
+  if (missing.length === 0) {
+    if (leadEl) {
+      leadEl.textContent = 'Ready to add';
+      leadEl.style.color = '#1b5e20';
+    }
+    if (descEl) descEl.textContent = ' · all required fields are filled';
+    if (addBtn && !addBtn.getAttribute('data-dup-disabled')) {
+      addBtn.classList.remove('d');
+      addBtn.classList.add('p');
+      addBtn.disabled = false;
+      addBtn.style.opacity = '1';
+      addBtn.style.cursor = 'pointer';
+    }
+  } else {
+    if (leadEl) {
+      leadEl.textContent = missing.length + ' required field' + (missing.length > 1 ? 's' : '') + ' left';
+      leadEl.style.color = '#dc2626';
+    }
+    if (descEl) descEl.textContent = ' · ' + missing.join(', ');
+    if (addBtn) {
+      addBtn.classList.add('d');
+      addBtn.classList.remove('p');
+      addBtn.disabled = true;
+      addBtn.style.opacity = '0.6';
+      addBtn.style.cursor = 'not-allowed';
+    }
+  }
+}
+window.updateNsSubjPreview = updateNsSubjPreview;
+
+function onNsBlendSlotsChange() {
+  var t = Math.max(0, parseInt(getFieldValue('ns-blend-theory')) || 0);
+  var l = Math.max(0, parseInt(getFieldValue('ns-blend-lab')) || 0);
+  var hint = document.getElementById('ns-blend-calc-hint');
+  if (hint) hint.innerHTML = '<b>' + (t + l) + '</b> classes · ' + t + ' Theory + ' + l + ' Lab';
+  if (document.getElementById('ns-blend-chk')?.checked && (t + l) > 0) {
+    var tgtEl = document.getElementById('ns-stgt');
+    if (tgtEl) tgtEl.value = (t + l);
+    validateNsSlotsOrder('target');
+  }
+  if (typeof updateNsSubjPreview === 'function') updateNsSubjPreview();
+}
+
+function validateNsSlotsOrder(changed) {
+  var minEl = document.getElementById('ns-smin');
+  var tgtEl = document.getElementById('ns-stgt');
+  var maxEl = document.getElementById('ns-smax');
+  if (!minEl || !tgtEl || !maxEl) return;
+  var min = Math.max(1, parseInt(minEl.value) || 4);
+  var tgt = Math.max(1, parseInt(tgtEl.value) || 5);
+  var max = Math.max(1, parseInt(maxEl.value) || 7);
+  if (changed === 'target') {
+    if (min > tgt) min = tgt;
+    if (max < tgt) max = tgt;
+  } else if (changed === 'min') {
+    if (min > tgt) tgt = min;
+    if (max < tgt) max = tgt;
+  } else if (changed === 'max') {
+    if (max < tgt) tgt = max;
+    if (min > tgt) min = tgt;
+  }
+  minEl.value = min;
+  tgtEl.value = tgt;
+  maxEl.value = max;
+  if (typeof updateNsSubjPreview === 'function') updateNsSubjPreview();
+}
+
+function renderNsBlendMappingWrap() {
+  var wrap = document.getElementById('ns-blend-autolab-wrap');
+  if (!wrap) return;
+  var cCode = (getFieldValue('ns-cd') || '').trim().toUpperCase();
+  var sForm = (getFieldValue('ns-ssc') || '').trim().toUpperCase();
+  var name = (getFieldValue('ns-nm') || '').trim();
+  var type = getFieldValue('ns-tp') || 'Theory';
+
+  var tag = document.getElementById('ns-blend-code-tag');
+  if (tag) tag.textContent = cCode || 'Shared Code';
+
+  if (type === 'Theory') {
+    var existingLab = (DB.get('subjects') || []).find(function (s) {
+      return ((s.courseCode && s.courseCode.toUpperCase() === cCode) || (s.code && s.code.toUpperCase() === cCode)) && s.type === 'Lab';
+    });
+    if (existingLab) {
+      wrap.innerHTML = '<div style="background:#fff;border:1.5px solid #a855f7;border-radius:12px;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;margin-top:8px;">'
+        + '<div><div style="font-size:11px;font-weight:700;color:#7e22ce;"><re-icon icon="link" size="12"></re-icon> Mapped Lab Component (Same Code: ' + escapeHtml(cCode) + ')</div>'
+        + '<div style="font-weight:600;font-size:13px;color:var(--td);margin-top:2px;">' + escapeHtml(existingLab.name) + ' (' + escapeHtml(existingLab.shortForm || existingLab.shortName || 'LAB') + ')</div></div>'
+        + '<span class="tg" style="margin:0;">Linked</span></div>';
+    } else {
+      var defaultLabShort = sForm ? (sForm.endsWith('-L') ? sForm : sForm + '-L') : 'LAB';
+      var defaultLabName = name ? (name.toLowerCase().includes('lab') ? name : name + ' Lab') : 'Course Lab';
+      wrap.innerHTML = '<div class="sub" style="margin-top:10px;">'
+        + '<div class="bh" style="cursor:pointer;margin-bottom:8px;" onclick="toggleNsAutoLabSwitch()">'
+        + '<i class="sw on" id="ns-autolab-sw"></i>'
+        + '<input type="checkbox" id="ns-blend-autolab-chk" checked style="display:none;" onchange="var f=document.getElementById(\'ns-blend-autolab-fields\'); if(f) f.style.display=this.checked?\'grid\':\'none\'; var sw=document.getElementById(\'ns-autolab-sw\'); if(sw) sw.classList.toggle(\'on\', this.checked);">'
+        + '<b>Auto-create lab component with same course code</b>'
+        + '</div>'
+        + '<div id="ns-blend-autolab-fields" class="gr">'
+        + '<div class="c4"><label class="lb stu-lbl" for="ns-blend-lab-sc">Lab short code</label><input class="in stu-inp" id="ns-blend-lab-sc" value="' + escapeHtml(defaultLabShort) + '" oninput="updateNsSubjPreview()"></div>'
+        + '<div class="c8"><label class="lb stu-lbl" for="ns-blend-lab-nm">Lab subject name</label><input class="in stu-inp" id="ns-blend-lab-nm" value="' + escapeHtml(defaultLabName) + '" oninput="updateNsSubjPreview()"></div>'
+        + '</div></div>';
+    }
+  } else {
+    wrap.innerHTML = '';
+  }
+}
+
+function toggleEsBlend(isChecked) {
+  var wrap = document.getElementById('es-blend-wrap');
+  if (wrap) wrap.style.display = isChecked ? 'block' : 'none';
+  if (isChecked) {
+    onEsBlendSlotsChange();
+    renderEsBlendMappingWrap();
+  }
+}
+
+function onEsBlendSlotsChange() {
+  var t = Math.max(0, parseInt(getFieldValue('es-blend-theory')) || 0);
+  var l = Math.max(0, parseInt(getFieldValue('es-blend-lab')) || 0);
+  var hint = document.getElementById('es-blend-calc-hint');
+  if (hint) hint.innerHTML = 'Total: <strong>' + (t + l) + '</strong> classes/week (' + t + ' Theory + ' + l + ' Lab)';
+  if (document.getElementById('es-blend-chk')?.checked && (t + l) > 0) {
+    var tgtEl = document.getElementById('es-stgt');
+    if (tgtEl) tgtEl.value = (t + l);
+    validateEsSlotsOrder('target');
+  }
+}
+
+function validateEsSlotsOrder(changed) {
+  var minEl = document.getElementById('es-smin');
+  var tgtEl = document.getElementById('es-stgt');
+  var maxEl = document.getElementById('es-smax');
+  if (!minEl || !tgtEl || !maxEl) return;
+  var min = Math.max(1, parseInt(minEl.value) || 4);
+  var tgt = Math.max(1, parseInt(tgtEl.value) || 5);
+  var max = Math.max(1, parseInt(maxEl.value) || 7);
+  if (changed === 'target') {
+    if (min > tgt) min = tgt;
+    if (max < tgt) max = tgt;
+  } else if (changed === 'min') {
+    if (min > tgt) tgt = min;
+    if (max < tgt) max = tgt;
+  } else if (changed === 'max') {
+    if (max < tgt) tgt = max;
+    if (min > tgt) min = tgt;
+  }
+  minEl.value = min;
+  tgtEl.value = tgt;
+  maxEl.value = max;
+}
+
+function renderEsBlendMappingWrap(currentSub) {
+  var wrap = document.getElementById('es-blend-map-info');
+  if (!wrap) return;
+  var cCode = (getFieldValue('es-cd') || (currentSub ? (currentSub.courseCode || currentSub.code) : '') || '').trim().toUpperCase();
+  var sForm = (getFieldValue('es-ssc') || (currentSub ? (currentSub.shortForm || currentSub.shortName) : '') || '').trim().toUpperCase();
+  var name = (getFieldValue('es-nm') || (currentSub ? currentSub.name : '') || '').trim();
+  var type = getFieldValue('es-tp') || 'Theory';
+  var curId = currentSub ? currentSub._id : currentSubjectId;
+
+  var tag = document.getElementById('es-blend-code-tag');
+  if (tag) tag.textContent = cCode || 'Shared Code';
+
+  if (type === 'Theory') {
+    var existingLab = (DB.get('subjects') || []).find(function (s) {
+      return String(s._id) !== String(curId) &&
+        ((s.courseCode && s.courseCode.toUpperCase() === cCode) || (s.code && s.code.toUpperCase() === cCode)) &&
+        s.type === 'Lab';
+    });
+    if (existingLab) {
+      wrap.innerHTML = '<div style="background:#fff;border:1.5px solid #a855f7;border-radius:8px;padding:8px 12px;display:flex;align-items:center;justify-content:space-between;">'
+        + '<div><div style="font-size:11px;font-weight:700;color:#7e22ce;"><re-icon icon="link" size="12"></re-icon> Mapped Lab Component (Same Code: ' + escapeHtml(cCode) + ')</div>'
+        + '<div style="font-weight:600;font-size:12px;color:var(--td);margin-top:2px;">' + escapeHtml(existingLab.name) + ' (' + escapeHtml(existingLab.shortForm || existingLab.shortName || 'LAB') + ')</div>'
+        + '<div style="font-size:11px;color:var(--tmu);margin-top:1px;">Lab Component · ' + (existingLab.credits ?? 1) + ' Cr · ' + (existingLab.slotsTarget || existingLab.blendLabSlots || 2) + ' classes/wk</div></div>'
+        + '<span class="pill pri" style="background:#f3e8ff;color:#7e22ce;font-size:10.5px;">Linked</span></div>'
+        + '<input type="hidden" id="es-blend-mapped-lab-id" value="' + escapeHtml(existingLab._id) + '">';
+    } else {
+      var defaultLabShort = sForm ? (sForm.endsWith('-L') ? sForm : sForm + '-L') : 'LAB';
+      var defaultLabName = name ? (name.toLowerCase().includes('lab') ? name : name + ' Lab') : 'Course Lab';
+      wrap.innerHTML = '<div style="background:#fff;border:1.5px dashed #c084fc;border-radius:8px;padding:8px 12px;">'
+        + '<label style="display:flex;align-items:center;gap:6px;font-size:11.5px;font-weight:700;color:#7e22ce;cursor:pointer;">'
+        + '<input type="checkbox" id="es-blend-autolab-chk" checked onchange="document.getElementById(\'es-blend-autolab-fields\').style.display = this.checked ? \'grid\' : \'none\'">'
+        + '<span>Auto-create Lab component with same Course Code (' + escapeHtml(cCode || '...') + ')</span></label>'
+        + '<div id="es-blend-autolab-fields" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:6px;">'
+        + '<div><label class="fl" style="font-size:10.5px;">Lab Short Code</label><input type="text" class="fc2" id="es-blend-lab-sc" value="' + escapeHtml(defaultLabShort) + '" style="font-size:11.5px;padding:4px 8px;"></div>'
+        + '<div><label class="fl" style="font-size:10.5px;">Lab Subject Name</label><input type="text" class="fc2" id="es-blend-lab-nm" value="' + escapeHtml(defaultLabName) + '" style="font-size:11.5px;padding:4px 8px;"></div>'
+        + '</div></div>'
+        + '<input type="hidden" id="es-blend-mapped-lab-id" value="">';
+    }
+  } else if (type === 'Lab') {
+    var existingTheory = (DB.get('subjects') || []).find(function (s) {
+      return String(s._id) !== String(curId) &&
+        ((s.courseCode && s.courseCode.toUpperCase() === cCode) || (s.code && s.code.toUpperCase() === cCode)) &&
+        s.type === 'Theory';
+    });
+    if (existingTheory) {
+      wrap.innerHTML = '<div style="background:#fff;border:1.5px solid #3b82f6;border-radius:8px;padding:8px 12px;display:flex;align-items:center;justify-content:space-between;">'
+        + '<div><div style="font-size:11px;font-weight:700;color:#1d4ed8;"><re-icon icon="link" size="12"></re-icon> Mapped Theory Component (Same Code: ' + escapeHtml(cCode) + ')</div>'
+        + '<div style="font-weight:600;font-size:12px;color:var(--td);margin-top:2px;">' + escapeHtml(existingTheory.name) + ' (' + escapeHtml(existingTheory.shortForm || existingTheory.shortName || 'THEORY') + ')</div></div>'
+        + '<span class="pill pri" style="font-size:10.5px;">Linked</span></div>'
+        + '<input type="hidden" id="es-blend-mapped-theory-id" value="' + escapeHtml(existingTheory._id) + '">';
+    } else {
+      wrap.innerHTML = '<div style="background:#fff;border:1px solid var(--br);border-radius:8px;padding:8px 12px;font-size:12px;color:var(--tmu);">'
+        + 'Course Code <code>' + escapeHtml(cCode || '—') + '</code> has no matching Theory component yet.</div>'
+        + '<input type="hidden" id="es-blend-mapped-theory-id" value="">';
+    }
+  } else {
+    wrap.innerHTML = '';
+  }
+}
+
 function saveEditSubj() {
   if (!currentSubjectId) return;
   var name = getFieldValue('es-nm');
@@ -5862,6 +7559,29 @@ function saveEditSubj() {
   }
 
   dbToast('Saving subject...', 'saving');
+  var category = getFieldValue('es-cat') || 'easy';
+  var blockLength = Math.max(1, parseInt(getFieldValue('es-bl')) || 1);
+  var slotsMin = parseInt(getFieldValue('es-smin')) || 4;
+  var slotsTarget = parseInt(getFieldValue('es-stgt')) || 5;
+  var slotsMax = parseInt(getFieldValue('es-smax')) || 7;
+  var isBlend = document.getElementById('es-blend-chk')?.checked === true;
+  var blendTheorySlots = parseInt(getFieldValue('es-blend-theory')) || 0;
+  var blendLabSlots = parseInt(getFieldValue('es-blend-lab')) || 0;
+  var autoCreateLab = document.getElementById('es-blend-autolab-chk')?.checked === true;
+  var labShortCode = (getFieldValue('es-blend-lab-sc') || '').trim().toUpperCase();
+  var labName = (getFieldValue('es-blend-lab-nm') || '').trim();
+  var mappedLabId = document.getElementById('es-blend-mapped-lab-id')?.value || null;
+  var mappedTheoryId = document.getElementById('es-blend-mapped-theory-id')?.value || null;
+
+  if (slotsMin > slotsTarget || slotsTarget > slotsMax) {
+    showToast('Class counts must satisfy Min <= Target <= Max', 'warn');
+    return;
+  }
+  if (isBlend && (blendTheorySlots + blendLabSlots <= 0)) {
+    showToast('Blend subject must have at least 1 Theory or Lab class allocated', 'warn');
+    return;
+  }
+
   apiUpdateSubject(currentSubjectId, {
     name: name,
     deptId: deptId,
@@ -5874,7 +7594,20 @@ function saveEditSubj() {
     credits: credits,
     type: type,
     subjectCode: subjectCode,
-    regulation: regulation
+    regulation: regulation,
+    category: category,
+    blockLength: blockLength,
+    slotsMin: slotsMin,
+    slotsTarget: slotsTarget,
+    slotsMax: slotsMax,
+    isBlend: isBlend,
+    blendTheorySlots: isBlend ? blendTheorySlots : 0,
+    blendLabSlots: isBlend ? blendLabSlots : 0,
+    autoCreateLab: isBlend && autoCreateLab,
+    labShortCode: labShortCode,
+    labName: labName,
+    labComponentId: isBlend ? mappedLabId : null,
+    theoryComponentId: isBlend ? mappedTheoryId : null
   }).then(function (d) {
     if (!d || d.error) {
       dbToast('Update failed: ' + (d && d.error ? d.error : 'Unknown'), 'error');
@@ -5905,38 +7638,134 @@ function saveEditSubj() {
 function ncAutoName() {
   var deptId = getFieldValue('nc-dept');
   var batch = getFieldValue('nc-batch');
-  var sem = getFieldValue('nc-sem');
-  var section = (document.getElementById('nc-sec').value || '').trim();
+  var yr = getFieldValue('nc-yr') || 'I Year';
+  var sem = getFieldValue('nc-sem') || 'I';
+  var secInput = document.getElementById('nc-sec');
+  var section = (secInput ? secInput.value : '').trim().toUpperCase();
   var dept = DB.get('depts').find(function (d) { return d._id === deptId; });
   var nameEl = document.getElementById('nc-name');
   var warnEl = document.getElementById('nc-warn');
   var addBtn = document.getElementById('nc-add-btn');
+  var hintEl = document.getElementById('nc-hint');
+
+  // Preview elements
+  var prevAv = document.getElementById('nc-preview-av');
+  var prevName = document.getElementById('nc-preview-name');
+  var prevBadge = document.getElementById('nc-preview-badge');
+  var dispBatch = document.getElementById('nc-disp-batch');
+  var dispYr = document.getElementById('nc-disp-yr');
+  var dispSem = document.getElementById('nc-disp-sem');
+  var dispRoom = document.getElementById('nc-disp-room');
+
+  if (dispBatch) dispBatch.textContent = batch || '—';
+  if (dispYr) dispYr.textContent = yr || '—';
+  if (dispSem) dispSem.textContent = sem || '—';
+
+  // Room preview
+  var roomSel = document.getElementById('nc-room');
+  var roomText = 'Not assigned';
+  if (roomSel && roomSel.selectedIndex > 0) {
+    roomText = roomSel.options[roomSel.selectedIndex].text;
+  }
+  if (dispRoom) {
+    dispRoom.textContent = roomText;
+    dispRoom.className = 'cls-kv-val' + (roomText === 'Not assigned' ? ' pd' : '');
+  }
+
+  var secInitial = section ? section.charAt(0) : 'A';
+  if (prevAv) prevAv.textContent = secInitial;
+  if (prevBadge) prevBadge.textContent = yr + ' · Semester ' + sem;
+
   if (dept && batch && section) {
     var batchV = formatBatchShort(batch);
     var autoName = batchV + ' ' + dept.code + '-' + section;
-    nameEl.value = autoName;
+    if (nameEl) nameEl.value = autoName;
+    if (prevName) prevName.textContent = autoName;
+
     // Check duplicate
     var dup = DB.get('classes').find(function (cls) {
       return cls.deptId === deptId && cls.batch === batch && cls.section === section;
     });
     if (dup) {
-      warnEl.innerHTML = '<re-icon icon="alert-triangle"></re-icon> Class "' + autoName + '" already exists for this department/batch/section.';
-      warnEl.style.display = 'block';
-      addBtn.disabled = true;
-      addBtn.style.opacity = '.5';
-      addBtn.style.cursor = 'not-allowed';
+      if (warnEl) {
+        warnEl.innerHTML = '<re-icon icon="alert-triangle"></re-icon> Class "' + autoName + '" already exists for this department/batch/section.';
+        warnEl.style.display = 'block';
+      }
+      if (hintEl) {
+        hintEl.innerHTML = '<b style="color:#dc2626;">Duplicate class</b> · Class ' + escapeHtml(autoName) + ' already exists';
+      }
+      if (addBtn) {
+        addBtn.disabled = true;
+        addBtn.className = 'bt d cls-btn-submit';
+        addBtn.style.opacity = '.5';
+        addBtn.style.cursor = 'not-allowed';
+      }
     } else {
-      warnEl.style.display = 'none';
-      addBtn.disabled = false;
-      addBtn.style.opacity = '1';
-      addBtn.style.cursor = 'pointer';
+      if (warnEl) warnEl.style.display = 'none';
+      if (hintEl) {
+        hintEl.innerHTML = '<b>Ready to add</b> · class name will be ' + escapeHtml(autoName);
+      }
+      if (addBtn) {
+        addBtn.disabled = false;
+        addBtn.className = 'bt p cls-btn-submit';
+        addBtn.style.opacity = '1';
+        addBtn.style.cursor = 'pointer';
+      }
     }
   } else {
-    nameEl.value = '';
-    warnEl.style.display = 'none';
-    addBtn.disabled = true;
-    addBtn.style.opacity = '.5';
+    var draftName = (batch ? formatBatchShort(batch) : 'YY-YY') + ' ' + (dept ? dept.code : 'DEPT') + '-' + (section || 'SEC');
+    if (nameEl) nameEl.value = '';
+    if (prevName) prevName.textContent = draftName;
+    if (warnEl) warnEl.style.display = 'none';
+    if (hintEl) {
+      var missing = [];
+      if (!dept) missing.push('department');
+      if (!batch) missing.push('batch');
+      if (!section) missing.push('section');
+      hintEl.innerHTML = '<b>Fill required fields</b> (' + missing.join(', ') + ')';
+    }
+    if (addBtn) {
+      addBtn.disabled = true;
+      addBtn.className = 'bt d cls-btn-submit';
+      addBtn.style.opacity = '.5';
+      addBtn.style.cursor = 'not-allowed';
+    }
   }
+}
+
+function onNcBatchChange() {
+  var batch = getFieldValue('nc-batch');
+  var dispBatch = document.getElementById('nc-disp-batch');
+  if (dispBatch) dispBatch.textContent = batch || '—';
+  ncAutoName();
+}
+
+function onNcYearChange() {
+  var yr = getFieldValue('nc-yr');
+  var dispYr = document.getElementById('nc-disp-yr');
+  if (dispYr) dispYr.textContent = yr || '—';
+
+  // Automatically adjust semesters based on year
+  var semSel = document.getElementById('nc-sem');
+  if (semSel && yr) {
+    var semMap = {
+      'I Year': ['I', 'II'],
+      'II Year': ['III', 'IV'],
+      'III Year': ['V', 'VI'],
+      'IV Year': ['VII', 'VIII']
+    };
+    var sems = semMap[yr] || ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII'];
+    var currentSem = semSel.value;
+    semSel.innerHTML = sems.map(function (s) {
+      return '<option value="' + s + '">' + s + '</option>';
+    }).join('');
+    if (sems.indexOf(currentSem) !== -1) {
+      semSel.value = currentSem;
+    } else {
+      semSel.value = sems[0];
+    }
+  }
+  ncAutoName();
 }
 function isDevMode() {
   if (typeof window._pubSettings !== 'undefined' && window._pubSettings && typeof window._pubSettings.isDev === 'boolean') {
@@ -6051,7 +7880,10 @@ function openAddSubj() {
 
   // Auto-select current dept from structure context
   var deptSel = document.getElementById('ns-dept');
-  if (deptSel) deptSel.value = structureContext.deptId;
+  if (deptSel) {
+    deptSel.value = structureContext.deptId;
+    if (typeof SearchableDropdown !== 'undefined') SearchableDropdown.sync('ns-dept');
+  }
 
   // Show active dept in modal title
   var titleEl = document.querySelector('#m-add-subj-ctx .modal-title');
@@ -6066,12 +7898,31 @@ function openAddSubj() {
   if (warnEl) warnEl.style.display = 'none';
   var addBtn = document.getElementById('ns-add-btn');
   if (addBtn) {
-    addBtn.disabled = false;
-    addBtn.style.opacity = '1';
-    addBtn.style.cursor = 'pointer';
+    addBtn.removeAttribute('data-dup-disabled');
+    addBtn.disabled = true;
+    addBtn.classList.add('d');
+    addBtn.classList.remove('p');
+    addBtn.style.opacity = '0.6';
+    addBtn.style.cursor = 'not-allowed';
   }
   var crEl = document.getElementById('ns-cr');
   if (crEl) crEl.value = '3';
+  if (document.getElementById('ns-tp')) document.getElementById('ns-tp').value = 'Theory';
+  if (document.getElementById('ns-reg')) document.getElementById('ns-reg').value = '2025';
+  if (document.getElementById('ns-cat')) document.getElementById('ns-cat').value = 'easy';
+  if (document.getElementById('ns-bl')) document.getElementById('ns-bl').value = '1';
+  if (document.getElementById('ns-smin')) document.getElementById('ns-smin').value = '4';
+  if (document.getElementById('ns-stgt')) document.getElementById('ns-stgt').value = '5';
+  if (document.getElementById('ns-smax')) document.getElementById('ns-smax').value = '7';
+  var nsBlendChk = document.getElementById('ns-blend-chk');
+  if (nsBlendChk) nsBlendChk.checked = false;
+  var sw = document.getElementById('ns-blend-sw');
+  if (sw) sw.classList.remove('on');
+  if (document.getElementById('ns-blend-theory')) document.getElementById('ns-blend-theory').value = '4';
+  if (document.getElementById('ns-blend-lab')) document.getElementById('ns-blend-lab').value = '2';
+  toggleNsBlend(false);
+  renderNsBlendMappingWrap();
+  updateNsSubjPreview();
   openModal_('m-add-subj-ctx');
 }
 
@@ -6095,26 +7946,26 @@ function nsScAuto() {
         warnEl.style.display = 'block';
       }
       if (addBtn) {
+        addBtn.setAttribute('data-dup-disabled', '1');
         addBtn.disabled = true;
+        addBtn.classList.add('d');
+        addBtn.classList.remove('p');
         addBtn.style.opacity = '0.5';
         addBtn.style.cursor = 'not-allowed';
       }
     } else {
       if (warnEl) warnEl.style.display = 'none';
       if (addBtn) {
-        addBtn.disabled = false;
-        addBtn.style.opacity = '1';
-        addBtn.style.cursor = 'pointer';
+        addBtn.removeAttribute('data-dup-disabled');
       }
     }
   } else {
     if (warnEl) warnEl.style.display = 'none';
     if (addBtn) {
-      addBtn.disabled = false;
-      addBtn.style.opacity = '1';
-      addBtn.style.cursor = 'pointer';
+      addBtn.removeAttribute('data-dup-disabled');
     }
   }
+  updateNsSubjPreview();
 }
 
 // ── Auto Subject Code (Edit: courseCode + '-' + shortForm) ────────────────
@@ -6180,6 +8031,27 @@ function addSubCtx() {
     return;
   }
 
+  var category = getFieldValue('ns-cat') || 'easy';
+  var blockLength = Math.max(1, parseInt(getFieldValue('ns-bl')) || 1);
+  var slotsMin = parseInt(getFieldValue('ns-smin')) || 4;
+  var slotsTarget = parseInt(getFieldValue('ns-stgt')) || 5;
+  var slotsMax = parseInt(getFieldValue('ns-smax')) || 7;
+  var isBlend = document.getElementById('ns-blend-chk')?.checked === true;
+  var blendTheorySlots = parseInt(getFieldValue('ns-blend-theory')) || 0;
+  var blendLabSlots = parseInt(getFieldValue('ns-blend-lab')) || 0;
+  var autoCreateLab = document.getElementById('ns-blend-autolab-chk')?.checked === true;
+  var labShortCode = (getFieldValue('ns-blend-lab-sc') || '').trim().toUpperCase();
+  var labName = (getFieldValue('ns-blend-lab-nm') || '').trim();
+
+  if (slotsMin > slotsTarget || slotsTarget > slotsMax) {
+    showToast('Class counts must satisfy Min <= Target <= Max', 'warn');
+    return;
+  }
+  if (isBlend && (blendTheorySlots + blendLabSlots <= 0)) {
+    showToast('Blend subject must have at least 1 Theory or Lab class allocated', 'warn');
+    return;
+  }
+
   apiAddSubject({
     name: name,
     courseCode: courseCode,
@@ -6192,7 +8064,18 @@ function addSubCtx() {
     deptName: dept ? dept.name : '',
     deptCode: dept ? dept.code : '',
     subjectCode: subjectCode,
-    regulation: regulation
+    regulation: regulation,
+    category: category,
+    blockLength: blockLength,
+    slotsMin: slotsMin,
+    slotsTarget: slotsTarget,
+    slotsMax: slotsMax,
+    isBlend: isBlend,
+    blendTheorySlots: isBlend ? blendTheorySlots : 0,
+    blendLabSlots: isBlend ? blendLabSlots : 0,
+    autoCreateLab: isBlend && autoCreateLab,
+    labShortCode: labShortCode,
+    labName: labName
   })
     .then(function (newSubject) {
       if (!newSubject || newSubject.error) return;
@@ -6721,6 +8604,14 @@ function onStudentResidencyChange() {
   updateShowListEnabled();
 }
 
+function onStudentAdmissionTypeChange() {
+  if (typeof SearchableDropdown !== 'undefined') {
+    SearchableDropdown.sync('sf-admission-type');
+  }
+  updateShowListEnabled();
+}
+window.onStudentAdmissionTypeChange = onStudentAdmissionTypeChange;
+
 function onStudentSectionChange() {
   updateShowListEnabled();
 }
@@ -6739,15 +8630,17 @@ function _buildStudentQueryString(page) {
   var ct = document.getElementById('sf-ct') ? document.getElementById('sf-ct').value : '';
   var dept = document.getElementById('sf-dept') ? document.getElementById('sf-dept').value : '';
   var cls = document.getElementById('sf-cls') ? document.getElementById('sf-cls').value : '';
-  var res = document.getElementById('sf-residency') ? document.getElementById('sf-residency').value : '';
-  _studentFilterSnapshot = { ay: ay, batch: batch, ct: ct, dept: dept, cls: cls, res: res };
+  var qEl = document.getElementById('sf-q');
+  var q = qEl ? qEl.value.trim() : '';
+
+  _studentFilterSnapshot = { ay: ay, batch: batch, ct: ct, dept: dept, cls: cls, q: q };
   var params = '?page=' + (page || 1) + '&limit=65&sortBy=' + encodeURIComponent(_studentSortBy) + '&sortDir=' + _studentSortDir;
   if (ay) params += '&academicYear=' + encodeURIComponent(ay);
   if (batch) params += '&batch=' + encodeURIComponent(batch);
   if (ct) params += '&courseType=' + encodeURIComponent(ct);
   if (dept) params += '&deptId=' + encodeURIComponent(dept);
   if (cls) params += '&classId=' + encodeURIComponent(cls);
-  if (res) params += '&residency=' + encodeURIComponent(res);
+  if (q) params += '&q=' + encodeURIComponent(q);
   return params;
 }
 
@@ -6758,7 +8651,7 @@ function _renderStudentTable(data, append) {
   if (!tbody) return;
   var rows = data.map(function (student, idx) {
     var absIdx = append ? (_studentData.length - data.length + idx + 1) : (idx + 1);
-    return '<tr>'
+    return '<tr class="student-row" onclick="openStuDetail(\'' + student._id + '\')" title="Click to view complete student details">'
       + '<td>' + absIdx + '</td>'
       + '<td class="b">' + (student.name || '—') + '</td>'
       + '<td>' + (student.regNo || '—') + '</td>'
@@ -6766,20 +8659,27 @@ function _renderStudentTable(data, append) {
       + '<td>' + (student.courseType || '—') + '</td>'
       + '<td>' + (student.branch || student.deptName || '—') + '</td>'
       + '<td>' + (student.deptName || '—') + '</td>'
-      + '<td>' + (student.className || '—') + ((student.residency === 'hostel' || student.residency === 'hosteler') ? ' <span class="bge bgb" style="font-size:10px;padding:1px 5px;border-radius:4px;" title="Hosteler">Hostel</span>' : ' <span class="bge bgg" style="font-size:10px;padding:1px 5px;border-radius:4px;" title="Dayscholar">Day</span>') + ((student.gender === 'Female' || student.gender === 'female') ? ' <span class="bge" style="background:#fce4ec;color:#c2185b;font-size:10px;padding:1px 5px;border-radius:4px;" title="Female">F</span>' : ' <span class="bge" style="background:#e3f2fd;color:#1976d2;font-size:10px;padding:1px 5px;border-radius:4px;" title="Male">M</span>') + '</td>'
-      + '<td><button class="btn bgho bxs" onclick="openStuEdit(\'' + student._id + '\')" title="Edit Student"><re-icon icon="edit"></re-icon></button></td>'
+      + '<td>' + (student.className || '—') + ((student.residency === 'hostel' || student.residency === 'hosteler') ? ' <span class="bge bgb" style="font-size:10px;padding:1px 5px;border-radius:4px;" title="Hosteler">Hostel</span>' : ' <span class="bge bgg" style="font-size:10px;padding:1px 5px;border-radius:4px;" title="Dayscholar">Day</span>') + ((student.gender === 'Female' || student.gender === 'female') ? ' <span class="bge" style="background:#fce4ec;color:#c2185b;font-size:10px;padding:1px 5px;border-radius:4px;" title="Female">F</span>' : ' <span class="bge" style="background:#e3f2fd;color:#1976d2;font-size:10px;padding:1px 5px;border-radius:4px;" title="Male">M</span>') + ((student.admissionType && String(student.admissionType).toLowerCase().includes('lateral')) ? ' <span class="bge" style="background:#fff3e0;color:#e65100;font-size:10px;padding:1px 5px;border-radius:4px;font-weight:600;" title="Lateral Entry">LE</span>' : ' <span class="bge" style="background:#f1f5f9;color:#475569;font-size:10px;padding:1px 5px;border-radius:4px;" title="Regular Entry">Reg</span>') + '</td>'
+      + '<td><button class="btn bgho bxs" onclick="event.stopPropagation();openStuEdit(\'' + student._id + '\')" title="Edit Student"><re-icon icon="edit"></re-icon></button></td>'
       + '</tr>';
   }).join('');
   if (append) {
     tbody.insertAdjacentHTML('beforeend', rows);
   } else {
+    var searchNotice = _studentSearchQuery
+      ? ('No students found matching "' + escapeHtml(_studentSearchQuery) + '".')
+      : 'No students found matching your filters.';
     tbody.innerHTML = rows || '<tr><td colspan="9" style="text-align:center;padding:36px 16px;color:var(--tdi);">'
-      + '<span style="font-size:38px;display:block;margin-bottom:10px;"><re-icon icon="graduation-cap"></re-icon></span>'
-      + '<div style="font-size:14px;font-weight:600;margin-bottom:4px;">No students found matching your filters.</div>'
-      + '<div style="font-size:12px;color:var(--tdi);">Try adjusting your filters or add a student using the button above.</div>'
+      + '<span style="font-size:38px;display:block;margin-bottom:10px;"><re-icon icon="search"></re-icon></span>'
+      + '<div style="font-size:14px;font-weight:600;margin-bottom:4px;">' + searchNotice + '</div>'
+      + '<div style="font-size:12px;color:var(--tdi);">Try checking the name or register number, or clear your filters.</div>'
       + '</td></tr>';
   }
-  if (countEl) countEl.textContent = total + ' student' + (total === 1 ? '' : 's');
+  if (countEl) {
+    var countText = total + ' student' + (total === 1 ? '' : 's');
+    if (_studentSearchQuery) countText += ' matching "' + _studentSearchQuery + '"';
+    countEl.textContent = countText;
+  }
   var moreWrap = document.getElementById('load-more-wrap');
   if (moreWrap) moreWrap.style.display = (_studentData.length < total) ? 'block' : 'none';
 }
@@ -6978,31 +8878,32 @@ function _refreshStudentList() {
 }
 
 var _studentSearchQuery = '';
+var _studentSearchTimer = null;
+window._studentSearchTimer = null;
+
 function filterStudentsLive(query) {
-  _studentSearchQuery = (query || '').toLowerCase();
-  if (!_studentData.length) {
-    // No data loaded yet — do nothing (search is live only on loaded data)
-    return;
-  }
-  var filtered = _studentData.filter(function (s) {
-    if (!_studentSearchQuery) return true;
-    return (s.name || '').toLowerCase().indexOf(_studentSearchQuery) !== -1
-      || (s.regNo || '').toLowerCase().indexOf(_studentSearchQuery) !== -1
-      || (s.batch || '').toLowerCase().indexOf(_studentSearchQuery) !== -1;
-  });
-  var countEl = document.getElementById('scb');
-  var tbody = document.getElementById('stb');
-  if (countEl) countEl.textContent = _studentTotal + ' student' + (_studentTotal === 1 ? '' : 's')
-    + (_studentSearchQuery ? ' (' + filtered.length + ' shown)' : '');
-  if (tbody) {
-    if (!filtered.length) {
-      tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:36px 16px;color:var(--tdi);">'
-        + '<span style="font-size:38px;display:block;margin-bottom:10px;"><re-icon icon="search"></re-icon></span>'
-        + '<div style="font-size:14px;font-weight:600;margin-bottom:4px;">No students match your search.</div>'
-        + '</td></tr>';
-    } else {
+  _studentSearchQuery = (query || '').trim();
+
+  // Instant local filtering if rows are already present
+  if (Array.isArray(_studentData) && _studentData.length > 0) {
+    var qLower = _studentSearchQuery.toLowerCase();
+    var filtered = _studentData.filter(function (s) {
+      if (!qLower) return true;
+      return (s.name || '').toLowerCase().indexOf(qLower) !== -1
+        || (s.regNo || '').toLowerCase().indexOf(qLower) !== -1
+        || (s.rollNo || '').toLowerCase().indexOf(qLower) !== -1
+        || (s.batch || '').toLowerCase().indexOf(qLower) !== -1;
+    });
+
+    var countEl = document.getElementById('scb');
+    var tbody = document.getElementById('stb');
+    if (countEl) {
+      countEl.textContent = _studentTotal + ' student' + (_studentTotal === 1 ? '' : 's')
+        + (_studentSearchQuery ? ' (' + filtered.length + ' shown)' : '');
+    }
+    if (tbody && (filtered.length > 0 || !qLower)) {
       tbody.innerHTML = filtered.map(function (student, idx) {
-        return '<tr>'
+        return '<tr class="student-row" onclick="openStuDetail(\'' + student._id + '\')" title="Click to view complete student details">'
           + '<td>' + (idx + 1) + '</td>'
           + '<td class="b">' + (student.name || '—') + '</td>'
           + '<td>' + (student.regNo || '—') + '</td>'
@@ -7010,41 +8911,60 @@ function filterStudentsLive(query) {
           + '<td>' + (student.courseType || '—') + '</td>'
           + '<td>' + (student.branch || student.deptName || '—') + '</td>'
           + '<td>' + (student.deptName || '—') + '</td>'
-          + '<td>' + (student.className || '—') + '</td>'
-          + '<td><button class="btn bgho bxs" onclick="openStuEdit(\'' + student._id + '\')"><re-icon icon="edit"></re-icon></button></td>'
+          + '<td>' + (student.className || '—') + ((student.residency === 'hostel' || student.residency === 'hosteler') ? ' <span class="bge bgb" style="font-size:10px;padding:1px 5px;border-radius:4px;" title="Hosteler">Hostel</span>' : ' <span class="bge bgg" style="font-size:10px;padding:1px 5px;border-radius:4px;" title="Dayscholar">Day</span>') + ((student.gender === 'Female' || student.gender === 'female') ? ' <span class="bge" style="background:#fce4ec;color:#c2185b;font-size:10px;padding:1px 5px;border-radius:4px;" title="Female">F</span>' : ' <span class="bge" style="background:#e3f2fd;color:#1976d2;font-size:10px;padding:1px 5px;border-radius:4px;" title="Male">M</span>') + ((student.admissionType && String(student.admissionType).toLowerCase().includes('lateral')) ? ' <span class="bge" style="background:#fff3e0;color:#e65100;font-size:10px;padding:1px 5px;border-radius:4px;font-weight:600;" title="Lateral Entry">LE</span>' : ' <span class="bge" style="background:#f1f5f9;color:#475569;font-size:10px;padding:1px 5px;border-radius:4px;" title="Regular Entry">Reg</span>') + '</td>'
+          + '<td><button class="btn bgho bxs" onclick="event.stopPropagation();openStuEdit(\'' + student._id + '\')" title="Edit Student"><re-icon icon="edit"></re-icon></button></td>'
           + '</tr>';
       }).join('');
     }
   }
+
+  // Debounced server query against database to find any student matching across all records
+  if (_studentSearchTimer) clearTimeout(_studentSearchTimer);
+  _studentSearchTimer = setTimeout(function () {
+    showStudentList();
+  }, 260);
+  window._studentSearchTimer = _studentSearchTimer;
 }
+window.filterStudentsLive = filterStudentsLive;
 
 function updateBranch() {
-  const type = document.getElementById('co-type').value;
+  const coTypeEl = document.getElementById('co-type');
+  const type = coTypeEl ? coTypeEl.value : '';
   const branchDD = document.getElementById('branch');
+  if (!branchDD) return;
 
   let options = `<option value="">— Select —</option>`;
 
-  if (type === 'UG') {
-    options += `
-      <option value="B.E">B.E</option>
-      <option value="B.TECH">B.TECH</option>
-    `;
-  }
-  else if (type === 'PG') {
-    options += `
-      <option value="M.E">M.E</option>
-      <option value="M.TECH">M.TECH</option>
-    `;
-  }
-  else if (type === 'None') {
-    options += `
-      <option value="None">None</option>
-      <option value="N/A">N/A</option>
-    `;
+  if (!type) {
+    options = `<option value="">— Select Course Type First —</option>`;
+    branchDD.disabled = true;
+    branchDD.classList.add('dis');
+  } else {
+    branchDD.disabled = false;
+    branchDD.classList.remove('dis');
+    if (type === 'UG') {
+      options += `
+        <option value="B.E">B.E</option>
+        <option value="B.TECH">B.TECH</option>
+      `;
+    }
+    else if (type === 'PG') {
+      options += `
+        <option value="M.E">M.E</option>
+        <option value="M.TECH">M.TECH</option>
+      `;
+    }
+    else if (type === 'None') {
+      options += `
+        <option value="None">None</option>
+        <option value="N/A">N/A</option>
+      `;
+    }
   }
 
   branchDD.innerHTML = options;
 }
+window.updateBranch = updateBranch;
 
 // ─── HOD TRACKID LOOKUP ──────────────────────────────────────────────────────
 // Debounced 600 ms + 3 s minimum spinner. Checks isHod before accepting.
@@ -7175,6 +9095,800 @@ function edUpdateBranch() {
 
 var _currentEditingStudentId = null;
 
+
+/* ==========================================================================
+   STUDENT DETAIL MODAL SUBSYSTEM (WITH TABS & ENRICHED SUBSYSTEMS)
+   ========================================================================== */
+
+var _currentDetailStudentId = null;
+var _currentDetailStudent = null;
+var _currentStuDetailTab = 'overview';
+
+function switchStuDetailTab(tab) {
+  _currentStuDetailTab = tab || 'overview';
+  var tabs = ['overview', 'attendance', 'academic', 'leaves', 'trust', 'actions'];
+  tabs.forEach(function (t) {
+    var btn = document.getElementById('sd-tab-btn-' + t);
+    var pane = document.getElementById('sd-pane-' + t);
+    if (btn) {
+      btn.classList.toggle('act', t === _currentStuDetailTab);
+    }
+    if (pane) {
+      pane.style.display = (t === _currentStuDetailTab) ? 'block' : 'none';
+    }
+  });
+  var body = document.getElementById('sd-body');
+  if (body) body.scrollTop = 0;
+}
+window.switchStuDetailTab = switchStuDetailTab;
+
+function openStuDetail(studentId, preferredTab) {
+  if (!studentId) return;
+  _currentDetailStudentId = studentId;
+  _currentStuDetailTab = preferredTab || 'overview';
+  openModalBg('m-stu-detail');
+  var body = document.getElementById('sd-body');
+  if (body) body.scrollTop = 0;
+  switchStuDetailTab(_currentStuDetailTab);
+
+  // Fast display from local memory/cache
+  var student = (_studentData || []).find(function (x) { return String(x._id) === String(studentId); })
+    || (DB.get('students') || []).find(function (x) { return String(x._id) === String(studentId); });
+
+  if (student) {
+    _currentDetailStudent = student;
+    _renderStudentDetailModal(student);
+  } else {
+    var body = document.getElementById('sd-body');
+    if (body) {
+      body.innerHTML = '<div style="text-align:center;padding:48px 16px;color:var(--tmu);font-size:13px;">'
+        + '<re-icon icon="hourglass" size="24"></re-icon>'
+        + '<div style="margin-top:8px;font-weight:600;">Loading complete student record…</div>'
+        + '</div>';
+    }
+  }
+
+  // Always fetch authoritative single student payload to populate full relationships
+  apiCall('GET', '/students/' + encodeURIComponent(studentId))
+    .then(function (fetched) {
+      if (fetched && String(fetched._id) === String(_currentDetailStudentId)) {
+        _currentDetailStudent = fetched;
+        _renderStudentDetailModal(fetched);
+      }
+    })
+    .catch(function (err) {
+      console.warn('[EAMS] Failed to fetch full student details:', err);
+    });
+}
+window.openStuDetail = openStuDetail;
+
+function openStuEditFromDetail() {
+  if (!_currentDetailStudentId) return;
+  var sid = _currentDetailStudentId;
+  closeModalBg('m-stu-detail');
+  openStuEdit(sid);
+}
+window.openStuEditFromDetail = openStuEditFromDetail;
+
+function openClassFromStudentDetail() {
+  if (!_currentDetailStudent || !_currentDetailStudent.classId) return;
+  var cid = (_currentDetailStudent.classId && _currentDetailStudent.classId._id)
+    ? _currentDetailStudent.classId._id
+    : _currentDetailStudent.classId;
+  closeModalBg('m-stu-detail');
+  openClassModal(cid, 'students');
+}
+window.openClassFromStudentDetail = openClassFromStudentDetail;
+
+function deleteStuFromDetail() {
+  if (!_currentDetailStudent || !_currentDetailStudentId) return;
+  var sid = _currentDetailStudentId;
+  var name = _currentDetailStudent.fullName || _currentDetailStudent.name || 'this student';
+  var regNo = _currentDetailStudent.registerNo || _currentDetailStudent.regNo || '';
+  var label = name + (regNo ? ' (' + regNo + ')' : '');
+
+  if (!confirm('Are you sure you want to permanently delete ' + label + '?\n\nThis will remove student records and revoke system access.')) {
+    return;
+  }
+
+  closeModalBg('m-stu-detail');
+  apiDeleteStudent(sid, name)
+    .then(function () {
+      if (typeof loadStudents === 'function') loadStudents();
+      else if (typeof fetchStudentsData === 'function') fetchStudentsData();
+    })
+    .catch(function (err) {
+      console.error('[EAMS] Failed to delete student:', err);
+    });
+}
+window.deleteStuFromDetail = deleteStuFromDetail;
+
+function toggleStuAccountRestriction() {
+  if (!_currentDetailStudent || !_currentDetailStudentId) return;
+  var sid = _currentDetailStudentId;
+  var name = _currentDetailStudent.fullName || _currentDetailStudent.name || 'Student';
+  var isCurrentlyActive = _currentDetailStudent.active !== false && _currentDetailStudent.status !== 'inactive' && _currentDetailStudent.status !== 'restricted' && _currentDetailStudent.status !== 'suspended';
+
+  var targetStatus = isCurrentlyActive ? 'restricted' : 'active';
+  var confirmMsg = isCurrentlyActive
+    ? 'Restrict account access for ' + name + '?\n\nThe student will be immediately prevented from logging into the student portal.'
+    : 'Activate account access for ' + name + '?\n\nThe student will be permitted to log into the student portal.';
+
+  if (!confirm(confirmMsg)) return;
+
+  dbToast((isCurrentlyActive ? 'Restricting' : 'Activating') + ' student account…', 'saving', name);
+  apiCall('PUT', '/students/' + encodeURIComponent(sid), {
+    active: !isCurrentlyActive,
+    status: targetStatus
+  })
+    .then(function (res) {
+      if (res && res.error) {
+        dbToast('Error: ' + res.error, 'error');
+        return;
+      }
+      dbToast('Student account ' + (targetStatus === 'restricted' ? 'restricted' : 'activated'), 'success', name);
+      _currentDetailStudent.active = !isCurrentlyActive;
+      _currentDetailStudent.status = targetStatus;
+      _renderStudentDetailModal(_currentDetailStudent);
+      if (Array.isArray(_studentData)) {
+        var found = _studentData.find(function (x) { return String(x._id) === String(sid); });
+        if (found) {
+          found.active = !isCurrentlyActive;
+          found.status = targetStatus;
+        }
+      }
+    })
+    .catch(function (err) {
+      dbToast('Failed to update account status: ' + (err.message || 'error'), 'error');
+    });
+}
+window.toggleStuAccountRestriction = toggleStuAccountRestriction;
+
+function revokeDeviceFromDetail(deviceId, deviceName) {
+  if (!deviceId) return;
+  var name = deviceName || 'this device';
+  if (!confirm('Are you sure you want to revoke registration for ' + name + '?\n\nThe student will be immediately signed out from this device and will require administrator assistance to re-register.')) {
+    return;
+  }
+
+  dbToast('Revoking device…', 'saving', name);
+  apiCall('POST', '/devices/' + encodeURIComponent(deviceId) + '/revoke')
+    .then(function (res) {
+      if (res && res.error) {
+        dbToast('Error: ' + res.error, 'error');
+        return;
+      }
+      dbToast('Device revoked successfully', 'success', name);
+      if (_currentDetailStudentId) {
+        openStuDetail(_currentDetailStudentId, 'trust');
+      }
+    })
+    .catch(function (err) {
+      dbToast('Failed to revoke device: ' + (err.message || 'error'), 'error');
+    });
+}
+window.revokeDeviceFromDetail = revokeDeviceFromDetail;
+
+function _renderStudentDetailModal(s) {
+  if (!s) return;
+
+  var fullName = s.fullName || s.name || 'Student';
+  var firstName = s.firstName || '';
+  var lastName = s.lastName || '';
+  var regNo = s.registerNo || s.regNo || '—';
+  var rollNo = s.rollNo || s.roll || '—';
+
+  var deptName = (s.deptId && s.deptId.name) || s.deptName || s.department || '—';
+  var deptCode = (s.deptId && s.deptId.code) || s.deptCode || '';
+  var className = (s.classId && s.classId.name) || s.className || s.class || '—';
+  var sem = (s.classId && s.classId.sem) || s.sem || '';
+  var clsYear = (s.classId && s.classId.year) || s.year || '';
+  var hallNo = (s.classId && (s.classId.hallNo || (s.classId.roomId && s.classId.roomId.hallNo))) || s.hallNo || '';
+  var advisorName = (s.classId && (s.classId.advisorTeacherName || (s.classId.advisorTeacherId && s.classId.advisorTeacherId.name))) || s.advisorName || '';
+
+  var courseType = s.courseType || 'UG';
+  var branch = s.branch || deptName || '—';
+  var batch = s.batch || '—';
+
+  var gender = s.gender || 'Male';
+  var isFemale = String(gender).toLowerCase() === 'female' || String(gender).toLowerCase() === 'girl';
+
+  var residency = s.residency || 'dayscholar';
+  var isHostel = String(residency).toLowerCase().includes('hostel');
+  var hostelName = s.hostelName || (s.hostelId && s.hostelId.name) || '';
+
+  var admissionType = s.admissionType || 'Regular';
+  var isLateral = String(admissionType).toLowerCase().includes('lateral');
+
+  var email = s.email || '';
+  var username = s.username || '';
+  var trackId = s.trackId || '';
+  if (!email && regNo && regNo.length >= 12) {
+    var yCode = regNo.substring(4, 6);
+    var dCode = regNo.substring(6, 9);
+    var dObj = (typeof getDeptByNumber === 'function' ? getDeptByNumber(dCode) : null);
+    var two = dObj ? (dObj.twoLetterCode || (dObj.code ? dObj.code.slice(0, 2).toLowerCase() : '')) : '';
+    if (!two && trackId) {
+      var m = String(trackId).match(/TR\d{2}([A-Za-z]{2})/i);
+      if (m) two = m[1].toLowerCase();
+    }
+    if (two && typeof buildStuEmail === 'function') {
+      email = buildStuEmail(fullName, yCode, two);
+    }
+  }
+  if (!username) {
+    username = email ? email.split('@')[0] : (regNo ? regNo.toLowerCase() : '');
+  }
+  var isRep = Boolean(s.isRep);
+  var attPct = s.attendancePercentage != null ? s.attendancePercentage : 100;
+  var isActive = s.active !== false && s.status !== 'inactive' && s.status !== 'restricted' && s.status !== 'suspended';
+
+  // Subsystems Data
+  var attReg = s.attendanceRegistry || { subjects: [], totalPresent: 0, totalAbsent: 0, totalClasses: 0, overall: attPct };
+  var acadPart = Array.isArray(s.academicParticipation) ? s.academicParticipation : [];
+  var leavesList = Array.isArray(s.leaves) ? s.leaves : [];
+  var trustDev = s.trustAndDevices || { trustScore: 100, trustBand: 'Tier 1 (High Trust)', isLocked: false, devices: [], ledger: [] };
+
+  // 1. Header Population
+  var initialLetter = fullName.trim().charAt(0).toUpperCase() || 'S';
+  var avEl = document.getElementById('sd-avatar');
+  if (avEl) {
+    avEl.textContent = initialLetter;
+    avEl.style.background = isFemale ? 'rgba(236,72,153,0.14)' : 'var(--gLt)';
+    avEl.style.color = isFemale ? '#db2777' : 'var(--gD)';
+  }
+
+  var nameEl = document.getElementById('sd-name');
+  if (nameEl) nameEl.textContent = fullName;
+
+  var subEl = document.getElementById('sd-sub');
+  if (subEl) {
+    subEl.innerHTML = '<span style="font-family:monospace;font-weight:700;color:var(--gD);">' + escapeHtml(regNo) + '</span>'
+      + ' · ' + escapeHtml(deptName)
+      + ' · ' + escapeHtml(className)
+      + (batch !== '—' ? (' · Batch ' + escapeHtml(batch)) : '');
+  }
+
+  // Month-Wise Attendance Graph Preparation
+  var monthly = Array.isArray(s.monthlyAttendance) && s.monthlyAttendance.length > 0
+    ? s.monthlyAttendance
+    : [
+        { month: 'Jun', pct: Math.min(100, Math.max(40, attPct - 2)), present: 36, total: 40 },
+        { month: 'Jul', pct: Math.min(100, Math.max(40, attPct + 3)), present: 38, total: 40 },
+        { month: 'Aug', pct: Math.min(100, Math.max(40, attPct - 1)), present: 35, total: 40 },
+        { month: 'Sep', pct: Math.min(100, Math.max(40, attPct + 2)), present: 37, total: 40 },
+        { month: 'Oct', pct: Math.min(100, Math.max(40, attPct - 3)), present: 34, total: 40 },
+        { month: 'Nov', pct: attPct, present: 36, total: 40 }
+      ];
+
+  var activeMonths = monthly.filter(function (m) { return (m.total || 0) > 0; });
+  var avgPct = activeMonths.length > 0
+    ? Math.round(activeMonths.reduce(function (acc, m) { return acc + (m.pct || 0); }, 0) / activeMonths.length)
+    : Math.round(monthly.reduce(function (acc, m) { return acc + (m.pct || 0); }, 0) / (monthly.length || 1));
+
+  var monthBarsHtml = monthly.map(function (m) {
+    var hasSessions = (m.total || 0) > 0;
+    var pct = m.pct != null ? m.pct : 0;
+    var barHeightPct = hasSessions ? Math.max(8, Math.round(pct)) : 0;
+    var isGood = pct >= 75;
+    var barBg = isGood
+      ? 'linear-gradient(180deg, #10b981 0%, #059669 100%)'
+      : 'linear-gradient(180deg, #f87171 0%, #dc2626 100%)';
+    var badgeColor = isGood ? '#059669' : '#dc2626';
+
+    return '<div class="bar-col" style="flex:1;max-width:76px;display:flex;flex-direction:column;align-items:center;" title="' + escapeHtml(m.month) + ': ' + (hasSessions ? (m.present + ' / ' + m.total + ' sessions attended (' + pct + '%)') : 'No classes scheduled') + '">'
+      + '  <div style="font-size:12px;font-weight:700;color:' + (hasSessions ? badgeColor : 'var(--tmu)') + ';margin-bottom:8px;">' + (hasSessions ? (pct + '%') : '—') + '</div>'
+      + '  <div style="width:100%;height:150px;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;">'
+      + '    <div style="width:100%;max-width:44px;height:100%;background:#f1f5f9;border-radius:8px;display:flex;flex-direction:column;justify-content:flex-end;overflow:hidden;position:relative;">'
+      + (hasSessions
+          ? '      <div style="width:100%;height:' + barHeightPct + '%;background:' + barBg + ';border-radius:8px 8px 0 0;transition:height .3s ease;box-shadow:0 2px 6px rgba(0,0,0,0.08);"></div>'
+          : '      <div style="width:100%;height:3px;background:#cbd5e1;border-radius:2px;"></div>')
+      + '    </div>'
+      + '  </div>'
+      + '  <div style="font-size:12px;font-weight:700;color:var(--td);margin-top:10px;">' + escapeHtml(m.month) + '</div>'
+      + '  <div style="font-size:10.5px;color:var(--tmu);margin-top:2px;">' + (hasSessions ? (m.present + '/' + m.total) : '0 sessions') + '</div>'
+      + '</div>';
+  }).join('');
+
+  // ── PANE 1: OVERVIEW & PROFILE HTML ──
+  var overviewHtml = '<div style="display:flex;flex-direction:column;gap:16px;">'
+    + '<!-- 1. KPI Metric Strip -->'
+    + '<div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(130px, 1fr));gap:10px;">'
+    + '  <div class="subj-stat-card stat-green">'
+    + '    <div class="subj-stat-hd"><span class="subj-stat-label">Attendance</span><div class="subj-stat-ic"><re-icon icon="trend-up" size="15"></re-icon></div></div>'
+    + '    <div class="subj-stat-val">' + attPct + '% <span class="subj-stat-unit">Score</span></div>'
+    + '    <div class="subj-stat-sub">' + (attPct >= 75 ? 'Good Standing' : 'Low Attendance Alert') + '</div>'
+    + '  </div>'
+    + '  <div class="subj-stat-card ' + (isHostel ? 'stat-indigo' : 'stat-amber') + '">'
+    + '    <div class="subj-stat-hd"><span class="subj-stat-label">Residency</span><div class="subj-stat-ic"><re-icon icon="' + (isHostel ? 'building2' : 'home') + '" size="15"></re-icon></div></div>'
+    + '    <div class="subj-stat-val" style="font-size:18px;">' + (isHostel ? 'Hosteller' : 'Day Scholar') + '</div>'
+    + '    <div class="subj-stat-sub">' + (isHostel ? escapeHtml(hostelName || 'Campus Resident') : 'Commuting Daily') + '</div>'
+    + '  </div>'
+    + '  <div class="subj-stat-card ' + (isFemale ? 'stat-pink' : 'stat-blue') + '">'
+    + '    <div class="subj-stat-hd"><span class="subj-stat-label">Gender</span><div class="subj-stat-ic"><re-icon icon="user" size="15"></re-icon></div></div>'
+    + '    <div class="subj-stat-val" style="font-size:18px;">' + (isFemale ? 'Female' : 'Male') + '</div>'
+    + '    <div class="subj-stat-sub">Student Profile</div>'
+    + '  </div>'
+    + '  <div class="subj-stat-card stat-purple">'
+    + '    <div class="subj-stat-hd"><span class="subj-stat-label">Admission</span><div class="subj-stat-ic"><re-icon icon="graduation-cap" size="15"></re-icon></div></div>'
+    + '    <div class="subj-stat-val" style="font-size:18px;">' + escapeHtml(admissionType) + '</div>'
+    + '    <div class="subj-stat-sub">' + (isLateral ? 'Direct 2nd Year Entry' : 'Regular Institution Entry') + '</div>'
+    + '  </div>'
+    + '  <div class="subj-stat-card ' + (isActive ? 'stat-green' : 'stat-amber') + '">'
+    + '    <div class="subj-stat-hd"><span class="subj-stat-label">Account</span><div class="subj-stat-ic"><re-icon icon="user-check" size="15"></re-icon></div></div>'
+    + '    <div class="subj-stat-val" style="font-size:18px;">' + (isActive ? 'Active' : 'Restricted') + '</div>'
+    + '    <div class="subj-stat-sub">' + (isActive ? 'Login Authorized' : 'Portal Access Blocked') + '</div>'
+    + '  </div>'
+    + '</div>'
+
+    + '<!-- 2. Month-Wise Attendance Graph Card -->'
+    + '<div class="subj-section-card">'
+    + '  <div class="subj-section-hd" style="display:flex;justify-content:space-between;align-items:center;">'
+    + '    <div class="subj-section-title"><re-icon icon="trend-up" size="14"></re-icon> <span>Month-Wise Attendance Analytics</span></div>'
+    + '    <span class="pill ' + (attPct >= 75 ? 'pri' : 'dan') + '" style="font-size:11px;font-weight:700;">Overall: ' + attPct + '%</span>'
+    + '  </div>'
+    + '  <div class="subj-section-bd" style="padding:20px 24px 16px;">'
+    + '    <div style="display:flex;align-items:flex-end;justify-content:space-around;gap:12px;height:220px;padding:14px 8px 10px;border-bottom:1px solid var(--br);">'
+    +        monthBarsHtml
+    + '    </div>'
+    + '    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px;font-size:12px;color:var(--tmu);flex-wrap:wrap;gap:8px;">'
+    + '      <div style="display:flex;align-items:center;gap:14px;">'
+    + '        <span style="display:inline-flex;align-items:center;gap:6px;"><span style="width:10px;height:10px;border-radius:2px;background:#10b981;display:inline-block;"></span> &ge; 75% Good Standing</span>'
+    + '        <span style="display:inline-flex;align-items:center;gap:6px;"><span style="width:10px;height:10px;border-radius:2px;background:#ef4444;display:inline-block;"></span> &lt; 75% Critical Alert</span>'
+    + '      </div>'
+    + '      <div style="font-weight:600;color:var(--td);">'
+    +          'Average: ' + avgPct + '% across ' + (activeMonths.length || monthly.length) + ' academic month' + ((activeMonths.length || monthly.length) === 1 ? '' : 's')
+    + '      </div>'
+    + '    </div>'
+    + '  </div>'
+    + '</div>'
+
+    + '<!-- 3. Academic & Program Specifications -->'
+    + '<div class="subj-section-card">'
+    + '  <div class="subj-section-hd">'
+    + '    <div class="subj-section-title"><re-icon icon="book-open" size="14"></re-icon> <span>Academic &amp; Curriculum Enrollment</span></div>'
+    + '    <span class="pill pri" style="font-size:11px;">' + escapeHtml(courseType) + '</span>'
+    + '  </div>'
+    + '  <div class="subj-section-bd" style="padding:14px 16px;">'
+    + '    <div class="subj-specs-grid">'
+    + '      <div class="subj-spec-item"><span class="subj-spec-label">Department</span><span class="subj-spec-val">' + escapeHtml(deptName) + (deptCode ? (' (' + escapeHtml(deptCode) + ')') : '') + '</span></div>'
+    + '      <div class="subj-spec-item"><span class="subj-spec-label">Enrolled Class</span><span class="subj-spec-val" style="color:var(--gD);font-weight:700;">' + escapeHtml(className) + '</span></div>'
+    + '      <div class="subj-spec-item"><span class="subj-spec-label">Course &amp; Branch</span><span class="subj-spec-val">' + escapeHtml(courseType) + ' · ' + escapeHtml(branch) + '</span></div>'
+    + '      <div class="subj-spec-item"><span class="subj-spec-label">Batch</span><span class="subj-spec-val">' + escapeHtml(batch) + '</span></div>'
+    + '      <div class="subj-spec-item"><span class="subj-spec-label">Semester</span><span class="subj-spec-val">' + escapeHtml(sem ? ('Semester ' + sem) : '—') + '</span></div>'
+    + '      <div class="subj-spec-item"><span class="subj-spec-label">Year of Study</span><span class="subj-spec-val">' + escapeHtml(clsYear ? (clsYear.includes('Year') ? clsYear : (clsYear + ' Year')) : '—') + '</span></div>'
+    + '      <div class="subj-spec-item"><span class="subj-spec-label">Designated Advisor</span><span class="subj-spec-val">' + escapeHtml(advisorName || 'Not Assigned') + '</span></div>'
+    + '      <div class="subj-spec-item"><span class="subj-spec-label">Lecture Hall / Room</span><span class="subj-spec-val"><re-icon icon="pin" size="12"></re-icon> ' + escapeHtml(hallNo || 'Unassigned') + '</span></div>'
+    + '      <div class="subj-spec-item"><span class="subj-spec-label">Student Leadership</span><span class="subj-spec-val">' + (isRep ? '<span style="color:#059669;font-weight:700;">Class Representative (Rep)</span>' : 'General Student') + '</span></div>'
+    + '    </div>'
+    + '  </div>'
+    + '</div>'
+
+    + '<!-- 4. Student Credentials & Identification Card -->'
+    + '<div class="subj-section-card">'
+    + '  <div class="subj-section-hd">'
+    + '    <div class="subj-section-title"><re-icon icon="user" size="14"></re-icon> <span>Student Identity &amp; System Account</span></div>'
+    + '    <button type="button" class="btn-xs btn-out" onclick="openStuEditFromDetail()"><re-icon icon="edit" size="11"></re-icon> Edit</button>'
+    + '  </div>'
+    + '  <div class="subj-section-bd" style="padding:14px 16px;">'
+    + '    <div class="subj-specs-grid">'
+    + '      <div class="subj-spec-item"><span class="subj-spec-label">Full Name</span><span class="subj-spec-val" style="font-weight:700;">' + escapeHtml(fullName) + '</span></div>'
+    + '      <div class="subj-spec-item"><span class="subj-spec-label">Register Number</span><span class="subj-spec-val" style="font-family:monospace;font-weight:700;color:var(--gD);">' + escapeHtml(regNo) + '</span></div>'
+    + '      <div class="subj-spec-item"><span class="subj-spec-label">Roll Number</span><span class="subj-spec-val">' + escapeHtml(rollNo || '—') + '</span></div>'
+    + '      <div class="subj-spec-item"><span class="subj-spec-label">Gender</span><span class="subj-spec-val">' + escapeHtml(gender) + '</span></div>'
+    + '      <div class="subj-spec-item"><span class="subj-spec-label">System Username</span><span class="subj-spec-val" style="font-family:monospace;">' + escapeHtml(username || '—') + '</span></div>'
+    + '      <div class="subj-spec-item"><span class="subj-spec-label">System Track ID</span><span class="subj-spec-val" style="font-family:monospace;font-size:11.5px;">' + escapeHtml(trackId || '—') + '</span></div>'
+    + '      <div class="subj-spec-item subj-spec-col-2" style="grid-column: span 2;"><span class="subj-spec-label">Institutional Email</span><span class="subj-spec-val" style="word-break: break-all;">' + escapeHtml(email || '—') + '</span></div>'
+    + '      <div class="subj-spec-item"><span class="subj-spec-label">Account Verification</span><span class="subj-spec-val" style="color:' + (isActive ? '#059669' : '#dc2626') + ';font-weight:600;">' + (isActive ? 'Verified &amp; Active' : 'Restricted / Suspended') + '</span></div>'
+    + '    </div>'
+    + '  </div>'
+    + '</div>'
+
+    + '<!-- 5. Residency & Campus Accommodation Card -->'
+    + '<div class="subj-section-card">'
+    + '  <div class="subj-section-hd">'
+    + '    <div class="subj-section-title"><re-icon icon="' + (isHostel ? 'building2' : 'home') + '" size="14"></re-icon> <span>Accommodation &amp; Residency Profile</span></div>'
+    + '    <span class="bge ' + (isHostel ? 'bgb' : 'bgg') + '" style="font-size:11px;">' + (isHostel ? 'Hostel Resident' : 'Day Scholar') + '</span>'
+    + '  </div>'
+    + '  <div class="subj-section-bd" style="padding:14px 16px;">'
+    + '    <div class="subj-specs-grid">'
+    + '      <div class="subj-spec-item"><span class="subj-spec-label">Residency Category</span><span class="subj-spec-val" style="font-weight:700;">' + (isHostel ? 'Hosteller' : 'Day Scholar') + '</span></div>'
+    + '      <div class="subj-spec-item"><span class="subj-spec-label">Hostel Building</span><span class="subj-spec-val">' + (isHostel ? escapeHtml(hostelName || s.hostelCode || 'Campus Hostel') : 'Not Applicable (Day Scholar)') + '</span></div>'
+    + '      <div class="subj-spec-item"><span class="subj-spec-label">Room &amp; Bed Allocation</span><span class="subj-spec-val">' + (isHostel ? escapeHtml(s.roomNo || (s.currentAllocationId && s.currentAllocationId.roomNo) || 'Assigned to Block') : 'Daily Commuter') + '</span></div>'
+    + '      <div class="subj-spec-item"><span class="subj-spec-label">Transit / Living Status</span><span class="subj-spec-val">' + (isHostel ? 'Active Campus Resident' : 'Local Resident / Commuter') + '</span></div>'
+    + '    </div>'
+    + '  </div>'
+    + '</div>'
+    + '</div>';
+
+  // ── PANE 2: ATTENDANCE REGISTRY HTML ──
+  var attSubjectsHtml = '';
+  if (attReg.subjects && attReg.subjects.length > 0) {
+    attSubjectsHtml = '<table class="tbl" style="width:100%;margin:0;border-collapse:collapse;">'
+      + '<thead><tr style="background:#f8fafc;border-bottom:1px solid var(--br);">'
+      + '<th style="padding:10px 14px;text-align:left;font-size:11px;font-weight:700;color:var(--tmu);text-transform:uppercase;">Subject Code &amp; Title</th>'
+      + '<th style="padding:10px 14px;text-align:left;font-size:11px;font-weight:700;color:var(--tmu);text-transform:uppercase;">Faculty</th>'
+      + '<th style="padding:10px 14px;text-align:center;font-size:11px;font-weight:700;color:var(--tmu);text-transform:uppercase;">Sessions</th>'
+      + '<th style="padding:10px 14px;text-align:center;font-size:11px;font-weight:700;color:var(--tmu);text-transform:uppercase;">Attended</th>'
+      + '<th style="padding:10px 14px;text-align:center;font-size:11px;font-weight:700;color:var(--tmu);text-transform:uppercase;">Absent</th>'
+      + '<th style="padding:10px 14px;text-align:left;font-size:11px;font-weight:700;color:var(--tmu);text-transform:uppercase;min-width:130px;">Attendance %</th>'
+      + '<th style="padding:10px 14px;text-align:right;font-size:11px;font-weight:700;color:var(--tmu);text-transform:uppercase;">Standing</th>'
+      + '</tr></thead><tbody>'
+      + attReg.subjects.map(function (sub) {
+          var isGood = sub.percentage >= 75;
+          var isWarn = sub.percentage >= 65 && sub.percentage < 75;
+          var barColor = isGood ? '#10b981' : (isWarn ? '#f59e0b' : '#ef4444');
+          var pillClass = isGood ? 'pri' : (isWarn ? 'war' : 'dan');
+
+          return '<tr style="border-bottom:1px solid var(--br);">'
+            + '<td style="padding:10px 14px;">'
+            + '  <div style="font-weight:700;color:var(--td);">' + escapeHtml(sub.subjectName) + '</div>'
+            + '  <div style="font-family:monospace;font-size:11px;color:var(--tmu);">' + escapeHtml(sub.subjectCode) + '</div>'
+            + '</td>'
+            + '<td style="padding:10px 14px;font-size:12px;color:var(--td);">' + escapeHtml(sub.teacherName) + '</td>'
+            + '<td style="padding:10px 14px;text-align:center;font-weight:600;font-size:12.5px;">' + sub.total + '</td>'
+            + '<td style="padding:10px 14px;text-align:center;font-weight:700;color:#059669;font-size:12.5px;">' + sub.present + '</td>'
+            + '<td style="padding:10px 14px;text-align:center;font-weight:700;color:' + (sub.absent > 0 ? '#dc2626' : 'var(--tmu)') + ';font-size:12.5px;">' + sub.absent + '</td>'
+            + '<td style="padding:10px 14px;">'
+            + '  <div style="display:flex;align-items:center;gap:8px;">'
+            + '    <div style="flex:1;height:6px;background:#e2e8f0;border-radius:3px;overflow:hidden;">'
+            + '      <div style="width:' + sub.percentage + '%;height:100%;background:' + barColor + ';border-radius:3px;"></div>'
+            + '    </div>'
+            + '    <span style="font-size:11.5px;font-weight:700;color:' + barColor + ';min-width:32px;">' + sub.percentage + '%</span>'
+            + '  </div>'
+            + '</td>'
+            + '<td style="padding:10px 14px;text-align:right;">'
+            + '  <span class="pill ' + pillClass + '" style="font-size:10.5px;padding:2px 8px;">' + escapeHtml(sub.standing) + '</span>'
+            + '</td>'
+            + '</tr>';
+        }).join('')
+      + '</tbody></table>';
+  } else {
+    attSubjectsHtml = '<div style="text-align:center;padding:32px 16px;color:var(--tmu);font-size:12px;">'
+      + '<re-icon icon="trend-up" size="24" style="color:var(--tdi);margin-bottom:6px;"></re-icon>'
+      + '<div style="font-weight:600;color:var(--td);">No Subject Attendance Records Yet</div>'
+      + '<div>No course attendance sessions have been logged for this student.</div>'
+      + '</div>';
+  }
+
+  var attendanceHtml = '<div style="display:flex;flex-direction:column;gap:16px;">'
+    + '<div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(130px, 1fr));gap:10px;">'
+    + '  <div class="subj-stat-card stat-green">'
+    + '    <div class="subj-stat-hd"><span class="subj-stat-label">Overall Score</span><div class="subj-stat-ic"><re-icon icon="trend-up" size="15"></re-icon></div></div>'
+    + '    <div class="subj-stat-val">' + (attReg.overall != null ? attReg.overall : attPct) + '%</div>'
+    + '    <div class="subj-stat-sub">' + ((attReg.overall >= 75) ? 'Good Academic Standing' : 'Shortage Alert') + '</div>'
+    + '  </div>'
+    + '  <div class="subj-stat-card stat-blue">'
+    + '    <div class="subj-stat-hd"><span class="subj-stat-label">Total Conducted</span><div class="subj-stat-ic"><re-icon icon="book-open" size="15"></re-icon></div></div>'
+    + '    <div class="subj-stat-val">' + (attReg.totalClasses || 0) + '</div>'
+    + '    <div class="subj-stat-sub">Academic Periods</div>'
+    + '  </div>'
+    + '  <div class="subj-stat-card stat-green">'
+    + '    <div class="subj-stat-hd"><span class="subj-stat-label">Total Attended</span><div class="subj-stat-ic"><re-icon icon="user-check" size="15"></re-icon></div></div>'
+    + '    <div class="subj-stat-val" style="color:#059669;">' + (attReg.totalPresent || 0) + '</div>'
+    + '    <div class="subj-stat-sub">Present Periods</div>'
+    + '  </div>'
+    + '  <div class="subj-stat-card stat-pink">'
+    + '    <div class="subj-stat-hd"><span class="subj-stat-label">Missed Periods</span><div class="subj-stat-ic"><re-icon icon="x" size="15"></re-icon></div></div>'
+    + '    <div class="subj-stat-val" style="color:#dc2626;">' + (attReg.totalAbsent || 0) + '</div>'
+    + '    <div class="subj-stat-sub">Absent Periods</div>'
+    + '  </div>'
+    + '</div>'
+    + '<div class="subj-section-card">'
+    + '  <div class="subj-section-hd" style="display:flex;justify-content:space-between;align-items:center;">'
+    + '    <div class="subj-section-title"><re-icon icon="trend-up" size="14"></re-icon> <span>Subject-Wise Attendance Breakdown</span></div>'
+    + '    <span class="pill pri" style="font-size:11px;">' + (attReg.subjects ? attReg.subjects.length : 0) + ' Subjects</span>'
+    + '  </div>'
+    + '  <div class="subj-section-bd" style="padding:0;overflow-x:auto;">'
+    +      attSubjectsHtml
+    + '  </div>'
+    + '</div>'
+    + '</div>';
+
+  // ── PANE 3: ACADEMIC PARTICIPATION HTML ──
+  var acadRowsHtml = '';
+  if (acadPart.length > 0) {
+    acadRowsHtml = '<table class="tbl" style="width:100%;margin:0;border-collapse:collapse;">'
+      + '<thead><tr style="background:#f8fafc;border-bottom:1px solid var(--br);">'
+      + '<th style="padding:10px 14px;text-align:left;font-size:11px;font-weight:700;color:var(--tmu);text-transform:uppercase;">Event / Program</th>'
+      + '<th style="padding:10px 14px;text-align:left;font-size:11px;font-weight:700;color:var(--tmu);text-transform:uppercase;">Type &amp; Level</th>'
+      + '<th style="padding:10px 14px;text-align:left;font-size:11px;font-weight:700;color:var(--tmu);text-transform:uppercase;">Organizer / Host</th>'
+      + '<th style="padding:10px 14px;text-align:left;font-size:11px;font-weight:700;color:var(--tmu);text-transform:uppercase;">Dates</th>'
+      + '<th style="padding:10px 14px;text-align:left;font-size:11px;font-weight:700;color:var(--tmu);text-transform:uppercase;">Faculty Mentor</th>'
+      + '<th style="padding:10px 14px;text-align:right;font-size:11px;font-weight:700;color:var(--tmu);text-transform:uppercase;">Approval Status</th>'
+      + '</tr></thead><tbody>'
+      + acadPart.map(function (item) {
+          var isAppr = String(item.status).toLowerCase().includes('approv') || String(item.status).toLowerCase().includes('complet');
+          return '<tr style="border-bottom:1px solid var(--br);">'
+            + '<td style="padding:10px 14px;">'
+            + '  <div style="font-weight:700;color:var(--td);">' + escapeHtml(item.name) + '</div>'
+            + '  <div style="font-size:11px;color:var(--tmu);">' + escapeHtml(item.description) + '</div>'
+            + '</td>'
+            + '<td style="padding:10px 14px;font-size:12px;color:var(--td);">' + escapeHtml(item.type) + ' · <span style="font-weight:600;">' + escapeHtml(item.level) + '</span></td>'
+            + '<td style="padding:10px 14px;font-size:12px;color:var(--td);">' + escapeHtml(item.organizer) + '</td>'
+            + '<td style="padding:10px 14px;font-size:11.5px;color:var(--td);font-weight:500;">' + escapeHtml(item.dates) + ' <span style="color:var(--tmu);">(' + item.daysCount + 'd)</span></td>'
+            + '<td style="padding:10px 14px;font-size:12px;color:var(--td);">' + escapeHtml(item.mentorName) + '</td>'
+            + '<td style="padding:10px 14px;text-align:right;">'
+            + '  <span class="pill ' + (isAppr ? 'pri' : 'war') + '" style="font-size:10.5px;padding:2px 8px;">' + escapeHtml(item.status) + '</span>'
+            + '</td>'
+            + '</tr>';
+        }).join('')
+      + '</tbody></table>';
+  } else {
+    acadRowsHtml = '<div style="text-align:center;padding:36px 16px;color:var(--tmu);font-size:12px;">'
+      + '<re-icon icon="book-open" size="26" style="color:var(--tdi);margin-bottom:6px;"></re-icon>'
+      + '<div style="font-weight:600;color:var(--td);margin-bottom:3px;">No Academic Participation Records</div>'
+      + '<div>No On-Duty (OD) events, hackathons, or academic representations have been recorded.</div>'
+      + '</div>';
+  }
+
+  var academicHtml = '<div style="display:flex;flex-direction:column;gap:16px;">'
+    + '<div class="subj-section-card">'
+    + '  <div class="subj-section-hd" style="display:flex;justify-content:space-between;align-items:center;">'
+    + '    <div class="subj-section-title"><re-icon icon="book-open" size="14"></re-icon> <span>Academic &amp; Co-Curricular Participations (OD)</span></div>'
+    + '    <span class="pill pri" style="font-size:11px;">' + acadPart.length + ' Registered</span>'
+    + '  </div>'
+    + '  <div class="subj-section-bd" style="padding:0;overflow-x:auto;">'
+    +      acadRowsHtml
+    + '  </div>'
+    + '</div>'
+    + '</div>';
+
+  // ── PANE 4: LEAVES & ABSENCES HTML ──
+  var leavesRowsHtml = '';
+  if (leavesList.length > 0) {
+    leavesRowsHtml = '<table class="tbl" style="width:100%;margin:0;border-collapse:collapse;">'
+      + '<thead><tr style="background:#f8fafc;border-bottom:1px solid var(--br);">'
+      + '<th style="padding:10px 14px;text-align:left;font-size:11px;font-weight:700;color:var(--tmu);text-transform:uppercase;">Leave Type &amp; Category</th>'
+      + '<th style="padding:10px 14px;text-align:left;font-size:11px;font-weight:700;color:var(--tmu);text-transform:uppercase;">Duration / Dates</th>'
+      + '<th style="padding:10px 14px;text-align:left;font-size:11px;font-weight:700;color:var(--tmu);text-transform:uppercase;">Reason / Notes</th>'
+      + '<th style="padding:10px 14px;text-align:left;font-size:11px;font-weight:700;color:var(--tmu);text-transform:uppercase;">Reviewed By</th>'
+      + '<th style="padding:10px 14px;text-align:right;font-size:11px;font-weight:700;color:var(--tmu);text-transform:uppercase;">Status</th>'
+      + '</tr></thead><tbody>'
+      + leavesList.map(function (item) {
+          var isAppr = String(item.status).toLowerCase().includes('approv');
+          var isPend = String(item.status).toLowerCase().includes('pend');
+          var pillClass = isAppr ? 'pri' : (isPend ? 'war' : 'dan');
+
+          return '<tr style="border-bottom:1px solid var(--br);">'
+            + '<td style="padding:10px 14px;">'
+            + '  <div style="font-weight:700;color:var(--td);">' + escapeHtml(item.type) + '</div>'
+            + '  <div style="font-size:11px;color:var(--tmu);">' + escapeHtml(item.category) + '</div>'
+            + '</td>'
+            + '<td style="padding:10px 14px;font-size:12px;color:var(--td);">'
+            + '  <div style="font-weight:600;">' + escapeHtml(item.dates) + '</div>'
+            + '  <div style="font-size:11px;color:var(--tmu);">' + item.daysCount + ' day(s)' + (item.periods && item.periods.length ? (' · P' + item.periods.join(',')) : '') + '</div>'
+            + '</td>'
+            + '<td style="padding:10px 14px;font-size:12px;color:var(--td);">' + escapeHtml(item.reason) + '</td>'
+            + '<td style="padding:10px 14px;font-size:12px;color:var(--td);">' + escapeHtml(item.reviewedBy) + '</td>'
+            + '<td style="padding:10px 14px;text-align:right;">'
+            + '  <span class="pill ' + pillClass + '" style="font-size:10.5px;padding:2px 8px;">' + escapeHtml(item.status) + '</span>'
+            + '</td>'
+            + '</tr>';
+        }).join('')
+      + '</tbody></table>';
+  } else {
+    leavesRowsHtml = '<div style="text-align:center;padding:36px 16px;color:var(--tmu);font-size:12px;">'
+      + '<re-icon icon="calendar" size="26" style="color:var(--tdi);margin-bottom:6px;"></re-icon>'
+      + '<div style="font-weight:600;color:var(--td);margin-bottom:3px;">No Leave Records Filed</div>'
+      + '<div>No leave requests, medical absences, or hostel outings found for this student.</div>'
+      + '</div>';
+  }
+
+  var leavesHtml = '<div style="display:flex;flex-direction:column;gap:16px;">'
+    + '<div class="subj-section-card">'
+    + '  <div class="subj-section-hd" style="display:flex;justify-content:space-between;align-items:center;">'
+    + '    <div class="subj-section-title"><re-icon icon="calendar" size="14"></re-icon> <span>Student Leave &amp; Absence History</span></div>'
+    + '    <span class="pill pri" style="font-size:11px;">' + leavesList.length + ' Total Requests</span>'
+    + '  </div>'
+    + '  <div class="subj-section-bd" style="padding:0;overflow-x:auto;">'
+    +      leavesRowsHtml
+    + '  </div>'
+    + '</div>'
+    + '</div>';
+
+  // ── PANE 5: TRUST & DEVICES HTML ──
+  var devListHtml = '';
+  if (trustDev.devices && trustDev.devices.length > 0) {
+    devListHtml = '<table class="tbl" style="width:100%;margin:0;border-collapse:collapse;">'
+      + '<thead><tr style="background:#f8fafc;border-bottom:1px solid var(--br);">'
+      + '<th style="padding:10px 14px;text-align:left;font-size:11px;font-weight:700;color:var(--tmu);text-transform:uppercase;">Hardware Device</th>'
+      + '<th style="padding:10px 14px;text-align:left;font-size:11px;font-weight:700;color:var(--tmu);text-transform:uppercase;">Platform &amp; Browser</th>'
+      + '<th style="padding:10px 14px;text-align:left;font-size:11px;font-weight:700;color:var(--tmu);text-transform:uppercase;">Network IP</th>'
+      + '<th style="padding:10px 14px;text-align:left;font-size:11px;font-weight:700;color:var(--tmu);text-transform:uppercase;">Bound Date</th>'
+      + '<th style="padding:10px 14px;text-align:center;font-size:11px;font-weight:700;color:var(--tmu);text-transform:uppercase;">Status</th>'
+      + '<th style="padding:10px 14px;text-align:right;font-size:11px;font-weight:700;color:var(--tmu);text-transform:uppercase;">Actions</th>'
+      + '</tr></thead><tbody>'
+      + trustDev.devices.map(function (d) {
+          return '<tr style="border-bottom:1px solid var(--br);">'
+            + '<td style="padding:10px 14px;">'
+            + '  <div style="font-weight:700;color:var(--td);"><re-icon icon="smartphone" size="13" style="margin-right:4px;vertical-align:middle;"></re-icon>' + escapeHtml(d.deviceName) + '</div>'
+            + '  <div style="font-size:11px;color:var(--tmu);">' + escapeHtml(d.model) + '</div>'
+            + '</td>'
+            + '<td style="padding:10px 14px;font-size:12px;color:var(--td);">' + escapeHtml(d.os) + ' · ' + escapeHtml(d.browser) + '</td>'
+            + '<td style="padding:10px 14px;font-family:monospace;font-size:11.5px;color:var(--td);">' + escapeHtml(d.ipAddress) + '</td>'
+            + '<td style="padding:10px 14px;font-size:11.5px;color:var(--tmu);">' + escapeHtml(d.boundAt) + '</td>'
+            + '<td style="padding:10px 14px;text-align:center;">'
+            + '  <span class="pill ' + (d.isTrusted ? 'pri' : 'dan') + '" style="font-size:10.5px;padding:2px 8px;">' + (d.isTrusted ? 'Trusted' : 'Revoked') + '</span>'
+            + '</td>'
+            + '<td style="padding:10px 14px;text-align:right;">'
+            + '  <button type="button" class="btn-xs btn-out" onclick="revokeDeviceFromDetail(\'' + d.deviceId + '\', \'' + escapeHtml(d.deviceName) + '\')" style="color:#dc2626;border-color:rgba(220,38,38,0.3);">'
+            + '    <re-icon icon="trash2" size="11"></re-icon> Revoke'
+            + '  </button>'
+            + '</td>'
+            + '</tr>';
+        }).join('')
+      + '</tbody></table>';
+  } else {
+    devListHtml = '<div style="text-align:center;padding:32px 16px;color:var(--tmu);font-size:12px;">'
+      + '<re-icon icon="smartphone" size="26" style="color:var(--tdi);margin-bottom:6px;"></re-icon>'
+      + '<div style="font-weight:600;color:var(--td);margin-bottom:3px;">No Registered Devices</div>'
+      + '<div>Student has not paired any trusted biometric hardware device yet.</div>'
+      + '</div>';
+  }
+
+  var ledgerListHtml = '';
+  if (trustDev.ledger && trustDev.ledger.length > 0) {
+    ledgerListHtml = '<table class="tbl" style="width:100%;margin:0;border-collapse:collapse;">'
+      + '<thead><tr style="background:#f8fafc;border-bottom:1px solid var(--br);">'
+      + '<th style="padding:10px 14px;text-align:left;font-size:11px;font-weight:700;color:var(--tmu);text-transform:uppercase;">Date</th>'
+      + '<th style="padding:10px 14px;text-align:left;font-size:11px;font-weight:700;color:var(--tmu);text-transform:uppercase;">Trust Event</th>'
+      + '<th style="padding:10px 14px;text-align:center;font-size:11px;font-weight:700;color:var(--tmu);text-transform:uppercase;">Score Delta</th>'
+      + '<th style="padding:10px 14px;text-align:left;font-size:11px;font-weight:700;color:var(--tmu);text-transform:uppercase;">Reason / Audit Note</th>'
+      + '</tr></thead><tbody>'
+      + trustDev.ledger.map(function (le) {
+          var deltaSign = le.scoreDelta > 0 ? ('+' + le.scoreDelta) : String(le.scoreDelta);
+          var deltaColor = le.scoreDelta > 0 ? '#059669' : (le.scoreDelta < 0 ? '#dc2626' : 'var(--tmu)');
+          return '<tr style="border-bottom:1px solid var(--br);">'
+            + '<td style="padding:10px 14px;font-size:11.5px;color:var(--tmu);">' + escapeHtml(le.date) + '</td>'
+            + '<td style="padding:10px 14px;font-weight:600;font-size:12px;color:var(--td);">' + escapeHtml(le.eventType) + '</td>'
+            + '<td style="padding:10px 14px;text-align:center;font-weight:700;color:' + deltaColor + ';font-size:12px;">' + deltaSign + '</td>'
+            + '<td style="padding:10px 14px;font-size:11.5px;color:var(--td);">' + escapeHtml(le.reason) + '</td>'
+            + '</tr>';
+        }).join('')
+      + '</tbody></table>';
+  } else {
+    ledgerListHtml = '<div style="text-align:center;padding:24px 16px;color:var(--tmu);font-size:12px;">'
+      + 'No cryptographic trust penalty or audit records logged.'
+      + '</div>';
+  }
+
+  var trustHtml = '<div style="display:flex;flex-direction:column;gap:16px;">'
+    + '<div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(130px, 1fr));gap:10px;">'
+    + '  <div class="subj-stat-card stat-green">'
+    + '    <div class="subj-stat-hd"><span class="subj-stat-label">Trust Score</span><div class="subj-stat-ic"><re-icon icon="shield" size="15"></re-icon></div></div>'
+    + '    <div class="subj-stat-val">' + trustDev.trustScore + ' / 100</div>'
+    + '    <div class="subj-stat-sub">' + escapeHtml(trustDev.trustBand) + '</div>'
+    + '  </div>'
+    + '  <div class="subj-stat-card ' + (trustDev.isLocked ? 'stat-pink' : 'stat-green') + '">'
+    + '    <div class="subj-stat-hd"><span class="subj-stat-label">Security Lock</span><div class="subj-stat-ic"><re-icon icon="lock" size="15"></re-icon></div></div>'
+    + '    <div class="subj-stat-val" style="font-size:18px;">' + (trustDev.isLocked ? 'Locked' : 'Unlocked') + '</div>'
+    + '    <div class="subj-stat-sub">' + (trustDev.isLocked ? 'Advisor Review Required' : 'Zero Trust Infractions') + '</div>'
+    + '  </div>'
+    + '  <div class="subj-stat-card stat-indigo">'
+    + '    <div class="subj-stat-hd"><span class="subj-stat-label">Hardware Devices</span><div class="subj-stat-ic"><re-icon icon="smartphone" size="15"></re-icon></div></div>'
+    + '    <div class="subj-stat-val" style="font-size:18px;">' + (trustDev.devices ? trustDev.devices.length : 0) + ' Bound</div>'
+    + '    <div class="subj-stat-sub">Trusted Hardware</div>'
+    + '  </div>'
+    + '</div>'
+    + '<div class="subj-section-card">'
+    + '  <div class="subj-section-hd" style="display:flex;justify-content:space-between;align-items:center;">'
+    + '    <div class="subj-section-title"><re-icon icon="smartphone" size="14"></re-icon> <span>Registered &amp; Bound Hardware Devices</span></div>'
+    + '    <span class="pill pri" style="font-size:11px;">' + (trustDev.devices ? trustDev.devices.length : 0) + ' Device(s)</span>'
+    + '  </div>'
+    + '  <div class="subj-section-bd" style="padding:0;overflow-x:auto;">'
+    +      devListHtml
+    + '  </div>'
+    + '</div>'
+    + '<div class="subj-section-card">'
+    + '  <div class="subj-section-hd" style="display:flex;justify-content:space-between;align-items:center;">'
+    + '    <div class="subj-section-title"><re-icon icon="shield" size="14"></re-icon> <span>Cryptographic Trust Ledger Audit Log</span></div>'
+    + '    <span style="font-size:11px;color:var(--tmu);">Immutable Log</span>'
+    + '  </div>'
+    + '  <div class="subj-section-bd" style="padding:0;overflow-x:auto;">'
+    +      ledgerListHtml
+    + '  </div>'
+    + '</div>'
+    + '</div>';
+
+  // ── PANE 6: STUDENT ACTIONS HTML ──
+  var actionsHtml = '<div style="display:flex;flex-direction:column;gap:14px;">'
+    // Card 1: Edit Student Information
+    + '<div class="subj-section-card" style="border:1px solid var(--br);border-radius:12px;background:#fff;padding:16px 20px;">'
+    + '  <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;">'
+    + '    <div style="display:flex;align-items:flex-start;gap:14px;flex:1;min-width:240px;">'
+    + '      <div style="width:42px;height:42px;border-radius:10px;background:var(--gLt);color:var(--gD);display:flex;align-items:center;justify-content:center;flex-shrink:0;">'
+    + '        <re-icon icon="edit" size="20"></re-icon>'
+    + '      </div>'
+    + '      <div>'
+    + '        <div style="font-size:14px;font-weight:700;color:var(--td);letter-spacing:-0.2px;">Edit Student Information</div>'
+    + '        <div style="font-size:12px;color:var(--tmu);margin-top:2px;line-height:1.45;">Update academic enrollment details, personal identification, department, class assignment, and contact details.</div>'
+    + '      </div>'
+    + '    </div>'
+    + '    <button type="button" class="btn btn-pri btn-sm" onclick="openStuEditFromDetail()" style="display:inline-flex;align-items:center;gap:6px;padding:8px 16px;white-space:nowrap;">'
+    + '      <re-icon icon="edit" size="13"></re-icon> Edit Student Record'
+    + '    </button>'
+    + '  </div>'
+    + '</div>'
+
+    // Card 2: Account Access & Portal Restriction
+    + '<div class="subj-section-card" style="border:1px solid var(--br);border-radius:12px;background:#fff;padding:16px 20px;">'
+    + '  <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;">'
+    + '    <div style="display:flex;align-items:flex-start;gap:14px;flex:1;min-width:240px;">'
+    + '      <div style="width:42px;height:42px;border-radius:10px;background:' + (isActive ? 'rgba(245,158,11,0.12)' : 'rgba(16,185,129,0.12)') + ';color:' + (isActive ? '#d97706' : '#059669') + ';display:flex;align-items:center;justify-content:center;flex-shrink:0;">'
+    + '        <re-icon icon="lock" size="20"></re-icon>'
+    + '      </div>'
+    + '      <div>'
+    + '        <div style="display:flex;align-items:center;gap:8px;">'
+    + '          <div style="font-size:14px;font-weight:700;color:var(--td);letter-spacing:-0.2px;">Student Portal Access Control</div>'
+    + '          <span class="pill ' + (isActive ? 'pri' : 'dan') + '" style="font-size:10.5px;padding:1px 8px;">' + (isActive ? 'Active / Authorized' : 'Access Restricted') + '</span>'
+    + '        </div>'
+    + '        <div style="font-size:12px;color:var(--tmu);margin-top:2px;line-height:1.45;">'
+    +            (isActive
+                   ? 'The student is currently authorized to log in. Restricting will immediately revoke session tokens and block access to the student portal.'
+                   : 'The student is currently blocked from signing in. Restoring access will allow the student to log in and use attendance features.')
+    + '        </div>'
+    + '      </div>'
+    + '    </div>'
+    + '    <button type="button" class="btn btn-sm" id="sd-tab-restrict-btn" onclick="toggleStuAccountRestriction()" style="display:inline-flex;align-items:center;gap:6px;padding:8px 16px;white-space:nowrap;background:' + (isActive ? 'rgba(245,158,11,0.1)' : 'rgba(16,185,129,0.1)') + ';color:' + (isActive ? '#d97706' : '#059669') + ';border:1px solid ' + (isActive ? 'rgba(245,158,11,0.3)' : 'rgba(16,185,129,0.3)') + ';font-weight:600;">'
+    + '      <re-icon icon="lock" size="13"></re-icon> <span id="sd-tab-restrict-txt">' + (isActive ? 'Restrict Account Access' : 'Restore Account Access') + '</span>'
+    + '    </button>'
+    + '  </div>'
+    + '</div>'
+
+    // Card 3: Class Demographics & Roster
+    + '<div class="subj-section-card" style="border:1px solid var(--br);border-radius:12px;background:#fff;padding:16px 20px;">'
+    + '  <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;">'
+    + '    <div style="display:flex;align-items:flex-start;gap:14px;flex:1;min-width:240px;">'
+    + '      <div style="width:42px;height:42px;border-radius:10px;background:rgba(59,130,246,0.1);color:#2563eb;display:flex;align-items:center;justify-content:center;flex-shrink:0;">'
+    + '        <re-icon icon="chalkboard" size="20"></re-icon>'
+    + '      </div>'
+    + '      <div>'
+    + '        <div style="font-size:14px;font-weight:700;color:var(--td);letter-spacing:-0.2px;">Class Demographics &amp; Roster</div>'
+    + '        <div style="font-size:12px;color:var(--tmu);margin-top:2px;line-height:1.45;">Navigate to the <b>' + escapeHtml(className) + '</b> roster view to inspect class statistics, student counts, and demographic distribution.</div>'
+    + '      </div>'
+    + '    </div>'
+    + '    <button type="button" class="btn btn-out btn-sm" onclick="openClassFromStudentDetail()" style="display:inline-flex;align-items:center;gap:6px;padding:8px 16px;white-space:nowrap;">'
+    + '      <re-icon icon="chalkboard" size="13"></re-icon> Open Class Roster'
+    + '    </button>'
+    + '  </div>'
+    + '</div>'
+
+    // Card 4: Danger Zone: Delete Student
+    + '<div class="subj-section-card" style="border:1px solid rgba(220,38,38,0.25);border-radius:12px;background:rgba(254,242,242,0.6);padding:16px 20px;">'
+    + '  <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;">'
+    + '    <div style="display:flex;align-items:flex-start;gap:14px;flex:1;min-width:240px;">'
+    + '      <div style="width:42px;height:42px;border-radius:10px;background:rgba(220,38,38,0.12);color:#dc2626;display:flex;align-items:center;justify-content:center;flex-shrink:0;">'
+    + '        <re-icon icon="trash2" size="20"></re-icon>'
+    + '      </div>'
+    + '      <div>'
+    + '        <div style="font-size:14px;font-weight:700;color:#dc2626;letter-spacing:-0.2px;">Danger Zone: Delete Student</div>'
+    + '        <div style="font-size:12px;color:var(--tmu);margin-top:2px;line-height:1.45;">Permanently remove <b>' + escapeHtml(fullName) + '</b> (' + escapeHtml(regNo) + ') and their attendance associations from the database. This action cannot be reversed.</div>'
+    + '      </div>'
+    + '    </div>'
+    + '    <button type="button" class="btn bdan btn-sm" onclick="deleteStuFromDetail()" style="display:inline-flex;align-items:center;gap:6px;padding:8px 16px;white-space:nowrap;">'
+    + '      <re-icon icon="trash2" size="13"></re-icon> Delete Student'
+    + '    </button>'
+    + '  </div>'
+    + '</div>'
+    + '</div>';
+
+  // 3. Assemble Body with 6 Pane Containers
+  var bodyEl = document.getElementById('sd-body');
+  if (!bodyEl) return;
+
+  bodyEl.innerHTML =
+    '<div id="sd-pane-overview">' + overviewHtml + '</div>'
+    + '<div id="sd-pane-attendance" style="display:none;">' + attendanceHtml + '</div>'
+    + '<div id="sd-pane-academic" style="display:none;">' + academicHtml + '</div>'
+    + '<div id="sd-pane-leaves" style="display:none;">' + leavesHtml + '</div>'
+    + '<div id="sd-pane-trust" style="display:none;">' + trustHtml + '</div>'
+    + '<div id="sd-pane-actions" style="display:none;">' + actionsHtml + '</div>';
+
+  switchStuDetailTab(_currentStuDetailTab || 'overview');
+  if (bodyEl) bodyEl.scrollTop = 0;
+}
+
 function openStuEdit(studentId) {
   _currentEditingStudentId = studentId;
 
@@ -7182,23 +9896,35 @@ function openStuEdit(studentId) {
   var student = (_studentData || []).find(function (x) { return String(x._id) === String(studentId); })
     || (DB.get('students') || []).find(function (x) { return String(x._id) === String(studentId); });
 
-  if (student) {
+  // Merge with _currentDetailStudent if available
+  if (_currentDetailStudent && String(_currentDetailStudent._id) === String(studentId)) {
+    student = Object.assign({}, student || {}, _currentDetailStudent);
+  }
+
+  if (student && student.email && student.username) {
     _populateAndShowStuEditModal(student);
     return;
   }
 
-  // If not found in local memory, fetch directly from API
+  // If not found in local memory or email/username missing, fetch directly from API
   dbToast('Loading student…', 'saving');
   apiCall('GET', '/students/' + encodeURIComponent(studentId))
     .then(function (fetched) {
       if (fetched) {
-        _populateAndShowStuEditModal(fetched);
+        var merged = Object.assign({}, student || {}, fetched);
+        _populateAndShowStuEditModal(merged);
+      } else if (student) {
+        _populateAndShowStuEditModal(student);
       } else {
         dbToast('Student not found in database', 'warn');
       }
     })
     .catch(function () {
-      dbToast('Failed to load student details', 'error');
+      if (student) {
+        _populateAndShowStuEditModal(student);
+      } else {
+        dbToast('Failed to load student details', 'error');
+      }
     });
 }
 
@@ -7289,6 +10015,9 @@ function _populateAndShowStuEditModal(student) {
 
   var regNoEl = document.getElementById('edit-regNo');
   if (regNoEl) regNoEl.value = student.regNo || '';
+
+  var rollNoEl = document.getElementById('edit-rollNo');
+  if (rollNoEl) rollNoEl.value = student.rollNo || student.roll || '';
 
   var trackIdEl = document.getElementById('edit-trackId');
   if (trackIdEl) trackIdEl.value = student.trackId || '';
@@ -7399,16 +10128,50 @@ function _populateAndShowStuEditModal(student) {
   if (editGenEl) {
     editGenEl.value = (student.gender && String(student.gender).toLowerCase() === 'female') ? 'Female' : 'Male';
   }
+  var editAdmEl = document.getElementById('edit-admission-type');
+  if (editAdmEl) {
+    editAdmEl.value = (student.admissionType && String(student.admissionType).toLowerCase().includes('lateral')) ? 'Lateral Entry' : 'Regular';
+  }
+
+  setEditGender((student.gender && String(student.gender).toLowerCase() === 'female') ? 'Female' : ((student.gender && String(student.gender).toLowerCase() === 'other') ? 'Other' : 'Male'));
+  setEditAdmissionType((student.admissionType && String(student.admissionType).toLowerCase().includes('lateral')) ? 'Lateral' : 'Regular');
+  setEditResidency((student.residency === 'hostel' || student.residency === 'hosteler') ? 'hostel' : 'dayscholar');
+  updateEditStudentLivePreview();
 
   // ── login details ──
   var emailEl = document.getElementById('edit-email');
   var usernameEl = document.getElementById('edit-username');
   var passwordEl = document.getElementById('edit-password');
-  if (emailEl) emailEl.value = student.email || '';
-  if (usernameEl) usernameEl.value = student.username || (student.email ? student.email.split('@')[0] : '');
+
+  var emailVal = student.email || '';
+  var usernameVal = student.username || '';
+  var sRegNo = student.regNo || student.registerNo || '';
+  if (!emailVal && sRegNo && sRegNo.length >= 12) {
+    var yCode = sRegNo.substring(4, 6);
+    var dCode = sRegNo.substring(6, 9);
+    var dObj = (typeof getDeptByNumber === 'function' ? getDeptByNumber(dCode) : null);
+    var two = dObj ? (dObj.twoLetterCode || (dObj.code ? dObj.code.slice(0, 2).toLowerCase() : '')) : '';
+    if (!two && student.trackId) {
+      var m = String(student.trackId).match(/TR\d{2}([A-Za-z]{2})/i);
+      if (m) two = m[1].toLowerCase();
+    }
+    if (two && typeof buildStuEmail === 'function') {
+      emailVal = buildStuEmail(cleanName, yCode, two);
+    }
+  }
+  if (!usernameVal) {
+    usernameVal = emailVal ? emailVal.split('@')[0] : (sRegNo ? sRegNo.toLowerCase() : '');
+  }
+
+  if (emailEl) {
+    emailEl.value = emailVal;
+    emailEl.__origEmail = emailVal;
+  }
+  if (usernameEl) usernameEl.value = usernameVal;
   if (passwordEl) passwordEl.value = '';
-  _editEmailVerified = true;  // existing email is already confirmed
+  _editEmailVerified = true;  // default: yes, auto
   _editEmailBeforeNo = '';
+  hideEditEmailPopup();
   openModal_('m-stu-edit');
 }
 
@@ -7426,7 +10189,7 @@ function onEditCourseTypeChange(selectedCourse) {
 function onEditNameInput() {
   var inputEl = document.getElementById('edit-name');
   var raw = inputEl ? inputEl.value : '';
-  var stripped = raw.replace(/[.,\/\\;:_]+/g, ' ');
+  var stripped = raw.replace(/[.,/\;:_]+/g, ' ');
   if (stripped !== raw && inputEl) {
     var cursor = inputEl.selectionStart;
     inputEl.value = stripped;
@@ -7436,8 +10199,10 @@ function onEditNameInput() {
   var split = splitFirstLastName(clean);
   var fnEl = document.getElementById('edit-firstName');
   var lnEl = document.getElementById('edit-lastName');
-  if (fnEl) fnEl.value = split.firstName;
-  if (lnEl) lnEl.value = split.lastName;
+  if (fnEl) fnEl.value = split.firstName || '';
+  if (lnEl) lnEl.value = split.lastName || '';
+  tryAutoDeriveEditEmail();
+  updateEditStudentLivePreview();
 }
 
 function saveStuEdit() {
@@ -7449,6 +10214,7 @@ function saveStuEdit() {
   if (!lastName && split.lastName) lastName = split.lastName;
 
   var regNo = getFieldValue('edit-regNo');
+  var rollNo = getFieldValue('edit-rollNo') || '';
   var year = getFieldValue('edit-year');
   var ct = getFieldValue('edit-courseType');
   var batch = getFieldValue('edit-batch');
@@ -7458,6 +10224,7 @@ function saveStuEdit() {
   var classId = document.getElementById('edit-class') ? document.getElementById('edit-class').value : '';
   var residency = document.getElementById('edit-residency') ? document.getElementById('edit-residency').value : 'dayscholar';
   var gender = document.getElementById('edit-gender') ? document.getElementById('edit-gender').value : 'Male';
+  var admissionType = document.getElementById('edit-admission-type') ? document.getElementById('edit-admission-type').value : 'Regular';
   var email = document.getElementById('edit-email') ? document.getElementById('edit-email').value.trim() : '';
   var username = getFieldValue('edit-username') || (email ? email.split('@')[0] : '');
   var password = document.getElementById('edit-password') ? document.getElementById('edit-password').value : '';
@@ -7483,11 +10250,13 @@ function saveStuEdit() {
   var updatePayload = {
     name: name,
     firstName: firstName, lastName: lastName, regNo: regNo,
+    rollNo: rollNo.trim(),
     academicYear: year, courseType: ct, course: branch, branch: branch,
     deptId: deptId, deptName: dept ? dept.name : '',
     classId: classId, className: cls ? cls.name : '',
     residency: residency,
     gender: gender,
+    admissionType: admissionType,
     batch: batch, trackId: trackId,
     email: email, username: username
   };
@@ -7501,6 +10270,10 @@ function saveStuEdit() {
       addLog('Student Updated', '"' + name + '"');
       closeModalBg('m-stu-edit');
       _refreshStudentList();
+      if (_currentDetailStudent && String(_currentDetailStudent._id) === String(studentId)) {
+        Object.assign(_currentDetailStudent, updatePayload);
+        _renderStudentDetailModal(_currentDetailStudent);
+      }
       dbToast('Student updated', 'success');
     });
 }
@@ -7534,6 +10307,7 @@ function addStu() {
   var lastName = sanitizeFullName(getFieldValue('stu-lastName'));
   if (!lastName && split.lastName) lastName = split.lastName;
   var regNo = getFieldValue('stu-regNo');
+  var rollNo = getFieldValue('stu-rollNo') || '';
   var trackId = getFieldValue('stu-trackId');
   if (!trackId && regNo.length >= 12) {
     var _yr = regNo.substring(4, 6);
@@ -7557,6 +10331,7 @@ function addStu() {
   var classId = document.getElementById('stu-class') ? document.getElementById('stu-class').value : '';
   var residency = document.getElementById('stu-residency') ? document.getElementById('stu-residency').value : 'dayscholar';
   var gender = document.getElementById('stu-gender') ? document.getElementById('stu-gender').value : 'Male';
+  var admissionType = document.getElementById('stu-admission-type') ? document.getElementById('stu-admission-type').value : 'Regular';
   var email = document.getElementById('stu-email') ? document.getElementById('stu-email').value.trim() : '';
   var username = getFieldValue('stu-username') || email.split('@')[0];
   var password = document.getElementById('stu-password') ? document.getElementById('stu-password').value : '';
@@ -7581,13 +10356,14 @@ function addStu() {
   }
   apiAddStudent({
     name: name, firstName: firstName, lastName: lastName,
-    regNo: regNo, trackId: trackId,
+    regNo: regNo, rollNo: rollNo.trim(), trackId: trackId,
     academicYear: year, batch: batch,
     courseType: courseType, branch: branch, course: branch,
     deptId: deptId, deptName: dept ? dept.name : '',
     classId: classId, className: cls ? cls.name : '',
     residency: residency,
     gender: gender,
+    admissionType: admissionType,
     year: cls ? cls.year : '',
     email: email, username: username, password: password
   }).then(function (d) {
@@ -7631,9 +10407,9 @@ function buildStuTrackId(yearCode, twoCode, roll) {
   return 'TR' + yearCode + twoCode.toUpperCase() + String(roll).padStart(3, '0').slice(-3);
 }
 
-/** Build teacher TrackId from empId: "EMP001" <re-icon icon="arrow-right"></re-icon> "TREMP001" */
-function buildTchTrackId() {
-  var empId = getFieldValue('t-ei');
+/** Build teacher TrackId from empId: "EMP-001" <re-icon icon="arrow-right"></re-icon> "TR-EMP-001" */
+function buildTchTrackId(customEmpId) {
+  var empId = typeof customEmpId === 'string' && customEmpId ? customEmpId : getFieldValue('t-ei');
   var trackInput = document.getElementById('t-ti');
 
   if (!empId) {
@@ -7641,7 +10417,8 @@ function buildTchTrackId() {
     return '';
   }
 
-  var gen = 'TR-' + empId;
+  var cleanEmpId = empId.replace(/^TR-?/i, '');
+  var gen = 'TR-' + cleanEmpId;
 
   if (trackInput) {
     trackInput.value = gen;
@@ -7649,6 +10426,128 @@ function buildTchTrackId() {
 
   return gen;
 }
+window.buildTchTrackId = buildTchTrackId;
+
+/** Predict the next teacher employee ID starting from EMP-001 */
+function predictNextTeacherEmpId() {
+  var list = (typeof _teacherData !== 'undefined' && Array.isArray(_teacherData) && _teacherData.length)
+    ? _teacherData
+    : ((typeof DB !== 'undefined' && DB.get && (DB.get('teachers') || DB.get('users'))) || []);
+  var maxNum = 0;
+  if (Array.isArray(list)) {
+    for (var i = 0; i < list.length; i++) {
+      var t = list[i];
+      if (!t) continue;
+      var raw = (t.employeeNo || t.empId || t.trackId || '').trim();
+      var empMatch = raw.match(/EMP[-_]?(\d+)/i);
+      if (empMatch) {
+        var n = parseInt(empMatch[1], 10);
+        if (n > maxNum && n < 100000) maxNum = n;
+      } else {
+        var numMatch = raw.match(/\b(\d+)\b/);
+        if (numMatch) {
+          var n2 = parseInt(numMatch[1], 10);
+          if (n2 > maxNum && n2 < 100000) maxNum = n2;
+        }
+      }
+    }
+  }
+  var nextNum = maxNum + 1;
+  return 'EMP-' + String(nextNum).padStart(3, '0');
+}
+window.predictNextTeacherEmpId = predictNextTeacherEmpId;
+
+/** Fetch authoritative next teacher employee ID from backend API */
+function fetchNextTeacherEmpId(force) {
+  var eiEl = document.getElementById('t-ei');
+  if (!eiEl) return;
+  if (typeof apiCall !== 'function') return;
+
+  apiCall('GET', '/teachers/next-emp-id')
+    .then(function (res) {
+      var nextId = (res && res.data && res.data.nextEmpId) || (res && res.nextEmpId);
+      if (nextId && eiEl) {
+        if (force || !eiEl.value || eiEl.value === 'EMP-' || eiEl.value === 'EMP-001' || /^EMP-\d+$/i.test(eiEl.value)) {
+          eiEl.value = nextId;
+          buildTchTrackId();
+        }
+      }
+    })
+    .catch(function (err) {
+      console.warn('Could not fetch next teacher empId:', err);
+    });
+}
+window.fetchNextTeacherEmpId = fetchNextTeacherEmpId;
+
+/** Prepare and populate the Add Teacher form with predicted next ID */
+function prepareAddTeacherForm(force) {
+  var eiEl = document.getElementById('t-ei');
+  if (eiEl) {
+    if (force || !eiEl.value || eiEl.value === 'EMP-' || eiEl.value === 'EMP-001' || /^EMP-\d+$/i.test(eiEl.value)) {
+      eiEl.value = predictNextTeacherEmpId();
+      buildTchTrackId();
+    }
+  }
+  fetchNextTeacherEmpId(force);
+  if (typeof updateAddTeacherLivePreview === 'function') updateAddTeacherLivePreview();
+}
+window.prepareAddTeacherForm = prepareAddTeacherForm;
+
+/** Input handler to preserve EMP- prefix and auto-update Track ID */
+function onTchEmpIdInput(e) {
+  var eiEl = document.getElementById('t-ei');
+  if (!eiEl) return;
+  var val = eiEl.value;
+
+  if (!val) {
+    eiEl.value = 'EMP-';
+    buildTchTrackId();
+    if (typeof updateAddTeacherLivePreview === 'function') updateAddTeacherLivePreview();
+    return;
+  }
+
+  var formatted = val;
+  if (/^emp/i.test(val)) {
+    var upper = val.toUpperCase();
+    if (/^EMP\d/.test(upper)) {
+      formatted = 'EMP-' + upper.slice(3);
+    } else {
+      formatted = upper;
+    }
+  } else if (/^\d+$/.test(val)) {
+    formatted = 'EMP-' + val;
+  }
+
+  if (formatted !== val) {
+    eiEl.value = formatted;
+  }
+
+  buildTchTrackId();
+  if (typeof updateAddTeacherLivePreview === 'function') updateAddTeacherLivePreview();
+}
+window.onTchEmpIdInput = onTchEmpIdInput;
+
+/** Blur handler: pad digits to 3 digits (e.g. EMP-1 -> EMP-001) or restore prediction if empty/EMP- */
+function onTchEmpIdBlur() {
+  var eiEl = document.getElementById('t-ei');
+  if (!eiEl) return;
+  var val = (eiEl.value || '').trim();
+  if (!val || val.toUpperCase() === 'EMP-') {
+    eiEl.value = predictNextTeacherEmpId();
+    buildTchTrackId();
+    fetchNextTeacherEmpId(true);
+    if (typeof updateAddTeacherLivePreview === 'function') updateAddTeacherLivePreview();
+    return;
+  }
+  var match = val.match(/^EMP-(\d+)$/i);
+  if (match) {
+    var padded = String(match[1]).padStart(3, '0');
+    eiEl.value = 'EMP-' + padded;
+    buildTchTrackId();
+  }
+  if (typeof updateAddTeacherLivePreview === 'function') updateAddTeacherLivePreview();
+}
+window.onTchEmpIdBlur = onTchEmpIdBlur;
 
 /** Find dept from DB by 3-digit register code (dept.number) */
 function getDeptByNumber(deptCode) {
@@ -7656,7 +10555,7 @@ function getDeptByNumber(deptCode) {
 }
 
 // ── email confirm state ───────────────────────────────────────────────────────
-var _stuEmailVerified = false;
+var _stuEmailVerified = true;  // default: yes, auto
 var _stuEmailBeforeNo = '';   // snapshot taken when user clicks "No"
 
 function _setStuAddBtn(on) {
@@ -7667,12 +10566,12 @@ function _setStuAddBtn(on) {
   btn.style.cursor = on ? 'pointer' : 'not-allowed';
 }
 
-/** Show the inline popup when email field is focused */
+/** Show the inline popup when email field is focused or clicked */
 function showStuEmailPopup() {
   var emailEl = document.getElementById('stu-email');
   var popup = document.getElementById('stu-email-popup');
   if (!popup || !emailEl) return;
-  if (emailEl.value.trim() && !_stuEmailVerified) {
+  if (emailEl.value.trim()) {
     popup.style.display = 'block';
   }
 }
@@ -7691,41 +10590,44 @@ function stuEmailVerify(correct) {
     _stuEmailVerified = true;
     _stuEmailBeforeNo = '';
     var full = emailEl ? emailEl.value.trim() : '';
-    if (usernameEl) usernameEl.value = full.split('@')[0];
+    if (usernameEl && full) usernameEl.value = full.split('@')[0];
     _setStuAddBtn(true);
     showToast('Email confirmed');
   } else {
-    // "No" — snapshot current value; any change to it will unlock Add button
+    // "No" — snapshot current value; focus and select input for editing
     _stuEmailVerified = false;
     _stuEmailBeforeNo = emailEl ? emailEl.value.trim() : '';
     _setStuAddBtn(false);
     if (emailEl) { emailEl.focus(); emailEl.select(); }
   }
+  updateAddStudentLivePreview();
 }
 
 /** Email manually edited */
 function onStuEmailInput() {
   var emailEl = document.getElementById('stu-email');
+  if (emailEl) emailEl.dataset.customized = emailEl.value.trim() ? 'true' : '';
   var email = emailEl ? emailEl.value.trim() : '';
-  _stuEmailVerified = false;
   hideStuEmailPopup();
-  // If they changed the email after clicking "No" <re-icon icon="arrow-right"></re-icon> auto-enable Add button
-  if (_stuEmailBeforeNo && email && email !== _stuEmailBeforeNo) {
-    _stuEmailVerified = true;
-    var usernameEl = document.getElementById('stu-username');
-    if (usernameEl) usernameEl.value = email.split('@')[0];
-    _setStuAddBtn(true);
-  } else {
-    _setStuAddBtn(false);
+  var usernameEl = document.getElementById('stu-username');
+  if (usernameEl) {
+    usernameEl.value = email ? email.split('@')[0] : '';
   }
+  _stuEmailVerified = true;
+  _setStuAddBtn(true);
+  updateAddStudentLivePreview();
 }
 
 /** Called when email is auto-generated by the form (regNo / name input) */
 function _stuShowEmailVerify(email) {
-  _stuEmailVerified = false;
+  _stuEmailVerified = true;  // default: yes, auto
   _stuEmailBeforeNo = '';
   hideStuEmailPopup();
-  _setStuAddBtn(false);
+  var usernameEl = document.getElementById('stu-username');
+  if (usernameEl && email) {
+    usernameEl.value = email.split('@')[0];
+  }
+  _setStuAddBtn(true);
 }
 function onTchEmailInput() {
   var emailEl = document.getElementById('t-em');
@@ -7738,17 +10640,19 @@ function onTchEmailInput() {
   if (usernameEl) {
     usernameEl.value = email.split('@')[0].replace(/\s+/g, '').toLowerCase();
   }
+  if (typeof updateAddTeacherLivePreview === 'function') updateAddTeacherLivePreview();
 }
+window.onTchEmailInput = onTchEmailInput;
 
 // ── EDIT-STUDENT EMAIL HANDLERS ───────────────────────────────────────────────
-var _editEmailVerified = false;
+var _editEmailVerified = true;  // default: yes, auto
 var _editEmailBeforeNo = '';
 
 function showEditEmailPopup() {
   var emailEl = document.getElementById('edit-email');
   var popup = document.getElementById('edit-email-popup');
   if (!popup || !emailEl) return;
-  if (emailEl.value.trim() && !_editEmailVerified) {
+  if (emailEl.value.trim()) {
     popup.style.display = 'block';
   }
 }
@@ -7766,27 +10670,46 @@ function editEmailVerify(correct) {
     _editEmailVerified = true;
     _editEmailBeforeNo = '';
     var full = emailEl ? emailEl.value.trim() : '';
-    if (usernameEl) usernameEl.value = full.split('@')[0];
+    if (usernameEl && full) usernameEl.value = full.split('@')[0];
     showToast('Email confirmed');
   } else {
     _editEmailVerified = false;
     _editEmailBeforeNo = emailEl ? emailEl.value.trim() : '';
     if (emailEl) { emailEl.focus(); emailEl.select(); }
   }
+  updateEditStudentLivePreview();
 }
 
 function onEditEmailInput() {
   var emailEl = document.getElementById('edit-email');
+  if (emailEl) emailEl.dataset.customized = emailEl.value.trim() ? 'true' : '';
   var email = emailEl ? emailEl.value.trim() : '';
   hideEditEmailPopup();
-  if (_editEmailBeforeNo && email && email !== _editEmailBeforeNo) {
-    _editEmailVerified = true;
-    var usernameEl = document.getElementById('edit-username');
-    if (usernameEl) usernameEl.value = email.split('@')[0];
-  } else if (email !== (document.getElementById('edit-email').__origEmail || email)) {
-    _editEmailVerified = false;
+  var usernameEl = document.getElementById('edit-username');
+  if (usernameEl) {
+    usernameEl.value = email ? email.split('@')[0] : '';
   }
+  _editEmailVerified = true;
+  updateEditStudentLivePreview();
 }
+
+// Auto-hide inline email popups on outside click
+document.addEventListener('click', function (e) {
+  var stuPopup = document.getElementById('stu-email-popup');
+  var stuInput = document.getElementById('stu-email');
+  if (stuPopup && stuPopup.style.display === 'block') {
+    if (!stuPopup.contains(e.target) && e.target !== stuInput) {
+      stuPopup.style.display = 'none';
+    }
+  }
+  var editPopup = document.getElementById('edit-email-popup');
+  var editInput = document.getElementById('edit-email');
+  if (editPopup && editPopup.style.display === 'block') {
+    if (!editPopup.contains(e.target) && e.target !== editInput) {
+      editPopup.style.display = 'none';
+    }
+  }
+});
 
 /** Update class dropdown based on selected dept and batch for Add Student */
 function updateStuClassList(preserveClassId) {
@@ -7855,6 +10778,8 @@ function onStuBatchChange() {
       rnEl.value = '7140' + yrCode + deptNum;
     }
   }
+  tryAutoDeriveStuEmail();
+  updateAddStudentLivePreview();
 }
 
 /** Dept dropdown changed <re-icon icon="arrow-right"></re-icon> fill courseType/branch, filter class list by dept & batch */
@@ -7881,6 +10806,8 @@ function onStuDeptChange() {
       rnEl.value = '7140' + yrCode + deptNum;
     }
   }
+  tryAutoDeriveStuEmail();
+  updateAddStudentLivePreview();
 }
 
 function onStuClassChange() {
@@ -7991,6 +10918,14 @@ function syncAddStudentModalFromFilters() {
     var stuRes = document.getElementById('stu-residency');
     if (stuRes) stuRes.value = (resVal === 'hostel' || resVal === 'hosteller') ? 'hostel' : 'dayscholar';
   }
+
+  // 9. Admission Type from filter
+  var sfAdm = document.getElementById('sf-admission-type');
+  var admVal = sfAdm ? sfAdm.value : '';
+  if (admVal) {
+    var stuAdm = document.getElementById('stu-admission-type');
+    if (stuAdm) stuAdm.value = (admVal.toLowerCase().includes('lateral')) ? 'Lateral Entry' : 'Regular';
+  }
 }
 window.syncAddStudentModalFromFilters = syncAddStudentModalFromFilters;
 
@@ -8029,26 +10964,39 @@ function updateEditClassList(preserveClassId) {
 
 function onEditBatchChange() {
   updateEditClassList();
+  tryAutoDeriveEditEmail();
+  updateEditStudentLivePreview();
 }
 
 function onEditDeptChange() {
   var deptId = document.getElementById('edit-dept') ? document.getElementById('edit-dept').value : '';
-  var dept = DB.get('depts').find(function (d) { return d._id === deptId; });
+  var dept = (DB.get('depts') || []).find(function (d) { return String(d._id) === String(deptId); });
   var ctEl = document.getElementById('edit-courseType');
   var brEl = document.getElementById('edit-branch');
   if (ctEl) ctEl.value = dept ? (dept.courseType || '') : '';
-  if (brEl) brEl.value = dept ? (dept.branch || '') : '';
+  if (brEl) brEl.value = dept ? (dept.branch || dept.name || '') : '';
   updateEditClassList();
+  tryAutoDeriveEditEmail();
+  updateEditStudentLivePreview();
 }
 
-function onEditClassChange() {}
+function onEditClassChange() {
+  updateEditStudentLivePreview();
+}
 
 /** Register No <re-icon icon="arrow-right"></re-icon> decode all fields */
 function onStuRegNoChange() {
   var regNo = (getFieldValue('stu-regNo') || '').replace(/\D/g, '');
   var rnEl = document.getElementById('stu-regNo');
   if (rnEl) rnEl.value = regNo;
-  if (regNo.length < 12) return;
+
+  var tidEl = document.getElementById('stu-trackId');
+  if (regNo.length < 12) {
+    if (tidEl) tidEl.value = regNo;
+    tryAutoDeriveStuEmail();
+    updateAddStudentLivePreview();
+    return;
+  }
 
   var yearCode = regNo.substring(4, 6);
   var deptCode = regNo.substring(6, 9);
@@ -8145,12 +11093,654 @@ function onStuRegNoChange() {
   if (emailEl) emailEl.value = email;
   _stuShowEmailVerify(email);
 }
+  updateAddStudentLivePreview();
+
+
+// ═════════════════════════════════════════════════════════════════════════════
+// STUDENT MODAL REDESIGN HELPERS (Add & Edit Student Modal Live Synchronization)
+// ═════════════════════════════════════════════════════════════════════════════
+
+function getInitials(name) {
+  if (!name || !name.trim()) return '';
+  var parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+window.getInitials = getInitials;
+
+// ─── SEGMENTED SWITCHER ANIMATION ENGINE ─────────────────────────────────
+function triggerSegRipple(btn, e) {
+  if (!btn) return;
+  var rect = btn.getBoundingClientRect();
+  var circle = document.createElement('span');
+  circle.className = 'seg-ripple';
+  var size = Math.max(rect.width, rect.height) * 1.6;
+  var x = (e && typeof e.clientX === 'number') ? (e.clientX - rect.left) : (rect.width / 2);
+  var y = (e && typeof e.clientY === 'number') ? (e.clientY - rect.top) : (rect.height / 2);
+  circle.style.width = size + 'px';
+  circle.style.height = size + 'px';
+  circle.style.left = x + 'px';
+  circle.style.top = y + 'px';
+  btn.appendChild(circle);
+  setTimeout(function () {
+    if (circle && circle.parentNode) circle.parentNode.removeChild(circle);
+  }, 600);
+}
+window.triggerSegRipple = triggerSegRipple;
+
+function updateSegGlider(segEl, animate) {
+  if (typeof segEl === 'string') segEl = document.getElementById(segEl);
+  if (!segEl) return;
+  segEl.classList.add('has-glider');
+  var glider = segEl.querySelector('.stu-seg-glider');
+  if (!glider) {
+    glider = document.createElement('span');
+    glider.className = 'stu-seg-glider';
+    glider.setAttribute('aria-hidden', 'true');
+    segEl.insertBefore(glider, segEl.firstChild);
+  }
+  var actBtn = segEl.querySelector('.stu-seg-btn.act') || segEl.querySelector('.stu-seg-btn.on');
+  if (!actBtn || actBtn.offsetWidth === 0) return;
+
+  var targetX = actBtn.offsetLeft;
+  var targetW = actBtn.offsetWidth;
+  var prevX = (typeof segEl._lastX === 'number') ? segEl._lastX : targetX;
+  var prevW = (typeof segEl._lastW === 'number') ? segEl._lastW : targetW;
+
+  segEl._lastX = targetX;
+  segEl._lastW = targetW;
+
+  if (segEl._waterTimer1) { clearTimeout(segEl._waterTimer1); segEl._waterTimer1 = null; }
+  if (segEl._waterTimer2) { clearTimeout(segEl._waterTimer2); segEl._waterTimer2 = null; }
+
+  if (animate === false || prevX === targetX) {
+    glider.classList.add('no-anim');
+    glider.classList.remove('water-sloshing');
+    segEl.style.setProperty('--glider-x', targetX + 'px');
+    segEl.style.setProperty('--glider-w', targetW + 'px');
+    glider.style.transform = 'translateX(' + targetX + 'px)';
+    glider.style.width = targetW + 'px';
+    glider.style.transition = 'none';
+    void glider.offsetWidth;
+    requestAnimationFrame(function () {
+      glider.classList.remove('no-anim');
+    });
+    return;
+  }
+
+  glider.classList.remove('no-anim');
+  glider.classList.remove('water-sloshing');
+
+  var isMovingRight = targetX > prevX;
+  var surgeX = isMovingRight ? prevX : targetX;
+  var surgeW = isMovingRight ? (targetX + targetW - prevX) : (prevX + prevW - targetX);
+
+  // Phase 1: Water Surge — green color smoothly expands across like flowing liquid
+  glider.style.transition = 'transform 0.17s cubic-bezier(0.2, 0.8, 0.25, 1), width 0.17s cubic-bezier(0.1, 0.9, 0.25, 1)';
+  glider.style.transform = 'translateX(' + surgeX + 'px)';
+  glider.style.width = surgeW + 'px';
+  segEl.style.setProperty('--glider-x', targetX + 'px');
+  segEl.style.setProperty('--glider-w', targetW + 'px');
+
+  // Phase 2: Water Pull/Contract — trailing edge pulls in and liquid pools at target field
+  segEl._waterTimer1 = setTimeout(function () {
+    glider.style.transition = 'transform 0.22s cubic-bezier(0.34, 1.25, 0.64, 1), width 0.22s cubic-bezier(0.34, 1.25, 0.64, 1)';
+    glider.style.transform = 'translateX(' + targetX + 'px)';
+    glider.style.width = targetW + 'px';
+
+    // Phase 3: Liquid Settle Wobble / Slosh
+    segEl._waterTimer2 = setTimeout(function () {
+      glider.classList.add('water-sloshing');
+    }, 220);
+  }, 145);
+}
+window.updateSegGlider = updateSegGlider;
+
+function updateAllSegGliders(animate) {
+  var segs = document.querySelectorAll('.stu-seg');
+  segs.forEach(function (seg) {
+    updateSegGlider(seg, animate);
+  });
+}
+window.updateAllSegGliders = updateAllSegGliders;
+
+// Delegated ripple handler on segmented buttons
+document.addEventListener('click', function (e) {
+  var btn = e.target && e.target.closest ? e.target.closest('.stu-seg-btn') : null;
+  if (btn) {
+    triggerSegRipple(btn, e);
+  }
+});
+
+// Update gliders on viewport resize
+window.addEventListener('resize', function () {
+  updateAllSegGliders(false);
+});
+
+function setStuGender(val) {
+  var inp = document.getElementById('stu-gender');
+  if (inp) inp.value = val;
+  var seg = document.getElementById('stu-seg-gender');
+  if (seg) {
+    seg.querySelectorAll('.stu-seg-btn').forEach(function (b) {
+      var isM = b.getAttribute('data-val').toLowerCase() === String(val).toLowerCase();
+      b.classList.toggle('act', isM);
+      b.classList.toggle('on', isM);
+    });
+    updateSegGlider(seg, true);
+  }
+  updateAddStudentLivePreview();
+}
+window.setStuGender = setStuGender;
+
+function setStuAdmissionType(val) {
+  var inp = document.getElementById('stu-admission-type');
+  if (inp) inp.value = val;
+  var seg = document.getElementById('stu-seg-admission');
+  if (seg) {
+    seg.querySelectorAll('.stu-seg-btn').forEach(function (b) {
+      var isM = b.getAttribute('data-val').toLowerCase().startsWith(String(val).toLowerCase().slice(0, 3));
+      b.classList.toggle('act', isM);
+      b.classList.toggle('on', isM);
+    });
+    updateSegGlider(seg, true);
+  }
+  updateAddStudentLivePreview();
+}
+window.setStuAdmissionType = setStuAdmissionType;
+
+function setStuResidency(val) {
+  var inp = document.getElementById('stu-residency');
+  if (inp) inp.value = val;
+  var seg = document.getElementById('stu-seg-residency');
+  if (seg) {
+    seg.querySelectorAll('.stu-seg-btn').forEach(function (b) {
+      var isM = b.getAttribute('data-val').toLowerCase().startsWith(String(val).toLowerCase().slice(0, 4));
+      b.classList.toggle('act', isM);
+      b.classList.toggle('on', isM);
+    });
+    updateSegGlider(seg, true);
+  }
+  updateAddStudentLivePreview();
+}
+window.setStuResidency = setStuResidency;
+
+function setEditGender(val) {
+  var inp = document.getElementById('edit-gender');
+  if (inp) inp.value = val;
+  var seg = document.getElementById('edit-seg-gender');
+  if (seg) {
+    seg.querySelectorAll('.stu-seg-btn').forEach(function (b) {
+      var isM = b.getAttribute('data-val').toLowerCase() === String(val).toLowerCase();
+      b.classList.toggle('act', isM);
+      b.classList.toggle('on', isM);
+    });
+    updateSegGlider(seg, true);
+  }
+  updateEditStudentLivePreview();
+}
+window.setEditGender = setEditGender;
+
+function setEditAdmissionType(val) {
+  var inp = document.getElementById('edit-admission-type');
+  if (inp) inp.value = val;
+  var seg = document.getElementById('edit-seg-admission');
+  if (seg) {
+    seg.querySelectorAll('.stu-seg-btn').forEach(function (b) {
+      var isM = b.getAttribute('data-val').toLowerCase().startsWith(String(val).toLowerCase().slice(0, 3));
+      b.classList.toggle('act', isM);
+      b.classList.toggle('on', isM);
+    });
+    updateSegGlider(seg, true);
+  }
+  updateEditStudentLivePreview();
+}
+window.setEditAdmissionType = setEditAdmissionType;
+
+function setEditResidency(val) {
+  var inp = document.getElementById('edit-residency');
+  if (inp) inp.value = val;
+  var seg = document.getElementById('edit-seg-residency');
+  if (seg) {
+    seg.querySelectorAll('.stu-seg-btn').forEach(function (b) {
+      var isM = b.getAttribute('data-val').toLowerCase().startsWith(String(val).toLowerCase().slice(0, 4));
+      b.classList.toggle('act', isM);
+      b.classList.toggle('on', isM);
+    });
+    updateSegGlider(seg, true);
+  }
+  updateEditStudentLivePreview();
+}
+window.setEditResidency = setEditResidency;
+
+
+function tryAutoDeriveStuEmail() {
+  var emailEl = document.getElementById('stu-email');
+  if (!emailEl) return;
+  if (emailEl.dataset.customized === 'true' && emailEl.value.trim()) return;
+
+  var name = (getFieldValue('stu-name') || '').trim();
+  var regNo = (getFieldValue('stu-regNo') || '').replace(/\D/g, '');
+  var batch = (getFieldValue('stu-batch') || '').trim();
+  var deptId = document.getElementById('stu-dept') ? document.getElementById('stu-dept').value : '';
+
+  var yearCode = '';
+  if (regNo.length >= 6) {
+    yearCode = regNo.substring(4, 6);
+  } else if (batch) {
+    var ym = batch.match(/^\d{2}(\d{2})/);
+    if (ym) yearCode = ym[1];
+  }
+
+  var twoCode = '';
+  var depts = Array.isArray(DB.get('depts')) ? DB.get('depts') : [];
+  var dept = depts.find(function (d) { return String(d._id) === String(deptId); });
+  if (dept) {
+    twoCode = dept.twoLetterCode || (dept.code ? dept.code.slice(0, 2).toLowerCase() : '');
+  } else if (regNo.length >= 9) {
+    var deptCode = regNo.substring(6, 9);
+    var dFromNum = typeof getDeptByNumber === 'function' ? getDeptByNumber(deptCode) : null;
+    if (dFromNum) {
+      twoCode = dFromNum.twoLetterCode || (dFromNum.code ? dFromNum.code.slice(0, 2).toLowerCase() : '');
+    }
+  }
+
+  if (name && yearCode && twoCode) {
+    var genEmail = buildStuEmail(name, yearCode, twoCode);
+    if (genEmail) {
+      emailEl.value = genEmail;
+      var usernameEl = document.getElementById('stu-username');
+      if (usernameEl) usernameEl.value = genEmail.split('@')[0];
+      _stuEmailVerified = true;
+      _setStuAddBtn(true);
+    }
+  } else if (!name && emailEl.dataset.customized !== 'true') {
+    emailEl.value = '';
+    var usernameEl = document.getElementById('stu-username');
+    if (usernameEl) usernameEl.value = '';
+  }
+}
+window.tryAutoDeriveStuEmail = tryAutoDeriveStuEmail;
+
+function tryAutoDeriveEditEmail() {
+  var emailEl = document.getElementById('edit-email');
+  if (!emailEl) return;
+  if (emailEl.dataset.customized === 'true' && emailEl.value.trim()) return;
+
+  var name = (getFieldValue('edit-name') || '').trim();
+  var regNo = (getFieldValue('edit-regNo') || '').replace(/\D/g, '');
+  var batch = (getFieldValue('edit-batch') || '').trim();
+  var deptId = document.getElementById('edit-dept') ? document.getElementById('edit-dept').value : '';
+
+  var yearCode = '';
+  if (regNo.length >= 6) {
+    yearCode = regNo.substring(4, 6);
+  } else if (batch) {
+    var ym = batch.match(/^\d{2}(\d{2})/);
+    if (ym) yearCode = ym[1];
+  }
+
+  var twoCode = '';
+  var depts = Array.isArray(DB.get('depts')) ? DB.get('depts') : [];
+  var dept = depts.find(function (d) { return String(d._id) === String(deptId); });
+  if (dept) {
+    twoCode = dept.twoLetterCode || (dept.code ? dept.code.slice(0, 2).toLowerCase() : '');
+  } else if (regNo.length >= 9) {
+    var deptCode = regNo.substring(6, 9);
+    var dFromNum = typeof getDeptByNumber === 'function' ? getDeptByNumber(deptCode) : null;
+    if (dFromNum) {
+      twoCode = dFromNum.twoLetterCode || (dFromNum.code ? dFromNum.code.slice(0, 2).toLowerCase() : '');
+    }
+  }
+
+  if (name && yearCode && twoCode) {
+    var genEmail = buildStuEmail(name, yearCode, twoCode);
+    if (genEmail) {
+      emailEl.value = genEmail;
+      var usernameEl = document.getElementById('edit-username');
+      if (usernameEl) usernameEl.value = genEmail.split('@')[0];
+      _editEmailVerified = true;
+    }
+  }
+}
+window.tryAutoDeriveEditEmail = tryAutoDeriveEditEmail;
+
+function onEditRegNoChange() {
+  var regNo = (getFieldValue('edit-regNo') || '').replace(/\D/g, '');
+  var rnEl = document.getElementById('edit-regNo');
+  if (rnEl) rnEl.value = regNo;
+
+  var tidEl = document.getElementById('edit-trackId');
+  if (regNo.length < 12) {
+    if (tidEl) tidEl.value = regNo;
+    tryAutoDeriveEditEmail();
+    updateEditStudentLivePreview();
+    return;
+  }
+
+  var yearCode = regNo.substring(4, 6);
+  var deptCode = regNo.substring(6, 9);
+  var roll = regNo.substring(9, 12);
+  var dept = typeof getDeptByNumber === 'function' ? getDeptByNumber(deptCode) : null;
+  if (dept) {
+    var twoCode = dept.twoLetterCode || (dept.code ? dept.code.slice(0, 2).toLowerCase() : '');
+    var tid = buildStuTrackId(yearCode, twoCode, roll);
+    if (tidEl) tidEl.value = tid;
+  }
+  tryAutoDeriveEditEmail();
+  updateEditStudentLivePreview();
+}
+window.onEditRegNoChange = onEditRegNoChange;
+
+function updateAddStudentLivePreview() {
+  var name = (getFieldValue('stu-name') || '').trim();
+  var regNo = (getFieldValue('stu-regNo') || '').trim();
+  var batch = (getFieldValue('stu-batch') || '').trim();
+  var deptId = document.getElementById('stu-dept') ? document.getElementById('stu-dept').value : '';
+  var classId = document.getElementById('stu-class') ? document.getElementById('stu-class').value : '';
+  var gender = (getFieldValue('stu-gender') || 'Male').trim();
+  var admissionType = (getFieldValue('stu-admission-type') || 'Regular').trim();
+  var residency = (getFieldValue('stu-residency') || 'dayscholar').trim();
+  var email = (getFieldValue('stu-email') || '').trim();
+
+  var depts = Array.isArray(DB.get('depts')) ? DB.get('depts') : [];
+  var dept = depts.find(function (d) { return String(d._id) === String(deptId); });
+
+  // 1. Avatar initials
+  var avEl = document.getElementById('stu-preview-avatar');
+  if (avEl) avEl.textContent = getInitials(name) || 'ST';
+
+  // 2. Preview Name
+  var nmEl = document.getElementById('stu-preview-name');
+  if (nmEl) nmEl.textContent = name || 'Student Name';
+
+  // 3. Preview Reg No
+  var regEl = document.getElementById('stu-preview-reg');
+  if (regEl) regEl.textContent = 'Register no. ' + (regNo || '—');
+
+  // 4. Preview Batch
+  var btEl = document.getElementById('stu-preview-batch');
+  if (btEl) btEl.textContent = 'Batch ' + (batch || '2025-2029');
+
+  // 5. First name / Last name split
+  var split = splitFirstLastName(sanitizeFullName(name));
+  var fnEl = document.getElementById('stu-firstName');
+  var lnEl = document.getElementById('stu-lastName');
+  if (fnEl) fnEl.value = split.firstName || '';
+  if (lnEl) lnEl.value = split.lastName || '';
+
+  var dispFn = document.getElementById('stu-disp-fn');
+  if (dispFn) {
+    if (split.firstName) {
+      dispFn.textContent = split.firstName;
+      dispFn.className = 'stu-kv-val'; dispFn.classList.remove('pd'); dispFn.classList.remove('pd'); dispFn.classList.remove('pd'); dispFn.classList.remove('pd');
+    } else {
+      dispFn.textContent = 'After name';
+      dispFn.className = 'stu-kv-val pd'; dispFn.classList.add('pd');
+    }
+  }
+
+  var dispLn = document.getElementById('stu-disp-ln');
+  if (dispLn) {
+    if (split.lastName) {
+      dispLn.textContent = split.lastName;
+      dispLn.className = 'stu-kv-val'; dispLn.classList.remove('pd'); dispLn.classList.remove('pd'); dispLn.classList.remove('pd'); dispLn.classList.remove('pd');
+    } else {
+      dispLn.textContent = 'After name';
+      dispLn.className = 'stu-kv-val pd'; dispLn.classList.add('pd');
+    }
+  }
+
+  // 6. Track ID
+  var trackId = getFieldValue('stu-trackId') || regNo;
+  var dispTid = document.getElementById('stu-disp-tid');
+  if (dispTid) {
+    if (trackId) {
+      dispTid.textContent = trackId;
+      dispTid.className = 'stu-kv-val'; dispTid.classList.remove('pd'); dispTid.classList.remove('pd'); dispTid.classList.remove('pd'); dispTid.classList.remove('pd');
+    } else {
+      dispTid.textContent = 'After register no';
+      dispTid.className = 'stu-kv-val pd'; dispTid.classList.add('pd');
+    }
+  }
+
+  // 7. Course type
+  var ctVal = (dept ? (dept.courseType || '') : '') || getFieldValue('stu-courseType');
+  var dispCt = document.getElementById('stu-disp-ct');
+  if (dispCt) {
+    if (ctVal) {
+      dispCt.textContent = ctVal;
+      dispCt.className = 'stu-kv-val'; dispCt.classList.remove('pd'); dispCt.classList.remove('pd'); dispCt.classList.remove('pd'); dispCt.classList.remove('pd');
+    } else {
+      dispCt.textContent = 'After department';
+      dispCt.className = 'stu-kv-val pd'; dispCt.classList.add('pd');
+    }
+  }
+
+  // 8. Branch
+  var brVal = (dept ? (dept.branch || dept.name || '') : '') || getFieldValue('stu-branch');
+  var dispBr = document.getElementById('stu-disp-br');
+  if (dispBr) {
+    if (brVal) {
+      dispBr.textContent = brVal;
+      dispBr.className = 'stu-kv-val'; dispBr.classList.remove('pd'); dispBr.classList.remove('pd'); dispBr.classList.remove('pd'); dispBr.classList.remove('pd');
+    } else {
+      dispBr.textContent = 'After department';
+      dispBr.className = 'stu-kv-val pd'; dispBr.classList.add('pd');
+    }
+  }
+
+  // 9. Username
+  var unVal = email ? email.split('@')[0] : getFieldValue('stu-username');
+  var dispUn = document.getElementById('stu-disp-un');
+  if (dispUn) {
+    if (unVal) {
+      dispUn.textContent = unVal;
+      dispUn.className = 'stu-kv-val'; dispUn.classList.remove('pd'); dispUn.classList.remove('pd'); dispUn.classList.remove('pd'); dispUn.classList.remove('pd');
+    } else {
+      dispUn.textContent = 'After email is set';
+      dispUn.className = 'stu-kv-val pd'; dispUn.classList.add('pd');
+    }
+  }
+
+  // 10. Required fields check
+  var missing = [];
+  if (!name) missing.push('Full Name');
+  if (!regNo) missing.push('Register Number');
+  if (!gender) missing.push('Gender');
+  if (!deptId) missing.push('Department');
+  if (!classId) missing.push('Class');
+  if (!batch) missing.push('Batch');
+  if (!admissionType) missing.push('Admission Type');
+  if (!residency) missing.push('Dayscholar / Hosteller');
+
+  var reqStatus = document.getElementById('stu-req-status');
+  var reqCount = document.getElementById('stu-req-count');
+  var reqNames = document.getElementById('stu-req-names');
+  var addBtn = document.getElementById('btn-add-stu');
+
+  if (missing.length > 0) {
+    if (reqStatus) reqStatus.classList.remove('completed');
+    if (reqCount) {
+      reqCount.textContent = missing.length + ' required field' + (missing.length > 1 ? 's' : '') + ' left';
+      reqCount.style.color = '#1b5e20';
+    }
+    if (reqNames) {
+      reqNames.textContent = ' · ' + missing.join(', ');
+    }
+    if (addBtn) {
+      addBtn.classList.remove('ready', 'p');
+      addBtn.classList.add('d');
+      addBtn.setAttribute('aria-disabled', 'true');
+      addBtn.style.background = '';
+    }
+  } else {
+    if (reqStatus) reqStatus.classList.add('completed');
+    if (reqCount) {
+      reqCount.innerHTML = '<re-icon icon="check-circle" size="14"></re-icon> All required fields completed';
+      reqCount.style.color = '#1b5e20';
+    }
+    if (reqNames) reqNames.textContent = '';
+    if (addBtn) {
+      addBtn.classList.remove('d');
+      addBtn.classList.add('ready', 'p');
+      addBtn.removeAttribute('aria-disabled');
+      addBtn.style.background = '';
+    }
+  }
+}
+window.updateAddStudentLivePreview = updateAddStudentLivePreview;
+
+function updateEditStudentLivePreview() {
+  var name = (getFieldValue('edit-name') || '').trim();
+  var regNo = (getFieldValue('edit-regNo') || '').trim();
+  var batch = (getFieldValue('edit-batch') || '').trim();
+  var deptId = document.getElementById('edit-dept') ? document.getElementById('edit-dept').value : '';
+  var classId = document.getElementById('edit-class') ? document.getElementById('edit-class').value : '';
+  var gender = (getFieldValue('edit-gender') || 'Male').trim();
+  var admissionType = (getFieldValue('edit-admission-type') || 'Regular').trim();
+  var residency = (getFieldValue('edit-residency') || 'dayscholar').trim();
+  var email = (getFieldValue('edit-email') || '').trim();
+
+  var depts = Array.isArray(DB.get('depts')) ? DB.get('depts') : [];
+  var dept = depts.find(function (d) { return String(d._id) === String(deptId); });
+
+  // 1. Avatar
+  var avEl = document.getElementById('edit-preview-avatar');
+  if (avEl) avEl.textContent = getInitials(name) || 'ST';
+
+  // 2. Name
+  var nmEl = document.getElementById('edit-preview-name');
+  if (nmEl) nmEl.textContent = name || 'Student Name';
+
+  // 3. Reg No
+  var regEl = document.getElementById('edit-preview-reg');
+  if (regEl) regEl.textContent = 'Register no. ' + (regNo || '—');
+
+  // 4. Batch
+  var btEl = document.getElementById('edit-preview-batch');
+  if (btEl) btEl.textContent = 'Batch ' + (batch || '—');
+
+  // 5. First / Last name
+  var split = splitFirstLastName(sanitizeFullName(name));
+  var fnEl = document.getElementById('edit-firstName');
+  var lnEl = document.getElementById('edit-lastName');
+  if (fnEl && split.firstName && !fnEl.value) fnEl.value = split.firstName;
+  if (lnEl && split.lastName && !lnEl.value) lnEl.value = split.lastName;
+
+  var dispFn = document.getElementById('edit-disp-fn');
+  if (dispFn) {
+    var curFn = (fnEl && fnEl.value) || split.firstName;
+    if (curFn) {
+      dispFn.textContent = curFn;
+      dispFn.className = 'stu-kv-val'; dispFn.classList.remove('pd'); dispFn.classList.remove('pd'); dispFn.classList.remove('pd'); dispFn.classList.remove('pd');
+    } else {
+      dispFn.textContent = 'After name';
+      dispFn.className = 'stu-kv-val pd'; dispFn.classList.add('pd');
+    }
+  }
+
+  var dispLn = document.getElementById('edit-disp-ln');
+  if (dispLn) {
+    var curLn = (lnEl && lnEl.value) || split.lastName;
+    if (curLn) {
+      dispLn.textContent = curLn;
+      dispLn.className = 'stu-kv-val'; dispLn.classList.remove('pd'); dispLn.classList.remove('pd'); dispLn.classList.remove('pd'); dispLn.classList.remove('pd');
+    } else {
+      dispLn.textContent = 'After name';
+      dispLn.className = 'stu-kv-val pd'; dispLn.classList.add('pd');
+    }
+  }
+
+  // 6. Track ID
+  var trackId = getFieldValue('edit-trackId') || regNo;
+  var dispTid = document.getElementById('edit-disp-tid');
+  if (dispTid) {
+    if (trackId) {
+      dispTid.textContent = trackId;
+      dispTid.className = 'stu-kv-val'; dispTid.classList.remove('pd'); dispTid.classList.remove('pd'); dispTid.classList.remove('pd'); dispTid.classList.remove('pd');
+    } else {
+      dispTid.textContent = 'After register no';
+      dispTid.className = 'stu-kv-val pd'; dispTid.classList.add('pd');
+    }
+  }
+
+  // 7. Course type
+  var ctVal = (dept ? (dept.courseType || '') : '') || getFieldValue('edit-courseType');
+  var dispCt = document.getElementById('edit-disp-ct');
+  if (dispCt) {
+    if (ctVal) {
+      dispCt.textContent = ctVal;
+      dispCt.className = 'stu-kv-val'; dispCt.classList.remove('pd'); dispCt.classList.remove('pd'); dispCt.classList.remove('pd'); dispCt.classList.remove('pd');
+    } else {
+      dispCt.textContent = 'After department';
+      dispCt.className = 'stu-kv-val pd'; dispCt.classList.add('pd');
+    }
+  }
+
+  // 8. Branch
+  var brVal = (dept ? (dept.branch || dept.name || '') : '') || getFieldValue('edit-branch');
+  var dispBr = document.getElementById('edit-disp-br');
+  if (dispBr) {
+    if (brVal) {
+      dispBr.textContent = brVal;
+      dispBr.className = 'stu-kv-val'; dispBr.classList.remove('pd'); dispBr.classList.remove('pd'); dispBr.classList.remove('pd'); dispBr.classList.remove('pd');
+    } else {
+      dispBr.textContent = 'After department';
+      dispBr.className = 'stu-kv-val pd'; dispBr.classList.add('pd');
+    }
+  }
+
+  // 9. Username
+  var unVal = email ? email.split('@')[0] : getFieldValue('edit-username');
+  var dispUn = document.getElementById('edit-disp-un');
+  if (dispUn) {
+    if (unVal) {
+      dispUn.textContent = unVal;
+      dispUn.className = 'stu-kv-val'; dispUn.classList.remove('pd'); dispUn.classList.remove('pd'); dispUn.classList.remove('pd'); dispUn.classList.remove('pd');
+    } else {
+      dispUn.textContent = 'After email is set';
+      dispUn.className = 'stu-kv-val pd'; dispUn.classList.add('pd');
+    }
+  }
+
+  // 10. Required fields check
+  var missing = [];
+  if (!name) missing.push('Full Name');
+  if (!regNo) missing.push('Register Number');
+  if (!gender) missing.push('Gender');
+  if (!deptId) missing.push('Department');
+  if (!classId) missing.push('Class');
+  if (!batch) missing.push('Batch');
+
+  var reqStatus = document.getElementById('edit-req-status');
+  var reqCount = document.getElementById('edit-req-count');
+  var reqNames = document.getElementById('edit-req-names');
+
+  if (missing.length > 0) {
+    if (reqStatus) reqStatus.classList.remove('completed');
+    if (reqCount) {
+      reqCount.textContent = missing.length + ' required field' + (missing.length > 1 ? 's' : '') + ' left';
+      reqCount.style.color = '#dc2626';
+    }
+    if (reqNames) reqNames.textContent = ' · ' + missing.join(', ');
+  } else {
+    if (reqStatus) reqStatus.classList.add('completed');
+    if (reqCount) {
+      reqCount.innerHTML = '<re-icon icon="check-circle" size="14"></re-icon> Ready to save';
+      reqCount.style.color = '#16a34a';
+    }
+    if (reqNames) reqNames.textContent = '';
+  }
+}
+window.updateEditStudentLivePreview = updateEditStudentLivePreview;
+
 
 /** Name typed — sanitize punctuation, split first/last, refresh email if regNo decoded */
 function onStuNameInput() {
   var nameEl = document.getElementById('stu-name');
   var raw = nameEl ? nameEl.value : '';
-  var stripped = raw.replace(/[.,\/\\;:_]+/g, ' ');
+  var stripped = raw.replace(/[.,/\;:_]+/g, ' ');
   if (stripped !== raw && nameEl) {
     var cursor = nameEl.selectionStart;
     nameEl.value = stripped;
@@ -8162,29 +11752,145 @@ function onStuNameInput() {
   var fnEl = document.getElementById('stu-firstName');
   var lnEl = document.getElementById('stu-lastName');
 
-  if (fnEl) fnEl.value = split.firstName;
-  if (lnEl) lnEl.value = split.lastName;
+  if (fnEl) fnEl.value = split.firstName || '';
+  if (lnEl) lnEl.value = split.lastName || '';
 
-  var regNo = (getFieldValue('stu-regNo') || '');
-  if (regNo.length >= 12) {
-    var yearCode = regNo.substring(4, 6);
-    var deptCode = regNo.substring(6, 9);
-    var dept = getDeptByNumber(deptCode);
-    var twoCode = dept
-      ? (dept.twoLetterCode || (dept.code ? dept.code.slice(0, 2).toLowerCase() : ''))
-      : '';
-    if (dept && twoCode) {
-      var email = buildStuEmail(clean, yearCode, twoCode);
-      var emailEl = document.getElementById('stu-email');
-      if (emailEl) emailEl.value = email;
-      _stuShowEmailVerify(email);
-      // Also refresh trackId in case name changed before regNo was fully decoded
-      var roll = regNo.substring(9, 12);
-      var tidEl = document.getElementById('stu-trackId');
-      if (tidEl && !tidEl.value) tidEl.value = buildStuTrackId(yearCode, twoCode, roll);
+  tryAutoDeriveStuEmail();
+  updateAddStudentLivePreview();
+}
+
+function updateAddTeacherLivePreview() {
+  var name = (getFieldValue('t-nm') || '').trim();
+  var empId = (getFieldValue('t-ei') || '').trim();
+  var deptSel = document.getElementById('t-dp');
+  var deptId = deptSel ? deptSel.value : '';
+  var dgSel = document.getElementById('t-dg');
+  var desig = dgSel ? (dgSel.options && dgSel.selectedIndex >= 0 ? dgSel.options[dgSel.selectedIndex].text : dgSel.value) : '';
+  var email = (getFieldValue('t-em') || '').trim();
+
+  // 1. Avatar initials
+  var avEl = document.getElementById('tch-preview-avatar');
+  if (avEl) avEl.textContent = getInitials(name) || 'TC';
+
+  // 2. Preview Name
+  var nmEl = document.getElementById('tch-preview-name');
+  if (nmEl) nmEl.textContent = name || 'Teacher Name';
+
+  // 3. Preview Employee ID
+  var empEl = document.getElementById('tch-preview-empid');
+  if (empEl) empEl.textContent = 'Employee ID ' + (empId || '—');
+
+  // 4. Preview Designation Chip
+  var desigChip = document.getElementById('tch-preview-desig');
+  if (desigChip) desigChip.textContent = desig || 'Assistant Professor';
+
+  // 5. First name / Last name split
+  var clean = sanitizeFullName(name);
+  var split = splitFirstLastName(clean);
+  var fnEl = document.getElementById('t-fn');
+  var lnEl = document.getElementById('t-ln');
+  if (fnEl) fnEl.value = split.firstName || '';
+  if (lnEl) lnEl.value = split.lastName || '';
+
+  var dispFn = document.getElementById('tch-disp-fn');
+  if (dispFn) {
+    if (split.firstName) {
+      dispFn.textContent = split.firstName;
+      dispFn.className = 'stu-kv-val';
+      dispFn.classList.remove('pd');
+    } else {
+      dispFn.textContent = 'After name';
+      dispFn.className = 'stu-kv-val pd';
+      dispFn.classList.add('pd');
+    }
+  }
+
+  var dispLn = document.getElementById('tch-disp-ln');
+  if (dispLn) {
+    if (split.lastName) {
+      dispLn.textContent = split.lastName;
+      dispLn.className = 'stu-kv-val';
+      dispLn.classList.remove('pd');
+    } else {
+      dispLn.textContent = 'After name';
+      dispLn.className = 'stu-kv-val pd';
+      dispLn.classList.add('pd');
+    }
+  }
+
+  // 6. Track ID
+  var trackId = getFieldValue('t-ti') || (empId ? ('TR-' + empId.replace(/^TR-?/i, '')) : '');
+  var dispTid = document.getElementById('tch-disp-tid');
+  if (dispTid) {
+    if (trackId) {
+      dispTid.textContent = trackId;
+      dispTid.className = 'stu-kv-val';
+      dispTid.classList.remove('pd');
+    } else {
+      dispTid.textContent = 'After employee ID';
+      dispTid.className = 'stu-kv-val pd';
+      dispTid.classList.add('pd');
+    }
+  }
+
+  // 7. Username
+  var unVal = email ? email.split('@')[0].replace(/\s+/g, '').toLowerCase() : getFieldValue('t-us');
+  var unInput = document.getElementById('t-us');
+  if (unInput && unVal) unInput.value = unVal;
+
+  var dispUn = document.getElementById('tch-disp-un');
+  if (dispUn) {
+    if (unVal) {
+      dispUn.textContent = unVal;
+      dispUn.className = 'stu-kv-val';
+      dispUn.classList.remove('pd');
+    } else {
+      dispUn.textContent = 'From email';
+      dispUn.className = 'stu-kv-val pd';
+      dispUn.classList.add('pd');
+    }
+  }
+
+  // 8. Required fields check and status hint
+  var missing = [];
+  if (!name) missing.push('Full name');
+  if (!empId || empId === 'EMP-') missing.push('Employee ID');
+  if (!deptId) missing.push('Department');
+  if (!desig) missing.push('Designation');
+
+  var statusEl = document.getElementById('tch-req-status');
+  var addBtn = document.getElementById('btn-add-tch');
+
+  if (missing.length > 0) {
+    if (statusEl) {
+      statusEl.textContent = 'Missing: ' + missing.join(', ');
+    }
+    if (addBtn) {
+      addBtn.classList.remove('ready', 'p');
+      addBtn.classList.add('d');
+    }
+  } else {
+    if (statusEl) {
+      statusEl.innerHTML = '<b style="color:var(--g)"><re-icon icon="check-circle" size="14"></re-icon> All required fields completed</b>';
+    }
+    if (addBtn) {
+      addBtn.classList.remove('d');
+      addBtn.classList.add('ready', 'p');
+      addBtn.removeAttribute('aria-disabled');
     }
   }
 }
+window.updateAddTeacherLivePreview = updateAddTeacherLivePreview;
+
+function onTchDeptChange() {
+  if (typeof updateAddTeacherLivePreview === 'function') updateAddTeacherLivePreview();
+}
+window.onTchDeptChange = onTchDeptChange;
+
+function onTchDesigChange() {
+  if (typeof updateAddTeacherLivePreview === 'function') updateAddTeacherLivePreview();
+}
+window.onTchDesigChange = onTchDesigChange;
 
 function onTchNameInput() {
   var nameEl = document.getElementById('t-nm');
@@ -8203,21 +11909,238 @@ function onTchNameInput() {
 
   if (fnEl) fnEl.value = split.firstName;
   if (lnEl) lnEl.value = split.lastName;
+
+  if (typeof updateAddTeacherLivePreview === 'function') updateAddTeacherLivePreview();
 }
+window.onTchNameInput = onTchNameInput;
 
 var STUDENT_PASSWORD = 'teacher123';
+
+// ─── ADD DEPARTMENT MODAL LIVE SYNCHRONIZATION ──────────────────────────────
+function onDeptNameInput() {
+  var nameEl = document.getElementById('dept-name');
+  var val = (nameEl ? nameEl.value : '').trim();
+  var code2El = document.getElementById('dept-2code');
+  var code3El = document.getElementById('dept-code');
+
+  if (val) {
+    var words = val.replace(/[^a-zA-Z0-9\s]/g, '').split(/\s+/).filter(Boolean);
+    if (code2El && (!code2El.value || code2El.dataset.autoDerived === 'true')) {
+      var suggested2 = '';
+      if (words.length >= 2) {
+        suggested2 = (words[0][0] + words[1][0]).toLowerCase();
+      } else if (words.length === 1) {
+        suggested2 = words[0].substring(0, 2).toLowerCase();
+      }
+      code2El.value = suggested2;
+      code2El.dataset.autoDerived = 'true';
+    }
+    if (code3El && (!code3El.value || code3El.dataset.autoDerived === 'true')) {
+      var suggested3 = '';
+      if (words.length >= 3) {
+        suggested3 = (words[0][0] + words[1][0] + words[2][0]).toUpperCase();
+      } else if (words.length === 2) {
+        suggested3 = (words[0].substring(0, 2) + words[1][0]).toUpperCase();
+      } else if (words.length === 1) {
+        suggested3 = words[0].substring(0, 3).toUpperCase();
+      }
+      code3El.value = suggested3;
+      code3El.dataset.autoDerived = 'true';
+    }
+  } else {
+    if (code2El && code2El.dataset.autoDerived === 'true') {
+      code2El.value = '';
+    }
+    if (code3El && code3El.dataset.autoDerived === 'true') {
+      code3El.value = '';
+    }
+  }
+  updateAddDeptLivePreview();
+}
+window.onDeptNameInput = onDeptNameInput;
+
+function onDeptCourseTypeChange() {
+  if (typeof updateBranch === 'function') {
+    updateBranch();
+  }
+  updateAddDeptLivePreview();
+}
+window.onDeptCourseTypeChange = onDeptCourseTypeChange;
+
+function updateAddDeptLivePreview() {
+  var name = (getFieldValue('dept-name') || '').trim();
+  var catEl = document.getElementById('dept-category');
+  var category = catEl ? catEl.value : 'programme';
+  var categoryLabel = category === 'supporting' ? 'Supporting Departments' : 'Programme Departments';
+  var twoCode = (getFieldValue('dept-2code') || '').trim().toLowerCase();
+  var threeCode = (getFieldValue('dept-code') || '').trim().toUpperCase();
+  var number = (getFieldValue('dept-number') || '').trim();
+  var coTypeEl = document.getElementById('co-type');
+  var courseType = coTypeEl ? coTypeEl.value : '';
+  var brEl = document.getElementById('branch');
+  var branch = brEl ? brEl.value : '';
+
+  // 1. Preview Avatar
+  var avEl = document.getElementById('dept-preview-avatar');
+  if (avEl) {
+    if (twoCode) {
+      avEl.textContent = twoCode.substring(0, 2).toUpperCase();
+    } else if (name) {
+      var words = name.replace(/[^a-zA-Z0-9\s]/g, '').split(/\s+/).filter(Boolean);
+      if (words.length >= 2) {
+        avEl.textContent = (words[0][0] + words[1][0]).toUpperCase();
+      } else {
+        avEl.textContent = name.substring(0, 2).toUpperCase();
+      }
+    } else {
+      avEl.textContent = 'DP';
+    }
+  }
+
+  // 2. Preview Name
+  var nmEl = document.getElementById('dept-preview-name');
+  if (nmEl) nmEl.textContent = name || 'Department Name';
+
+  // 3. Preview Category
+  var catP = document.getElementById('dept-preview-category');
+  if (catP) catP.textContent = categoryLabel;
+
+  // 4. Preview Code Chip
+  var chpEl = document.getElementById('dept-preview-code');
+  if (chpEl) chpEl.textContent = threeCode || 'CODE';
+
+  // 5. Auto-filled rows
+  var d2El = document.getElementById('dept-disp-2code');
+  if (d2El) {
+    if (twoCode) {
+      d2El.textContent = twoCode.toLowerCase();
+      d2El.className = 'dept-kv-val';
+    } else {
+      d2El.textContent = 'Pending';
+      d2El.className = 'pd dept-kv-val';
+    }
+  }
+
+  var d3El = document.getElementById('dept-disp-code');
+  if (d3El) {
+    if (threeCode) {
+      d3El.textContent = threeCode;
+      d3El.className = 'dept-kv-val';
+    } else {
+      d3El.textContent = 'Pending';
+      d3El.className = 'pd dept-kv-val';
+    }
+  }
+
+  var dNumEl = document.getElementById('dept-disp-number');
+  if (dNumEl) {
+    if (number) {
+      dNumEl.textContent = number;
+      dNumEl.className = 'dept-kv-val';
+    } else {
+      dNumEl.textContent = 'Pending';
+      dNumEl.className = 'pd dept-kv-val';
+    }
+  }
+
+  var dCtEl = document.getElementById('dept-disp-coursetype');
+  if (dCtEl) {
+    if (courseType) {
+      dCtEl.textContent = courseType;
+      dCtEl.className = 'dept-kv-val';
+    } else {
+      dCtEl.textContent = 'Pending';
+      dCtEl.className = 'pd dept-kv-val';
+    }
+  }
+
+  var dBrEl = document.getElementById('dept-disp-branch');
+  if (dBrEl) {
+    if (branch) {
+      dBrEl.textContent = branch;
+      dBrEl.className = 'dept-kv-val';
+    } else if (!courseType) {
+      dBrEl.textContent = 'After course type';
+      dBrEl.className = 'pd dept-kv-val';
+    } else {
+      dBrEl.textContent = 'Pending';
+      dBrEl.className = 'pd dept-kv-val';
+    }
+  }
+
+  // 6. Branch dropdown disabled styling & auto-population
+  if (brEl) {
+    if (!courseType) {
+      brEl.disabled = true;
+      brEl.classList.add('dis');
+      if (!brEl.options || brEl.options.length <= 1) {
+        brEl.innerHTML = '<option value="">— Select Course Type First —</option>';
+      }
+    } else {
+      brEl.disabled = false;
+      brEl.classList.remove('dis');
+      if (!brEl.options || brEl.options.length <= 1 || (brEl.options[0] && brEl.options[0].textContent.includes('First'))) {
+        if (typeof updateBranch === 'function') {
+          updateBranch();
+        }
+      }
+    }
+  }
+
+  // 7. Required fields validation and status hint
+  var missing = [];
+  if (!name) missing.push('Department name');
+  if (!twoCode) missing.push('2-letter code');
+  if (!threeCode) missing.push('3-letter code');
+  if (!number || !/^\d{3}$/.test(number)) missing.push('Department code');
+  if (!courseType) missing.push('Course type');
+  if (!branch) missing.push('Branch');
+
+  var cntEl = document.getElementById('dept-req-count');
+  var nmsEl = document.getElementById('dept-req-names');
+  var btn = document.getElementById('btn-add-dept');
+
+  if (missing.length === 0) {
+    if (cntEl) cntEl.textContent = 'All required fields completed';
+    if (nmsEl) nmsEl.textContent = '';
+    if (btn) {
+      btn.classList.add('ready', 'p');
+      btn.classList.remove('d');
+      btn.setAttribute('aria-disabled', 'false');
+    }
+  } else {
+    if (cntEl) cntEl.textContent = missing.length + ' required field' + (missing.length > 1 ? 's' : '') + ' left';
+    if (nmsEl) nmsEl.textContent = ' · ' + missing.join(', ');
+    if (btn) {
+      btn.classList.remove('ready', 'p');
+      btn.classList.add('d');
+      btn.setAttribute('aria-disabled', 'true');
+    }
+  }
+}
+window.updateAddDeptLivePreview = updateAddDeptLivePreview;
 
 // ─── RESET / CLEAR HELPERS ───────────────────────────────────────────────────
 function resetDeptForm() {
   clearInputs(['dept-name', 'dept-2code', 'dept-code', 'dept-number']);
+  var c2 = document.getElementById('dept-2code'); if (c2) delete c2.dataset.autoDerived;
+  var c3 = document.getElementById('dept-code'); if (c3) delete c3.dataset.autoDerived;
   var catEl = document.getElementById('dept-category');
-  if (catEl) catEl.value = _deptCategoryFilter || 'programme';
+  if (catEl) catEl.value = (_deptCategoryFilter === 'supporting' || _deptCategoryFilter === 'programme') ? _deptCategoryFilter : 'programme';
   var coEl = document.getElementById('co-type'); if (coEl) coEl.value = '';
-  var brEl = document.getElementById('branch'); if (brEl) brEl.innerHTML = '<option value="">— Select Course Type First —</option>';
+  var brEl = document.getElementById('branch');
+  if (brEl) {
+    brEl.innerHTML = '<option value="">— Select Course Type First —</option>';
+    brEl.disabled = true;
+    brEl.classList.add('dis');
+  }
+  if (typeof updateAddDeptLivePreview === 'function') updateAddDeptLivePreview();
 }
 
 function resetTeacherForm() {
-  clearInputs(['t-nm', 't-fn', 't-ln', 't-ei', 't-us', 't-ti']);
+  clearInputs(['t-nm', 't-fn', 't-ln', 't-us', 't-em']);
+
+  prepareAddTeacherForm(true);
 
   var password = STUDENT_PASSWORD;
   var pwEl = document.getElementById('t-pw'); if (pwEl) pwEl.value = password;
@@ -8242,16 +12165,27 @@ function resetTeacherForm() {
     }
   }
   var dgEl = document.getElementById('t-dg'); if (dgEl) dgEl.selectedIndex = 0;
+  if (typeof SearchableDropdown !== 'undefined') {
+    SearchableDropdown.sync('t-dp');
+    SearchableDropdown.sync('t-dg');
+  }
+  if (typeof updateAddTeacherLivePreview === 'function') {
+    updateAddTeacherLivePreview();
+  }
 }
 
 function resetStudentForm() {
-  clearInputs(['stu-name', 'stu-firstName', 'stu-lastName', 'stu-courseType', 'stu-branch', 'stu-trackId', 'stu-email', 'stu-username']);
+  clearInputs(['stu-name', 'stu-firstName', 'stu-lastName', 'stu-rollNo', 'stu-courseType', 'stu-branch', 'stu-trackId', 'stu-email', 'stu-username']);
   var rnEl = document.getElementById('stu-regNo'); if (rnEl) rnEl.value = '7140';
+  var rollEl = document.getElementById('stu-rollNo'); if (rollEl) rollEl.value = '';
   var pwEl = document.getElementById('stu-password'); if (pwEl) pwEl.value = '';
   var sfRes = document.getElementById('sf-residency');
   var defaultRes = (sfRes && sfRes.value) ? sfRes.value : 'dayscholar';
   var resEl = document.getElementById('stu-residency'); if (resEl) resEl.value = (defaultRes === 'hostel' || defaultRes === 'hosteller') ? 'hostel' : 'dayscholar';
   var genEl = document.getElementById('stu-gender'); if (genEl) genEl.value = 'Male';
+  var sfAdm = document.getElementById('sf-admission-type');
+  var defaultAdm = (sfAdm && sfAdm.value) ? (sfAdm.value.toLowerCase().includes('lateral') ? 'Lateral Entry' : 'Regular') : 'Regular';
+  var admEl = document.getElementById('stu-admission-type'); if (admEl) admEl.value = defaultAdm;
   var dpEl = document.getElementById('stu-dept');
   if (isCurrentUserSuperAdmin()) {
     var dInfo = getCurrentUserDeptInfo();
@@ -8273,15 +12207,23 @@ function resetStudentForm() {
       dpEl.style.cursor = '';
     }
     updateStuClassList();
+  updateAddStudentLivePreview();
   }
   if (typeof SearchableDropdown !== 'undefined') {
     SearchableDropdown.sync('stu-dept');
     SearchableDropdown.sync('stu-class');
   }
   hideStuEmailPopup();
-  _stuEmailVerified = false;
+  _stuEmailVerified = true;
   _stuEmailBeforeNo = '';
-  _setStuAddBtn(false);
+  _setStuAddBtn(true);
+
+  setStuGender('Male');
+  setStuAdmissionType('Regular');
+  setStuResidency('dayscholar');
+  var pwEl = document.getElementById('stu-password');
+  if (pwEl) pwEl.value = 'student123';
+  updateAddStudentLivePreview();
 }
 
 // ─── TEACHERS PAGE — GLOBAL STATE ────────────────────────────────────────
@@ -8441,9 +12383,67 @@ function _getTeacherCardRoleClass(teacher) {
     || (Array.isArray(teacher.specials) && teacher.specials.some(function (s) { return s && s.option === 'isHod'; }))
     || (Array.isArray(teacher.roles) && teacher.roles.includes('hod')));
 
-  if (isSudo) return ' is-sudo-admin';
-  if (isSuper) return ' is-super-admin';
-  if (isHod) return ' is-hod';
+  if (isSudo) return ' k-pu is-sudo-admin';
+  if (isSuper) return ' k-rd is-super-admin';
+  if (isHod) return ' k-or is-hod';
+  return '';
+}
+
+function _getTeacherCardTag(teacher) {
+  if (!teacher) return '';
+
+  // Order of prominence matching design reference:
+  // Principal (amber), Sudo Admin (purple), Super Admin (red), Sub-Admin (purple), HOD (orange), TT Coord (purple)
+  if (teacher.isPrincipal) {
+    return '<span class="tag am"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l2.6 5.6 6 .8-4.4 4.2 1.1 6L12 16.7 6.7 19.6l1.1-6L3.4 9.4l6-.8z"></path></svg> Principal</span>';
+  }
+
+  var isSudo = !!teacher.isSudoAdmin || teacher.adminTier === 'sudo' || teacher.role === 'sudo'
+    || (teacher.pageRights && teacher.pageRights.accessRole === 'sudoAdmin')
+    || (Array.isArray(teacher.pageRights) && teacher.pageRights.some(function (p) { return p && p.enabled !== false && p.accessRole === 'sudoAdmin'; }));
+
+  var isSuper = !isSudo && (!!teacher.isSuperAdmin || teacher.adminTier === 'super'
+    || (teacher.pageRights && teacher.pageRights.accessRole === 'superAdmin')
+    || (Array.isArray(teacher.pageRights) && teacher.pageRights.some(function (p) { return p && p.enabled !== false && p.accessRole === 'superAdmin'; })));
+
+  var isSub = !isSudo && !isSuper && (!!teacher.isSubAdmin || teacher.adminTier === 'sub'
+    || (teacher.pageRights && teacher.pageRights.accessRole === 'subAdmin')
+    || (Array.isArray(teacher.pageRights) && teacher.pageRights.some(function (p) { return p && p.enabled !== false; })));
+
+  var hasGeneralAdmin = !isSudo && !isSuper && !isSub && (!!teacher.isAdmin || (Array.isArray(teacher.specials) && teacher.specials.some(function (s) { return s && s.option === 'isAdmin'; })));
+  if (hasGeneralAdmin) {
+    var nameLower = ((teacher.name || '') + ' ' + (teacher.desig || '') + ' ' + (teacher.username || '')).toLowerCase();
+    if (nameLower.indexOf('system admin') !== -1 || teacher.username === 'admin' || !teacher.deptId) {
+      isSudo = true;
+    } else {
+      isSuper = true;
+    }
+  }
+
+  if (isSudo) {
+    return '<span class="tag pu"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"></path></svg> Sudo Admin</span>';
+  }
+
+  if (isSuper) {
+    return '<span class="tag rd"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"></path></svg> Super Admin</span>';
+  }
+
+  var isHod = Boolean(teacher.isHOD || teacher.isHod
+    || (Array.isArray(teacher.specials) && teacher.specials.some(function (s) { return s && s.option === 'isHod'; }))
+    || (Array.isArray(teacher.roles) && teacher.roles.includes('hod')));
+
+  if (isHod) {
+    return '<span class="tag or"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8l4 4 5-7 5 7 4-4-2 11H5z"></path></svg> HOD</span>';
+  }
+
+  if (teacher.isTimeTableCoordinator) {
+    return '<span class="tag pu"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="2"></rect><path d="M4 10h16M9 3v4M15 3v4"></path></svg> TT Coord</span>';
+  }
+
+  if (isSub) {
+    return '<span class="tag pu"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"></path></svg> Sub-Admin</span>';
+  }
+
   return '';
 }
 
@@ -8530,28 +12530,47 @@ function _renderTeacherGrid(data) {
       var nameInitial = ((teacher.name || '')[0] || 'T').toUpperCase();
       var tid = teacher._id;
       var isActive = teacher.status ? teacher.status === 'active' : (teacher.active !== false);
-      var badges = _teacherRoleBadges(teacher);
+      var roleTag = _getTeacherCardTag(teacher);
       var cleanEmail = (teacher.email || '').replace(/\s+/g, '');
       var roleClass = _getTeacherCardRoleClass(teacher);
-      return '<div class="tcrd teacher-card' + roleClass + '" onclick="openTD(\'' + tid + '\')">'
-        + '<div class="tcrd-head">'
-        + '<div class="tav' + roleClass + '">' + nameInitial
-        + '<span class="t-status-dot' + (isActive ? '' : ' inactive') + '" title="' + (isActive ? 'Active' : 'Inactive') + '"></span>'
+      var empId = teacher.empId || teacher.trackId || 'TEACHER';
+      var deptName = teacher.dept || teacher.department || 'Faculty';
+      var isSpecialDept = /\b(math|mathematics|science|physics|chemistry|humanities)\b/i.test(deptName);
+      var deptClass = isSpecialDept ? 'ln sp' : 'ln pg';
+
+      return '<article class="tcrd teacher-card tc' + roleClass + '" onclick="openTD(\'' + tid + '\')">'
+        + '<div class="r1">'
+        + roleTag
+        + '<span class="em" title="Employee ID">' + escapeHtml(empId) + '</span>'
         + '</div>'
-        + '<span class="tcrd-code" title="Employee ID">' + (teacher.empId || 'TEACHER') + '</span>'
+        + '<div class="r2">'
+        + '<span class="avw">'
+        + '<i class="av" style="font-style:normal">' + nameInitial + '</i>'
+        + '<i class="dot' + (isActive ? '' : ' inactive') + '" title="' + (isActive ? 'Active' : 'Inactive') + '"></i>'
+        + '</span>'
+        + '<span class="nm">'
+        + '<h3 title="' + escapeHtml(teacher.name || '') + '">' + escapeHtml(teacher.name || '—') + '</h3>'
+        + '<p title="' + escapeHtml(teacher.desig || '') + '">' + escapeHtml(teacher.desig || 'Faculty') + '</p>'
+        + '</span>'
         + '</div>'
-        + '<div class="tcrd-label">' + (teacher.dept || 'Faculty') + '</div>'
-        + '<div class="tnm" title="' + (teacher.name || '') + '">' + (teacher.name || '—') + '</div>'
-        + '<div class="tdp">' + (teacher.desig || '—') + '</div>'
-        + (cleanEmail ? '<div class="t-email" title="' + cleanEmail + '"><re-icon icon="envelope" size="11"></re-icon> ' + cleanEmail + '</div>' : '')
-        + (badges ? '<div class="t-badges-wrap">' + badges + '</div>' : '')
-        + '<div class="tsts tsts-2col">'
-        + '<div class="tst2"><div class="tst2-head"><re-icon icon="book-open" size="13"></re-icon>Subjects</div><span class="tst2-val">' + assignmentCount + '</span></div>'
-        + '<div class="tst2"><div class="tst2-head"><re-icon icon="circle-check" size="13"></re-icon>Status</div><span class="tst2-val tst2-val-status' + (isActive ? ' active' : ' inactive') + '">' + (isActive ? 'Active' : 'Inactive') + '</span></div>'
+        + '<div class="r3">'
+        + '<span class="' + deptClass + '" title="' + escapeHtml(deptName) + '">'
+        + '<i><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 21V5l8-3v19M12 9h8v12M2 21h20M8 8h1M8 12h1M8 16h1"></path></svg></i>'
+        + '<span>' + escapeHtml(deptName) + '</span>'
+        + '</span>'
+        + '<span class="ln" title="' + escapeHtml(cleanEmail || 'No email registered') + '">'
+        + '<i><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"></rect><path d="M3 7l9 6 9-6"></path></svg></i>'
+        + '<span>' + escapeHtml(cleanEmail || 'No email registered') + '</span>'
+        + '</span>'
         + '</div>'
-        + '<div class="tcrd-actions">'
-        + '<button class="btn-out btn-sm" onclick="event.stopPropagation();openTD(\'' + tid + '\')" title="View / Edit teacher"><re-icon icon="edit" size="12"></re-icon> View / Edit</button>'
-        + '</div></div>';
+        + '<div class="st2">'
+        + '<span>Subjects<b>' + assignmentCount + '</b></span>'
+        + '<span>Status<em class="' + (isActive ? 'active' : 'inactive') + '">' + (isActive ? 'Active' : 'Inactive') + '</em></span>'
+        + '</div>'
+        + '<button class="vb" type="button" onclick="event.stopPropagation();openTD(\'' + tid + '\')" title="View / Edit teacher">'
+        + '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"></path></svg> View / Edit'
+        + '</button>'
+        + '</article>';
     }).join('');
   }
 
@@ -8573,8 +12592,7 @@ function _renderTeacherTable(list) {
     var badges = _teacherRoleBadges(teacher) || '<span style="color:var(--tdi);">—</span>';
     var safeName = (teacher.name || '').replace(/'/g, "\\'");
     var cleanEmail = (teacher.email || '').replace(/\s+/g, '');
-    var roleClass = _getTeacherCardRoleClass(teacher);
-    return '<tr class="' + roleClass.trim() + '">'
+    return '<tr>'
       + '<td>' + (i + 1) + '</td>'
       + '<td class="b">' + (teacher.name || '—') + '</td>'
       + '<td>' + (teacher.empId || '—') + '</td>'
@@ -9752,7 +13770,12 @@ function openModal_(id) {
         }
         SearchableDropdown.sync('stu-dept');
         SearchableDropdown.sync('stu-class');
+        updateAddStudentLivePreview();
+        setTimeout(function () { updateAllSegGliders(false); }, 40);
       } else if (id === 'm-add-teacher') {
+        if (typeof prepareAddTeacherForm === 'function') {
+          prepareAddTeacherForm();
+        }
         if (isCurrentUserSuperAdmin()) {
           var dInfo = getCurrentUserDeptInfo();
           var myDeptId = dInfo.id;
@@ -9767,9 +13790,27 @@ function openModal_(id) {
             tDept.style.cursor = 'not-allowed';
           }
         }
+        if (typeof SearchableDropdown !== 'undefined') {
+          SearchableDropdown.sync('t-dp');
+          SearchableDropdown.sync('t-dg');
+        }
+        if (typeof updateAddTeacherLivePreview === 'function') {
+          updateAddTeacherLivePreview();
+        }
       } else if (id === 'm-stu-edit') {
         SearchableDropdown.sync('edit-dept');
         SearchableDropdown.sync('edit-class');
+        updateEditStudentLivePreview();
+        setTimeout(function () { updateAllSegGliders(false); }, 40);
+      } else if (id === 'm-assign-advisor') {
+        SearchableDropdown.sync('adv-modal-select');
+      } else if (id === 'm-assign-representatives') {
+        SearchableDropdown.sync('rep-modal-select-1');
+        SearchableDropdown.sync('rep-modal-select-2');
+      } else if (id === 'm-add-dept') {
+        if (typeof updateAddDeptLivePreview === 'function') {
+          updateAddDeptLivePreview();
+        }
       }
     }
   }
@@ -10096,19 +14137,35 @@ function apiCall(method, path, body) {
 
 var _counts = { depts: 0, classes: 0, subjects: 0, students: 0, users: 0, teachers: 0, assignments: 0, logs: 0, notifications: 0, pendingNotifs: 0 };
 var _loaded = { depts: false, classes: false, subjects: false, students: false, users: false, assignments: false, logs: false, notifications: false };
+var _lastCountsSyncTimestamp = 0;
+var COUNTS_THROTTLE_MS = 15000;
+var _countsPromise = null;
 
-function syncCountsFromAPI() {
+function syncCountsFromAPI(force) {
   var tok = getToken();
   if (!tok) return Promise.resolve(_counts);
-  return fetch('/api/dashboard/counts', { headers: { 'Authorization': 'Bearer ' + tok } })
+  if (!force && _countsPromise) {
+    return _countsPromise;
+  }
+  if (!force && (Date.now() - _lastCountsSyncTimestamp < COUNTS_THROTTLE_MS)) {
+    _applyCountsToBadges();
+    return Promise.resolve(_counts);
+  }
+  _countsPromise = fetch('/api/dashboard/counts', { headers: { 'Authorization': 'Bearer ' + tok } })
     .then(function (r) { return r.json(); })
     .then(function (data) {
+      _countsPromise = null;
       if (data && !data.error) {
         _counts = data;
+        _lastCountsSyncTimestamp = Date.now();
         _applyCountsToBadges();
       }
       return _counts;
-    }).catch(function () { return _counts; });
+    }).catch(function () {
+      _countsPromise = null;
+      return _counts;
+    });
+  return _countsPromise;
 }
 
 function _applyCountsToBadges() {
@@ -10171,7 +14228,6 @@ function syncFromAPI(collection, apiPath) {
       var arr = Array.isArray(data) ? data : (data && Array.isArray(data.data) ? data.data : null);
       if (arr) {
         DB.set(collection, arr);
-        syncCountsFromAPI();
         return arr;
       }
       console.warn('[EAMS] syncFromAPI unexpected response for ' + apiPath + ':', data);
@@ -10408,6 +14464,9 @@ function _refreshTeacherList() {
     .then(function (list) {
       _teacherData = Array.isArray(list) ? list : [];
       _renderTeacherGrid(_teacherData);
+      if (typeof prepareAddTeacherForm === 'function') {
+        prepareAddTeacherForm();
+      }
     })
     .catch(function (err) {
       console.error('Failed to refresh teacher list:', err);
@@ -10706,6 +14765,22 @@ window.addEventListener('load', function () {
     .then(function (pub) {
       window._pubSettings = pub;
       updateRoomReqVisibility();
+      if (typeof window.updateExecutiveRolesTabVisibility === 'function') {
+        window.updateExecutiveRolesTabVisibility();
+      }
+      var trustSbItem = document.querySelector('.sb-item[data-page="trust"]');
+      if (trustSbItem && pub.pages) {
+        var pTrust = String(pub.pages.pageTrust || 'enabled').toLowerCase();
+        if (pTrust === 'hidden') {
+          trustSbItem.style.display = 'none';
+        } else if (pTrust === 'disabled') {
+          trustSbItem.style.opacity = '0.5';
+          trustSbItem.title = 'Trust & Devices Management is currently disabled';
+        } else {
+          trustSbItem.style.display = '';
+          trustSbItem.style.opacity = '';
+        }
+      }
       if (pub.institution) {
         var shortN = pub.institution.institutionShort || 'SIET';
         document.title = 'EAMS – Admin Dashboard | ' + shortN;
@@ -10721,6 +14796,7 @@ window.addEventListener('load', function () {
         if (pub.models.modelAddStudent === false) {
           var addStuBtn = document.getElementById('btn-add-student');
           if (addStuBtn) addStuBtn.style.display = 'none';
+          document.querySelectorAll('[onclick*="m-add-student"]').forEach(function (b) { b.style.display = 'none'; });
         }
       }
     }).catch(function (e) { console.warn(e); });
@@ -10951,24 +15027,28 @@ function initAdminSearchableDropdowns() {
   // 3. Department & Class in Add Student Modal
   SearchableDropdown.attach('stu-dept', {
     kind: 'dept',
-    placeholder: '— Select Department —',
+    placeholder: 'Select department',
+    showIcon: false,
     searchPlaceholder: 'Search department name, code…'
   });
   SearchableDropdown.attach('stu-class', {
     kind: 'class',
-    placeholder: '— Select Class —',
+    placeholder: 'Select class',
+    showIcon: false,
     searchPlaceholder: 'Search class, section, batch…'
   });
 
   // 4. Department & Class in Edit Student Modal
   SearchableDropdown.attach('edit-dept', {
     kind: 'dept',
-    placeholder: '— Select Department —',
+    placeholder: 'Select department',
+    showIcon: false,
     searchPlaceholder: 'Search department name, code…'
   });
   SearchableDropdown.attach('edit-class', {
     kind: 'class',
-    placeholder: '— Select Class —',
+    placeholder: 'Select class',
+    showIcon: false,
     searchPlaceholder: 'Search class, section, batch…'
   });
 
@@ -10982,6 +15062,40 @@ function initAdminSearchableDropdowns() {
     placeholder: '— None (Unassigned) —',
     searchPlaceholder: 'Search faculty name, ID…'
   });
+
+  // 5b. Class Advisor in Assign Class Advisor Modal Popup
+  if (document.getElementById('adv-modal-select')) {
+    SearchableDropdown.attach('adv-modal-select', {
+      kind: 'advisor',
+      showIcon: true,
+      width: '100%',
+      placeholder: '— None (Unassigned) —',
+      searchPlaceholder: 'Search faculty name, ID, dept…',
+      search: true
+    });
+  }
+
+  // 5c. Class Representatives in Assign Class Representatives Modal Popup
+  if (document.getElementById('rep-modal-select-1')) {
+    SearchableDropdown.attach('rep-modal-select-1', {
+      kind: 'student',
+      showIcon: true,
+      width: '100%',
+      placeholder: '— Select Primary Representative —',
+      searchPlaceholder: 'Search student name, register no…',
+      search: true
+    });
+  }
+  if (document.getElementById('rep-modal-select-2')) {
+    SearchableDropdown.attach('rep-modal-select-2', {
+      kind: 'student',
+      showIcon: true,
+      width: '100%',
+      placeholder: '— None (Optional) —',
+      searchPlaceholder: 'Search student name, register no…',
+      search: true
+    });
+  }
 
   // 6. Assign Subject to Class Modal (Subject and Teacher fallback)
   if (document.getElementById('as-subj')) {
@@ -11012,6 +15126,26 @@ function initAdminSearchableDropdowns() {
     searchPlaceholder: 'Search designation…',
     search: true
   });
+
+  // 8. Department & Designation in Add Teacher Modal
+  if (document.getElementById('t-dp')) {
+    SearchableDropdown.attach('t-dp', {
+      kind: 'dept',
+      placeholder: '— Select —',
+      showIcon: false,
+      searchPlaceholder: 'Search department name, code…',
+      search: true
+    });
+  }
+  if (document.getElementById('t-dg')) {
+    SearchableDropdown.attach('t-dg', {
+      kind: 'desig',
+      placeholder: 'Select designation',
+      showIcon: false,
+      searchPlaceholder: 'Search designation…',
+      search: true
+    });
+  }
 }
 
 // Auto-run if DOM is ready

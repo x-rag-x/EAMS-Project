@@ -1,0 +1,384 @@
+/**
+ * Request Tracker Styles
+ * Page-scoped prefixes: trk- (tracker) and apr- (approval tables)
+ * Follows EAMS design system - uses CSS variables from base.css
+ * Accessible, theme-aware, supports prefers-reduced-motion
+ */
+
+/* ── Tracker Panel (Full Display) ────────────────────────── */
+.trk-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 14px 16px;
+  background: #f8fafc;
+  border-radius: 12px;
+  border: 1px solid var(--brl);
+}
+
+.trk-node {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  position: relative;
+}
+
+.trk-node__icon {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 700;
+  border: 2px solid;
+  background: #fff;
+  z-index: 2;
+}
+
+.trk-node__content {
+  flex: 1;
+  padding-bottom: 14px;
+}
+
+.trk-node__label {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--td);
+  margin-bottom: 2px;
+}
+
+.trk-node__actor {
+  font-size: 11.5px;
+  color: var(--tmu);
+  margin-bottom: 1px;
+}
+
+.trk-node__time {
+  font-size: 10.5px;
+  color: var(--tdi);
+  margin-bottom: 3px;
+}
+
+.trk-node__remarks {
+  font-size: 11.5px;
+  color: var(--td);
+  padding: 6px 10px;
+  background: var(--gLt);
+  border-radius: 6px;
+  border-left: 3px solid var(--gLr);
+  margin-top: 6px;
+}
+
+/* ── State Colors ────────────────────────────────────── */
+.trk-node--done .trk-node__icon {
+  background: var(--success);
+  border-color: var(--success);
+  color: #fff;
+}
+
+.trk-node--current .trk-node__icon {
+  background: #fff;
+  border-color: var(--orange);
+  color: var(--orange);
+  box-shadow: 0 0 0 4px rgba(249, 115, 22, 0.1);
+  animation: trk-pulse 2s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .trk-node--current .trk-node__icon {
+    animation: none;
+  }
+}
+
+@keyframes trk-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 4px rgba(249, 115, 22, 0.1);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(249, 115, 22, 0.15);
+  }
+}
+
+.trk-node--rejected .trk-node__icon {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: #fff;
+}
+
+.trk-node--rejected .trk-node__remarks {
+  background: var(--danger-lt);
+  border-left-color: var(--danger);
+}
+
+.trk-node--returned .trk-node__icon {
+  background: var(--warn);
+  border-color: var(--warn);
+  color: #fff;
+}
+
+.trk-node--returned .trk-node__remarks {
+  background: var(--warn-lt);
+  border-left-color: var(--warn);
+}
+
+.trk-node--skipped .trk-node__icon {
+  background: #f3f4f6;
+  border-color: #d1d5db;
+  color: #9ca3af;
+}
+
+.trk-node--upcoming .trk-node__icon {
+  background: #fff;
+  border-color: #e5e7eb;
+  color: #9ca3af;
+}
+
+/* ── Connector Line ────────────────────────────────────── */
+.trk-connector {
+  width: 2px;
+  height: 14px;
+  background: var(--brl);
+  margin-left: 13px;
+  margin-top: -14px;
+  margin-bottom: 2px;
+}
+
+/* ── Mini Tracker (Dots) ────────────────────────────────── */
+.trk-mini {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 0;
+}
+
+.trk-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  border: 2px solid;
+}
+
+.trk-dot--done {
+  background: var(--success);
+  border-color: var(--success);
+}
+
+.trk-dot--current {
+  background: #fff;
+  border-color: var(--orange);
+  box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.15);
+}
+
+.trk-dot--rejected {
+  background: var(--danger);
+  border-color: var(--danger);
+}
+
+.trk-dot--returned {
+  background: var(--warn);
+  border-color: var(--warn);
+}
+
+.trk-dot--skipped {
+  background: #f3f4f6;
+  border-color: #d1d5db;
+}
+
+.trk-dot--upcoming {
+  background: #fff;
+  border-color: #e5e7eb;
+}
+
+.trk-dot-connector {
+  width: 12px;
+  height: 2px;
+  background: var(--brl);
+  flex-shrink: 0;
+}
+
+/* ── Pill Status (Single Line Summary) ────────────────────── */
+.trk-pill {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.trk-pill--approved {
+  background: var(--success-lt);
+  color: var(--success);
+  border: 1px solid var(--success-br);
+}
+
+.trk-pill--rejected {
+  background: var(--danger-lt);
+  color: var(--danger);
+  border: 1px solid var(--danger-br);
+}
+
+.trk-pill--pending {
+  background: rgba(249, 115, 22, 0.1);
+  color: var(--orange);
+  border: 1px solid rgba(249, 115, 22, 0.3);
+}
+
+.trk-pill--unknown {
+  background: #f3f4f6;
+  color: #6b7280;
+  border: 1px solid #d1d5db;
+}
+
+/* ── Error State ────────────────────────────────────── */
+.trk-error {
+  padding: 12px;
+  background: var(--danger-lt);
+  color: var(--danger);
+  border-radius: 4px;
+  font-size: 13px;
+  text-align: center;
+}
+
+/* ── Approval Tables (Teacher Portal) ────────────────────── */
+.apr-table-container {
+  overflow-x: auto;
+  border-radius: 8px;
+  border: 1px solid var(--brl);
+  background: #fff;
+}
+
+.apr-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.apr-table thead {
+  background: var(--gLt);
+}
+
+.apr-table th {
+  padding: 12px 16px;
+  text-align: left;
+  font-weight: 600;
+  color: var(--td);
+  border-bottom: 2px solid var(--brl);
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+}
+
+.apr-table th:hover {
+  background: var(--gLr);
+}
+
+.apr-table th.apr-sortable::after {
+  content: '⇅';
+  margin-left: 6px;
+  opacity: 0.4;
+  font-size: 12px;
+}
+
+.apr-table th.apr-sorted-asc::after {
+  content: '↑';
+  opacity: 1;
+}
+
+.apr-table th.apr-sorted-desc::after {
+  content: '↓';
+  opacity: 1;
+}
+
+.apr-table tbody tr {
+  border-bottom: 1px solid var(--brl);
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.apr-table tbody tr:hover {
+  background: var(--gP);
+}
+
+.apr-table td {
+  padding: 12px 16px;
+  color: var(--td);
+}
+
+.apr-table td.apr-actions {
+  white-space: nowrap;
+}
+
+.apr-btn {
+  padding: 6px 14px;
+  border: none;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-right: 8px;
+}
+
+.apr-btn:last-child {
+  margin-right: 0;
+}
+
+.apr-btn--approve {
+  background: var(--success);
+  color: #fff;
+}
+
+.apr-btn--approve:hover {
+  background: #15803d;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(22, 163, 74, 0.3);
+}
+
+.apr-btn--reject {
+  background: var(--danger);
+  color: #fff;
+}
+
+.apr-btn--reject:hover {
+  background: #b91c1c;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(220, 38, 38, 0.3);
+}
+
+/* ── Responsive ────────────────────────────────────── */
+@media (max-width: 767px) {
+  .trk-panel {
+    padding: 16px;
+  }
+
+  .trk-node {
+    gap: 12px;
+  }
+
+  .trk-node__icon {
+    width: 28px;
+    height: 28px;
+    font-size: 14px;
+  }
+
+  .apr-table {
+    font-size: 13px;
+  }
+
+  .apr-table th,
+  .apr-table td {
+    padding: 10px 12px;
+  }
+
+  .apr-btn {
+    padding: 5px 12px;
+    font-size: 12px;
+  }
+}
+
+

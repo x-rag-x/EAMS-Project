@@ -1,7 +1,8 @@
 const mongoose = require('mongoose');
 
 const ODRequestSchema = new mongoose.Schema({
-  requestId:          { type: String, unique: true, required: true }, // OD-YYYY-XXXXXX
+  requestId:          { type: String, unique: true, required: true }, // TR-OD-00000
+  trackId:            { type: String, unique: true, sparse: true },   // Alias / unique trackId
   eventId:            { type: mongoose.Schema.Types.ObjectId, ref: 'AcademicEvent', default: null },
   eventDetails: {
     name:             { type: String, required: true, trim: true },
@@ -43,7 +44,8 @@ const ODRequestSchema = new mongoose.Schema({
     driveFileId:      { type: String, default: '' },
     webViewLink:      { type: String, default: '' },
     md5Checksum:      { type: String, default: '' },
-    type:             { type: String, enum: ['event_proof', 'registration_proof', 'other'], default: 'event_proof' }
+    fileName:         { type: String, default: '' },
+    type:             { type: String, enum: ['event_proof', 'registration_proof', 'invitation', 'certificate', 'other'], default: 'event_proof' }
   }],
   requestPrincipal:   { type: Boolean, default: false },
   status: {
@@ -62,8 +64,8 @@ const ODRequestSchema = new mongoose.Schema({
   },
   currentStage: {
     type: String,
-    enum: ['advisor', 'mentor', 'hod', 'principal', 'completed', 'rejected'],
-    default: 'advisor'
+    enum: ['mentor', 'advisor', 'hod', 'principal', 'completed', 'rejected'],
+    default: 'mentor'
   },
   approvalChain: [{
     stage:            { type: String, required: true },
@@ -93,6 +95,7 @@ const ODRequestSchema = new mongoose.Schema({
     },
     submittedAt:      { type: Date, default: null },
     dueAt:            { type: Date, default: null },
+    reminderSentAt:   { type: Date, default: null },
     evidence: {
       driveFileId:    { type: String, default: null },
       webViewLink:    { type: String, default: null },
@@ -128,6 +131,18 @@ const ODRequestSchema = new mongoose.Schema({
   }]
 }, { timestamps: true });
 
+ODRequestSchema.pre('save', function () {
+  if (!this.trackId && this.requestId) {
+    this.trackId = this.requestId;
+  }
+});
+
+ODRequestSchema.pre('validate', function () {
+  if (!this.trackId && this.requestId) {
+    this.trackId = this.requestId;
+  }
+});
+
 ODRequestSchema.index({ studentTrackId: 1, createdAt: -1 });
 ODRequestSchema.index({ classId: 1, status: 1 });
 ODRequestSchema.index({ deptCode: 1, status: 1 });
@@ -139,6 +154,52 @@ ODRequestSchema.index({ dates: 1, deptCode: 1 });
 
 const ODRequestModel = mongoose.models.ODRequest || mongoose.model('ODRequest', ODRequestSchema);
 
+// ── Group OD Invite Model (Teacher -> Student Head -> Members -> OD Request) ──
+const GroupODInviteSchema = new mongoose.Schema({
+  inviteId:           { type: String, unique: true, required: true }, // TR-GOD-00000
+  facultyTrackId:     { type: String, required: true },
+  facultyName:        { type: String, required: true },
+  teamHeadTrackId:    { type: String, required: true },
+  teamHeadName:       { type: String, required: true },
+  teamHeadRegNo:      { type: String, default: '' },
+  teamHeadDept:       { type: String, default: '' },
+  teamHeadClass:      { type: String, default: '' },
+  status: {
+    type: String,
+    enum: ['invited', 'submitted_by_student', 'completed', 'cancelled'],
+    default: 'invited'
+  },
+  eventDetails: {
+    name:             { type: String, default: '' },
+    organizer:        { type: String, default: '' },
+    type:             { type: String, default: 'Technical' },
+    subType:          { type: String, default: 'Symposium' },
+    level:            { type: String, default: 'Inter-Collegiate' },
+    mode:             { type: String, default: 'Offline' },
+    hostCollege:      { type: String, default: '' },
+    city:             { type: String, default: '' },
+    venue:            { type: String, default: '' },
+    startDate:        { type: String, default: '' },
+    endDate:          { type: String, default: '' },
+    description:      { type: String, default: '' }
+  },
+  members: [{
+    studentTrackId:   { type: String, required: true },
+    studentName:      { type: String, default: '' },
+    studentRegNo:     { type: String, default: '' },
+    className:        { type: String, default: '' },
+    deptCode:         { type: String, default: '' }
+  }],
+  notes:              { type: String, default: '' },
+  submittedAt:        { type: Date, default: null }
+}, { timestamps: true });
+
+GroupODInviteSchema.index({ teamHeadTrackId: 1, status: 1 });
+GroupODInviteSchema.index({ facultyTrackId: 1, status: 1 });
+
+const GroupODInviteModel = mongoose.models.GroupODInvite || mongoose.model('GroupODInvite', GroupODInviteSchema);
+
 module.exports = {
-  ODRequest: ODRequestModel
+  ODRequest: ODRequestModel,
+  GroupODInvite: GroupODInviteModel
 };

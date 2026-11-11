@@ -13,6 +13,16 @@ const { logAction } = require('../utils/logAction');
 const { todayInInstitutionTz, getStartOfInstitutionDaySync } = require('../utils/institutionTime');
 
 
+// Helper to escape CSV fields and neutralize formula injection (CWE-1236)
+function escapeCsv(val) {
+  if (val === null || val === undefined) return '""';
+  let str = String(val).replace(/"/g, '""');
+  if (/^[=+\-@\t\r]/.test(str)) {
+    str = `'${str}`;
+  }
+  return `"${str}"`;
+}
+
 // Helper to get next export track ID
 async function getNextExportTrackId() {
   const counter = await M.Counter.findByIdAndUpdate(
@@ -644,14 +654,14 @@ router.get('/download/:trackId', authMiddleware, async (req, res) => {
             ? att.overallPercentage
             : (s.attendancePercentage !== undefined ? s.attendancePercentage : (totalHeld > 0 ? Math.round((totalAttended / totalHeld) * 100) : 100));
 
-          csvContent += `"${s.registerNo || ''}","${s.fullName || ''}","${s.deptName || s.department || ''}","${s.year || ''}","${s.section || ''}",${totalHeld},${totalAttended},${pct}%,"${pct < 75 ? 'Shortage (Not Eligible)' : 'Eligible'}"\n`;
+          csvContent += `${escapeCsv(s.registerNo || '')},${escapeCsv(s.fullName || '')},${escapeCsv(s.deptName || s.department || '')},${escapeCsv(s.year || '')},${escapeCsv(s.section || '')},${totalHeld},${totalAttended},${pct}%,${escapeCsv(pct < 75 ? 'Shortage (Not Eligible)' : 'Eligible')}\n`;
         });
       } else if (reportType.includes('student')) {
 
         csvContent = 'Register No,Student Name,Subject Code,Subject Name,Staff,Total Hours,Attended Hours,Percentage,Status\n';
         const students = await M.Student.find().limit(50).lean();
         students.forEach(s => {
-          csvContent += `"${s.registerNo || ''}","${s.fullName || ''}","25CS201","Data Structures","Staff",45,40,88.8%,"Eligible"\n`;
+          csvContent += `${escapeCsv(s.registerNo || '')},${escapeCsv(s.fullName || '')},"25CS201","Data Structures","Staff",45,40,88.8%,"Eligible"\n`;
         });
       } else {
         csvContent = 'Index,Section,Date,Period,Subject,Faculty,Hall,Total Students,Present,Absent,Attendance %\n';
@@ -838,4 +848,5 @@ router.get('/filter-options', authMiddleware, async (req, res) => {
   }
 });
 
+router.escapeCsv = escapeCsv;
 module.exports = router;

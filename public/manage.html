@@ -7,6 +7,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
   <script src="js/core/escape.js"></script>
   <script src="js/core/icons.js"></script>
+  <script src="js/core/searchableDropdown.js?v=20261028"></script>
   <link rel="stylesheet" href="css/base.css">
   <link rel="stylesheet" href="css/manage.css">
 </head>
@@ -55,6 +56,7 @@
     <button class="sb-item act" data-page="overview"  onclick="nav('overview')"><span class="sbi-ic"><re-icon icon="grid"></re-icon></span>Overview</button>
     <div class="sb-section">Academic</div>
     <button class="sb-item" data-page="years"     onclick="nav('years')"><span class="sbi-ic"><re-icon icon="book-open"></re-icon></span>Years</button>
+    <button class="sb-item" data-page="subjects"  onclick="nav('subjects')"><span class="sbi-ic"><re-icon icon="book"></re-icon></span>Subjects Manager</button>
     <button class="sb-item" data-page="calendar"  onclick="nav('calendar')"><span class="sbi-ic"><re-icon icon="calendar"></re-icon></span>College Days</button>
     <button class="sb-item" data-page="exam"      onclick="nav('exam')"><span class="sbi-ic"><re-icon icon="file-text"></re-icon></span>Exam</button>
     <div class="sb-section">Admin</div>
@@ -479,6 +481,70 @@
     </div>
   </div>
 
+  <!-- PAGE: SUBJECTS MANAGER -->
+  <div class="pg" id="pg-subjects">
+    <div class="page-hd">
+      <div>
+        <div class="page-title"><re-icon icon="book"></re-icon> Subjects Manager</div>
+        <div class="page-sub">Define, approve, and lock semester subject allocations, slots, and combined sections per batch.</div>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn-out btn-sm" onclick="openCloneSetModal()"><re-icon icon="copy" size="13"></re-icon> Clone Set</button>
+        <button class="btn-pri" onclick="openNewSetModal()">+ New Semester Set</button>
+      </div>
+    </div>
+
+    <!-- Filter / Selection Ribbon -->
+    <div class="card sm-filter-card" style="margin-bottom:16px;">
+      <div class="sm-filter-ribbon">
+        <div class="sm-filter-field">
+          <label class="sm-filter-label" for="sm-filter-reg"><re-icon icon="file-text" size="12"></re-icon> Regulation</label>
+          <select id="sm-filter-reg" class="fc2 sm-filter-select" onchange="onSmFilterChange()" style="min-width:140px;"></select>
+        </div>
+        <div class="sm-filter-field sm-field-dept">
+          <label class="sm-filter-label" for="sm-filter-dept"><re-icon icon="building2" size="12"></re-icon> Department</label>
+          <select id="sm-filter-dept" class="fc2 sm-filter-select" onchange="onSmFilterChange()" style="min-width:200px;"></select>
+        </div>
+        <div class="sm-filter-field">
+          <label class="sm-filter-label" for="sm-filter-batch"><re-icon icon="calendar" size="12"></re-icon> Batch</label>
+          <select id="sm-filter-batch" class="fc2 sm-filter-select" onchange="onSmFilterChange()" style="min-width:140px;"></select>
+        </div>
+        <div class="sm-filter-field sm-field-sm">
+          <label class="sm-filter-label" for="sm-filter-year"><re-icon icon="graduation-cap" size="12"></re-icon> Year</label>
+          <select id="sm-filter-year" class="fc2 sm-filter-select" onchange="onSmFilterChange()" style="min-width:110px;">
+            <option value="I">Year I</option>
+            <option value="II">Year II</option>
+            <option value="III">Year III</option>
+            <option value="IV">Year IV</option>
+          </select>
+        </div>
+        <div class="sm-filter-field sm-field-sm">
+          <label class="sm-filter-label" for="sm-filter-sem"><re-icon icon="book-open" size="12"></re-icon> Semester</label>
+          <select id="sm-filter-sem" class="fc2 sm-filter-select" onchange="onSmFilterChange()" style="min-width:110px;">
+            <option value="I">Sem I</option>
+            <option value="II">Sem II</option>
+            <option value="III">Sem III</option>
+            <option value="IV">Sem IV</option>
+            <option value="V">Sem V</option>
+            <option value="VI">Sem VI</option>
+            <option value="VII">Sem VII</option>
+            <option value="VIII">Sem VIII</option>
+          </select>
+        </div>
+        <div class="sm-filter-actions">
+          <button class="btn-out sm-refresh-btn" onclick="loadSubjectsManager()"><re-icon icon="refresh" size="13"></re-icon> Refresh</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Active Set Editor & Details Container -->
+    <div id="sm-active-set-container">
+      <div style="text-align:center;padding:48px;background:#fff;border-radius:12px;border:1px dashed var(--br);color:var(--tmu);">
+        Select parameters above or click "+ New Semester Set" to configure courses for a semester.
+      </div>
+    </div>
+  </div>
+
   <!-- PAGE: SETTINGS -->
   <div class="pg" id="pg-settings">
     <div class="page-hd">
@@ -888,11 +954,201 @@
 </div>
 
 <script src="js/core/session.js"></script>
-<script src="js/core/modal.js"></script>
+<script src="js/core/modal.js?v=20261028b"></script>
 <script src="js/core/popup.js"></script>
 <script src="js/core/toast.js"></script>
 <script src="js/core/guard.js"></script>
 <script src="js/core/api.js"></script>
-<script src="js/pages/manage.page.js"></script>
+<script src="js/pages/manage.page.js?v=20261028b"></script>
+
+  <!-- MODAL: NEW SEMESTER SUBJECT SET -->
+  <div class="modal-bg" id="modal-sm-new-set">
+    <div class="modal modal-sm" style="max-width:480px;background:#fff;border-radius:12px;padding:24px;">
+      <div class="modal-hd" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+        <h2 style="font-size:16px;font-weight:700;margin:0;"><re-icon icon="book"></re-icon> New Semester Subject Set</h2>
+        <button type="button" class="modal-close" onclick="closeModal('modal-sm-new-set')"><re-icon icon="x" size="18"></re-icon></button>
+      </div>
+      <div class="modal-body">
+        <div class="fg" style="margin-bottom:10px;">
+          <label class="fl">Regulation *</label>
+          <select id="sm-new-reg" class="fc2" style="width:100%;"></select>
+        </div>
+        <div class="fg" style="margin-bottom:10px;">
+          <label class="fl">Department *</label>
+          <select id="sm-new-dept" class="fc2" style="width:100%;"></select>
+        </div>
+        <div class="fg" style="margin-bottom:10px;">
+          <label class="fl">Batch *</label>
+          <select id="sm-new-batch" class="fc2" style="width:100%;"></select>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;">
+          <div class="fg">
+            <label class="fl">Year Level *</label>
+            <select id="sm-new-year" class="fc2" style="width:100%;">
+              <option value="I">Year I</option>
+              <option value="II">Year II</option>
+              <option value="III">Year III</option>
+              <option value="IV">Year IV</option>
+            </select>
+          </div>
+          <div class="fg">
+            <label class="fl">Semester *</label>
+            <select id="sm-new-semester" class="fc2" style="width:100%;">
+              <option value="I">Sem I</option>
+              <option value="II">Sem II</option>
+              <option value="III">Sem III</option>
+              <option value="IV">Sem IV</option>
+              <option value="V">Sem V</option>
+              <option value="VI">Sem VI</option>
+              <option value="VII">Sem VII</option>
+              <option value="VIII">Sem VIII</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <div class="modal-ft" style="display:flex;justify-content:flex-end;gap:10px;">
+        <button type="button" class="btn-out" onclick="closeModal('modal-sm-new-set')">Cancel</button>
+        <button type="button" class="btn-pri" onclick="submitCreateNewSet()">Create Set</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: ADD SUBJECT TO SET -->
+  <div class="modal-bg" id="modal-sm-add-subj">
+    <div class="modal modal-sm" style="max-width:540px;background:#fff;border-radius:12px;padding:24px;">
+      <div class="modal-hd" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+        <h2 style="font-size:16px;font-weight:700;margin:0;"><re-icon icon="plus"></re-icon> Add Subject to Semester Set</h2>
+        <button type="button" class="modal-close" onclick="closeModal('modal-sm-add-subj')"><re-icon icon="x" size="18"></re-icon></button>
+      </div>
+      <div class="modal-body">
+        <div class="fg" style="margin-bottom:10px;">
+          <label class="fl">Select Subject from Catalog *</label>
+          <select id="sm-add-subj-select" class="fc2" onchange="onCatalogSubjPicked(this.value)" style="width:100%;"></select>
+        </div>
+        <div class="fg" style="margin-bottom:10px;">
+          <label class="fl">Teaching Department (Supporting Dept)</label>
+          <select id="sm-add-teaching-dept" class="fc2" style="width:100%;"></select>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:10px;">
+          <div class="fg">
+            <label class="fl">Slots Min</label>
+            <input type="number" id="sm-add-slots-min" class="fc2" value="5" min="1" max="15" style="width:100%;">
+          </div>
+          <div class="fg">
+            <label class="fl">Slots Target *</label>
+            <input type="number" id="sm-add-slots-target" class="fc2" value="5" min="1" max="15" style="width:100%;">
+          </div>
+          <div class="fg">
+            <label class="fl">Slots Max</label>
+            <input type="number" id="sm-add-slots-max" class="fc2" value="7" min="1" max="15" style="width:100%;">
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+          <div class="fg">
+            <label class="fl">Category</label>
+            <select id="sm-add-category" class="fc2" style="width:100%;">
+              <option value="easy">Easy</option>
+              <option value="important">Important</option>
+              <option value="hard">Hard</option>
+            </select>
+          </div>
+          <div class="fg">
+            <label class="fl">Block Length</label>
+            <input type="number" id="sm-add-block-len" class="fc2" value="1" min="1" max="4" style="width:100%;">
+          </div>
+        </div>
+        <div class="fg" style="margin-bottom:8px;">
+          <label style="display:flex;align-items:center;gap:8px;font-size:12.5px;font-weight:600;cursor:pointer;">
+            <input type="checkbox" id="sm-add-blend-chk" onchange="toggleSmAddBlend(this.checked)">
+            <span>Blend Subject (Theory + Lab Component)</span>
+          </label>
+        </div>
+        <div id="sm-add-blend-wrap" style="display:none;grid-template-columns:1fr 1fr;gap:10px;background:var(--bg2,#f8fafc);padding:10px;border-radius:8px;">
+          <div class="fg">
+            <label class="fl">Theory Component Slots</label>
+            <input type="number" id="sm-add-blend-theory" class="fc2" value="6" min="0" max="12" style="width:100%;">
+          </div>
+          <div class="fg">
+            <label class="fl">Lab Component Slots</label>
+            <input type="number" id="sm-add-blend-lab" class="fc2" value="3" min="0" max="12" style="width:100%;">
+          </div>
+        </div>
+      </div>
+      <div class="modal-ft" style="display:flex;justify-content:flex-end;gap:10px;margin-top:14px;">
+        <button type="button" class="btn-out" onclick="closeModal('modal-sm-add-subj')">Cancel</button>
+        <button type="button" class="btn-pri" onclick="submitAddSubjectToSet()">Add to Set</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: AMEND SET -->
+  <div class="modal-bg" id="modal-sm-amend">
+    <div class="modal modal-sm" style="max-width:440px;background:#fff;border-radius:12px;padding:24px;">
+      <div class="modal-hd" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+        <h2 style="font-size:16px;font-weight:700;margin:0;"><re-icon icon="edit"></re-icon> Amend Locked Set</h2>
+        <button type="button" class="modal-close" onclick="closeModal('modal-sm-amend')"><re-icon icon="x" size="18"></re-icon></button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size:12.5px;color:var(--tmu);margin-bottom:12px;">This set is currently Locked for timetable generation. To make adjustments, specify an amendment reason. The set will return to Draft state for revisions.</p>
+        <div class="fg">
+          <label class="fl">Amendment Reason *</label>
+          <textarea id="sm-amend-reason" class="fc2" rows="3" placeholder="e.g. Added Advanced Algorithms elective component" style="width:100%;"></textarea>
+        </div>
+      </div>
+      <div class="modal-ft" style="display:flex;justify-content:flex-end;gap:10px;margin-top:14px;">
+        <button type="button" class="btn-out" onclick="closeModal('modal-sm-amend')">Cancel</button>
+        <button type="button" class="btn-pri" onclick="submitAmendSet()">Unlock for Amendment</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: CLONE SET -->
+  <div class="modal-bg" id="modal-sm-clone">
+    <div class="modal modal-sm" style="max-width:460px;background:#fff;border-radius:12px;padding:24px;">
+      <div class="modal-hd" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+        <h2 style="font-size:16px;font-weight:700;margin:0;"><re-icon icon="copy"></re-icon> Clone Semester Subject Set</h2>
+        <button type="button" class="modal-close" onclick="closeModal('modal-sm-clone')"><re-icon icon="x" size="18"></re-icon></button>
+      </div>
+      <div class="modal-body">
+        <div class="fg" style="margin-bottom:12px;" id="sm-clone-source-wrap">
+          <label class="fl"><re-icon icon="book" size="12"></re-icon> Source Set to Clone From *</label>
+          <select id="sm-clone-source-set" class="fc2" style="width:100%;"></select>
+        </div>
+        <div class="fg" style="margin-bottom:10px;">
+          <label class="fl">Target Batch *</label>
+          <select id="sm-clone-batch" class="fc2" style="width:100%;"></select>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+          <div class="fg">
+            <label class="fl">Target Year Level *</label>
+            <select id="sm-clone-year" class="fc2" style="width:100%;">
+              <option value="I">Year I</option>
+              <option value="II">Year II</option>
+              <option value="III">Year III</option>
+              <option value="IV">Year IV</option>
+            </select>
+          </div>
+          <div class="fg">
+            <label class="fl">Target Semester *</label>
+            <select id="sm-clone-sem" class="fc2" style="width:100%;">
+              <option value="I">Sem I</option>
+              <option value="II">Sem II</option>
+              <option value="III">Sem III</option>
+              <option value="IV">Sem IV</option>
+              <option value="V">Sem V</option>
+              <option value="VI">Sem VI</option>
+              <option value="VII">Sem VII</option>
+              <option value="VIII">Sem VIII</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <div class="modal-ft" style="display:flex;justify-content:flex-end;gap:10px;margin-top:14px;">
+        <button type="button" class="btn-out" onclick="closeModal('modal-sm-clone')">Cancel</button>
+        <button type="button" class="btn-pri" onclick="submitCloneSet()">Clone Set</button>
+      </div>
+    </div>
+  </div>
+
 </body>
 </html>

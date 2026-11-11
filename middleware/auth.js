@@ -43,6 +43,7 @@ function getRoleModel(role) {
 
 // Authenticate request using JWT and validate active session
 async function authMiddleware(req, res, next) {
+  if (req.user) return next();
   if (req.query && req.query.token) {
     return res.status(401).json({ error: 'Tokens via query parameters are not permitted for security reasons. Use Authorization header.' });
   }
@@ -94,7 +95,9 @@ async function authMiddleware(req, res, next) {
     const secSettings = (await getSettings(['security'])).security || {};
     const isStudentDevice = session.sessionClass === 'student-device';
     const isSessionTimeoutEnabled = secSettings.sessionTimeout !== false;
-    const timeoutMins = secSettings.sessionTimeoutMins !== undefined ? Number(secSettings.sessionTimeoutMins) : 7;
+    const timeoutMins = (decoded.role === 'teacher' && secSettings.teacherInactivityMins !== undefined)
+      ? Number(secSettings.teacherInactivityMins)
+      : (secSettings.sessionTimeoutMins !== undefined ? Number(secSettings.sessionTimeoutMins) : 10);
     const IDLE_TIMEOUT_MS = timeoutMins * 60 * 1000;
 
     // Inactivity timeout check (when sessionTimeout is true)
@@ -151,18 +154,38 @@ async function authMiddleware(req, res, next) {
       }
     }
 
-    // For each API call: extend logout time and update lastActivity
+    // Check if this request is an automated background poller (should NOT reset user inactivity)
+    const isBackgroundReq = req.headers['x-background-request'] === 'true' ||
+                            req.originalUrl?.includes('/api/notifications') ||
+                            req.url?.includes('/api/notifications');
+
+    // For user-initiated API calls: extend logout time and update lastActivity (sliding expiration)
     const newExpiresAt = isSessionTimeoutEnabled
       ? new Date(Date.now() + IDLE_TIMEOUT_MS)
       : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
-    M.LoginSession.updateOne(
-      { sessionId: decoded.sessionId },
-      { $set: { expiresAt: newExpiresAt, lastActivity: new Date() } }
-    ).catch(() => {});
-    M.LoginHistory.updateOne(
-      { trackId: decoded.trackId, 'history.sessionId': decoded.sessionId },
-      { $set: { 'history.$.expiresAt': newExpiresAt, 'history.$.lastActivity': new Date() } }
-    ).catch(() => {});
+    if (!isBackgroundReq) {
+      session.lastActivity = new Date();
+      session.expiresAt = newExpiresAt;
+
+      const now = Date.now();
+      const sessionKey = `${decoded.trackId}_${decoded.sessionId}`;
+      const lastDbWrite = sessionActivityWriteMap.get(sessionKey) || 0;
+
+      if (now - lastDbWrite >= 30000) {
+        sessionActivityWriteMap.set(sessionKey, now);
+        M.LoginSession.updateOne(
+          { sessionId: decoded.sessionId },
+          { $set: { expiresAt: newExpiresAt, lastActivity: new Date() } }
+        ).catch(() => {});
+        M.LoginHistory.updateOne(
+          { trackId: decoded.trackId, 'history.sessionId': decoded.sessionId },
+          { $set: { 'history.$.expiresAt': newExpiresAt, 'history.$.lastActivity': new Date() } }
+        ).catch(() => {});
+      }
+
+      res.setHeader('X-Session-Expires-At', newExpiresAt.toISOString());
+      res.setHeader('X-Session-Remaining-Sec', Math.max(0, Math.round((newExpiresAt.getTime() - Date.now()) / 1000)));
+    }
 
     const userObj = user.toObject();
     const specials = Array.isArray(userObj.specials) ? userObj.specials : [];
@@ -202,7 +225,7 @@ async function authMiddleware(req, res, next) {
       adminFlag: access.adminFlag,
       access: access.access,
       pages: access.pages,
-      isTimeTableCoordinator: specials.some(s => s.option === 'isTimeTableCoordinator' && s.value !== false && s.value !== 'false') || userObj.isTimeTableCoordinator === true || access.isTimeTableCoordinator === true,
+      isTimeTableCoordinator: specials.some(s => (s.option === 'isTimeTableCoordinator' || s.option === 'isSecondaryTimeTableCoordinator') && s.value !== false && s.value !== 'false') || userObj.isTimeTableCoordinator === true || access.isTimeTableCoordinator === true,
       TTdeptName: (() => {
         const s = specials.find(x => x.option === 'isTimeTableCoordinator');
         if (!s) return '';
@@ -211,13 +234,18 @@ async function authMiddleware(req, res, next) {
         return (userObj.department || userObj.deptName || '').trim();
       })(),
       isPrincipal:         isPrincipal,
-      isHod:               specials.some(s => s.option === 'isHod'),
-      isClassAdvisor:      specials.some(s => s.option === 'isClassAdvisor'),
+      isHod:               specials.some(s => s.option === 'isHod' || s.option === 'isSecondaryHod'),
+      isSecondaryHod:      specials.some(s => s.option === 'isSecondaryHod'),
+      isClassAdvisor:      specials.some(s => s.option === 'isClassAdvisor' || s.option === 'isSecondaryClassAdvisor'),
+      isSecondaryClassAdvisor: specials.some(s => s.option === 'isSecondaryClassAdvisor'),
       isWarden:            specials.some(s => s.option === 'isWarden'),
       isExamCoordinator:   specials.some(s => s.option === 'isExamCoordinator'),
       isPlacementCoordinator: specials.some(s => s.option === 'isPlacementCoordinator'),
-      actingWithAdminRights: specials.some(s => ['isPrincipal', 'isHod', 'isClassAdvisor', 'isWarden', 'isExamCoordinator', 'isPlacementCoordinator', 'isTimeTableCoordinator'].includes(s.option)) || access.isAdmin,
+      isSecondaryTimeTableCoordinator: specials.some(s => s.option === 'isSecondaryTimeTableCoordinator'),
+      actingWithAdminRights: specials.some(s => ['isPrincipal', 'isHod', 'isSecondaryHod', 'isClassAdvisor', 'isSecondaryClassAdvisor', 'isWarden', 'isExamCoordinator', 'isPlacementCoordinator', 'isTimeTableCoordinator', 'isSecondaryTimeTableCoordinator'].includes(s.option)) || access.isAdmin,
       bootstrapPending: Boolean(userObj.bootstrapPending),
+      mustChangePassword: (secSettings.forcePasswordChange !== false) && Boolean(userObj.mustChangePassword),
+      forcePasswordChange: secSettings.forcePasswordChange !== false,
     };
     req.session = session;
 
@@ -234,6 +262,32 @@ async function authMiddleware(req, res, next) {
           error: 'Bootstrap required: Please complete the initial setup wizard.',
           code: 'BOOTSTRAP_REQUIRED',
           bootstrapPending: true
+        });
+      }
+    }
+
+    // Check forced password change gate (§S6, §S8) - linked to security.forcePasswordChange setting
+    const isForcePwEnabled = secSettings.forcePasswordChange !== false;
+    if (isForcePwEnabled && req.user.mustChangePassword) {
+      const origUrl = (req.originalUrl || req.url || '').split('?')[0].replace(/\/+$/, '');
+      const isAllowedPasswordChangeEndpoint =
+        origUrl === '/api/auth/access' ||
+        origUrl === '/api/auth/change-password' ||
+        origUrl === '/api/auth/logout' ||
+        origUrl === '/api/auth/logout-all' ||
+        origUrl === '/api/auth/ping' ||
+        origUrl === '/api/profile/me' ||
+        origUrl === '/api/student/me' ||
+        origUrl === '/api/year/current' ||
+        origUrl === '/api/settings/public' ||
+        origUrl === '/api/settings/teacher-portal' ||
+        origUrl.startsWith('/api/settings/public');
+
+      if (!isAllowedPasswordChangeEndpoint) {
+        return res.status(403).json({
+          error: 'Password change required: You must change your temporary password before accessing system resources.',
+          code: 'PASSWORD_CHANGE_REQUIRED',
+          mustChangePassword: true
         });
       }
     }
@@ -287,27 +341,7 @@ async function authMiddleware(req, res, next) {
       }
     }
 
-    // Update in-memory session lastActivity immediately
-    session.lastActivity = new Date();
-
-    // Throttle database writes to MongoDB LoginHistory (at most once every 60 seconds per session)
-    const now = Date.now();
-    const sessionKey = `${decoded.trackId}_${decoded.sessionId}`;
-    const lastDbWrite = sessionActivityWriteMap.get(sessionKey) || 0;
-
-    if (now - lastDbWrite >= ACTIVITY_DB_WRITE_INTERVAL_MS) {
-      sessionActivityWriteMap.set(sessionKey, now);
-      M.LoginSession.updateOne(
-        { sessionId: decoded.sessionId },
-        { $set: { lastActivity: new Date() } }
-      ).catch(() => {});
-      M.LoginHistory.updateOne(
-        { trackId: decoded.trackId, "history.sessionId": decoded.sessionId },
-        { $set: { "history.$.lastActivity": new Date() } }
-      ).catch(function () {
-        // Non-fatal background activity update — silently ignore transient socket disconnects/ECONNRESET
-      });
-    }
+    // Session activity and sliding expiry updated above
 
     next();
 
@@ -331,7 +365,7 @@ function adminOnly(req, res, next) {
 
 async function logsAdminOnly(req, res, next) {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
-  if (isSudoAdmin(req.user)) return next();
+  if (isSudo(req) || isSudoAdmin(req.user)) return next();
 
   if (isAdminUser(req.user)) {
     const secSettings = await M.Settings.findOne({ key: 'security' }).lean();

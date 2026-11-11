@@ -85,7 +85,13 @@
     diagHeartbeats: document.getElementById('diagHeartbeats'),
     diagUptime: document.getElementById('diagUptime'),
     diagLogs: document.getElementById('diagLogs'),
-    diagCloseBtn: document.getElementById('diagCloseBtn')
+    diagCloseBtn: document.getElementById('diagCloseBtn'),
+    classBadge: document.getElementById('classBadge'),
+    boardClassName: document.getElementById('boardClassName'),
+    boardClassSub: document.getElementById('boardClassSub'),
+    scheduleTimelineWrap: document.getElementById('scheduleTimelineWrap'),
+    scheduleTimeline: document.getElementById('scheduleTimeline'),
+    timingSetLabel: document.getElementById('timingSetLabel')
   };
 
   if (el.deviceTag) el.deviceTag.textContent = `DEV: ${deviceId}`;
@@ -337,8 +343,8 @@ ws.onopen = function () {
         if (msg.board?.currentIp && el.diagIp) {
           el.diagIp.textContent = `${msg.board.currentIp} (${msg.board.ipType || 'DHCP'})`;
         }
-        if (msg.roomContext) {
-          renderContext(msg.roomContext);
+        if (msg.roomContext || msg.context) {
+          renderContext(msg.roomContext || msg.context);
         } else {
           fetchTimetableContext();
         }
@@ -435,11 +441,31 @@ ws.onopen = function () {
     if (!ctx) return;
 
     const state = ctx.state || ctx.scheduleStatus || 'free';
+    const linkedClass = ctx.linkedClass || ctx.room?.linkedClass || null;
+
+    // Display linked class name in topbar badge
+    if (linkedClass && linkedClass.name) {
+      if (el.classBadge) {
+        el.classBadge.style.display = 'flex';
+        if (el.boardClassName) el.boardClassName.textContent = linkedClass.name;
+        if (el.boardClassSub) {
+          el.boardClassSub.textContent = linkedClass.deptName || linkedClass.batch
+            ? `${linkedClass.deptName || ''} · ${linkedClass.batch || ''}`.trim()
+            : 'Linked Class';
+        }
+      }
+    } else {
+      if (el.classBadge) el.classBadge.style.display = 'none';
+    }
 
     // Room info
     if (ctx.room) {
       if (el.roomName) el.roomName.textContent = `${ctx.room.name || ctx.room.hallNo || 'Room'} · ${ctx.room.hallNo || ''}`;
-      if (el.buildingName) el.buildingName.textContent = ctx.room.buildingName ? `${ctx.room.buildingName} (Floor ${ctx.room.floor ?? 0})` : 'Campus Building';
+      let bldgTxt = ctx.room.buildingName ? `${ctx.room.buildingName} (Floor ${ctx.room.floor ?? 0})` : 'Campus Building';
+      if (linkedClass && linkedClass.name) {
+        bldgTxt += ` · Class: ${linkedClass.name}`;
+      }
+      if (el.buildingName) el.buildingName.textContent = bldgTxt;
     }
 
     // Reset state classes
@@ -452,10 +478,10 @@ ws.onopen = function () {
 
     if (state === 'in_class' && period && slot) {
       el.periodBadge.textContent = period.label || `Period ${period.periodNumber}`;
-      el.periodTiming.textContent = period.time12 || `${period.start} – ${period.end}`;
-      el.classTag.textContent = slot.className || slot.section || '';
+      el.periodTiming.textContent = period.time12 || (period.start && period.end ? `${period.start} – ${period.end}` : '');
+      el.classTag.textContent = slot.className || linkedClass?.name || slot.section || '';
 
-      el.subjectKicker.textContent = `Academic Session · ${ctx.today || ''}`;
+      el.subjectKicker.textContent = `Academic Session · ${ctx.today || ''}${linkedClass?.name ? ' · ' + linkedClass.name : ''}`;
       el.subjectTitle.textContent = slot.subjectName || slot.subject || 'Academic Subject';
       el.subjectType.textContent = slot.type || 'Theory';
 
@@ -481,9 +507,9 @@ ws.onopen = function () {
     } else if (state === 'break' && period) {
       el.heroCard.classList.add('state-break');
       el.periodBadge.textContent = period.label || 'Break';
-      el.periodTiming.textContent = period.time12 || `${period.start} – ${period.end}`;
-      el.classTag.textContent = 'Intermission';
-      el.subjectKicker.textContent = 'Classroom Idle';
+      el.periodTiming.textContent = period.time12 || (period.start && period.end ? `${period.start} – ${period.end}` : '');
+      el.classTag.textContent = linkedClass?.name ? `${linkedClass.name} · Break` : 'Intermission';
+      el.subjectKicker.textContent = `Classroom Idle${linkedClass?.name ? ' · ' + linkedClass.name : ''}`;
       el.subjectTitle.textContent = 'Academic Recess / Lunch';
       el.subjectType.textContent = 'No Class in Session';
       if (el.facultyRow) el.facultyRow.style.display = 'none';
@@ -493,8 +519,8 @@ ws.onopen = function () {
       el.heroCard.classList.add('state-ended');
       el.periodBadge.textContent = 'Day Concluded';
       el.periodTiming.textContent = 'After Hours';
-      el.classTag.textContent = 'Closed';
-      el.subjectKicker.textContent = 'Timetable Complete';
+      el.classTag.textContent = linkedClass?.name ? `${linkedClass.name} · Closed` : 'Closed';
+      el.subjectKicker.textContent = `Timetable Complete${linkedClass?.name ? ' · ' + linkedClass.name : ''}`;
       el.subjectTitle.textContent = 'Academic Day Completed';
       el.subjectType.textContent = 'Classroom Standby';
       if (el.facultyRow) el.facultyRow.style.display = 'none';
@@ -503,10 +529,10 @@ ws.onopen = function () {
     } else if (state === 'pre_class') {
       el.heroCard.classList.add('state-pre_class');
       el.periodBadge.textContent = period ? (period.label || `Period ${period.periodNumber}`) : 'Upcoming';
-      el.periodTiming.textContent = period ? (period.time12 || `${period.start} – ${period.end}`) : 'Before First Period';
-      el.classTag.textContent = 'Preparing';
-      el.subjectKicker.textContent = 'Classroom Ready';
-      el.subjectTitle.textContent = 'Waiting for First Period';
+      el.periodTiming.textContent = period ? (period.time12 || (period.start && period.end ? `${period.start} – ${period.end}` : '')) : 'Before First Period';
+      el.classTag.textContent = linkedClass?.name ? `${linkedClass.name} · Ready` : 'Preparing';
+      el.subjectKicker.textContent = `Classroom Ready${linkedClass?.name ? ' · ' + linkedClass.name : ''}`;
+      el.subjectTitle.textContent = linkedClass?.name ? `Waiting for First Period (${linkedClass.name})` : 'Waiting for First Period';
       el.subjectType.textContent = 'No Class in Session';
       if (el.facultyRow) el.facultyRow.style.display = 'none';
       el.attStatusHeadline.textContent = 'Pre-Class';
@@ -515,8 +541,8 @@ ws.onopen = function () {
       el.heroCard.classList.add('state-free');
       el.periodBadge.textContent = 'Holiday';
       el.periodTiming.textContent = 'No Classes Today';
-      el.classTag.textContent = 'Closed';
-      el.subjectKicker.textContent = 'Institutional Holiday';
+      el.classTag.textContent = linkedClass?.name ? `${linkedClass.name} · Holiday` : 'Closed';
+      el.subjectKicker.textContent = `Institutional Holiday${linkedClass?.name ? ' · ' + linkedClass.name : ''}`;
       el.subjectTitle.textContent = 'Academic Activities Suspended';
       el.subjectType.textContent = 'Holiday Schedule';
       if (el.facultyRow) el.facultyRow.style.display = 'none';
@@ -526,14 +552,160 @@ ws.onopen = function () {
       // 'free' or 'unassigned'
       el.heroCard.classList.add('state-free');
       el.periodBadge.textContent = period ? (period.label || 'Free Slot') : 'Free Slot';
-      el.periodTiming.textContent = period ? (period.time12 || `${period.start} – ${period.end}`) : 'Available';
-      el.classTag.textContent = 'Room Open';
-      el.subjectKicker.textContent = 'Timetable Status';
-      el.subjectTitle.textContent = 'No Scheduled Class';
+      el.periodTiming.textContent = period ? (period.time12 || (period.start && period.end ? `${period.start} – ${period.end}` : '')) : 'Available';
+      el.classTag.textContent = linkedClass?.name ? `${linkedClass.name} · Room Open` : 'Room Open';
+      el.subjectKicker.textContent = `Timetable Status${linkedClass?.name ? ' · ' + linkedClass.name : ''}`;
+      el.subjectTitle.textContent = linkedClass?.name ? `No Scheduled Class for ${linkedClass.name}` : 'No Scheduled Class';
       el.subjectType.textContent = 'Available for Self-Study / Consultation';
       if (el.facultyRow) el.facultyRow.style.display = 'none';
       el.attStatusHeadline.textContent = 'Room Unassigned';
       el.attStatusSub.textContent = 'No active attendance requirement for this period slot.';
+    }
+
+    // Render schedule timeline strip & timing set
+    if (el.scheduleTimelineWrap && el.scheduleTimeline) {
+      if (ctx.timingSet && Array.isArray(ctx.timingSet.periods) && ctx.timingSet.periods.length > 0) {
+        el.scheduleTimelineWrap.style.display = 'block';
+        if (el.timingSetLabel) {
+          el.timingSetLabel.textContent = `Timing: ${ctx.timingSet.name || ctx.timingSet.code || 'Default'}`;
+        }
+
+        const to12 = (t) => {
+          if (!t) return '';
+          const parts = String(t).split(':').map(Number);
+          if (isNaN(parts[0])) return t;
+          const ampm = parts[0] >= 12 ? 'PM' : 'AM';
+          const h12 = parts[0] % 12 || 12;
+          return `${h12}:${String(parts[1] || 0).padStart(2, '0')} ${ampm}`;
+        };
+
+        const allPeriods = ctx.timingSet.periods;
+        const schedList = Array.isArray(ctx.schedule) ? ctx.schedule : [];
+
+        // Find the index of the current period/break in the timing set sequence
+        let curIdx = -1;
+        if (period) {
+          curIdx = allPeriods.findIndex(function (p) {
+            if (period.start && period.end && p.start === period.start && p.end === period.end) return true;
+            const pNum = p.periodNumber || p.number;
+            const curNum = period.periodNumber || period.number;
+            return pNum === curNum && Boolean(p.isBreak) === Boolean(period.isBreak);
+          });
+        }
+
+        if (curIdx < 0) {
+          if (state === 'pre_class') {
+            curIdx = 0;
+          } else if (state === 'day_ended') {
+            curIdx = allPeriods.length;
+          } else {
+            curIdx = 0;
+          }
+        }
+
+        // Show Current Slot -> Next Slot -> Next Slot (exactly 3 slots in progression)
+        const progressionSlots = [];
+        if (state === 'day_ended' || curIdx >= allPeriods.length) {
+          progressionSlots.push({
+            isEnd: true,
+            badge: 'DAY CONCLUDED',
+            badgeClass: 'upcoming',
+            title: 'Academic Day Completed',
+            time: 'After Hours',
+            subj: 'All scheduled sessions for today have concluded',
+            meta: 'Classroom in Standby Mode',
+            isBreak: false,
+            isCurrent: false
+          });
+        } else {
+          for (let step = 0; step < 3; step++) {
+            const slotIdx = curIdx + step;
+            if (slotIdx >= allPeriods.length) break;
+
+            const p = allPeriods[slotIdx];
+            const pNum = p.periodNumber || p.number;
+            const isBrk = Boolean(p.isBreak);
+            const isCur = step === 0;
+
+            const matchingSchedule = schedList.find(function (s) { return s.period === pNum; });
+            const slotData = matchingSchedule ? matchingSchedule.slot : null;
+
+            let badgeLabel = 'Current Slot';
+            let badgeClass = 'current';
+            if (step === 1) {
+              badgeLabel = 'Next Slot';
+              badgeClass = 'next';
+            } else if (step === 2) {
+              badgeLabel = 'Next Slot';
+              badgeClass = 'later';
+            }
+
+            if (isCur && isBrk) {
+              badgeClass = 'current-break';
+            }
+
+            const pTitle = p.label || (isBrk ? 'Break' : ('Period ' + pNum));
+            const timeStr = (p.start && p.end) ? (to12(p.start) + ' – ' + to12(p.end)) : '';
+
+            let subjText = 'Free Period / Study';
+            let metaText = linkedClass?.name || 'Class Session';
+
+            if (isBrk) {
+              subjText = p.label || 'Academic Recess';
+              metaText = 'Break Interval';
+            } else if (slotData && slotData.subjectName) {
+              subjText = slotData.subjectName;
+              const parts = [];
+              if (slotData.type) parts.push(slotData.type);
+              if (slotData.teacherName) parts.push(slotData.teacherName);
+              metaText = parts.join(' · ') || (linkedClass?.name || 'Academic Class');
+            }
+
+            progressionSlots.push({
+              badge: badgeLabel,
+              badgeClass: badgeClass,
+              title: pTitle,
+              time: timeStr,
+              subj: subjText,
+              meta: metaText,
+              isBreak: isBrk,
+              isCurrent: isCur
+            });
+          }
+        }
+
+        const esc = (txt) => typeof window.escapeHtml === 'function' ? window.escapeHtml(txt) : txt;
+
+        const htmlParts = [];
+        progressionSlots.forEach(function (slot, idx) {
+          if (idx > 0) {
+            htmlParts.push('<div class="timeline-flow-arrow" aria-hidden="true">➔</div>');
+          }
+
+          const slotClasses = [
+            'timeline-slot',
+            slot.isCurrent ? 'current' : (slot.badgeClass === 'next' ? 'next' : ''),
+            slot.isBreak ? 'break' : '',
+            slot.isEnd ? 'concluded' : ''
+          ].filter(Boolean).join(' ');
+
+          htmlParts.push(
+            '<div class="' + slotClasses + '">' +
+              '<div class="timeline-slot-top">' +
+                '<span class="timeline-slot-badge ' + esc(slot.badgeClass) + '">' + esc(slot.badge) + '</span>' +
+                '<span class="timeline-slot-num">' + esc(slot.title) + '</span>' +
+              '</div>' +
+              (slot.time ? '<div class="timeline-slot-time">' + esc(slot.time) + '</div>' : '') +
+              '<div class="timeline-slot-subj" title="' + esc(slot.subj) + '">' + esc(slot.subj) + '</div>' +
+              (slot.meta ? '<div class="timeline-slot-meta">' + esc(slot.meta) + '</div>' : '') +
+            '</div>'
+          );
+        });
+
+        el.scheduleTimeline.innerHTML = htmlParts.join('');
+      } else {
+        el.scheduleTimelineWrap.style.display = 'none';
+      }
     }
 
     // Upcoming period (next)
@@ -548,7 +720,7 @@ ws.onopen = function () {
     }
   }
 
-  // ── Diagnostics Modal Interactions (Ctrl+D) ──
+    // ── Diagnostics Modal Interactions (Ctrl+D) ──
   function toggleDiagnostics(open) {
     if (!el.diagModal) return;
     if (open === undefined) {
@@ -706,6 +878,11 @@ ws.onopen = function () {
         if (el.buildingName && data.buildingName) {
           el.buildingName.textContent = data.buildingName;
         }
+        if (data.linkedClass && el.classBadge && el.boardClassName) {
+          el.classBadge.style.display = 'flex';
+          el.boardClassName.textContent = data.linkedClass.name;
+        }
+        fetchTimetableContext();
       } else if (data.pairingCode) {
         if (overlay) overlay.style.display = 'flex';
         const code = String(data.pairingCode).padStart(6, '0');

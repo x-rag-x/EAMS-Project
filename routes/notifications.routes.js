@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const M = require('../models');
 const { authMiddleware, requirePage } = require('../middleware/auth');
+const { checkModuleGuard } = require('../middleware/portalGuard');
 const { logAction } = require('../utils/logAction');
 const { isSudo } = require('../utils/access');
 
@@ -36,6 +37,8 @@ function getUserNotificationFilter(req) {
   }
   return filter;
 }
+
+router.use(authMiddleware, checkModuleGuard('modelNotifications', 'Notifications'));
 
 router.get('/', authMiddleware, async (req, res) => {
   const filter = getUserNotificationFilter(req);

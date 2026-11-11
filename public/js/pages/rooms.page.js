@@ -265,7 +265,12 @@ function populateFilterDropdowns() {
 
   if (modalBlockSelect) {
     modalBlockSelect.innerHTML = '<option value="">— Select Block —</option>' +
-      ALL_BLOCKS.map(b => `<option value="${b._id}" data-floors="${b.floors || 1}">${esc(b.name)} (${esc(b.code)})</option>`).join('');
+      ALL_BLOCKS.map(b => {
+        const blockRooms = ALL_ROOMS.filter(r => String(r.buildingId?._id || r.buildingId) === String(b._id));
+        const maxRoomFloor = blockRooms.reduce((m, r) => Math.max(m, Number(r.floor) || 0), 0);
+        const floorsCount = Math.max(b.floors || 1, maxRoomFloor);
+        return `<option value="${b._id}" data-floors="${floorsCount}">${esc(b.name)} (${esc(b.code)})</option>`;
+      }).join('');
   }
 
   if (modalDeptSelect) {
@@ -287,7 +292,10 @@ function updateFloorDropdown() {
   let maxFloors = 10;
   if (currentBlockId) {
     const selectedBlock = ALL_BLOCKS.find(b => String(b._id) === String(currentBlockId));
-    if (selectedBlock && selectedBlock.floors) maxFloors = selectedBlock.floors;
+    const blockRooms = ALL_ROOMS.filter(r => String(r.buildingId?._id || r.buildingId) === String(currentBlockId));
+    const maxRoomFloor = blockRooms.reduce((m, r) => Math.max(m, Number(r.floor) || 0), 0);
+    const bFloors = (selectedBlock && selectedBlock.floors) ? selectedBlock.floors : 10;
+    maxFloors = Math.max(bFloors, maxRoomFloor);
   }
 
   let html = '<option value="">All Floors</option>';
@@ -528,9 +536,9 @@ function navExplorer(level, blockId = null, floorNumber = null, unitId = null) {
   if (CURRENT_MAIN_TAB !== 'explorer') switchMainTab('explorer');
 
   EXPLORER_STATE.level = level;
-  if (blockId !== null) EXPLORER_STATE.blockId = blockId;
-  if (floorNumber !== null) EXPLORER_STATE.floorNumber = floorNumber;
-  if (unitId !== null) EXPLORER_STATE.unitId = unitId;
+  if (blockId !== null && blockId !== undefined) EXPLORER_STATE.blockId = blockId;
+  if (floorNumber !== null && floorNumber !== undefined) EXPLORER_STATE.floorNumber = Number(floorNumber);
+  if (unitId !== null && unitId !== undefined) EXPLORER_STATE.unitId = unitId;
 
   // Breadcrumb Left-side Back Button
   const ebBackBtn = document.getElementById('eb-back-btn');
@@ -575,6 +583,9 @@ function navExplorer(level, blockId = null, floorNumber = null, unitId = null) {
     FILTER_FLOOR = '';
   } else if (level === 2) {
     EXPLORER_STATE.unitId = null;
+    if (EXPLORER_STATE.floorNumber === null || EXPLORER_STATE.floorNumber === undefined) {
+      EXPLORER_STATE.floorNumber = 0;
+    }
     const b = ALL_BLOCKS.find(x => String(x._id) === String(EXPLORER_STATE.blockId));
     if (bCrumb) {
       bCrumb.style.display = 'inline-flex';
@@ -589,7 +600,7 @@ function navExplorer(level, blockId = null, floorNumber = null, unitId = null) {
     if (blockSelect) blockSelect.value = EXPLORER_STATE.blockId || '';
     FILTER_BLOCK_ID = EXPLORER_STATE.blockId || '';
     updateFloorDropdown();
-    if (floorSelect && EXPLORER_STATE.floorNumber !== null) {
+    if (floorSelect && EXPLORER_STATE.floorNumber !== null && EXPLORER_STATE.floorNumber !== undefined) {
       floorSelect.value = String(EXPLORER_STATE.floorNumber);
       FILTER_FLOOR = String(EXPLORER_STATE.floorNumber);
     }
@@ -806,7 +817,10 @@ function renderFloorsGrid(blockId) {
           <div class="fc-actions">
             <button class="btn-out btn-xs text-danger" onclick="event.stopPropagation(); confirmDeleteFloor('${block._id}', ${f})">Delete</button>
           </div>
-          <button class="btn-pri btn-xs" onclick="event.stopPropagation(); exploreFloor(${f})">Explore Floor <re-icon icon="arrow-right"></re-icon></button>
+          <div style="display:flex;gap:6px;align-items:center;">
+            <button class="btn-out btn-xs" onclick="event.stopPropagation(); openAddUnitModal('${block._id}', ${f})">+ Add Hall</button>
+            <button class="btn-pri btn-xs" onclick="event.stopPropagation(); exploreFloor(${f})">Explore Floor <re-icon icon="arrow-right"></re-icon></button>
+          </div>
         </div>
       </div>`);
   }
@@ -1172,8 +1186,19 @@ function openAddBlockModal() {
   document.getElementById('block-input-latitude').value = '';
   document.getElementById('block-input-longitude').value = '';
 
+  const saveBtn = document.getElementById('btn-save-block');
+  if (saveBtn) {
+    saveBtn.disabled = false;
+    saveBtn.classList.remove('btn-loading');
+    saveBtn.innerHTML = '<re-icon icon="save" size="14"></re-icon> Save Block';
+  }
+
   const modal = document.getElementById('modal-block');
-  if (modal) modal.classList.add('open');
+  if (modal) {
+    const modalBox = modal.querySelector('.modal');
+    if (modalBox) modalBox.scrollTop = 0;
+    modal.classList.add('open');
+  }
 }
 
 function openEditBlockModal(blockId) {
@@ -1196,11 +1221,27 @@ function openEditBlockModal(blockId) {
 
   updateBlockMapPreviewLink(block.latitude, block.longitude);
 
+  const saveBtn = document.getElementById('btn-save-block');
+  if (saveBtn) {
+    saveBtn.disabled = false;
+    saveBtn.classList.remove('btn-loading');
+    saveBtn.innerHTML = '<re-icon icon="save" size="14"></re-icon> Save Changes';
+  }
+
   const modal = document.getElementById('modal-block');
-  if (modal) modal.classList.add('open');
+  if (modal) {
+    const modalBox = modal.querySelector('.modal');
+    if (modalBox) modalBox.scrollTop = 0;
+    modal.classList.add('open');
+  }
 }
 
 async function saveBlockForm() {
+  const saveBtn = document.getElementById('btn-save-block');
+  if (saveBtn && (saveBtn.disabled || saveBtn.classList.contains('btn-loading'))) {
+    return;
+  }
+
   const editId = document.getElementById('block-edit-id').value;
   const name = document.getElementById('block-input-name').value.trim();
   const subName = document.getElementById('block-input-subname').value.trim();
@@ -1214,10 +1255,20 @@ async function saveBlockForm() {
   const longitude = parseFloat(document.getElementById('block-input-longitude').value);
 
   if (!name || name.length < 2) {
+    const nameInp = document.getElementById('block-input-name');
+    if (nameInp) {
+      nameInp.focus();
+      nameInp.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
     customAlert('Please enter a valid Block Name (at least 2 characters).', 'Validation Error');
     return;
   }
   if (!code || code.length < 2) {
+    const codeInp = document.getElementById('block-input-code');
+    if (codeInp) {
+      codeInp.focus();
+      codeInp.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
     customAlert('Please enter a valid Block Code (e.g. MB, AB, HB).', 'Validation Error');
     return;
   }
@@ -1225,6 +1276,13 @@ async function saveBlockForm() {
   const payload = { name, subName, code, type, floors, ip, status, campus };
   if (!isNaN(latitude)) payload.latitude = latitude;
   if (!isNaN(longitude)) payload.longitude = longitude;
+
+  const originalHtml = saveBtn ? saveBtn.innerHTML : '<re-icon icon="save" size="14"></re-icon> Save Block';
+  if (saveBtn) {
+    saveBtn.disabled = true;
+    saveBtn.classList.add('btn-loading');
+    saveBtn.innerHTML = '<span class="btn-spinner"></span> Saving...';
+  }
 
   try {
     if (editId) {
@@ -1238,6 +1296,12 @@ async function saveBlockForm() {
     await loadAllData();
   } catch (err) {
     customAlert('Failed to save block: ' + err.message, 'Server Error');
+  } finally {
+    if (saveBtn) {
+      saveBtn.disabled = false;
+      saveBtn.classList.remove('btn-loading');
+      saveBtn.innerHTML = originalHtml;
+    }
   }
 }
 
@@ -1305,6 +1369,9 @@ function openAddFloorModal() {
 }
 
 async function saveFloorForm() {
+  const saveBtn = document.getElementById('btn-save-floor');
+  if (saveBtn && (saveBtn.disabled || saveBtn.classList.contains('btn-loading'))) return;
+
   const blockId = document.getElementById('floor-block-id').value;
   const floorNum = parseInt(document.getElementById('floor-input-number').value, 10);
   if (isNaN(floorNum) || floorNum < 0) {
@@ -1314,6 +1381,13 @@ async function saveFloorForm() {
 
   const block = ALL_BLOCKS.find(b => String(b._id) === String(blockId));
   if (!block) return;
+
+  const originalHtml = saveBtn ? saveBtn.innerHTML : '<re-icon icon="save" size="14"></re-icon> Save Floor';
+  if (saveBtn) {
+    saveBtn.disabled = true;
+    saveBtn.classList.add('btn-loading');
+    saveBtn.innerHTML = '<span class="btn-spinner"></span> Saving...';
+  }
 
   try {
     const updatedFloors = Math.max(block.floors || 1, floorNum);
@@ -1327,6 +1401,12 @@ async function saveFloorForm() {
     renderFloorsGrid(blockId);
   } catch (err) {
     customAlert('Failed to add floor: ' + err.message, 'Server Error');
+  } finally {
+    if (saveBtn) {
+      saveBtn.disabled = false;
+      saveBtn.classList.remove('btn-loading');
+      saveBtn.innerHTML = originalHtml;
+    }
   }
 }
 
@@ -1346,7 +1426,7 @@ function selectUnitCategory(cat) {
   if (labSpecsBox) labSpecsBox.style.display = (cat === 'Lab') ? 'block' : 'none';
 }
 
-function openAddUnitModal() {
+function openAddUnitModal(targetBlockId = null, targetFloorNum = null, targetCat = 'Room') {
   document.getElementById('unit-modal-title').innerHTML = '<re-icon icon="arrow-door-in"></re-icon> Add Facility Unit';
   document.getElementById('unit-edit-id').value = '';
   document.getElementById('unit-input-hallno').value = '';
@@ -1361,18 +1441,40 @@ function openAddUnitModal() {
   document.getElementById('unit-input-accuracy').value = '';
   document.getElementById('unit-input-geofence-radius').value = '50';
 
-  // Pre-select current block and floor if in drill-down
-  const bSelect = document.getElementById('unit-select-building');
-  if (bSelect && EXPLORER_STATE.blockId) {
-    bSelect.value = EXPLORER_STATE.blockId;
-    onUnitBuildingChange();
-    const fSelect = document.getElementById('unit-select-floor');
-    if (fSelect && EXPLORER_STATE.floorNumber !== null) {
-      fSelect.value = EXPLORER_STATE.floorNumber;
-    }
+  // Determine active block and floor to auto-assign
+  const activeBlockId = targetBlockId || EXPLORER_STATE.blockId || FILTER_BLOCK_ID || (ALL_BLOCKS[0]?._id);
+  const isInsideFloor = (targetFloorNum !== null && targetFloorNum !== undefined) ||
+                        (EXPLORER_STATE.level === 2 && EXPLORER_STATE.floorNumber !== null && EXPLORER_STATE.floorNumber !== undefined);
+
+  let activeFloorNum = 0;
+  if (targetFloorNum !== null && targetFloorNum !== undefined) {
+    activeFloorNum = Number(targetFloorNum);
+  } else if (EXPLORER_STATE.floorNumber !== null && EXPLORER_STATE.floorNumber !== undefined) {
+    activeFloorNum = Number(EXPLORER_STATE.floorNumber);
+  } else if (FILTER_FLOOR !== '' && FILTER_FLOOR !== null && FILTER_FLOOR !== undefined) {
+    activeFloorNum = Number(FILTER_FLOOR);
   }
 
-  selectUnitCategory('Room');
+  const bSelect = document.getElementById('unit-select-building');
+  if (bSelect && activeBlockId) {
+    bSelect.value = String(activeBlockId);
+  }
+
+  // Populate floors and auto-assign active floor
+  onUnitBuildingChange(activeFloorNum);
+
+  const fSelect = document.getElementById('unit-select-floor');
+  if (fSelect) {
+    fSelect.value = String(activeFloorNum);
+  }
+
+  // Visual auto-assigned badge
+  const autoBadge = document.getElementById('unit-floor-auto-badge');
+  if (autoBadge) {
+    autoBadge.style.display = isInsideFloor ? 'inline-flex' : 'none';
+  }
+
+  selectUnitCategory(targetCat || 'Room');
   updateUnitMapPreviewLink('', '');
 
   const modal = document.getElementById('modal-unit');
@@ -1382,6 +1484,9 @@ function openAddUnitModal() {
 function openEditUnitModal(unitId) {
   const room = ALL_ROOMS.find(r => String(r._id) === String(unitId));
   if (!room) return;
+
+  const autoBadge = document.getElementById('unit-floor-auto-badge');
+  if (autoBadge) autoBadge.style.display = 'none';
 
   document.getElementById('unit-modal-title').innerHTML = '<re-icon icon="edit"></re-icon> Edit Facility Unit';
   document.getElementById('unit-edit-id').value = room._id;
@@ -1398,11 +1503,12 @@ function openEditUnitModal(unitId) {
   document.getElementById('unit-input-geofence-radius').value = room.geofenceRadius || 50;
 
   const bSelect = document.getElementById('unit-select-building');
+  const roomFloor = room.floor !== undefined ? Number(room.floor) : 0;
   if (bSelect) {
     bSelect.value = room.buildingId?._id || room.buildingId || '';
-    onUnitBuildingChange();
+    onUnitBuildingChange(roomFloor);
     const fSelect = document.getElementById('unit-select-floor');
-    if (fSelect) fSelect.value = room.floor !== undefined ? room.floor : 0;
+    if (fSelect) fSelect.value = String(roomFloor);
   }
 
   const dSelect = document.getElementById('unit-select-dept');
@@ -1459,19 +1565,48 @@ function detectUnitLocation() {
   );
 }
 
-function onUnitBuildingChange() {
+function onUnitBuildingChange(targetFloor = null) {
   const bSelect = document.getElementById('unit-select-building');
   const fSelect = document.getElementById('unit-select-floor');
   if (!bSelect || !fSelect) return;
 
-  const opt = bSelect.options[bSelect.selectedIndex];
-  const floors = opt ? parseInt(opt.getAttribute('data-floors'), 10) || 1 : 1;
+  const blockId = bSelect.value;
+  const block = ALL_BLOCKS.find(b => String(b._id) === String(blockId));
+  const opt = bSelect.selectedIndex >= 0 ? bSelect.options[bSelect.selectedIndex] : null;
+
+  // Resolve target floor to auto-assign/keep
+  let resolvedFloor = null;
+  if (targetFloor !== null && targetFloor !== undefined && targetFloor !== '') {
+    resolvedFloor = Number(targetFloor);
+  } else if (fSelect.value !== '' && !isNaN(Number(fSelect.value))) {
+    resolvedFloor = Number(fSelect.value);
+  } else if (EXPLORER_STATE.floorNumber !== null && EXPLORER_STATE.floorNumber !== undefined) {
+    resolvedFloor = Number(EXPLORER_STATE.floorNumber);
+  } else if (FILTER_FLOOR !== '' && FILTER_FLOOR !== null && FILTER_FLOOR !== undefined) {
+    resolvedFloor = Number(FILTER_FLOOR);
+  }
+
+  // Calculate highest floor for this block across config, data attributes, existing rooms, and target floor
+  const blockRooms = blockId ? ALL_ROOMS.filter(r => String(r.buildingId?._id || r.buildingId) === String(blockId)) : [];
+  const maxRoomFloor = blockRooms.reduce((m, r) => Math.max(m, Number(r.floor) || 0), 0);
+  const blockFloors = (block && block.floors) ? Number(block.floors) : 1;
+  const attrFloors = opt ? (parseInt(opt.getAttribute('data-floors'), 10) || 1) : 1;
+  const currentFloorTarget = (resolvedFloor !== null && !isNaN(resolvedFloor)) ? resolvedFloor : 0;
+
+  const maxFloors = Math.max(blockFloors, attrFloors, maxRoomFloor, currentFloorTarget);
 
   let html = '';
-  for (let f = 0; f <= floors; f++) {
+  for (let f = 0; f <= maxFloors; f++) {
     html += `<option value="${f}">${f === 0 ? 'Ground Floor (0)' : 'Floor ' + f}</option>`;
   }
   fSelect.innerHTML = html;
+
+  // Auto-assign the floor to matching option
+  if (resolvedFloor !== null && !isNaN(resolvedFloor) && resolvedFloor <= maxFloors) {
+    fSelect.value = String(resolvedFloor);
+  } else {
+    fSelect.value = '0';
+  }
 }
 
 async function saveUnitForm() {
@@ -1479,7 +1614,8 @@ async function saveUnitForm() {
   const hallNo = document.getElementById('unit-input-hallno').value.trim();
   const name = document.getElementById('unit-input-name').value.trim();
   const buildingId = document.getElementById('unit-select-building').value;
-  const floor = parseInt(document.getElementById('unit-select-floor').value, 10) || 0;
+  const floorVal = document.getElementById('unit-select-floor').value;
+  const floor = (floorVal !== '' && !isNaN(parseInt(floorVal, 10))) ? parseInt(floorVal, 10) : 0;
   const capacity = parseInt(document.getElementById('unit-input-capacity').value, 10);
   const deptId = document.getElementById('unit-select-dept').value || undefined;
   const status = document.getElementById('unit-select-status').value;
@@ -1497,6 +1633,10 @@ async function saveUnitForm() {
   }
   if (!buildingId) {
     customAlert('Please select a campus block for this unit.', 'Validation Error');
+    return;
+  }
+  if (floorVal === '' || isNaN(floor) || floor < 0) {
+    customAlert('Please select a valid floor for this unit.', 'Validation Error');
     return;
   }
   if (isNaN(capacity) || capacity < 1) {
@@ -1539,6 +1679,14 @@ async function saveUnitForm() {
     payload.labStatus = document.getElementById('unit-lab-status').value;
   }
 
+  const saveBtn = document.getElementById('btn-save-unit');
+  const originalHtml = saveBtn ? saveBtn.innerHTML : '<re-icon icon="save" size="14"></re-icon> Save Facility Unit';
+  if (saveBtn) {
+    saveBtn.disabled = true;
+    saveBtn.classList.add('btn-loading');
+    saveBtn.innerHTML = '<span class="btn-spinner"></span> Saving...';
+  }
+
   try {
     if (editId) {
       await api(`/api/timetable/rooms/${editId}`, { method: 'PUT', body: JSON.stringify(payload) });
@@ -1557,6 +1705,12 @@ async function saveUnitForm() {
     }
   } catch (err) {
     customAlert('Failed to save unit: ' + err.message, 'Server Error');
+  } finally {
+    if (saveBtn) {
+      saveBtn.disabled = false;
+      saveBtn.classList.remove('btn-loading');
+      saveBtn.innerHTML = originalHtml;
+    }
   }
 }
 
@@ -2228,6 +2382,131 @@ window.openBoardLogsModal = openBoardLogsModal;
 // ── REGISTER / EDIT SMART BOARD MODAL ──
 let currentRegisterBoardId = null;
 let currentRegisterBoardApiKey = null;
+let boardDeviceIdManuallyEdited = false;
+
+function autoGenerateDeviceId(force = false) {
+  const devIdInp = document.getElementById('register-board-device-id-input');
+  const nameInp = document.getElementById('register-board-name');
+  const bldgSel = document.getElementById('register-board-building');
+  const roomSel = document.getElementById('register-board-room');
+  const autoBadge = document.getElementById('register-board-auto-badge');
+
+  if (!devIdInp || devIdInp.readOnly) return;
+
+  if (force) {
+    boardDeviceIdManuallyEdited = false;
+  }
+
+  // If user typed custom ID and not forced, preserve it
+  if (boardDeviceIdManuallyEdited && !force && devIdInp.value.trim()) {
+    return;
+  }
+
+  // 1. Resolve building & blockCode
+  let buildingId = bldgSel?.value;
+  let blockCode = 'MB';
+
+  // 2. Resolve room & hallNo
+  let roomId = roomSel?.value;
+  let hallNoClean = '';
+
+  if (roomId) {
+    const r = ALL_ROOMS.find(x => String(x._id) === String(roomId));
+    if (r) {
+      hallNoClean = (r.hallNo || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+      if (!buildingId && (r.buildingId?._id || r.buildingId)) {
+        buildingId = String(r.buildingId?._id || r.buildingId);
+        if (bldgSel) bldgSel.value = buildingId;
+      }
+    }
+  }
+
+  if (buildingId) {
+    const b = ALL_BLOCKS.find(x => String(x._id) === String(buildingId));
+    if (b && b.code) {
+      blockCode = b.code.toUpperCase().replace(/[^A-Z0-9]/g, '');
+    }
+  } else {
+    const activeBlockId = EXPLORER_STATE?.blockId || FILTER_BLOCK_ID;
+    const b = ALL_BLOCKS.find(x => String(x._id) === String(activeBlockId)) || ALL_BLOCKS[0];
+    if (b && b.code) {
+      blockCode = b.code.toUpperCase().replace(/[^A-Z0-9]/g, '');
+    }
+  }
+
+  // If hall number not resolved from room dropdown, infer from Board Name input
+  if (!hallNoClean && nameInp && nameInp.value.trim()) {
+    const rawName = nameInp.value.trim();
+    const cleaned = rawName
+      .replace(/\b(display|smart\s*board|smart|board|screen|room|hall|kiosk|tv)\b/gi, '')
+      .trim();
+    const candidate = cleaned.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+    if (candidate) {
+      hallNoClean = candidate;
+    }
+  }
+
+  if (!hallNoClean) {
+    hallNoClean = '01';
+  }
+
+  const generatedId = `TR-R${blockCode}-${hallNoClean}`;
+  devIdInp.value = generatedId;
+
+  if (autoBadge) {
+    autoBadge.style.display = 'inline-flex';
+  }
+
+  if (force) {
+    devIdInp.classList.remove('highlight-pulse');
+    void devIdInp.offsetWidth;
+    devIdInp.classList.add('highlight-pulse');
+    setTimeout(() => devIdInp.classList.remove('highlight-pulse'), 1200);
+    if (typeof notify === 'function') {
+      notify(`Generated Device ID: ${generatedId}`, 'success');
+    }
+  }
+}
+
+function onRegisterBoardNameInput() {
+  const nameInp = document.getElementById('register-board-name');
+  const bldgSel = document.getElementById('register-board-building');
+  const roomSel = document.getElementById('register-board-room');
+  if (!nameInp) return;
+
+  const rawVal = nameInp.value.trim();
+  if (!rawVal) return;
+
+  const normalizedTyped = rawVal.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+  // Attempt to match an existing room from ALL_ROOMS
+  if ((!bldgSel || !bldgSel.value) || (!roomSel || !roomSel.value)) {
+    const matchedRoom = ALL_ROOMS.find(r => {
+      if (!r.hallNo) return false;
+      const cleanHall = r.hallNo.toLowerCase().replace(/[^a-z0-9]/g, '');
+      if (cleanHall === normalizedTyped) return true;
+      if (cleanHall.length >= 2 && normalizedTyped.startsWith(cleanHall)) return true;
+      if (r.name) {
+        const cleanName = r.name.toLowerCase().replace(/[^a-z0-9]/g, '');
+        if (cleanName === normalizedTyped) return true;
+      }
+      return false;
+    });
+
+    if (matchedRoom) {
+      const bldgId = matchedRoom.buildingId?._id || matchedRoom.buildingId;
+      if (bldgSel && bldgId && bldgSel.value !== String(bldgId)) {
+        bldgSel.value = String(bldgId);
+        onRegisterBoardBuildingChange();
+      }
+      if (roomSel && roomSel.value !== String(matchedRoom._id)) {
+        roomSel.value = String(matchedRoom._id);
+      }
+    }
+  }
+
+  autoGenerateDeviceId(false);
+}
 
 function openRegisterBoardModal(boardId = null) {
   const isEdit = !!boardId;
@@ -2251,6 +2530,14 @@ function openRegisterBoardModal(boardId = null) {
   document.getElementById('register-board-actions-section').style.display = 'none';
   document.getElementById('register-board-status').style.display = 'none';
   document.getElementById('register-board-test-result').style.display = 'none';
+
+  boardDeviceIdManuallyEdited = false;
+  const autoBadgeEl = document.getElementById('register-board-auto-badge');
+  if (autoBadgeEl) autoBadgeEl.style.display = 'none';
+  const autoBtnEl = document.getElementById('btn-auto-gen-device-id');
+  if (autoBtnEl) autoBtnEl.style.display = isEdit ? 'none' : 'inline-flex';
+  const magicBtnEl = document.getElementById('btn-input-magic-device-id');
+  if (magicBtnEl) magicBtnEl.style.display = isEdit ? 'none' : 'inline-flex';
 
   // Populate building select
   const buildingSelect = document.getElementById('register-board-building');
@@ -2291,6 +2578,17 @@ function openRegisterBoardModal(boardId = null) {
   } else {
     currentRegisterBoardId = null;
     document.getElementById('register-board-device-id-input').readOnly = false;
+
+    // Pre-select building/room if already active in explorer
+    const activeBldgId = EXPLORER_STATE?.blockId || FILTER_BLOCK_ID;
+    if (activeBldgId && buildingSelect) {
+      buildingSelect.value = activeBldgId;
+      onRegisterBoardBuildingChange();
+      if (EXPLORER_STATE?.unitId && roomSelect) {
+        roomSelect.value = EXPLORER_STATE.unitId;
+        onRegisterBoardRoomChange();
+      }
+    }
   }
 
   modal.classList.add('open');
@@ -2324,30 +2622,29 @@ function onRegisterBoardRoomChange() {
   const roomSelect = document.getElementById('register-board-room');
   const devIdInp = document.getElementById('register-board-device-id-input');
   const nameInp = document.getElementById('register-board-name');
-  if (!buildingSelect || !roomSelect || !devIdInp || devIdInp.readOnly) return;
+  if (!buildingSelect || !roomSelect) return;
 
   const buildingId = buildingSelect.value;
   const roomId = roomSelect.value;
-  if (!buildingId || !roomId) return;
+  if (!buildingId || !roomId) {
+    autoGenerateDeviceId(false);
+    return;
+  }
 
-  const building = ALL_BLOCKS.find(b => String(b._id) === String(buildingId));
   const room = ALL_ROOMS.find(r => String(r._id) === String(roomId));
-  if (!building || !room) return;
-
-  // Formula: TR-R<BlockCode>-<HallNo> (e.g. TR-RMB-LH38)
-  const blockCode = (building.code || 'MB').toUpperCase().replace(/[^A-Z0-9]/g, '');
-  const hallNoClean = (room.hallNo || 'R1').toUpperCase().replace(/[^A-Z0-9]/g, '');
-  const suggestedId = `TR-R${blockCode}-${hallNoClean}`;
-
-  if (!devIdInp.value || devIdInp.value.startsWith('SB-') || devIdInp.value.startsWith('TR-')) {
-    devIdInp.value = suggestedId;
+  if (room && nameInp) {
+    if (!nameInp.value || nameInp.value.includes('Display') || nameInp.value.includes('Smart Board')) {
+      nameInp.value = `${room.hallNo} Display`;
+    }
   }
-  if (!nameInp.value || nameInp.value.includes('Display') || nameInp.value.includes('Smart Board')) {
-    nameInp.value = `${room.hallNo} Display`;
-  }
+
+  autoGenerateDeviceId(false);
 }
 
 async function saveRegisterBoard() {
+  const saveBtn = document.getElementById('btn-save-board');
+  if (saveBtn && (saveBtn.disabled || saveBtn.classList.contains('btn-loading'))) return;
+
   const editId = document.getElementById('register-board-edit-id').value;
   const isEdit = !!editId;
   const boardName = document.getElementById('register-board-name').value.trim();
@@ -2375,6 +2672,13 @@ async function saveRegisterBoard() {
 
   const payload = { boardName, deviceId, buildingId, roomId, firmwareVersion, status: 'Active' };
 
+  const originalHtml = saveBtn ? saveBtn.innerHTML : '<re-icon icon="save" size="14"></re-icon> ' + (isEdit ? 'Save Changes' : 'Register Board');
+  if (saveBtn) {
+    saveBtn.disabled = true;
+    saveBtn.classList.add('btn-loading');
+    saveBtn.innerHTML = '<span class="btn-spinner"></span> ' + (isEdit ? 'Saving...' : 'Registering...');
+  }
+
   try {
     let board;
     if (isEdit) {
@@ -2392,6 +2696,12 @@ async function saveRegisterBoard() {
     }
   } catch (err) {
     customAlert('Failed to save board: ' + err.message, 'Server Error');
+  } finally {
+    if (saveBtn) {
+      saveBtn.disabled = false;
+      saveBtn.classList.remove('btn-loading');
+      saveBtn.innerHTML = originalHtml;
+    }
   }
 }
 
@@ -2499,6 +2809,19 @@ async function sendBoardCommand(boardId, command) {
 // ── INITIALIZE ON LOAD ──
 document.addEventListener('DOMContentLoaded', () => {
   initUserProfile();
+  const regDevIdInp = document.getElementById('register-board-device-id-input');
+  if (regDevIdInp) {
+    regDevIdInp.addEventListener('input', () => {
+      const autoBadge = document.getElementById('register-board-auto-badge');
+      if (!regDevIdInp.value.trim()) {
+        boardDeviceIdManuallyEdited = false;
+        if (autoBadge) autoBadge.style.display = 'none';
+      } else {
+        boardDeviceIdManuallyEdited = true;
+        if (autoBadge) autoBadge.style.display = 'none';
+      }
+    });
+  }
   const urlTab = new URLSearchParams(window.location.search).get('tab');
   if (urlTab && ['explorer', 'maintenance', 'boards', 'audit'].includes(urlTab.toLowerCase())) {
     switchMainTab(urlTab.toLowerCase());
@@ -2508,6 +2831,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // Expose functions globally for HTML onclick handlers
 window.openRegisterBoardModal = openRegisterBoardModal;
+window.autoGenerateDeviceId = autoGenerateDeviceId;
+window.onRegisterBoardNameInput = onRegisterBoardNameInput;
 window.onRegisterBoardBuildingChange = onRegisterBoardBuildingChange;
 window.onRegisterBoardRoomChange = onRegisterBoardRoomChange;
 window.saveRegisterBoard = saveRegisterBoard;

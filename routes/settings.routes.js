@@ -2,35 +2,39 @@ const express = require('express');
 const router = express.Router();
 const bcrypt = require('@node-rs/bcrypt');
 const M = require('../models');
-const { authMiddleware, getRoleModel, requirePage } = require('../middleware/auth');
+const { authMiddleware, getRoleModel, requirePage, requireRole } = require('../middleware/auth');
 const { logAction } = require('../utils/logAction');
+const { sendError } = require('../utils/sendError');
 const cfg = require('../config');
-const { deleteAuthLimiter } = require('../utils/rateLimiters');
+const { deleteAuthLimiter, publicSettingsLimiter } = require('../utils/rateLimiters');
 
 const { DEFAULT_SETTINGS_MAP } = require('../config/defaultSettings');
 const { getSetting, getSettings, invalidateSettingsCache } = require('../utils/settingsCache');
 const { getStartOfInstitutionDaySync, getEndOfInstitutionDaySync } = require('../utils/institutionTime');
 
-// GET /api/settings/public — Public endpoint for pre-auth status & portal availability
-router.get('/public', async (req, res) => {
+// GET /api/settings/public — Public endpoint for pre-auth status & portal availability (§S7 allow-list)
+router.get('/public', publicSettingsLimiter, async (req, res) => {
   try {
-    const settingsMap = await getSettings(['pages', 'maintenance', 'institution', 'broadcast', 'academic', 'models', 'attendance', 'security', 'teachers']);
+    const settingsMap = await getSettings(['pages', 'maintenance', 'institution', 'broadcast', 'security']);
     const sec = settingsMap.security || DEFAULT_SETTINGS_MAP.security?.value || {};
+    const inst = settingsMap.institution || DEFAULT_SETTINGS_MAP.institution?.value || {};
     const isDev = cfg.NODE_ENV === 'development' || process.env.NODE_ENV === 'development';
 
     res.json({
       pages: settingsMap.pages || DEFAULT_SETTINGS_MAP.pages.value,
       maintenance: settingsMap.maintenance || DEFAULT_SETTINGS_MAP.maintenance.value,
-      institution: settingsMap.institution || DEFAULT_SETTINGS_MAP.institution.value,
-      academic: settingsMap.academic || DEFAULT_SETTINGS_MAP.academic.value,
-      models: settingsMap.models || DEFAULT_SETTINGS_MAP.models.value,
-      attendance: settingsMap.attendance || DEFAULT_SETTINGS_MAP.attendance.value,
       broadcast: settingsMap.broadcast || DEFAULT_SETTINGS_MAP.broadcast.value,
-      teachers: settingsMap.teachers || DEFAULT_SETTINGS_MAP.teachers.value,
+      institution: {
+        institutionName: inst.institutionName || 'EAMS',
+        institutionShort: inst.institutionShort || '',
+        logoUrl: inst.logoUrl || '',
+      },
       isDev: isDev,
       security: {
+        forcePasswordChange: sec.forcePasswordChange !== false,
         sessionTimeout: sec.sessionTimeout !== false,
-        sessionTimeoutMins: sec.sessionTimeoutMins !== undefined ? Number(sec.sessionTimeoutMins) : 7,
+        sessionTimeoutMins: sec.sessionTimeoutMins !== undefined ? Number(sec.sessionTimeoutMins) : 10,
+        teacherInactivityMins: sec.teacherInactivityMins !== undefined ? Number(sec.teacherInactivityMins) : (sec.sessionTimeoutMins !== undefined ? Number(sec.sessionTimeoutMins) : 10),
         loginLocationRequired: isDev ? false : (sec.loginLocationRequired !== false),
         loginLocationAccuracyCheck: isDev ? false : (sec.loginLocationAccuracyCheck !== false),
         loginLocationMaxAccuracyM: sec.loginLocationMaxAccuracyM !== undefined ? Number(sec.loginLocationMaxAccuracyM) : 2000,
@@ -39,7 +43,183 @@ router.get('/public', async (req, res) => {
       },
     });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    sendError(res, err, 500);
+  }
+});
+
+// GET /api/settings/teacher-portal — Authenticated endpoint returning effective teacher portal policies (§S7, §8)
+router.get('/teacher-portal', authMiddleware, requireRole('teacher', 'admin', 'hod', 'principal'), async (req, res) => {
+  try {
+    const settingsMap = await getSettings(['attendance', 'academic', 'models', 'controller', 'institution', 'teachers', 'security']);
+    const sec = settingsMap.security || DEFAULT_SETTINGS_MAP.security?.value || {};
+    const att = settingsMap.attendance || DEFAULT_SETTINGS_MAP.attendance?.value || {};
+    const acad = settingsMap.academic || DEFAULT_SETTINGS_MAP.academic?.value || {};
+    const mods = settingsMap.models || DEFAULT_SETTINGS_MAP.models?.value || {};
+    const ctrl = settingsMap.controller || DEFAULT_SETTINGS_MAP.controller?.value || {};
+    const inst = settingsMap.institution || DEFAULT_SETTINGS_MAP.institution?.value || {};
+    const tea = settingsMap.teachers || DEFAULT_SETTINGS_MAP.teachers?.value || {};
+
+    const minAttendance = Number(ctrl.defaulterPct ?? acad.minAttendance ?? 75);
+    const lowAttendance = Array.isArray(ctrl.condonationBandPct) ? Number(ctrl.condonationBandPct[0]) : Number(acad.lowAttendanceThreshold ?? 65);
+    const condonationBand = Array.isArray(ctrl.condonationBandPct) ? ctrl.condonationBandPct : [lowAttendance, minAttendance];
+
+    return res.json({
+      ok: true,
+      security: {
+        forcePasswordChange: sec.forcePasswordChange !== false
+      },
+      attendance: {
+        canMark: att.markAttendance !== false,
+        methods: {
+          quickPass: att.quickPass !== false && att.liveSessions !== false,
+          scanLive: att.liveSessions !== false,
+          repShare: att.forwardToRep !== false
+        },
+        editAllowed: att.allowAttendanceEdit !== false,
+        backdateDays: att.maxAttendanceBackdateDays !== undefined ? Number(att.maxAttendanceBackdateDays) : 3,
+        lockHours: att.autoLockAttendanceHours !== undefined ? Number(att.autoLockAttendanceHours) : 24,
+        remarkRequired: !!att.requirePeriodRemark,
+        forceTimetableSlots: !!att.forceTimetableSlots,
+        timetableMatch: att.timetableMatch || 'warn',
+        defaultStatus: att.defaultAttendanceStatus || 'Present',
+        rotationTimeSec: Number(att.rotationTimeSec) || 15,
+        qrIntervalSec: Number(att.qrIntervalSec) || 20,
+        rotationCount: Number(att.rotationCount) || 10,
+        markAttendance: att.markAttendance !== false,
+        quickPass: att.quickPass !== false && att.liveSessions !== false,
+        liveSessions: att.liveSessions !== false,
+        forwardToRep: att.forwardToRep !== false,
+        requirePeriodRemark: !!att.requirePeriodRemark
+      },
+      thresholds: {
+        minAttendance: minAttendance,
+        low: lowAttendance,
+        condonationBand: condonationBand
+      },
+      academic: {
+        minAttendance: minAttendance,
+        lowAttendanceThreshold: lowAttendance
+      },
+      features: {
+        leave: (mods.modelStaffLeave !== undefined ? mods.modelStaffLeave : mods.modelLeave) !== false,
+        modelStaffLeave: (mods.modelStaffLeave !== undefined ? mods.modelStaffLeave : mods.modelLeave) !== false,
+        grievances: mods.modelGrievances !== false,
+        exportSheet: mods.modelExportSheet !== false
+      },
+      models: {
+        modelLeave: mods.modelLeave !== false,
+        modelGrievances: mods.modelGrievances !== false,
+        modelExportSheet: mods.modelExportSheet !== false
+      },
+      teachers: {
+        annualLeaveQuota: Number(tea.annualLeaveQuota ?? 15),
+        maxConsecutiveLeaveDays: Number(tea.maxConsecutiveLeaveDays ?? 3),
+        medicalDocThresholdDays: Number(tea.medicalDocThresholdDays ?? 3),
+        casualLeaveAllowance: Number(tea.casualLeaveAllowance ?? 12),
+        medicalLeaveAllowance: Number(tea.medicalLeaveAllowance ?? 10),
+        earnedLeaveAllowance: Number(tea.earnedLeaveAllowance ?? 15)
+      },
+      teachersPolicy: {
+        maxConsecutiveLeaveDays: Number(tea.maxConsecutiveLeaveDays ?? 3),
+        medicalDocThresholdDays: Number(tea.medicalDocThresholdDays ?? 3),
+        annualLeaveQuota: Number(tea.annualLeaveQuota ?? 15),
+        casualLeaveAllowance: Number(tea.casualLeaveAllowance ?? 12),
+        medicalLeaveAllowance: Number(tea.medicalLeaveAllowance ?? 10),
+        earnedLeaveAllowance: Number(tea.earnedLeaveAllowance ?? 15),
+        allowPeriodLeave: tea.allowPeriodLeave !== false
+      },
+      controller: {
+        attendanceDeadlineMin: Number(ctrl.attendanceDeadlineMin ?? 10),
+        hardReminderEveryMin: Number(ctrl.hardReminderEveryMin ?? 5),
+        defaulterPct: minAttendance,
+        condonationBandPct: condonationBand
+      },
+      institution: {
+        institutionName: inst.institutionName || 'EAMS',
+        institutionShort: inst.institutionShort || ''
+      }
+    });
+  } catch (err) {
+    sendError(res, err, 500);
+  }
+});
+
+
+// GET /api/settings/student-portal — Policy & limits driving the student portal (§8, B2)
+router.get('/student-portal', authMiddleware, async (req, res) => {
+  try {
+    const settingsMap = await getSettings([
+      'attendance',
+      'academic',
+      'studentLeave',
+      'evidence',
+      'od',
+      'device',
+      'models',
+      'trust'
+    ]);
+    const att = settingsMap.attendance || DEFAULT_SETTINGS_MAP.attendance?.value || {};
+    const acad = settingsMap.academic || DEFAULT_SETTINGS_MAP.academic?.value || {};
+    const leave = settingsMap.studentLeave || DEFAULT_SETTINGS_MAP.studentLeave?.value || {};
+    const evi = settingsMap.evidence || DEFAULT_SETTINGS_MAP.evidence?.value || {};
+    const od = settingsMap.od || DEFAULT_SETTINGS_MAP.od?.value || {};
+    const dev = settingsMap.device || DEFAULT_SETTINGS_MAP.device?.value || {};
+    const mods = settingsMap.models || DEFAULT_SETTINGS_MAP.models?.value || {};
+    const tr = settingsMap.trust || DEFAULT_SETTINGS_MAP.trust?.value || {};
+
+    const minAttendance = Number(acad.minAttendance ?? 75);
+    const lowAttendance = Number(acad.lowAttendanceThreshold ?? 65);
+    const condonationBand = Array.isArray(acad.condonationBandPct) ? acad.condonationBandPct : [65, 75];
+
+    return res.json({
+      ok: true,
+      security: {
+        forcePasswordChange: sec.forcePasswordChange !== false
+      },
+      attendance: {
+        canMark: att.markAttendance !== false,
+        methods: {
+          liveSession: att.liveSessions !== false,
+          quickPass: att.quickPass !== false && att.liveSessions !== false,
+          qr: att.markAttendance !== false
+        }
+      },
+      academic: {
+        minAttendance,
+        lowAttendanceThreshold: lowAttendance,
+        condonationBand
+      },
+      leave: {
+        maxDays: Number(leave.maxDaysByStudent ?? 3),
+        backdateDays: Number(leave.backdateDays ?? 3),
+        certificateDueDays: Number(leave.certificateDueDays ?? 3)
+      },
+      evidence: {
+        maxMB: Number(evi.maxMB ?? 5),
+        types: Array.isArray(evi.types) ? evi.types : ['pdf', 'jpg', 'png']
+      },
+      od: {
+        outcomeDueDays: Number(od.outcomeDueDays ?? 7),
+        outcomeReminderDay: Number(od.outcomeReminderDay ?? 5)
+      },
+      device: {
+        requireRegisteredDevice: dev.requireRegisteredDevice !== false,
+        replacementRequestsPerDay: Number(dev.replacementRequestsPerDay ?? 3),
+        sessionDays: Number(dev.studentSessionDays ?? 15)
+      },
+      features: {
+        leave: (mods.modelStudentLeave !== undefined ? mods.modelStudentLeave : mods.modelLeave) !== false,
+        modelStudentLeave: (mods.modelStudentLeave !== undefined ? mods.modelStudentLeave : mods.modelLeave) !== false,
+        notifications: mods.modelNotifications !== false,
+        exportSheet: mods.modelExportSheet !== false
+      },
+      trust: {
+        bands: tr.bands || { normal: 80, monitor: 60, verify: 40 },
+        disputeWindowDays: Number(tr.disputeWindowDays ?? 7)
+      }
+    });
+  } catch (err) {
+    sendError(res, err, 500, 'Failed to retrieve student portal settings');
   }
 });
 
@@ -84,7 +264,7 @@ router.get('/history', authMiddleware, requirePage('settings', 'view'), async (r
 
     res.json({ logs, total, page, pages: Math.ceil(total / limit) });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    sendError(res, err, 500);
   }
 });
 
@@ -95,7 +275,9 @@ router.get('/', authMiddleware, requirePage('settings', 'view'), async (req, res
     const grouped = {};
     const CARD_KEYS = [
       'institution', 'pages', 'attendance', 'teachers', 'models', 'academic', 
-      'security', 'device', 'trust', 'broadcast', 'advanced', 'maintenance', 'settings'
+      'security', 'device', 'trust', 'broadcast', 'advanced', 'maintenance', 'settings',
+      'controller', 'studentLeave', 'od', 'approvals', 'substitution', 'facultyLeave', 'evidence', 'hostel',
+      'driveSync', 'mailer'
     ];
     
     // Seed standard defaults first
@@ -155,12 +337,17 @@ router.get('/', authMiddleware, requirePage('settings', 'view'), async (req, res
         pageBulk:       toTri(leg.pageBulk),
         pageTimeTable:  toTri(leg.pageTimeTable || 'enabled'),
         pageSelector:   toTri(leg.pageSelector || 'enabled'),
+        pageHostel:     toTri(leg.pageHostel || 'enabled'),
+        pageTrust:      toTri(leg.pageTrust || 'enabled'),
+        pageExport:     toTri(leg.pageExport || 'enabled'),
+        pageControl:    toTri(leg.pageControl || 'enabled'),
+        pageLogs:       toTri(leg.pageLogs || 'enabled'),
       };
     }
     
     res.json(grouped);
   } catch (err) { 
-    res.status(500).json({ error: err.message }); 
+    sendError(res, err, 500); 
   }
 });
 
@@ -198,7 +385,7 @@ router.post('/verify-delete-password', authMiddleware, requirePage('settings', '
     );
     res.status(403).json({ valid: false, error: 'Incorrect password' });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    sendError(res, err, 500);
   }
 });
 
@@ -253,7 +440,7 @@ router.post('/reset', authMiddleware, requirePage('settings', 'edit'), async (re
     invalidateSettingsCache();
     res.json({ success: true, message: 'All settings restored to factory defaults.' });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    sendError(res, err, 500);
   }
 });
 
@@ -270,7 +457,7 @@ router.get('/:key', authMiddleware, async (req, res) => {
     if (!s) return res.status(404).json({ error: 'Setting not found' });
     res.json(s.value);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    sendError(res, err, 500);
   }
 });
 
@@ -437,7 +624,9 @@ router.put('/', authMiddleware, requirePage('settings', 'edit'), async (req, res
 
     const CARD_KEYS = [
       'institution', 'pages', 'attendance', 'teachers', 'models', 'academic', 
-      'security', 'device', 'trust', 'broadcast', 'advanced', 'maintenance', 'settings'
+      'security', 'device', 'trust', 'broadcast', 'advanced', 'maintenance', 'settings',
+      'controller', 'studentLeave', 'od', 'approvals', 'substitution', 'facultyLeave', 'evidence', 'hostel',
+      'driveSync', 'mailer'
     ];
     const sourceObj = req.body.settings || req.body.value || req.body;
     const matchedKeys = Object.keys(sourceObj || {}).filter(k => CARD_KEYS.includes(k));
@@ -452,7 +641,7 @@ router.put('/', authMiddleware, requirePage('settings', 'edit'), async (req, res
 
     return res.status(400).json({ error: 'No valid setting key or card provided in request' });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    sendError(res, err, 500);
   }
 });
 
@@ -467,7 +656,7 @@ router.put('/:key', authMiddleware, requirePage('settings', 'edit'), async (req,
 
     res.json(updated);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    sendError(res, err, 500);
   }
 });
 

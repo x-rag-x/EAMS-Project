@@ -84,12 +84,16 @@ async function computeStudentAttendance(studentTrackId, targetClassId) {
             };
           }
 
-          subjectStats[sid].classesHeld += 1;
-          totalHeld += 1;
+          const pWeight = Array.isArray(period.periodNumbers) && period.periodNumbers.length > 0
+            ? period.periodNumbers.length
+            : 1;
+
+          subjectStats[sid].classesHeld += pWeight;
+          totalHeld += pWeight;
 
           if (stuRec.status === 'P' || stuRec.status === 'PRESENT') {
-            subjectStats[sid].classesAttended += 1;
-            totalAttended += 1;
+            subjectStats[sid].classesAttended += pWeight;
+            totalAttended += pWeight;
           }
         }
       }

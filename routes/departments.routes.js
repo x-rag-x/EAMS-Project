@@ -3,12 +3,24 @@ const router = express.Router();
 const M = require('../models');
 const { authMiddleware, requirePage } = require('../middleware/auth');
 const { logAction } = require('../utils/logAction');
+const countService = require('../services/countService');
+
+const allowedDepartmentFields = [
+  'name', 'code', 'number', 'twoLetterCode', 'threeLetterCode',
+  'hodId', 'hodName', 'secondaryHodId', 'secondaryHodName',
+  'category', 'courseType', 'branch', 'icon'
+];
 
 router.get('/', authMiddleware, async (req, res) => res.json(await M.Department.find().sort({ name: 1 }).lean()));
 
 router.post('/', authMiddleware, requirePage('admin', 'create', { tab: 'depts' }), async (req, res) => {
   try {
-    const dept = await M.Department.create(req.body);
+    const safeData = {};
+    for (const f of allowedDepartmentFields) {
+      if (req.body[f] !== undefined) safeData[f] = req.body[f];
+    }
+    const dept = await M.Department.create(safeData);
+    await countService.modifyCount('departments', 1).catch(() => {});
     await logAction(
       req.user.trackId || req.user._id,
       req.user.name,
@@ -34,7 +46,11 @@ router.post('/', authMiddleware, requirePage('admin', 'create', { tab: 'depts' }
 router.put('/:id', authMiddleware, requirePage('admin', 'edit', { tab: 'depts' }), async (req, res) => {
   try {
     const before = await M.Department.findById(req.params.id).lean();
-    const dept = await M.Department.findByIdAndUpdate(req.params.id, req.body, { returnDocument: 'after' }).lean();
+    const safeUpdate = {};
+    for (const f of allowedDepartmentFields) {
+      if (req.body[f] !== undefined) safeUpdate[f] = req.body[f];
+    }
+    const dept = await M.Department.findByIdAndUpdate(req.params.id, safeUpdate, { returnDocument: 'after' }).lean();
     await logAction(
       req.user.trackId || req.user._id,
       req.user.name,
@@ -66,6 +82,7 @@ router.delete('/:id', authMiddleware, requirePage('admin', 'delete', { tab: 'dep
         snapshot: dept, deletedBy: req.user.name, expiresAt: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000)
       });
       await M.Department.findByIdAndDelete(req.params.id);
+      await countService.modifyCount('departments', -1).catch(() => {});
     }
     await logAction(
       req.user.trackId || req.user._id,

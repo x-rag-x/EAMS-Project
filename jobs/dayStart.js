@@ -63,7 +63,7 @@ function extractSlotsForDay(slotsData, dayName) {
  * @param {string} [targetDate] - YYYY-MM-DD IST (defaults to today IST)
  * @returns {Promise<{ created: number, updated: number, skipped: number }>}
  */
-async function generateDailyClassSessions(targetDate = null) {
+async function generateDailyClassSessions(targetDate = null, options = {}) {
   let dateStr = targetDate;
   if (!dateStr) {
     const d = new Date();
@@ -116,18 +116,24 @@ async function generateDailyClassSessions(targetDate = null) {
     });
   }
 
-  // Fallback period timings if not configured in DB
+  // Fallback period timings if not configured in DB (all 9 periods)
   const defaultTimings = {
-    1: { start: '09:00', end: '09:50' },
-    2: { start: '09:50', end: '10:40' },
-    3: { start: '10:55', end: '11:45' },
-    4: { start: '11:45', end: '12:35' },
-    5: { start: '13:30', end: '14:20' },
-    6: { start: '14:20', end: '15:10' },
-    7: { start: '15:20', end: '16:10' }
+    1: { start: '08:30', end: '09:15' },
+    2: { start: '09:15', end: '10:00' },
+    3: { start: '10:15', end: '11:00' },
+    4: { start: '11:00', end: '11:45' },
+    5: { start: '11:45', end: '12:30' },
+    6: { start: '13:15', end: '14:00' },
+    7: { start: '14:00', end: '14:45' },
+    8: { start: '15:00', end: '15:45' },
+    9: { start: '15:45', end: '16:30' }
   };
 
-  const sectionTimetables = M.SectionTimetable ? await M.SectionTimetable.find({}).lean() : [];
+  const secFilter = {};
+  if (options && options.classIds && Array.isArray(options.classIds) && options.classIds.length > 0) {
+    secFilter.classId = { $in: options.classIds.map(String) };
+  }
+  const sectionTimetables = M.SectionTimetable ? await M.SectionTimetable.find(secFilter).lean() : [];
   let created = 0;
   let updated = 0;
   let skipped = 0;
@@ -164,11 +170,13 @@ async function generateDailyClassSessions(targetDate = null) {
         }).lean()
       : [];
 
-    for (let pNum = 1; pNum <= 7; pNum++) {
+    const maxPeriodsCount = Math.max(9, periodTimingMap.size);
+    for (let pNum = 1; pNum <= maxPeriodsCount; pNum++) {
       const slot = Array.isArray(daySlots)
         ? daySlots.find(s => {
             const pVal = typeof s.period === 'number' ? s.period : parseInt(String(s.period || '').replace(/\D/g, ''), 10);
-            return pVal === pNum;
+            const span = Number(s.span || 1);
+            return pVal === pNum || (pVal <= pNum && pNum < pVal + span);
           })
         : (daySlots[pNum] || daySlots[`P${pNum}`]);
 
@@ -230,7 +238,12 @@ async function generateDailyClassSessions(targetDate = null) {
         },
         actualTeacher,
         source: sessionSource,
-        status: sessionStatus
+        status: sessionStatus,
+        slotKey: `${dayName}_${pNum}`,
+        slotHash: `${dayName}_${pNum}_${slot.subjectId || slot.subject || ''}_${teacherTrackId}_${room}`,
+        timetableTrackId: (options && options.commitTrackId) || st.timetableTrackId || st.headTrackId || '',
+        roomId: slot.roomId || null,
+        timetableDrift: false
       };
 
       const existing = await M.ClassSession.findOne({
@@ -255,6 +268,10 @@ async function generateDailyClassSessions(targetDate = null) {
           existing.subjectName = sessionData.subjectName;
           existing.subjectId = sessionData.subjectId;
           existing.slotType = sessionData.slotType;
+          existing.slotKey = sessionData.slotKey;
+          existing.slotHash = sessionData.slotHash;
+          existing.timetableTrackId = sessionData.timetableTrackId;
+          if (sessionData.roomId) existing.roomId = sessionData.roomId;
           await existing.save();
           updated++;
         } else {

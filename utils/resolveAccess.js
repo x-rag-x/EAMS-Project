@@ -194,8 +194,8 @@ function resolveAccess(first, second, third) {
     rawGrants.some(g => g && g.enabled !== false && g.accessRole === 'principal') ||
     sp.has('isPrincipal') || doc.isPrincipal === true ||
     (['admin', 'principal'].includes(doc.role) && doc.adminFlag === 'principal');
-  const isHod = sp.has('isHod') || acting.some(a => a && a.role === 'hod') || doc.isHod === true;
-  const isTimeTableCoordinator = sp.has('isTimeTableCoordinator') || doc.isTimeTableCoordinator === true;
+  const isHod = sp.has('isHod') || sp.has('isSecondaryHod') || acting.some(a => a && a.role === 'hod') || doc.isHod === true;
+  const isTimeTableCoordinator = sp.has('isTimeTableCoordinator') || sp.has('isSecondaryTimeTableCoordinator') || doc.isTimeTableCoordinator === true;
 
   const flags = {
     isSudo: tier === 'sudoAdmin',

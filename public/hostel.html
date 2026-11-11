@@ -11,8 +11,8 @@
   <script src="js/core/icons.js"></script>
   <link rel="stylesheet" href="css/base.css">
   <link rel="stylesheet" href="css/hostel.css">
-  <!-- QRCode Generator Script -->
-  <script src="https://unpkg.com/qrcode-generator@1.4.4/qrcode.js"></script>
+  <!-- QRCode Generator Script (SRI pinned) -->
+  <script src="https://unpkg.com/qrcode-generator@1.4.4/qrcode.js" integrity="sha256-GK45n4EYK8nekW6cd7GV3yDMWNby1VpisIWimfG/F4A=" crossorigin=""></script>
   <script>
     (function() {
       try {
@@ -30,7 +30,39 @@
         if (!token || !isWarden) {
           var ret = encodeURIComponent('hostel.html');
           window.location.replace('index.html?returnUrl=' + ret);
+          return;
         }
+
+        // Verify portal access status via public settings
+        fetch('/api/settings/public')
+          .then(function(r) { return r.json(); })
+          .then(function(pub) {
+            var isSudo = user && (user.isSudoAdmin === true || user.role === 'sudo' || (user.access && user.access.level === 'sudo'));
+            if (!isSudo && pub && pub.pages) {
+              var pState = pub.pages.pageHostel || 'enabled';
+              if (pState === 'hidden') {
+                window.location.replace('selector.html');
+              } else if (pState === 'disabled') {
+                var showLockout = function() {
+                  var loader = document.getElementById('page-loader');
+                  if (loader) loader.style.display = 'none';
+                  document.body.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;background:#06101e;color:#e2e8f0;font-family:sans-serif;text-align:center;padding:24px;">'
+                    + '<div style="width:64px;height:64px;border-radius:50%;background:rgba(239,68,68,0.15);color:#ef4444;display:flex;align-items:center;justify-content:center;font-size:30px;margin-bottom:20px;"><re-icon icon="lock" size="32"></re-icon></div>'
+                    + '<h1 style="font-size:24px;font-weight:700;margin-bottom:8px;">Hostel Portal Disabled</h1>'
+                    + '<p style="color:#94a3b8;max-width:480px;line-height:1.6;font-size:14px;margin-bottom:24px;">The Hostel Management Portal is currently locked by system administrator for scheduled maintenance or administrative review.</p>'
+                    + '<a href="selector.html" style="background:#0d9488;color:#fff;padding:10px 22px;border-radius:10px;text-decoration:none;font-weight:600;font-size:13.5px;box-shadow:0 4px 14px rgba(13,148,136,0.3);">Back to Workspace Selector</a>'
+                    + '</div>';
+                  if (typeof reIconReplace === 'function') reIconReplace();
+                };
+                if (document.readyState === 'loading') {
+                  document.addEventListener('DOMContentLoaded', showLockout);
+                } else {
+                  showLockout();
+                }
+              }
+            }
+          })
+          .catch(function(e) { console.warn('[Hostel Public Settings Check]:', e); });
       } catch (e) {}
     })();
   </script>

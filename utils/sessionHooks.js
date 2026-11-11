@@ -65,12 +65,18 @@ async function onStartClass({ sessionId, teacherTrackId, lat = null, lng = null,
  * @param {string} params.savedBy - trackId or username
  * @param {Object} params.counts - { present, absent, od, leave, hostelLeave, total }
  */
-async function onAttendanceSaved({ classId, date, periodNumber, savedBy, counts }) {
-  const session = await M.ClassSession.findOne({
-    classId: String(classId),
-    date: String(date),
-    periodNumber: Number(periodNumber)
-  });
+async function onAttendanceSaved({ classId, date, periodNumber, savedBy, counts, sessionId = null }) {
+  let session = null;
+  if (sessionId) {
+    session = await M.ClassSession.findById(sessionId);
+  }
+  if (!session) {
+    session = await M.ClassSession.findOne({
+      classId: String(classId),
+      date: String(date),
+      periodNumber: Number(periodNumber)
+    });
+  }
 
   if (!session) {
     // If no ClassSession pre-created yet for this slot, return silently
@@ -112,6 +118,7 @@ async function onAttendanceSaved({ classId, date, periodNumber, savedBy, counts 
     };
   }
 
+  if (!Array.isArray(session.flags)) session.flags = [];
   if (!session.startClass?.at && !session.flags.includes('no_start_tap')) {
     session.flags.push('no_start_tap');
   }

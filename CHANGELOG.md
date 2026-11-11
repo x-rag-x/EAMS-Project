@@ -1,3 +1,92 @@
+## 🔹 `v2.5.2` — 11 November 2026 *(Admin Redesign & Feature Hardening)*
+
+### 🎨 Admin Portal — UI Redesign
+- **Executive Roles & Access** — Full redesign with floating tab switcher, department cards (gradient bars, icon boxes, metadata pills, fill-bar coverage, quick-assign buttons), and 2-lane Programme/Supporting layout.
+- **Teacher Cards** — Redesigned with gradient stripes, squircle avatars, role color themes (HoD/SuperAdmin/SudoAdmin), 2-col stats. Density calibrated for 100% zoom.
+- **Department Cards** — Upgraded to match `Departments.dc.html` styling with hero stats, serving-tags, and HoD footer. "Assign HoD" links directly to Executive Roles popup with bidirectional sync.
+
+### ⚙️ Settings & Access Control
+- **Page-Level Portal Guards** — Tri-state access keys (`pageHostel`, `pageTrust`, `pageExport`, `pageControl`, `pageLogs`) added to Pages & Portal Access Control. Restricted pages are fully hidden and route-blocked.
+- **Trust & Devices Policy** — New settings subtab for device trust enforcement, session device limits, trusted-device expiry, and unrecognized-device blocking.
+- **Google Drive Sync** — `driveSync` settings group: backup schedule (cron), Drive folder ID, service account path for automated institutional backups.
+- **Mail Notifications** — `mailer` settings group: SMTP configuration, absence alerts, leave notifications, and system alert recipients.
+- **Split Leave Module** — Independent `modelStudentLeave` / `modelStaffLeave` toggles. Dependent routes and UI suppressed when disabled.
+- **Location-Based Attendance Geofence** — `enforceAttendanceGeofence` toggle with configurable radius and GPS accuracy thresholds.
+- **Sudo Admin Security** — MFA requirement, IP whitelist, session timeout, and audit logging for super-privileged admin access.
+
+### 👨‍🎓 Student Management
+- **Server-Side Student Search** — `GET /api/students?q=` regex across `fullName`, `registerNo`, `rollNo`, `email`, `username`, `trackId`. Debounced at 260ms with client-side fallback.
+- **Student Details — Tabbed Redesign** — Expanded attendance graph with full semester timeline from backend. New "Student Actions" tab consolidating Edit, Portal Access, Demographics, and Delete.
+- **Add/Edit Modal — Animated Switchers** — Spring-physics segmented switchers for Gender, Admission Type, Residency with fluid water-flow selection animation.
+- **Optional Roll Number** — `rollNo` field added to schema, routes, and Add/Edit modals.
+
+### 🏫 Class Management
+- **Class Representatives** — Full feature: max 2 reps per class (1 required). `PUT /api/classes/:id/representatives` with bidirectional `M.Student.isRep` sync. Searchable dropdowns with live search, register number badges, and mutual-exclusion enforcement.
+- **Rep TrackId Persistence** — `rep1TrackId`, `rep2TrackId` stored in `ClassSchema`. `enrichClassRepresentatives()` populates live student details on `GET /api/classes`. Overview card refreshes immediately on save.
+
+### More...
+- **Attendance URL TrackId Sync** — Class ObjectIds replaced with `trackId` in URLs and dropdowns. `toClassTrackId()` helper and `updateAttendanceUrlParams()` fix cross-tab query pollution.
+- **Attendance Registry DD-MM Headers** — Column headers formatted as `dd-mm · Day`. Sundays excluded; working days from `M.CalendarDay`.
+- **Removed "Today's Scheduled Slots"** — Hero card and chips block removed from Take Attendance page.
+
+- **Verification Access Restricted** — Limited to TT Coordinators and HoDs only; pure Admins get `403` and hidden UI. Requester-only edit/withdraw/reopen enforced with `requestedByTeacherTrackId` and `requestedByRole` tracking.
+
+- **Blend/Lab Component Mapping** — Schema extended with `component`, `labComponentId`, `theoryComponentId`. Reciprocal theory-lab linking. Slot config and blend DB persistence fixed.
+- **Department Scoping Fix** — `getSubjectDeptId()` helper safely handles both populated object and string ID formats.
+
+- **Dashboard Count Optimizations** — Removed unbounded log scans from `GET /api/dashboard/counts`. `AggregatedCount` seeding on boot, 15s sync throttle, date-bounded unmarked-teachers query.
+
+- **Logs Admin-Only Enforcement** — `logsAdminOnly` middleware enforced on all activity log routes.
+- **QR DoS Prevention** — Generator clamped: size `100–1000px`, data cap `2048 chars`.
+
+### `Total 250 Files changed and updated in v2.5.2`
+### `Last Version: v2.5.1`
+
+---
+
+
+## 🔹 `v2.5.1` — 26 October 2026 *(Attendance Roster & Attendance Registry)*
+
+### **Attendance Roster (`control.html?tab=roster`)**
+- **Day Matrix View**: Complete read-only day view across Dept → Class → Date cascade with working/holiday status badges from `CalendarDay`.
+- **Forensic Period Details**: Period strip displaying individual sessions, method badges, and teacher info. Clicking any period switches to forensic inspection joined with `LoginHistory`.
+- **Student Forensic Dossier Drawer**: Slide-out forensic drawer displaying all period marks, device info, IP, location, and full signal-by-signal point breakdowns.
+- **Audit Logging**: Forensic views automatically write encrypted `logAction` audit logs (`category: attendance`, `subType: roster-forensic-view`).
+
+### **Attendance Registry (`control.html?tab=registry`)**
+- **Spreadsheet-Style Grid Register**: 2-level header featuring merged date bands over periods (`1st Sept 26 · Tue`), frozen identity columns, and right-pinned totals.
+- **Status Overlay & Legend**: Single-letter cell statuses (`P` Present, `A` Absent highlighted in Yellow `FFFF00`, `L` Approved Leave, `OD` On Duty, `H` Holiday, `–` Not marked) strictly aligned with institutional leave overlays.
+- **Shortage Alerts & Filtering**: Real-time client-side student search and shortage filter checkbox (`< 75%` min attendance).
+- **View Toggles & Deep Links**: Toggle between classic Period Grid (1..N) and Day Summary views; click any cell to seamlessly navigate into Roster period forensics.
+- **Server-Side Excel (.xlsx) Export**: Live `=COUNTIF(...)` formulas, merged bands, freeze panes, conditional formatting, and second "Legend & Summary" sheet via `exceljs`.
+- **Server-Side PDF (.pdf) Export**: Clean landscape A4 multi-page document divided into 6-day week blocks with repeating student headers and signature strips via `pdfkit`.
+- **Direct Print Layout**: Clean print stylesheet for direct paper printing without clipped columns or clipped borders.
+
+### **Hardware Device Trust & Anti-Proxy Security**
+- **Explainable Device Trust Engine**: Heuristic 0–100 score (`utils/deviceTrust.js`) across 7 signals (exclusive in session, known device history, login session link & time window, UA match, IP match, geolocation, QR window) with hard caps and alert flags (`SHARED_DEVICE`, `NO_DEVICE_ID`, `GRACE_WINDOW`, `UA_MISMATCH`).
+- **Anti-Fraud Hard Caps & Alert Flags**: Automatic point penalties and explicit trust flags to expose proxy attendance and device-swapping attempts.
+
+### **Backend Foundations & Architectural Parity**
+- **Additive Schema Updates**: Added `periods[].source` (`method`, `sessionTrackId`, `sessionModel`, `via`) and `periodNumber` to `ClassAttendanceSchema`; added `deviceSessionId` to `QuickPassSessionSchema.records`.
+- **Hoisted & Validated Method Links**: Verified capture methods & session links (`QuickPassSession`, `ScanLiveSession`, `RepShareSession`) against `classId` and teacher identity prior to saving attendance records. Stamped `source` (`Admin Edit` / `Manual`) in the `/update/:id?` route.
+- **API Endpoints**: Mounted `/api/attendance-records` with cascading options, roster matrix, student drawer, registry matrix, and streaming exports.
+- **Zero LocalStorage Invariant**: Zero usage of localStorage in new pages; all filter and selection states reside strictly in memory and URL search parameters.
+- **Export Traffic Safeguards**: Added `registryExportLimiter` rate limiter (30 requests / 5 min) and streamed downloads without writing insecure temporary files.
+- **Historical Data Normalization**: Added `scripts/backfillAttendanceMethod.js` to audit and backfill historical attendance capture methods from audit logs and session documents.
+
+### **More..**
+- **Editable Teacher Username**: Made teacher username input editable in the Add Teacher modal (`admin.html`), allowing custom usernames while maintaining automatic generation from email prefix.
+- **FN/AN Division Setting**: Configured `academic.fnPeriods: 4` in `config/defaultSettings.js` for accurate half-day morning/afternoon period attendance division.
+- **Settings Cache & DOM Fixes**: Added `getCachedSettings` export to `utils/settingsCache.js` for null-safety and resolved indefinite loading spinner in Registry caused by DOM container overwrite.
+
+### *Multiple Bugs and its Fixes, UI/UX improvement, testing of inline linked features, security strengthening, lesser loading/fetching time interval*
+
+### `Total 24 Files changed and updated in v2.5.1`
+### `Last Version: v2.5.0`
+
+---
+
+
 ## 🔹 `v2.5.0` — 24 October 2026 *(Long due features)*
 
 ### **UI/UX Modernization & Reicon SVG Design System**

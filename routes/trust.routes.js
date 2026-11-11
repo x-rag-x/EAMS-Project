@@ -13,8 +13,20 @@ const { getSettings } = require('../utils/settingsCache');
 const { todayIST } = require('../utils/institutionTime');
 const { logAction } = require('../utils/logAction');
 const { isSudo, isSuperAdminForDept } = require('../utils/access');
+const { checkTrustPortalGuard } = require('../middleware/portalGuard');
+
+const { escapeRegex } = require('../utils/sanitizeQuery');
+const { trustActionLimiter } = require('../utils/rateLimiters');
 
 router.use(authMiddleware);
+
+// Deny students on staff endpoints (§5 S1) and verify portal access
+const denyStudents = async (req, res, next) => {
+  if (req.user?.role === 'student') {
+    return res.status(403).json({ error: 'Staff only', code: 'ROLE_FORBIDDEN' });
+  }
+  return checkTrustPortalGuard(req, res, next);
+};
 
 /**
  * GET /api/trust/me
@@ -89,7 +101,7 @@ router.get('/me', async (req, res) => {
  * Teacher endpoint: Verify pending student attendance during live session (§7.3, §16, T4.4)
  * Body: { sessionTrackId, studentId, result: 'present' | 'not_in_class' }
  */
-router.post('/verify', async (req, res) => {
+router.post('/verify', denyStudents, trustActionLimiter, async (req, res) => {
   try {
     const { sessionTrackId, studentId, result } = req.body;
 
@@ -276,7 +288,7 @@ router.post('/verify', async (req, res) => {
  * Staff endpoint: List students with trust status (§11, §16)
  * Scoped by department or class (Advisor sees own class, Super Admin sees own dept, Sudo sees all)
  */
-router.get('/students', async (req, res) => {
+router.get('/students', denyStudents, async (req, res) => {
   try {
     const isAdvisor = req.user.role === 'teacher' && req.user.specials?.some(s => s.option === 'isClassAdvisor');
     const isSuper = req.user.isSuperAdmin || ['superAdmin', 'sudoAdmin'].includes(req.user.accessRole);
@@ -302,7 +314,7 @@ router.get('/students', async (req, res) => {
     }
 
     if (search) {
-      const sRegex = new RegExp(search.trim(), 'i');
+      const sRegex = new RegExp(escapeRegex(search.trim()), 'i');
       query.$or = [{ fullName: sRegex }, { registerNo: sRegex }, { username: sRegex }];
     }
 
@@ -374,7 +386,7 @@ router.get('/students', async (req, res) => {
  * GET /api/trust/students/:id
  * Staff endpoint: Detailed view of a student's trust status and ledger (§11, §16)
  */
-router.get('/students/:id', async (req, res) => {
+router.get('/students/:id', denyStudents, async (req, res) => {
   try {
     const isSudoUser = req.user.isSudoAdmin || req.user.accessRole === 'sudoAdmin' || req.user.role === 'sudo' || isSudo(req);
     const student = await M.Student.findById(req.params.id)
@@ -432,7 +444,7 @@ router.get('/students/:id', async (req, res) => {
  * Advisor endpoint: Give consent to reset or unlock student (§8, §16)
  * Body: { note: string }
  */
-router.post('/students/:id/consent', async (req, res) => {
+router.post('/students/:id/consent', denyStudents, trustActionLimiter, async (req, res) => {
   try {
     const isAdvisor = req.user.role === 'teacher' && req.user.specials?.some(s => s.option === 'isClassAdvisor');
     const isSuper = req.user.isSuperAdmin || ['superAdmin', 'sudoAdmin'].includes(req.user.accessRole);
@@ -491,7 +503,7 @@ router.post('/students/:id/consent', async (req, res) => {
  * Admin action: Unlock self-attendance (requires advisor consent per §8)
  * Body: { reason: string }
  */
-router.post('/students/:id/unlock', async (req, res) => {
+router.post('/students/:id/unlock', denyStudents, trustActionLimiter, async (req, res) => {
   try {
     const isSuper = req.user.isSuperAdmin || ['superAdmin', 'sudoAdmin'].includes(req.user.accessRole);
     const isSudoUser = req.user.isSudoAdmin || req.user.accessRole === 'sudoAdmin' || req.user.role === 'sudo' || isSudo(req);
@@ -554,7 +566,7 @@ router.post('/students/:id/unlock', async (req, res) => {
  * Admin action: Manually adjust student trust score (§8, §16)
  * Body: { delta: number, reason: string }
  */
-router.post('/students/:id/adjust', async (req, res) => {
+router.post('/students/:id/adjust', denyStudents, trustActionLimiter, async (req, res) => {
   try {
     const isSuper = req.user.isSuperAdmin || ['superAdmin', 'sudoAdmin'].includes(req.user.accessRole);
     const isSudoUser = req.user.isSudoAdmin || req.user.accessRole === 'sudoAdmin' || req.user.role === 'sudo' || isSudo(req);
@@ -629,7 +641,7 @@ router.post('/students/:id/adjust', async (req, res) => {
  * Admin action: Reset trust score to 100 and clear lock (requires advisor consent per §8)
  * Body: { reason: string }
  */
-router.post('/students/:id/reset', async (req, res) => {
+router.post('/students/:id/reset', denyStudents, trustActionLimiter, async (req, res) => {
   try {
     const isSuper = req.user.isSuperAdmin || ['superAdmin', 'sudoAdmin'].includes(req.user.accessRole);
     const isSudoUser = req.user.isSudoAdmin || req.user.accessRole === 'sudoAdmin' || req.user.role === 'sudo' || isSudo(req);
@@ -711,7 +723,7 @@ async function sendNotificationSafe(data) {
  * Student endpoint: Submit a dispute for a penalised trust event (§12)
  * Body: { eventId: string, reason: string }
  */
-router.post('/disputes', async (req, res) => {
+router.post('/disputes', trustActionLimiter, async (req, res) => {
   try {
     if (req.user.role !== 'student') {
       return res.status(403).json({ error: 'Only students can file attendance & trust disputes', code: 'ROLE_FORBIDDEN' });
@@ -994,13 +1006,13 @@ router.get('/disputes', async (req, res) => {
     if (req.query.status) {
       filter.status = req.query.status;
     }
-    if (req.query.studentId && mongoose.isValidObjectId(req.query.studentId)) {
+    if (req.user.role !== 'student' && req.query.studentId && mongoose.isValidObjectId(req.query.studentId)) {
       filter.studentId = req.query.studentId;
     }
-    if (req.query.classId && mongoose.isValidObjectId(req.query.classId)) {
+    if (req.user.role !== 'student' && req.query.classId && mongoose.isValidObjectId(req.query.classId)) {
       filter.classId = req.query.classId;
     }
-    if (req.query.deptId && mongoose.isValidObjectId(req.query.deptId)) {
+    if (req.user.role !== 'student' && req.query.deptId && mongoose.isValidObjectId(req.query.deptId)) {
       filter.deptId = req.query.deptId;
     }
 
@@ -1060,7 +1072,7 @@ router.get('/disputes/:id', async (req, res) => {
  * Teacher endpoint: Submit optional statement (~50 words) within 48h
  * Body: { statement: string }
  */
-router.post('/disputes/:id/teacher-statement', async (req, res) => {
+router.post('/disputes/:id/teacher-statement', denyStudents, trustActionLimiter, async (req, res) => {
   try {
     const { statement } = req.body;
     if (!statement || typeof statement !== 'string' || statement.trim().length === 0) {
@@ -1119,7 +1131,7 @@ router.post('/disputes/:id/teacher-statement', async (req, res) => {
  * Class Advisor endpoint: Support (forward to Super Admin) or Reject (§12)
  * Body: { action: 'SUPPORT' | 'REJECT', note: string }
  */
-router.post('/disputes/:id/advisor', async (req, res) => {
+router.post('/disputes/:id/advisor', denyStudents, trustActionLimiter, async (req, res) => {
   try {
     const { action, note } = req.body;
     if (!['SUPPORT', 'REJECT'].includes(action)) {
@@ -1209,7 +1221,7 @@ router.post('/disputes/:id/advisor', async (req, res) => {
  * Department Super Admin / Sudo endpoint: Accept (execute correction transaction) or Reject (§12, T6.3)
  * Body: { decision: 'ACCEPT' | 'REJECT', note: string, newTrustScore?: number }
  */
-router.post('/disputes/:id/decide', async (req, res) => {
+router.post('/disputes/:id/decide', denyStudents, trustActionLimiter, async (req, res) => {
   try {
     const isSuper = req.user.isSuperAdmin || ['superAdmin', 'sudoAdmin'].includes(req.user.accessRole);
     const isSudoUser = req.user.isSudoAdmin || req.user.accessRole === 'sudoAdmin' || req.user.role === 'sudo' || isSudo(req);
@@ -1549,7 +1561,7 @@ router.post('/disputes/:id/decide', async (req, res) => {
  * POST /api/trust/disputes/:id/withdraw
  * Student endpoint: Withdraw an open dispute
  */
-router.post('/disputes/:id/withdraw', async (req, res) => {
+router.post('/disputes/:id/withdraw', trustActionLimiter, async (req, res) => {
   try {
     const dispute = await M.TrustDispute.findOne({
       $or: [
@@ -1600,7 +1612,7 @@ router.post('/disputes/:id/withdraw', async (req, res) => {
  * GET /api/trust/cases
  * Super Admin (own department) or Sudo Admin (all) list device share cases (§13, §16)
  */
-router.get('/cases', async (req, res) => {
+router.get('/cases', denyStudents, async (req, res) => {
   try {
     const isSuper = req.user.isSuperAdmin || ['superAdmin', 'sudoAdmin'].includes(req.user.accessRole);
     const isSudoUser = req.user.isSudoAdmin || req.user.accessRole === 'sudoAdmin' || req.user.role === 'sudo' || isSudo(req);
@@ -1634,7 +1646,7 @@ router.get('/cases', async (req, res) => {
  * GET /api/trust/cases/:id
  * Retrieve details of a device share case
  */
-router.get('/cases/:id', async (req, res) => {
+router.get('/cases/:id', denyStudents, async (req, res) => {
   try {
     const isSuper = req.user.isSuperAdmin || ['superAdmin', 'sudoAdmin'].includes(req.user.accessRole);
     const isSudoUser = req.user.isSudoAdmin || req.user.accessRole === 'sudoAdmin' || req.user.role === 'sudo' || isSudo(req);
@@ -1674,7 +1686,7 @@ router.get('/cases/:id', async (req, res) => {
  * Applies: past marks to Absent, 15-day lock, -5% attendance adjustment, DEVICE_SHARED events
  * Body: { note: string, absentDays?: number, lockDays?: number, penaltyPct?: number }
  */
-router.post('/cases/:id/confirm', async (req, res) => {
+router.post('/cases/:id/confirm', denyStudents, trustActionLimiter, async (req, res) => {
   try {
     const isSuper = req.user.isSuperAdmin || ['superAdmin', 'sudoAdmin'].includes(req.user.accessRole);
     const isSudoUser = req.user.isSudoAdmin || req.user.accessRole === 'sudoAdmin' || req.user.role === 'sudo' || isSudo(req);
@@ -1867,7 +1879,7 @@ router.post('/cases/:id/confirm', async (req, res) => {
  * Super Admin or Sudo dismisses device share case (e.g. verified legitimate sharing or lab PC)
  * Body: { note: string }
  */
-router.post('/cases/:id/dismiss', async (req, res) => {
+router.post('/cases/:id/dismiss', denyStudents, trustActionLimiter, async (req, res) => {
   try {
     const isSuper = req.user.isSuperAdmin || ['superAdmin', 'sudoAdmin'].includes(req.user.accessRole);
     const isSudoUser = req.user.isSudoAdmin || req.user.accessRole === 'sudoAdmin' || req.user.role === 'sudo' || isSudo(req);

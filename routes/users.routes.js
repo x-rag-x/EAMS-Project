@@ -4,6 +4,7 @@ const mongoose = require('mongoose');
 const bcrypt = require('@node-rs/bcrypt');
 const M = require('../models');
 const cfg = require('../config');
+const countService = require('../services/countService');
 const { authMiddleware, getRoleModel, requirePage, scopeFilter, assertInScope } = require('../middleware/auth');
 const { logAction } = require('../utils/logAction');
 const escapeRegex = s => String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -366,7 +367,7 @@ router.put('/:id', authMiddleware, async (req, res) => {
         department, deptId, deptCode, designation, employeeNo,
         registerNo, className, class: userClass, classId, courseType, branch, admissionYear, academicYear, batchTrackId, batch, isRep,
         isAdmin: userIsAdmin, defaultAttendanceStatus, specials, mustChangePassword,
-        password, residency, gender
+        password, residency, gender, admissionType
       } = req.body;
 
       // Update username on shadow user if changed
@@ -387,6 +388,7 @@ router.put('/:id', authMiddleware, async (req, res) => {
       }
 
       // Update shadow user status with last-admin guard
+      const previousStatus = user.status;
       targetStatus = status !== undefined ? status : (active !== undefined ? (active ? 'active' : 'inactive') : user.status);
       if (targetStatus !== 'active' && user.status === 'active') {
         const check = await assertNotLastSudoAdmin(user.trackId || user.username || user._id);
@@ -407,6 +409,15 @@ router.put('/:id', authMiddleware, async (req, res) => {
       }
 
       await user.save();
+
+      // Sync active teachers count if status changed
+      if (user.role === 'teacher' && previousStatus !== targetStatus) {
+        if ((previousStatus === 'inactive' || previousStatus === 'locked') && targetStatus === 'active') {
+          await countService.modifyCount('activeTeachers', 1).catch(() => {});
+        } else if (previousStatus === 'active' && (targetStatus === 'inactive' || targetStatus === 'locked')) {
+          await countService.modifyCount('activeTeachers', -1).catch(() => {});
+        }
+      }
 
       // Update corresponding role model
       if (fullName !== undefined || name !== undefined) roleDoc.fullName = (fullName || name).trim();
@@ -478,6 +489,9 @@ router.put('/:id', authMiddleware, async (req, res) => {
         }
         if (residency !== undefined) {
           roleDoc.residency = (String(residency).toLowerCase().includes('hostel')) ? 'hostel' : 'dayscholar';
+        }
+        if (admissionType !== undefined) {
+          roleDoc.admissionType = (String(admissionType).toLowerCase().includes('lateral')) ? 'Lateral Entry' : 'Regular';
         }
       }
 
@@ -745,12 +759,17 @@ router.post('/bulk-action', authMiddleware, requirePage('control', 'edit', { tab
     let affectedCount = 0;
 
     if (action === 'activate') {
+      const teacherCount = users.filter(u => u.role === 'teacher' && u.status === 'inactive').length;
       await M.User.updateMany({ _id: { $in: userIds } }, { $set: { status: 'active', failedLogins: 0, lockedUntil: null } });
       if (trackIds.length) {
         await M.LoginHistory.updateMany({ trackId: { $in: trackIds } }, { $set: { failedLogins: 0, lockedUntil: null } });
       }
+      if (teacherCount > 0) {
+        await countService.modifyCount('activeTeachers', teacherCount).catch(() => {});
+      }
       affectedCount = users.length;
     } else if (action === 'deactivate') {
+      const teacherCount = users.filter(u => u.role === 'teacher' && u.status !== 'inactive').length;
       await M.User.updateMany({ _id: { $in: userIds } }, { $set: { status: 'inactive', online: false } });
       if (trackIds.length) {
         await Promise.all([
@@ -773,6 +792,9 @@ router.post('/bulk-action', authMiddleware, requirePage('control', 'edit', { tab
         ]);
       }
       await M.ActiveSession.deleteMany({ userId: { $in: userIds } }).catch(() => {});
+      if (teacherCount > 0) {
+        await countService.modifyCount('activeTeachers', -teacherCount).catch(() => {});
+      }
       affectedCount = users.length;
     } else if (action === 'unlock') {
       await M.User.updateMany({ _id: { $in: userIds } }, { $set: { status: 'active', failedLogins: 0, lockedUntil: null } });
@@ -781,6 +803,10 @@ router.post('/bulk-action', authMiddleware, requirePage('control', 'edit', { tab
       }
       affectedCount = users.length;
     } else if (action === 'delete') {
+      const teacherUsers = users.filter(u => u.role === 'teacher');
+      const teacherCount = teacherUsers.length;
+      const activeTeacherCount = teacherUsers.filter(u => u.status !== 'inactive').length;
+
       // Soft-delete with UndoLog snapshot
       for (const u of users) {
         const model = getRoleModel(u.role);
@@ -818,6 +844,13 @@ router.post('/bulk-action', authMiddleware, requirePage('control', 'edit', { tab
         ]);
       }
       await M.ActiveSession.deleteMany({ userId: { $in: userIds } }).catch(() => {});
+
+      if (teacherCount > 0) {
+        await countService.modifyCount('teachers', -teacherCount).catch(() => {});
+        if (activeTeacherCount > 0) {
+          await countService.modifyCount('activeTeachers', -activeTeacherCount).catch(() => {});
+        }
+      }
       affectedCount = users.length;
     }
 
@@ -864,9 +897,25 @@ router.delete('/:id', authMiddleware, requirePage('control', 'delete', { tab: 'u
       expiresAt: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toISOString(),
     }).catch(() => {});
 
-    user.status = 'inactive';
-    user.online = false;
-    await user.save();
+    const isPermanent = req.query.permanent === 'true' || req.query.permanent === true || req.body?.permanent === true;
+
+    if (isPermanent) {
+      await M.User.deleteOne({ _id: user._id });
+      if (model && user.trackId) {
+        await model.deleteOne({ trackId: user.trackId }).catch(() => {});
+      }
+    } else {
+      user.status = 'inactive';
+      user.online = false;
+      await user.save();
+    }
+
+    if (user.role === 'teacher') {
+      await countService.modifyCount('activeTeachers', -1).catch(() => {});
+      if (isPermanent) {
+        await countService.modifyCount('teachers', -1).catch(() => {});
+      }
+    }
 
     if (user.trackId) {
       await Promise.all([
@@ -895,8 +944,8 @@ router.delete('/:id', authMiddleware, requirePage('control', 'delete', { tab: 'u
       req.user.trackId || req.user._id,
       req.user.name,
       req.user.role,
-      'User Deactivated',
-      `User ${user.username} deactivated & snapshot stored in Recycle Bin`,
+      isPermanent ? 'User Permanently Deleted' : 'User Deactivated',
+      isPermanent ? `User ${user.username} permanently deleted` : `User ${user.username} deactivated & snapshot stored in Recycle Bin`,
       'data',
       'warning',
       req.ip,
@@ -904,7 +953,11 @@ router.delete('/:id', authMiddleware, requirePage('control', 'delete', { tab: 'u
       { module: 'admin', subType: 'entry-delete', trackId: req.user.trackId }
     );
 
-    res.json({ success: true, deleted: true, message: `User ${user.username} deactivated successfully.` });
+    res.json({
+      success: true,
+      deleted: true,
+      message: isPermanent ? `User ${user.username} permanently deleted.` : `User ${user.username} deactivated successfully.`
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

@@ -55,12 +55,19 @@ async function checkLiveSessionGuard(req, res, next) {
   next();
 }
 
-// Verify generic module enablement status
+// Verify generic module enablement status (supporting granular student/staff leave models)
 function checkModuleGuard(moduleKey, moduleName) {
   return async function (req, res, next) {
     if (req.user && isAdminUser(req.user)) return next();
     const settings = await getCachedSettings();
-    const isEnabled = settings.models?.[moduleKey] ?? true;
+    let isEnabled = settings.models?.[moduleKey];
+    if (isEnabled === undefined && moduleKey === 'modelStudentLeave') {
+      isEnabled = settings.models?.modelLeave;
+    }
+    if (isEnabled === undefined && moduleKey === 'modelStaffLeave') {
+      isEnabled = settings.models?.modelLeave;
+    }
+    if (isEnabled === undefined) isEnabled = true;
     if (isEnabled === false) {
       return res.status(403).json({
         error: `${moduleName} module is currently disabled by administrator.`,
@@ -101,10 +108,64 @@ async function checkRoomsPortalGuard(req, res, next) {
   next();
 }
 
+// Verify rep share feature availability (Section 8.1, S8)
+async function checkRepShareGuard(req, res, next) {
+  if (req.user && isAdminUser(req.user)) return next();
+  const settings = await getCachedSettings();
+  const markAttendance = settings.attendance?.markAttendance ?? true;
+  if (markAttendance === false) {
+    return res.status(403).json({
+      error: 'Attendance marking is currently locked by administrator.',
+      featureDisabled: true
+    });
+  }
+  const forwardToRep = settings.attendance?.forwardToRep ?? true;
+  if (forwardToRep === false) {
+    return res.status(403).json({
+      error: 'Representative Attendance Share is currently disabled by administrator.',
+      featureDisabled: true
+    });
+  }
+  next();
+}
+
+// Verify hostel portal access permissions
+async function checkHostelPortalGuard(req, res, next) {
+  if (req.user && isAdminUser(req.user)) return next();
+  const settings = await getCachedSettings();
+  const pageHostel = settings.pages?.pageHostel ?? 'enabled';
+  if (pageHostel === 'disabled' || pageHostel === 'hidden' || pageHostel === false) {
+    return res.status(403).json({
+      error: 'Hostel Management Portal is currently disabled by administrator.',
+      portalDisabled: true,
+      portal: 'hostel'
+    });
+  }
+  next();
+}
+
+// Verify trust & devices management portal access permissions
+async function checkTrustPortalGuard(req, res, next) {
+  if (req.user && isAdminUser(req.user)) return next();
+  const settings = await getCachedSettings();
+  const pageTrust = settings.pages?.pageTrust ?? 'enabled';
+  if (pageTrust === 'disabled' || pageTrust === 'hidden' || pageTrust === false) {
+    return res.status(403).json({
+      error: 'Trust & Devices Management is currently disabled by administrator.',
+      portalDisabled: true,
+      portal: 'trust'
+    });
+  }
+  next();
+}
+
 module.exports = {
+  checkRepShareGuard,
   checkStudentPortalGuard,
   checkControllerPortalGuard,
   checkRoomsPortalGuard,
+  checkHostelPortalGuard,
+  checkTrustPortalGuard,
   checkAttendanceMarkGuard,
   checkLiveSessionGuard,
   checkModuleGuard,

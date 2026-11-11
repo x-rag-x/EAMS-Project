@@ -33,6 +33,9 @@ const {
   resolveTeacherRange,
   dayFull
 } = require('../utils/teacherSchedule');
+const { getEligibleRooms, checkRoomEligibility } = require('../services/roomEligibility');
+const { computeRowsHash, syncClassSubjectSet, verifySubjectSetGate } = require('../services/subjectSetService');
+const { resolveHodTeacher } = require('../utils/timetableResolver');
 
 // ── Default institutional timing sets (seeded on first request) ──
 
@@ -98,15 +101,77 @@ function canManage(req) {
 }
 
 function canAccessDev(req) {
-  const u = req.user;
+  const u = req ? (req.user || req) : null;
   if (!u) return false;
+
+  // Sudo Admins are strictly restricted to Production only (deny first)
+  if (isSudo(req || u) || isSudoAdmin(u) || u.isSudo === true || u.isSudoAdmin === true || u.role === 'sudo' || u.role === 'admin') {
+    return false;
+  }
 
   // HOD, TT Coordinator, and Principal have full access to Development drafts and Production
   if (u.isHod === true || u.isTimeTableCoordinator === true || u.isPrincipal === true) return true;
   if (Array.isArray(u.specials) && u.specials.some(s => s && (s.option === 'isHod' || s.option === 'isTimeTableCoordinator' || s.option === 'isPrincipal') && s.value !== false)) return true;
 
-  // Sudo Admins are strictly restricted to Production only
-  if (isSudo(req || u) || isSudoAdmin(u)) return false;
+  return false;
+}
+
+function isHodUser(u) {
+  if (!u) return false;
+  if (u.isHod === true || u.isHOD === true || u.role === 'hod') return true;
+  if (Array.isArray(u.roles) && (u.roles.includes('hod') || u.roles.includes('HOD'))) return true;
+  if (Array.isArray(u.specials) && u.specials.some(s => s && (s.option === 'isHod' || s.option === 'isHOD') && s.value !== false)) return true;
+  return false;
+}
+
+function isTTCoordinatorUser(u) {
+  if (!u) return false;
+  if (u.isTimeTableCoordinator === true || u.isTTC === true || u.role === 'ttc') return true;
+  if (Array.isArray(u.roles) && (u.roles.includes('ttCoordinator') || u.roles.includes('ttc') || u.roles.includes('timetableCoordinator'))) return true;
+  if (Array.isArray(u.specials) && u.specials.some(s => s && (s.option === 'isTimeTableCoordinator' || s.option === 'isTTC') && s.value !== false)) return true;
+  return false;
+}
+
+function canAccessApprovals(u) {
+  // Only Timetable Coordinators and Department HoDs can see or access Timetable Verification Requests / Approvals.
+  // Admins who are not TT Coordinators or HoDs do not have access.
+  return isHodUser(u) || isTTCoordinatorUser(u);
+}
+
+function isVerificationRequester(doc, u) {
+  if (!doc || !u) return false;
+  const vr = doc.verificationRequest || {};
+
+  const userObjId = String(u._id || u.teacherId || u.id || '');
+  const userTrackId = String(u.trackId || '').trim().toLowerCase();
+  const userName = String(u.name || u.fullName || '').trim().toLowerCase();
+  const userUsername = String(u.username || '').trim().toLowerCase();
+  const userEmail = String(u.email || '').trim().toLowerCase();
+
+  // 1. Direct ID match (requestedByTeacherId or savedByTeacherId)
+  if (userObjId) {
+    if (vr.requestedByTeacherId && String(vr.requestedByTeacherId) === userObjId) return true;
+    if (doc.savedByTeacherId && String(doc.savedByTeacherId) === userObjId) return true;
+  }
+
+  // 2. Track ID match (requestedByTrackId or savedByTrackId)
+  if (userTrackId) {
+    if (vr.requestedByTrackId && String(vr.requestedByTrackId).trim().toLowerCase() === userTrackId) return true;
+    if (doc.savedByTrackId && String(doc.savedByTrackId).trim().toLowerCase() === userTrackId) return true;
+  }
+
+  // 3. Email match
+  if (userEmail && vr.requestedByEmail && String(vr.requestedByEmail).trim().toLowerCase() === userEmail) {
+    return true;
+  }
+
+  // 4. Fallback string match for legacy records
+  const reqByStr = String(vr.requestedBy || doc.savedBy || '').trim().toLowerCase();
+  if (reqByStr) {
+    if (userName && (reqByStr === userName || reqByStr.includes(userName) || userName.includes(reqByStr))) return true;
+    if (userUsername && reqByStr === userUsername) return true;
+    if (userTrackId && reqByStr === userTrackId) return true;
+  }
 
   return false;
 }
@@ -206,6 +271,7 @@ function gridToSlotsObj(grid = [], className = '') {
 
   for (const item of grid) {
     if (!item || !item.day || item.period === undefined || item.period === null) continue;
+    if (item.isSpanContinuation || (Number(item.spanIndex) > 0)) continue;
     const startPeriod = typeof item.period === 'number' ? item.period : (parseInt(String(item.period).replace(/^P/i, ''), 10) || 1);
     const span = Math.max(1, Number(item.span || item.duration || 1));
 
@@ -247,26 +313,53 @@ function gridToSlotsObj(grid = [], className = '') {
   return slots;
 }
 
+function isLabText(text) {
+  if (!text) return false;
+  const s = String(text).trim();
+  if (/\b(?:lab|laboratory|practicals?)\b/i.test(s)) return true;
+  if (/(?:[-_]|\s|\/|\()l(?:ab)?(?:\)|\b|$)/i.test(s)) return true;
+  return false;
+}
+
 function normalizeGridSlots(rawSlots = []) {
   if (!Array.isArray(rawSlots)) return [];
-  return rawSlots.map(slot => {
-    if (!slot) return null;
+
+  // Identify root keys to avoid double-expanding if continuations are already present
+  const validSlots = rawSlots.filter(Boolean);
+  const rootKeys = new Set();
+  for (const s of validSlots) {
+    if (!s.isSpanContinuation && !(Number(s.spanIndex) > 0)) {
+      const p = typeof s.period === 'number' ? s.period : (parseInt(String(s.period).replace(/\D/g, ''), 10) || 1);
+      rootKeys.add(`${s.day}_${s.spanRootPeriod || p}`);
+    }
+  }
+
+  const result = [];
+
+  for (const slot of validSlots) {
+    const isCont = Boolean(slot.isSpanContinuation || (Number(slot.spanIndex) > 0));
+    const rootPeriodCandidate = slot.spanRootPeriod || slot.period;
+    if (isCont && rootKeys.has(`${slot.day}_${rootPeriodCandidate}`)) {
+      // Root exists and will expand this period, skip to avoid double expansion
+      continue;
+    }
+
     let periodNum = slot.period;
     if (typeof periodNum === 'string') {
       periodNum = parseInt(periodNum.replace(/\D/g, ''), 10) || 1;
     } else if (typeof periodNum !== 'number') {
       periodNum = 1;
     }
-    const isLab = Boolean(slot.isLab ?? (slot.type === 'Lab'));
-    const span = Number(slot.span ?? slot.duration ?? 1) || 1;
+
+    const span = Math.max(1, Number(slot.span ?? slot.duration ?? 1) || 1);
+    const isLab = Boolean(slot.isLab === true || slot.type === 'Lab' || isLabText(slot.subject));
     const combinedWith = Array.isArray(slot.combinedWith)
       ? slot.combinedWith.filter(Boolean)
       : (slot.combinedWith ? [String(slot.combinedWith)] : []);
     const type = slot.type || (isLab ? 'Lab' : (combinedWith.length > 0 ? 'Combined' : 'Theory'));
 
-    return {
+    const baseData = {
       day: slot.day,
-      period: periodNum,
       subject: slot.subject || '',
       teacher: slot.teacher || '',
       room: slot.room || '',
@@ -285,7 +378,42 @@ function normalizeGridSlots(rawSlots = []) {
       ...(slot.primaryClassId ? { primaryClassId: slot.primaryClassId } : {}),
       ...(slot.primaryClassName ? { primaryClassName: slot.primaryClassName } : {})
     };
-  }).filter(Boolean);
+
+    // If this slot was an orphan continuation whose root was missing, emit as standalone slot
+    if (isCont && !rootKeys.has(`${slot.day}_${rootPeriodCandidate}`)) {
+      result.push({
+        ...baseData,
+        period: periodNum,
+        span: 1,
+        spanRootPeriod: periodNum,
+        spanIndex: 0,
+        isSpanContinuation: false
+      });
+      continue;
+    }
+
+    // Emit root slot
+    result.push({
+      ...baseData,
+      period: periodNum,
+      spanRootPeriod: periodNum,
+      spanIndex: 0,
+      isSpanContinuation: false
+    });
+
+    // Emit continuation slots for multi-period slots
+    for (let offset = 1; offset < span; offset++) {
+      result.push({
+        ...baseData,
+        period: periodNum + offset,
+        spanRootPeriod: periodNum,
+        spanIndex: offset,
+        isSpanContinuation: true
+      });
+    }
+  }
+
+  return result;
 }
 
 function buildOverrideSlot(data = {}) {
@@ -472,7 +600,13 @@ function greedyGenerate(input = {}) {
     if (!pref) return true;
     const unavailableSlots = pref.unavailableSlots || pref.unavailablePeriods || [];
     const slotKey = `${day}:${period}`;
-    return !unavailableSlots.includes(slotKey);
+    if (unavailableSlots.includes(slotKey)) return false;
+    if (Array.isArray(pref.unavailable)) {
+      if (pref.unavailable.some(u => String(u.day || '').toLowerCase() === String(day || '').toLowerCase() && Number(u.period) === Number(period))) {
+        return false;
+      }
+    }
+    return true;
   };
 
   (input.assignments || []).forEach(job => {
@@ -499,8 +633,10 @@ function greedyGenerate(input = {}) {
 
       for (const day of candidateDays) {
         // Teacher daily maximum constraint check
+        const tPref = teacherPreferences[teacherId] || teacherPreferences[teacherName] || {};
+        const dailyMax = Number(tPref.maxPerDay || maxClassesPerDayPerTeacher);
         const currentTeacherLoad = teacherDayLoad.get(`${day}:${teacherName}`) || 0;
-        if (currentTeacherLoad + span > maxClassesPerDayPerTeacher) {
+        if (currentTeacherLoad + span > dailyMax) {
           continue;
         }
 
@@ -593,10 +729,13 @@ function greedyGenerate(input = {}) {
         subject: subjectName,
         teacher: teacherName,
         teacherId: job.staffId,
-        room: job.room || 'Classroom',
+        room: job.room || '',
+        roomId: job.roomId || null,
         section: sectionName,
         isLab,
-        span
+        span,
+        groupId: 'autogen-run',
+        generatedBy: 'auto-gen'
       });
     }
   });
@@ -622,6 +761,10 @@ function greedyGenerate(input = {}) {
 async function snapshotAndPublish(template, req, summary) {
   // Create version snapshot for audit trail
   await M.TimetableVersion.create({
+    type: 'production',
+    classId: template.classId,
+    className: template.className || 'General',
+    status: 'published',
     semesterTemplateId: template._id,
     snapshot: template.toObject(),
     publishedBy: req.user.name,
@@ -655,6 +798,7 @@ async function snapshotAndPublish(template, req, summary) {
     { upsert: true }
   );
 
+  invalidateProductionCache();
   return template.save();
 }
 
@@ -668,9 +812,12 @@ async function detectConflicts(slots, classId, ignoreId, env = 'development') {
   // Cross-check within the submitted batch
   for (let i = 0; i < slots.length; i++) {
     const a = slots[i];
+    if (a.isSpanContinuation) continue;
     for (let j = i + 1; j < slots.length; j++) {
       const b = slots[j];
+      if (b.isSpanContinuation) continue;
       if (a.day !== b.day) continue;
+      if (a.spanRootPeriod && b.spanRootPeriod && a.spanRootPeriod === b.spanRootPeriod) continue;
       const aEnd = a.period + (a.span || 1) - 1;
       const bEnd = b.period + (b.span || 1) - 1;
       if (a.period <= bEnd && b.period <= aEnd) {
@@ -682,10 +829,29 @@ async function detectConflicts(slots, classId, ignoreId, env = 'development') {
         );
         if (!isCombinedPair) {
           if (a.teacher && a.teacher === b.teacher) {
-            conflicts.push({ kind: 'faculty', message: `✕ Faculty double-booked: ${a.teacher} on ${a.day} period ${a.period}` });
+            const otherClass = b.section || b.className || currentClassName || 'another class';
+            const otherSubj = b.subject ? ` (${b.subject})` : '';
+            conflicts.push({
+              kind: 'faculty',
+              message: `✕ Faculty double-booked: ${a.teacher} on ${a.day} period ${a.period} in ${otherClass}${otherSubj}`,
+              teacher: a.teacher,
+              day: a.day,
+              period: a.period,
+              conflictingClass: otherClass,
+              conflictingSubject: b.subject || '',
+              conflictingRoom: b.room || ''
+            });
           }
           if (a.room && a.room === b.room) {
-            conflicts.push({ kind: 'room', message: `Room conflict: ${a.room} is double-booked on ${a.day} period ${a.period}` });
+            const otherClass = b.section || b.className || currentClassName || 'another class';
+            conflicts.push({
+              kind: 'room',
+              message: `Room conflict: ${a.room} is double-booked on ${a.day} period ${a.period} in ${otherClass}`,
+              room: a.room,
+              day: a.day,
+              period: a.period,
+              conflictingClass: otherClass
+            });
           }
         }
       }
@@ -706,6 +872,7 @@ async function detectConflicts(slots, classId, ignoreId, env = 'development') {
   // Cross-check against existing DB records (all classes — institution-wide)
   for (const slot of slots) {
     if (!slot.day || !slot.period) continue;
+    if (slot.isSpanContinuation) continue;
     const periodEnd = slot.period + (slot.span || 1) - 1;
 
     // Teacher conflict check across all classes
@@ -731,9 +898,23 @@ async function detectConflicts(slots, classId, ignoreId, env = 'development') {
           (slot.type === 'Combined' && matchingSlot.type === 'Combined' && slot.subject === matchingSlot.subject && slot.room === matchingSlot.room)
         );
         if (!isCombValid) {
+          const conflictingClassName = teacherConflict.className || 'another class';
+          const conflictingSubject = matchingSlot?.subject ? ` (${matchingSlot.subject})` : '';
           conflicts.push({
             kind: 'faculty',
-            message: `✕ Faculty double-booked: ${slot.teacher} is already assigned on ${slot.day} period ${slot.period} in another class`
+            message: `✕ Faculty double-booked: ${slot.teacher} is already assigned on ${slot.day} period ${slot.period} in ${conflictingClassName}${conflictingSubject}`,
+            teacher: slot.teacher,
+            day: slot.day,
+            period: slot.period,
+            periodCode: `P${slot.period}`,
+            conflictingClass: conflictingClassName,
+            conflictingSubject: matchingSlot?.subject || '',
+            conflictingRoom: matchingSlot?.room || '',
+            conflictingPeriod: matchingSlot?.period || slot.period,
+            conflictingDuration: matchingSlot?.span || 1,
+            candidateSubject: slot.subject || '',
+            candidateRoom: slot.room || '',
+            candidateClass: currentClassName
           });
         }
       }
@@ -766,9 +947,17 @@ async function detectConflicts(slots, classId, ignoreId, env = 'development') {
           (slot.type === 'Combined' && matchingSlot.type === 'Combined' && slot.subject === matchingSlot.subject && slot.teacher === matchingSlot.teacher)
         );
         if (!isCombValid) {
+          const conflictingClassName = roomConflict.className || 'another class';
+          const conflictingSubject = matchingSlot?.subject ? ` (${matchingSlot.subject})` : '';
           conflicts.push({
             kind: 'room',
-            message: `Room conflict: ${slot.room || 'Room'} is already occupied on ${slot.day} period ${slot.period} in another class`
+            message: `Room conflict: ${slot.room || 'Room'} is already occupied on ${slot.day} period ${slot.period} in ${conflictingClassName}${conflictingSubject}`,
+            room: slot.room,
+            day: slot.day,
+            period: slot.period,
+            conflictingClass: conflictingClassName,
+            conflictingSubject: matchingSlot?.subject || '',
+            conflictingTeacher: matchingSlot?.teacher || ''
           });
         }
       }
@@ -789,16 +978,6 @@ async function detectConflicts(slots, classId, ignoreId, env = 'development') {
             kind: 'room_unavailable',
             message: `Room "${roomDoc.hallNo || slot.room}" is currently unavailable (${roomDoc.status})`
           });
-        }
-
-        if (classId) {
-          const studentCount = await M.Student.countDocuments({ classId });
-          if (roomDoc.capacity && studentCount > roomDoc.capacity) {
-            conflicts.push({
-              kind: 'capacity',
-              message: `Capacity warning: Room "${roomDoc.hallNo || slot.room}" capacity (${roomDoc.capacity}) is less than enrolled class size (${studentCount} students)`
-            });
-          }
         }
       }
     }
@@ -1022,8 +1201,9 @@ router.get('/boards/:id/context', async (req, res) => {
     // Only allow time spoofing in development
     const customTime = process.env.NODE_ENV === 'development' ? req.query.time : null;
 
-    // Resolve context using roomId from token
-    const context = await resolveRoomTimetableContext(decoded.roomId, customTime);
+    // Resolve context using roomId from database (or token fallback)
+    const roomIdToResolve = currentBoard.roomId || decoded.roomId;
+    const context = await resolveRoomTimetableContext(roomIdToResolve, customTime);
 
     // Remove coordinates from board payload (security)
     if (context?.room?.coordinates) {
@@ -1057,13 +1237,20 @@ router.get('/boards/pairing-code', async (req, res) => {
     // If board is already linked to a room, do NOT show a pairing code ("only unlinked boards")
     if (board.roomId) {
       const room = await M.Room.findById(board.roomId).populate('buildingId').lean();
+      const linkedClass = await M.Class.findOne({
+        $or: [
+          { roomId: board.roomId },
+          ...(room?.hallNo ? [{ hallNo: room.hallNo }] : [])
+        ]
+      }).lean();
       return res.json({
         ok: true,
         linked: true,
         roomId: board.roomId,
         roomHallNo: room?.hallNo || '',
         roomName: room?.name || '',
-        buildingName: room?.buildingName || room?.buildingId?.name || ''
+        buildingName: room?.buildingName || room?.buildingId?.name || '',
+        linkedClass: linkedClass ? { id: linkedClass._id, name: linkedClass.name } : null
       });
     }
 
@@ -1404,6 +1591,9 @@ router.get('/section/:classId', requireDevAccess, async (req, res) => {
 
 router.put('/section/:classId/slot', requireManager, async (req, res) => {
   try {
+    if (process.env.TIMETABLE_PRODUCTION_READ_ONLY === 'true') {
+      return res.status(403).json({ error: 'Production is view-only. Updates must be submitted via Workspace Commits.' });
+    }
     // Gate check: exempt Admins and HODs (since they are approvers)
     const isExempt = isSudoAdmin(req.user) || req.user.isHod === true;
     if (!isExempt) {
@@ -1462,6 +1652,9 @@ router.put('/section/:classId/slot', requireManager, async (req, res) => {
 
 router.put('/section/:classId', requireManager, async (req, res) => {
   try {
+    if (process.env.TIMETABLE_PRODUCTION_READ_ONLY === 'true') {
+      return res.status(403).json({ error: 'Production is view-only. Updates must be submitted via Workspace Commits.' });
+    }
     // Gate check: exempt Admins and HODs (since they are approvers)
     const isExempt = isSudoAdmin(req.user) || req.user.isHod === true;
     if (!isExempt) {
@@ -1530,9 +1723,341 @@ router.post('/check-conflicts', requireManager, requireDevAccess, async (req, re
   }
 });
 
+// ══════════════════════════════════════════════════════
+//  AUTOGEN VERIFICATION GATE & TEACHER AVAILABILITY (Phase 4)
+// ══════════════════════════════════════════════════════
+
+// POST /auto-gen/check — Inspect class curriculum subject set and validation warnings before gate confirmation
+router.post('/auto-gen/check', requireManager, async (req, res) => {
+  try {
+    const { classId, draftId } = req.body;
+    if (!classId) return res.status(400).json({ error: 'classId is required' });
+
+    let classDoc = null;
+    if (mongoose.isValidObjectId(classId)) {
+      classDoc = await M.Class.findById(classId).lean();
+    }
+    if (!classDoc) {
+      classDoc = await M.Class.findOne({ name: classId }).lean();
+    }
+    if (!classDoc) return res.status(404).json({ error: 'Class not found' });
+
+    const targetClassId = classDoc._id;
+    let set = await M.ClassSubjectSet.findOne({ classId: targetClassId }).lean();
+    let items = set ? (set.items || []) : [];
+
+    if (!set || !items.length) {
+      // Fallback: build from existing Assignment records
+      const asgns = await M.Assignment.find({ classId: String(targetClassId) }).lean();
+      if (asgns.length) {
+        items = asgns.map(a => ({
+          subjectId: a.subjectId && mongoose.isValidObjectId(a.subjectId) ? a.subjectId : null,
+          subjectCode: a.subjectCode || a.subjectName || 'Subject',
+          subjectName: a.subjectName || 'Subject',
+          teacherId: a.teacherId && mongoose.isValidObjectId(a.teacherId) ? a.teacherId : null,
+          teacherName: a.teacherName || '',
+          roomId: a.roomId || null,
+          hallNo: a.hallNo || '',
+          periodsPerWeek: Number(a.periodsPerWeek || 4),
+          isLab: Boolean(a.isLab || (a.subjectName || '').toLowerCase().includes('lab'))
+        }));
+      }
+    }
+
+    const rowsHash = set?.rowsHash || computeRowsHash(items);
+
+    // Curriculum validation checks & warnings
+    const warnings = [];
+    let totalPeriods = 0;
+    items.forEach(it => {
+      const sName = it.subjectName || it.subjectCode || 'Subject';
+      totalPeriods += Number(it.periodsPerWeek || 4);
+      if (it.isLab && (!it.roomId && !it.hallNo)) {
+        warnings.push(`Warning: Lab subject '${sName}' has no lab room assigned.`);
+      }
+      if (!it.teacherId && !it.teacherName) {
+        warnings.push(`Warning: Subject '${sName}' has no teacher allocated.`);
+      }
+    });
+
+    const maxWeeklySlots = 35; // Standard 5 days * 7 periods
+    if (totalPeriods > maxWeeklySlots) {
+      warnings.push(`Warning: Total periods per week (${totalPeriods}) exceeds teaching slots available (${maxWeeklySlots}).`);
+    }
+
+    // Check if already confirmed for this draft & hash
+    let confirmed = false;
+    if (draftId) {
+      const existingConf = await M.SubjectSetConfirmation.findOne({
+        draftId,
+        classId: targetClassId,
+        rowsHash,
+        expiresAt: { $gt: new Date() }
+      }).lean();
+      confirmed = Boolean(existingConf);
+    }
+
+    res.json({
+      ok: true,
+      data: {
+        classId: targetClassId,
+        className: classDoc.name,
+        rowsHash,
+        confirmed,
+        createdBy: set?.createdBy || { name: 'Curriculum Coordinator', trackId: '' },
+        updatedAt: set?.updatedAt || classDoc.updatedAt,
+        version: set?.version || 1,
+        items,
+        totalPeriods,
+        warnings
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /auto-gen/confirm — Record SubjectSetConfirmation gate clearance token
+router.post('/auto-gen/confirm', requireManager, async (req, res) => {
+  try {
+    const { draftId, classId, rowsHash } = req.body;
+    if (!draftId || !classId || !rowsHash) {
+      return res.status(400).json({ error: 'draftId, classId, and rowsHash are required' });
+    }
+
+    let classDoc = null;
+    if (mongoose.isValidObjectId(classId)) {
+      classDoc = await M.Class.findById(classId).lean();
+    }
+    const targetClassId = classDoc ? classDoc._id : classId;
+
+    let set = await M.ClassSubjectSet.findOne({ classId: targetClassId }).lean();
+    let expectedHash = set?.rowsHash;
+    if (!expectedHash) {
+      const asgns = await M.Assignment.find({ classId: String(targetClassId) }).lean();
+      expectedHash = computeRowsHash(asgns);
+    }
+
+    if (expectedHash && expectedHash !== rowsHash) {
+      return res.status(409).json({
+        error: 'HASH_MISMATCH',
+        message: 'Curriculum allocations were modified. Please review and confirm the new Subject Set.',
+        expectedHash,
+        providedHash: rowsHash
+      });
+    }
+
+    const confirmation = await M.SubjectSetConfirmation.findOneAndUpdate(
+      { draftId, classId: targetClassId, rowsHash },
+      {
+        draftId,
+        classId: targetClassId,
+        rowsHash,
+        confirmedBy: req.user._id,
+        confirmedByName: req.user.name || '',
+        confirmedAt: new Date(),
+        expiresAt: new Date(Date.now() + 30 * 86400000)
+      },
+      { upsert: true, returnDocument: 'after' }
+    );
+
+    await logAction(
+      req.user.trackId || req.user._id, req.user.name, req.user.role,
+      'Subject Set Confirmed',
+      `Hash ${rowsHash.slice(0, 8)} confirmed for class ${classDoc?.name || targetClassId}`,
+      'data', 'info', req.ip
+    );
+
+    res.json({
+      ok: true,
+      message: 'Subject Set confirmed for AutoGen',
+      data: confirmation
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /auto-gen/request-changes — Route structured grievance/notification to Subject Set author or HoD
+router.post('/auto-gen/request-changes', requireManager, async (req, res) => {
+  try {
+    const { draftId, classId, requestedChanges, note } = req.body;
+    if (!classId) return res.status(400).json({ error: 'classId is required' });
+
+    let classDoc = null;
+    if (mongoose.isValidObjectId(classId)) {
+      classDoc = await M.Class.findById(classId).lean();
+    }
+    if (!classDoc) {
+      classDoc = await M.Class.findOne({ name: classId }).lean();
+    }
+    if (!classDoc) return res.status(404).json({ error: 'Class not found' });
+
+    const targetClassId = classDoc._id;
+    const set = await M.ClassSubjectSet.findOne({ classId: targetClassId }).lean();
+
+    // Target recipient resolution chain
+    let targetTeacherId = set?.createdBy?.userId || null;
+    let targetName = set?.createdBy?.name || '';
+
+    // Fallback to Department HoD if creator missing
+    if (!targetTeacherId && classDoc.deptId) {
+      const hod = await resolveHodTeacher(classDoc.deptId);
+      if (hod) {
+        targetTeacherId = hod._id;
+        targetName = hod.name || hod.fullName || 'Department HoD';
+      }
+    }
+
+    const settings = await M.Settings.findOne().lean();
+    const modelGrievances = settings?.modelGrievances !== false;
+
+    let trackId = `TR-GR-${Date.now().toString().slice(-4)}`;
+    let grievance = null;
+
+    const detailText = `Curriculum Change Request for ${classDoc.name} submitted by ${req.user.name}:\n` +
+      (Array.isArray(requestedChanges) && requestedChanges.length
+        ? requestedChanges.map(c => `• ${c.subject || 'Subject'}: ${c.changeType || 'Change'} - ${c.detail || ''}`).join('\n')
+        : 'Please review and adjust the Subject Set allocations.') +
+      (note ? `\n\nCoordinator Note: ${note}` : '');
+
+    if (modelGrievances && M.Grievance) {
+      grievance = await M.Grievance.create({
+        teacherId: targetTeacherId,
+        teacherName: targetName,
+        teacherDept: classDoc.deptName || '',
+        kind: 'timetable_subject_set',
+        subject: `Curriculum Change Request — ${classDoc.name}`,
+        category: 'Academic',
+        priority: 'High',
+        detail: detailText,
+        status: 'Pending'
+      });
+      trackId = grievance.trackId || trackId;
+    }
+
+    if (M.Notification) {
+      await M.Notification.create({
+        type: 'timetable-subjectset-request',
+        from: req.user.name,
+        fromRole: req.user.role,
+        toTeacherId: targetTeacherId,
+        toTeacherName: targetName,
+        classId: classDoc._id,
+        className: classDoc.name,
+        grievanceId: grievance?._id || null,
+        message: `Curriculum revision requested for ${classDoc.name}: ${note || 'Please review allocations'}`,
+        priority: 'High',
+        status: 'Delivered'
+      }).catch(e => console.warn('[Notification Error]:', e.message));
+    }
+
+    await logAction(
+      req.user.trackId || req.user._id, req.user.name, req.user.role,
+      'Subject Set Change Requested',
+      `Sent to ${targetName || 'Curriculum Owner'} (${trackId})`,
+      'data', 'warning', req.ip
+    );
+
+    res.json({
+      ok: true,
+      message: `Change request successfully submitted to ${targetName || 'Curriculum Owner'}`,
+      trackId,
+      grievanceId: grievance?._id || null
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /teachers/:id/availability — Fetch faculty availability schedule & constraints
+router.get('/teachers/:id/availability', async (req, res) => {
+  try {
+    const record = await M.TeacherAvailability.findOne({ teacherId: req.params.id }).lean();
+    res.json({
+      ok: true,
+      data: record || {
+        teacherId: req.params.id,
+        unavailable: [],
+        preferred: [],
+        maxPerDay: 4,
+        maxConsecutive: 2
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT /teachers/:id/availability — Update faculty availability schedule & constraints
+router.put('/teachers/:id/availability', requireManager, async (req, res) => {
+  try {
+    const { unavailable, preferred, maxPerDay, maxConsecutive } = req.body;
+    const updated = await M.TeacherAvailability.findOneAndUpdate(
+      { teacherId: req.params.id },
+      {
+        teacherId: req.params.id,
+        unavailable: Array.isArray(unavailable) ? unavailable : [],
+        preferred: Array.isArray(preferred) ? preferred : [],
+        maxPerDay: Math.max(1, Math.min(10, Number(maxPerDay || 4))),
+        maxConsecutive: Math.max(1, Math.min(6, Number(maxConsecutive || 2))),
+        updatedBy: req.user._id
+      },
+      { upsert: true, returnDocument: 'after' }
+    );
+
+    res.json({
+      ok: true,
+      message: 'Teacher availability constraints saved',
+      data: updated
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /auto-gen — Gated Auto-Generation Engine (Algorithmic Hardening & No Dummy Fallbacks)
 router.post('/auto-gen', requireManager, async (req, res) => {
   try {
-    // Check academic calendar for working Saturdays and holidays (Item 12)
+    // 1. Resolve Target Class
+    let classObj = null;
+    if (req.body.classId && mongoose.isValidObjectId(req.body.classId)) {
+      classObj = await M.Class.findById(req.body.classId).lean();
+    } else if (req.body.section) {
+      const sectionName = sanitizeToString(req.body.section);
+      if (sectionName) {
+        classObj = await M.Class.findOne({ name: sectionName }).lean();
+      }
+    }
+    const targetClassId = classObj ? classObj._id : req.body.classId;
+
+    // 2. Enforce Verification Gate clearance if classId / draftId provided
+    if (targetClassId && req.body.draftId) {
+      let setDoc = await M.ClassSubjectSet.findOne({ classId: targetClassId }).lean();
+      let expectedHash = setDoc?.rowsHash;
+      if (!expectedHash) {
+        const asgns = await M.Assignment.find({ classId: String(targetClassId) }).lean();
+        if (asgns.length) {
+          expectedHash = computeRowsHash(asgns);
+        }
+      }
+
+      if (expectedHash) {
+        const gateCheck = await verifySubjectSetGate(req.body.draftId, targetClassId, expectedHash);
+        if (!gateCheck.confirmed) {
+          return res.status(409).json({
+            error: 'SUBJECT_SET_NOT_CONFIRMED',
+            message: 'The Subject Set must be confirmed before running AutoGen.',
+            requiresConfirmation: true,
+            classId: targetClassId,
+            draftId: req.body.draftId,
+            rowsHash: expectedHash
+          });
+        }
+      }
+    }
+
+    // 3. Check Academic Calendar
     const calendarDays = await M.CalendarDay.find({
       date: { $gte: new Date(Date.now() - 30 * 86400000), $lte: new Date(Date.now() + 120 * 86400000) }
     }).lean();
@@ -1542,86 +2067,98 @@ router.post('/auto-gen', requireManager, async (req, res) => {
 
     let assignments = Array.isArray(req.body.assignments) && req.body.assignments.length ? req.body.assignments : [];
 
-    // If assignments not provided, fetch from CurriculumAssignment or Assignment model
-    if (!assignments.length && (req.body.classId || req.body.section)) {
-      let classObj = null;
-      if (req.body.classId && mongoose.isValidObjectId(req.body.classId)) {
-        classObj = await M.Class.findById(req.body.classId).lean();
-      } else if (req.body.section) {
-        classObj = await M.Class.findOne({ name: req.body.section }).lean();
-      }
-      const targetClassId = classObj ? classObj._id : req.body.classId;
-
-      if (targetClassId) {
-        const currAssignments = await M.CurriculumAssignment.find({ classId: targetClassId }).lean();
-        if (currAssignments.length) {
-          assignments = currAssignments.map(a => ({
+    // Fetch assignments from SubjectSet or Assignment
+    if (!assignments.length && targetClassId) {
+      const setDoc = await M.ClassSubjectSet.findOne({ classId: targetClassId }).lean();
+      if (setDoc && Array.isArray(setDoc.items) && setDoc.items.length) {
+        assignments = setDoc.items.map(it => ({
+          _id: it.subjectId,
+          subjectId: it.subjectId,
+          subjectShortName: it.subjectCode || it.subjectName,
+          name: it.subjectName,
+          staffId: it.teacherId,
+          staffName: it.teacherName,
+          roomId: it.roomId,
+          room: it.hallNo,
+          periodsPerWeek: it.periodsPerWeek || 4,
+          isLab: Boolean(it.isLab),
+          section: classObj ? classObj.name : req.body.section
+        }));
+      } else {
+        const legacy = await M.Assignment.find({
+          $or: [
+            { classId: String(targetClassId) },
+            ...(classObj ? [{ className: classObj.name }] : [])
+          ]
+        }).lean();
+        if (legacy.length) {
+          assignments = legacy.map(a => ({
             _id: a._id,
-            subjectShortName: a.subjectShortName || a.name || 'Subject',
-            name: a.subjectShortName || a.name || 'Subject',
-            staffId: a.staffId,
-            staffName: a.staffName || 'Faculty',
+            subjectId: a.subjectId,
+            subjectShortName: a.subjectCode || a.subjectName || 'Subject',
+            name: a.subjectName || 'Subject',
+            staffId: a.teacherId,
+            staffName: a.teacherName,
+            roomId: a.roomId,
+            room: a.hallNo,
             periodsPerWeek: a.periodsPerWeek || 4,
-            isLab: (a.subjectShortName || '').toLowerCase().includes('lab') || Boolean(a.isLab),
-            room: a.roomPreference || 'Classroom',
+            isLab: Boolean(a.isLab || (a.subjectName || '').toLowerCase().includes('lab')),
             section: classObj ? classObj.name : req.body.section
           }));
-        } else {
-          const legacy = await M.Assignment.find({
-            $or: [
-              { classId: String(targetClassId) },
-              ...(classObj ? [{ className: classObj.name }] : [])
-            ]
-          }).lean();
-          if (legacy.length) {
-            assignments = legacy.map(a => ({
-              _id: a._id,
-              subjectShortName: a.subjectName || 'Subject',
-              name: a.subjectName || 'Subject',
-              staffId: a.teacherId,
-              staffName: a.teacherName || 'Faculty',
-              periodsPerWeek: 4,
-              isLab: (a.subjectName || '').toLowerCase().includes('lab'),
-              room: a.hallNo || 'Classroom',
-              section: classObj ? classObj.name : req.body.section
-            }));
-          }
         }
       }
     }
 
-    // Dynamic fallback to master subjects and teachers if database has no explicit mappings yet
+    // 4. Strict Resource Verification (No Hallucinations / No Placeholders)
     if (!assignments.length) {
-      const [subjects, teachers, rooms] = await Promise.all([
-        M.Subject.find().limit(8).lean(),
-        M.Teacher.find().select('fullName name username').limit(8).lean(),
-        M.Room.find({ status: { $ne: 'Inactive' } }).limit(5).lean()
-      ]);
-
-      if (subjects.length && teachers.length) {
-        assignments = subjects.map((s, idx) => {
-          const teacher = teachers[idx % teachers.length];
-          const room = rooms[idx % rooms.length];
-          const isLab = (s.name || '').toLowerCase().includes('lab') || (s.code || '').toLowerCase().includes('l');
-          return {
-            _id: s._id,
-            subjectShortName: s.code || s.name,
-            name: s.name,
-            staffId: teacher._id,
-            staffName: teacher.fullName || teacher.name || teacher.username,
-            periodsPerWeek: isLab ? 3 : 4,
-            isLab,
-            span: isLab ? 3 : 1,
-            room: room ? (room.hallNo || room.name) : 'Classroom',
-            section: req.body.section || ''
-          };
-        });
-      }
+      return res.status(400).json({
+        error: 'INCOMPLETE_ASSIGNMENTS',
+        message: 'No assignments found for this class. Please configure the Subject Set first.',
+        details: ['No assignments configured']
+      });
     }
+
+    const missingResources = [];
+    assignments.forEach((a, idx) => {
+      const label = a.subjectShortName || a.name || `Assignment #${idx + 1}`;
+      if (!a.staffId && (!a.staffName || ['faculty', 'faculty member', 'tba'].includes(String(a.staffName).toLowerCase()))) {
+        missingResources.push(`${label}: Missing faculty assignment`);
+      }
+      if (!a.roomId && (!a.room || ['classroom', 'tba'].includes(String(a.room).toLowerCase()))) {
+        missingResources.push(`${label}: Missing registered room`);
+      }
+    });
+
+    if (missingResources.length > 0) {
+      return res.status(400).json({
+        error: 'INCOMPLETE_ASSIGNMENTS',
+        message: 'Cannot run AutoGen with unassigned faculty or rooms.',
+        details: missingResources
+      });
+    }
+
+    // 5. Integrate TeacherAvailability Constraints
+    const staffIds = assignments.map(a => a.staffId).filter(Boolean);
+    const availDocs = staffIds.length ? await M.TeacherAvailability.find({ teacherId: { $in: staffIds } }).lean() : [];
+    const teacherPrefs = { ...(req.body.constraints?.teacherPreferences || req.body.teacherPreferences || {}) };
+    availDocs.forEach(ta => {
+      const tIdStr = String(ta.teacherId);
+      teacherPrefs[tIdStr] = {
+        ...(teacherPrefs[tIdStr] || {}),
+        unavailable: ta.unavailable || [],
+        preferred: ta.preferred || [],
+        maxPerDay: ta.maxPerDay,
+        maxConsecutive: ta.maxConsecutive
+      };
+    });
 
     const input = {
       ...req.body,
       assignments,
+      constraints: {
+        ...(req.body.constraints || {}),
+        teacherPreferences: teacherPrefs
+      },
       calendarInfo: {
         hasWorkingSaturdays: workingSaturdays.length > 0,
         holidayDates: holidays.map(h => h.date)
@@ -1629,8 +2166,9 @@ router.post('/auto-gen', requireManager, async (req, res) => {
     };
 
     const result = greedyGenerate(input);
+
     await logAction(
-      req.user.trackId, req.user.name, req.user.role,
+      req.user.trackId || req.user._id, req.user.name, req.user.role,
       'Timetable Auto-Generated',
       `${result.grid.length} slots placed, ${result.conflicts.length} conflicts`,
       'data', 'info', req.ip, req.user.sessionId,
@@ -2095,6 +2633,25 @@ async function resolveOccupiedRooms() {
     return { occupiedRoomIds: new Set(), occupiedRoomNames: new Set() };
   }
 }
+
+// GET /rooms/eligible & GET /lookups/rooms — Registered Rooms & Eligibility Engine (Phase 4)
+router.get('/rooms/eligible', async (req, res) => {
+  try {
+    const rooms = await getEligibleRooms(req.query);
+    res.json({ ok: true, count: rooms.length, data: rooms });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/lookups/rooms', async (req, res) => {
+  try {
+    const rooms = await getEligibleRooms(req.query);
+    res.json({ ok: true, count: rooms.length, data: rooms });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
 // GET /rooms — List rooms with filters, populated building/dept, board info, and derived occupied status
 router.get('/rooms', async (req, res) => {
@@ -3069,16 +3626,8 @@ router.post('/boards', requireManager, async (req, res) => {
     if (!boardName || boardName.trim().length < 2) {
       return res.status(400).json({ error: 'Board name is required (minimum 2 characters).' });
     }
-    if (!deviceId || deviceId.trim().length < 3) {
-      return res.status(400).json({ error: 'Device ID is required (minimum 3 characters).' });
-    }
 
-    const cleanDeviceId = deviceId.trim().toUpperCase();
-    const existing = await M.SmartBoard.findOne({ deviceId: cleanDeviceId }).lean();
-    if (existing) {
-      return res.status(400).json({ error: `Device ID "${cleanDeviceId}" is already registered.` });
-    }
-
+    let cleanDeviceId = (deviceId || '').trim().toUpperCase();
     let resolvedBuildingId = buildingId || undefined;
     let roomHallNo = '';
     let targetRoom = null;
@@ -3100,6 +3649,32 @@ router.post('/boards', requireManager, async (req, res) => {
 
       resolvedBuildingId = targetRoom.buildingId;
       roomHallNo = targetRoom.hallNo;
+    }
+
+    // Auto-generate Device ID if omitted using canonical institutional convention: TR-R{BlockCode}-{HallNo}
+    if (!cleanDeviceId) {
+      let blockCode = 'MB';
+      if (resolvedBuildingId) {
+        const bldg = await M.Block.findById(resolvedBuildingId).lean();
+        if (bldg?.code) blockCode = bldg.code.toUpperCase().replace(/[^A-Z0-9]/g, '');
+      }
+      const hallClean = (roomHallNo || boardName.replace(/\b(display|smart\s*board|smart|board|screen|room|hall|kiosk|tv)\b/gi, '')).toUpperCase().replace(/[^A-Z0-9]/g, '') || '01';
+      let candidateId = `TR-R${blockCode}-${hallClean}`;
+      let suffix = 1;
+      while (await M.SmartBoard.findOne({ deviceId: candidateId }).lean()) {
+        suffix++;
+        candidateId = `TR-R${blockCode}-${hallClean}-${String(suffix).padStart(2, '0')}`;
+      }
+      cleanDeviceId = candidateId;
+    }
+
+    if (!cleanDeviceId || cleanDeviceId.length < 3) {
+      return res.status(400).json({ error: 'Device ID is required (minimum 3 characters).' });
+    }
+
+    const existing = await M.SmartBoard.findOne({ deviceId: cleanDeviceId }).lean();
+    if (existing) {
+      return res.status(400).json({ error: `Device ID "${cleanDeviceId}" is already registered.` });
     }
 
     const assignmentHistory = [];
@@ -3170,6 +3745,11 @@ router.post('/boards/:id/token/regenerate', requireManager, async (req, res) => 
     const newKey = generateBoardApiKey();
     board.boardApiKey = newKey;
     await board.save();
+
+    try {
+      const { pushContextToRoomBoards } = require('../services/board.socket');
+      pushContextToRoomBoards(room._id).catch(() => {});
+    } catch (e) {}
 
     await logAction(
       req.user.trackId || req.user._id, req.user.name, req.user.role,
@@ -3427,6 +4007,14 @@ router.put('/boards/:id', requireManager, async (req, res) => {
           assignedAt: new Date(),
           reason: reason || 'Reassigned'
         });
+
+        try {
+          const { pushContextToRoomBoards } = require('../services/board.socket');
+          pushContextToRoomBoards(newRoom._id).catch(() => {});
+          if (oldRoomIdStr && oldRoomIdStr !== String(newRoom._id)) {
+            pushContextToRoomBoards(oldRoomIdStr).catch(() => {});
+          }
+        } catch (e) {}
 
         await logAction(
           req.user.trackId || req.user._id, req.user.name, req.user.role,
@@ -3817,6 +4405,9 @@ router.get('/semester-templates', async (req, res) => {
 
 router.post('/semester-templates', requireManager, async (req, res) => {
   try {
+    if (!canAccessDev(req)) {
+      return res.status(403).json({ error: 'Development environment access is restricted' });
+    }
     const template = await M.SemesterTemplate.create({ ...req.body, status: 'draft' });
     await logAction(
       req.user.trackId, req.user.name, req.user.role,
@@ -3842,17 +4433,36 @@ router.get('/semester-templates/:id', async (req, res) => {
 
 router.put('/semester-templates/:id', requireManager, async (req, res) => {
   try {
+    if (!canAccessDev(req)) {
+      return res.status(403).json({ error: 'Development environment access is restricted' });
+    }
+
+    const restricted = ['status', 'classId', 'version', 'publishedAt', 'publishedBy'];
+    if (restricted.some(f => req.body && req.body[f] !== undefined)) {
+      return res.status(400).json({ error: 'Status and system fields cannot be modified directly via template update' });
+    }
+
     const current = await M.SemesterTemplate.findById(req.params.id);
     if (!current) return res.status(404).json({ error: 'Template not found' });
     if (current.status === 'published') {
       return res.status(403).json({ error: 'Published templates are immutable; create a new draft first' });
     }
-    if (req.body && Array.isArray(req.body.grid)) {
-      req.body.grid = normalizeGridSlots(req.body.grid);
+
+    const updatePayload = {};
+    const allowed = ['name', 'description', 'notes', 'timingSetId', 'grid'];
+    for (const key of allowed) {
+      if (req.body && req.body[key] !== undefined) {
+        updatePayload[key] = req.body[key];
+      }
     }
-    const updated = await M.SemesterTemplate.findByIdAndUpdate(req.params.id, req.body, { returnDocument: 'after' });
-    if (req.body && Array.isArray(req.body.grid)) {
-      await syncCombinedSlotsAcrossClasses(current.classId, current.className || '', req.body.grid, 'development', req.user);
+
+    if (Array.isArray(updatePayload.grid)) {
+      updatePayload.grid = normalizeGridSlots(updatePayload.grid);
+    }
+
+    const updated = await M.SemesterTemplate.findByIdAndUpdate(req.params.id, { $set: updatePayload }, { returnDocument: 'after' });
+    if (updatePayload.grid && Array.isArray(updatePayload.grid)) {
+      await syncCombinedSlotsAcrossClasses(current.classId, current.className || '', updatePayload.grid, 'development', req.user);
     }
     res.json(updated);
   } catch (err) {
@@ -4205,7 +4815,12 @@ router.post('/semester-templates/:id/publish', requireManager, async (req, res) 
 
 router.post('/week-instances', requireManager, async (req, res) => {
   try {
-    res.status(201).json(await M.WeekInstance.create(req.body));
+    const allowedWeekFields = ['semesterTemplateId', 'weekStartDate', 'status', 'modifiedSlots'];
+    const safeData = {};
+    for (const f of allowedWeekFields) {
+      if (req.body[f] !== undefined) safeData[f] = req.body[f];
+    }
+    res.status(201).json(await M.WeekInstance.create(safeData));
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
@@ -4237,11 +4852,20 @@ router.get('/overrides', async (req, res) => {
 
 router.post('/overrides', requireManager, async (req, res) => {
   try {
-    const override = await M.Override.create(req.body);
+    const allowedOverrideFields = [
+      'date', 'classId', 'period', 'periodNumber', 'type',
+      'originalSlot', 'newSlot', 'reason', 'approvedBy', 'requestId',
+      'source', 'status', 'assignedBy', 'originalTeacher', 'substituteTeacher'
+    ];
+    const safeData = {};
+    for (const f of allowedOverrideFields) {
+      if (req.body[f] !== undefined) safeData[f] = req.body[f];
+    }
+    const override = await M.Override.create(safeData);
     await logAction(
       req.user.trackId, req.user.name, req.user.role,
       'Timetable Override Created',
-      `${req.body.type} on ${req.body.date} period ${req.body.period}`,
+      `${override.type || safeData.type} on ${override.date || safeData.date} period ${override.period || safeData.period}`,
       'data', 'info', req.ip, req.user.sessionId,
       { module: 'timetable', subType: 'entry-create' }
     );
@@ -4308,14 +4932,16 @@ router.post('/versions/:id/restore', requireManager, async (req, res) => {
     let snapshot;
     let label;
     if (v) {
+      const restoredGrid = v.snapshot?.grid || v.snapshot?.slots || [];
       snapshot = {
         ...v.snapshot,
+        grid: restoredGrid,
         _id: undefined,
         status: 'draft',
         version: (v.snapshot?.version || 1) + 1,
         publishedAt: undefined
       };
-      label = v.label;
+      label = v.label || `v${v.version || 1}`;
     } else {
       const tmpl = await M.SemesterTemplate.findById(req.params.id).lean();
       if (!tmpl) return res.status(404).json({ error: 'Version or template not found' });
@@ -4340,7 +4966,7 @@ router.post('/versions/:id/restore', requireManager, async (req, res) => {
     await logAction(
       req.user.trackId, req.user.name, req.user.role,
       'Timetable Version Restored',
-      `Restored version ${v.label} as new draft`,
+      `Restored version ${label} as new draft`,
       'data', 'info', req.ip, req.user.sessionId,
       { module: 'timetable', subType: 'action' }
     );
@@ -4591,6 +5217,9 @@ async function syncCombinedSlotsAcrossClasses(sourceClassId, sourceClassName, no
 
 router.post('/save-development', requireManager, async (req, res) => {
   try {
+    if (!canAccessDev(req)) {
+      return res.status(403).json({ error: 'Development environment access is restricted' });
+    }
     const { classId, slots, versionName, notes } = req.body;
     if (!classId) return res.status(400).json({ error: 'classId is required' });
     const cId = sanitizeToObjectId(classId);
@@ -4614,7 +5243,7 @@ router.post('/save-development', requireManager, async (req, res) => {
       versionName: finalName,
       label: `Draft v${nextVer}`,
       changeSummary: notes || `Development draft saved (${normalizedSlots.length} slots)`,
-      snapshot: { classId: cId, className, slots: normalizedSlots },
+      snapshot: { classId: cId, className, grid: normalizedSlots, slots: normalizedSlots },
       status: 'draft',
       savedBy: req.user.name,
       publishedBy: req.user.name,
@@ -4656,6 +5285,12 @@ router.post('/save-development', requireManager, async (req, res) => {
 
 router.post('/save-production', requireManager, async (req, res) => {
   try {
+    if (process.env.TIMETABLE_PRODUCTION_READ_ONLY === 'true') {
+      return res.status(403).json({ error: 'Production is view-only. Updates must be submitted via Workspace Commits.' });
+    }
+    if (!canAccessDev(req)) {
+      return res.status(403).json({ error: 'Production save is restricted' });
+    }
     // Gate check: exempt Admins and HODs (since they are approvers)
     const isExempt = isSudoAdmin(req.user) || req.user.isHod === true;
     if (!isExempt) {
@@ -4692,7 +5327,7 @@ router.post('/save-production', requireManager, async (req, res) => {
       versionName: finalName,
       label: `Production v${nextVer}`,
       changeSummary: notes || `Production version saved (${normalizedSlots.length} slots)`,
-      snapshot: { classId: cId, className, slots: normalizedSlots },
+      snapshot: { classId: cId, className, grid: normalizedSlots, slots: normalizedSlots },
       status: 'published',
       publishedBy: req.user.name,
       publishedAt: new Date()
@@ -4747,6 +5382,9 @@ router.post('/save-production', requireManager, async (req, res) => {
 
 router.post('/verification-requests', requireManager, async (req, res) => {
   try {
+    if (!canAccessDev(req)) {
+      return res.status(403).json({ error: 'Development environment access is restricted' });
+    }
     const { classId, slots, versionName, notes } = req.body;
     if (!classId) return res.status(400).json({ error: 'classId is required' });
     const cId = sanitizeToObjectId(classId);
@@ -4794,9 +5432,15 @@ router.post('/verification-requests', requireManager, async (req, res) => {
       snapshot: { classId: cId, className, slots: normalizedSlots },
       status: 'pending_approval',
       savedBy: req.user.name,
+      savedByTeacherId: req.user._id,
+      savedByTrackId: req.user.trackId || '',
       verificationStatus: 'pending',
       verificationRequest: {
         requestedBy: req.user.name,
+        requestedByTeacherId: req.user._id,
+        requestedByTrackId: req.user.trackId || '',
+        requestedByEmail: req.user.email || '',
+        requestedByRole: req.user.role || '',
         requestedAt: new Date(),
         notes: notes || 'Draft ready for departmental verification',
         hodId: hodTeacher?._id || dept?.hodId || null,
@@ -4846,14 +5490,17 @@ router.post('/verification-requests', requireManager, async (req, res) => {
 
 router.get('/verification-requests', async (req, res) => {
   try {
+    if (!canAccessApprovals(req.user)) {
+      return res.status(403).json({
+        error: 'Access denied: Timetable verification requests and approvals are restricted to Timetable Coordinators and Department HoDs only.'
+      });
+    }
+
     const filter = {
       verificationStatus: { $in: ['pending', 'approved', 'rejected', 'withdrawn'] }
     };
     if (req.query.classId) filter.classId = sanitizeToObjectId(req.query.classId);
     if (req.query.status) filter.verificationStatus = sanitizeToString(req.query.status);
-
-    const isPrincipal = !!(req.user?.isPrincipal || (Array.isArray(req.user?.specials) && req.user.specials.some(s => s && s.option === 'isPrincipal' && s.value !== false)));
-    const isSudo = isSudoAdmin(req.user || {}) || req.user?.role === 'admin' || req.user?.isSudoAdmin || req.user?.isSuperAdmin;
 
     if (req.query.deptId) {
       const deptIdParam = req.query.deptId;
@@ -4881,8 +5528,8 @@ router.get('/verification-requests', async (req, res) => {
       const deptClasses = classOr.length ? await M.Class.find({ $or: classOr }).select('_id').lean() : [];
       const cIds = deptClasses.map(c => c._id);
       filter.classId = { $in: cIds };
-    } else if (req.user && !isPrincipal && !isSudo) {
-      // Auto-scope for logged-in HoD or departmental staff
+    } else if (req.user) {
+      // Auto-scope for logged-in HoD or departmental staff (TT coordinator)
       const userDeptId = req.user.deptId;
       const userDeptCode = req.user.deptCode;
       const userDeptName = req.user.department;
@@ -4897,6 +5544,8 @@ router.get('/verification-requests', async (req, res) => {
 
       const orBranches = [];
       if (req.user._id) orBranches.push({ 'verificationRequest.hodId': req.user._id });
+      if (req.user._id) orBranches.push({ 'verificationRequest.requestedByTeacherId': req.user._id });
+      if (req.user.trackId) orBranches.push({ 'verificationRequest.requestedByTrackId': req.user.trackId });
       if (cIds.length) orBranches.push({ classId: { $in: cIds } });
 
       if (orBranches.length) {
@@ -4913,6 +5562,12 @@ router.get('/verification-requests', async (req, res) => {
 
 router.get('/verification-requests/:id/details', async (req, res) => {
   try {
+    if (!canAccessApprovals(req.user)) {
+      return res.status(403).json({
+        error: 'Access denied: Timetable verification requests and approvals are restricted to Timetable Coordinators and Department HoDs only.'
+      });
+    }
+
     const doc = await M.TimetableVersion.findById(req.params.id).lean();
     if (!doc) return res.status(404).json({ error: 'Verification request not found' });
 
@@ -5014,6 +5669,12 @@ router.get('/verification-requests/:id/details', async (req, res) => {
 
 router.post('/verification-requests/:id/review', requireManager, async (req, res) => {
   try {
+    if (!isHodUser(req.user)) {
+      return res.status(403).json({
+        error: 'Access denied: Only Department HoDs can review and approve timetable verification requests.'
+      });
+    }
+
     const { action, comment } = req.body;
     if (!['approve', 'reject'].includes(action)) {
       return res.status(400).json({ error: 'Action must be approve or reject' });
@@ -5131,7 +5792,7 @@ router.post('/verification-requests/:id/publish-all', requireManager, async (req
         type: 'info',
         from: req.user.name || 'Timetable Coordinator',
         fromRole: 'Admin',
-        toUserId: s._id,
+        toStudentId: s._id,
         message: `Official approved timetable for ${className} (${doc.versionName}) is now live.`,
         priority: 'Normal',
         status: 'Pending',
@@ -5166,13 +5827,21 @@ router.post('/verification-requests/:id/withdraw', requireManager, async (req, r
       return res.status(400).json({ error: `Cannot withdraw request: current status is "${doc.verificationStatus}". Only pending submissions can be withdrawn.` });
     }
 
+    if (!isVerificationRequester(doc, req.user)) {
+      return res.status(403).json({
+        error: 'Access denied: Only the staff member who requested these timetable changes can withdraw this request.'
+      });
+    }
+
     const { reason } = req.body || {};
     doc.verificationStatus = 'withdrawn';
     doc.status = 'withdrawn';
     if (!doc.verificationRequest) doc.verificationRequest = {};
     doc.verificationRequest.withdrawnBy = req.user.name;
+    doc.verificationRequest.withdrawnByTeacherId = req.user._id;
+    doc.verificationRequest.withdrawnByTrackId = req.user.trackId || '';
     doc.verificationRequest.withdrawnAt = new Date();
-    doc.verificationRequest.withdrawnReason = reason || 'Withdrawn by coordinator/admin';
+    doc.verificationRequest.withdrawnReason = reason || 'Withdrawn by requester';
     doc.markModified('verificationRequest');
     await doc.save();
 
@@ -5196,7 +5865,7 @@ router.post('/verification-requests/:id/withdraw', requireManager, async (req, r
       if (doc.verificationRequest?.hodId) {
         await M.Notification.updateMany(
           {
-            toUserId: doc.verificationRequest.hodId,
+            toTeacherId: doc.verificationRequest.hodId,
             message: { $regex: escapeRegex(doc.className || '') },
             status: 'Pending'
           },
@@ -5225,6 +5894,12 @@ router.patch('/verification-requests/:id', requireManager, async (req, res) => {
     if (!doc) return res.status(404).json({ error: 'Verification request not found' });
     if (doc.verificationStatus !== 'pending') {
       return res.status(400).json({ error: 'Only pending verification requests can be edited.' });
+    }
+
+    if (!isVerificationRequester(doc, req.user)) {
+      return res.status(403).json({
+        error: 'Access denied: Only the staff member who requested these timetable changes can edit this request.'
+      });
     }
 
     const { versionName, notes } = req.body || {};
@@ -5259,12 +5934,20 @@ router.post('/verification-requests/:id/reopen-edit', requireManager, async (req
     const doc = await M.TimetableVersion.findById(req.params.id);
     if (!doc) return res.status(404).json({ error: 'Verification request not found' });
 
+    if (!isVerificationRequester(doc, req.user)) {
+      return res.status(403).json({
+        error: 'Access denied: Only the staff member who requested these timetable changes can reopen and edit this request.'
+      });
+    }
+
     // If currently pending, withdraw it so HoD queue is cleared
     if (doc.verificationStatus === 'pending') {
       doc.verificationStatus = 'withdrawn';
       doc.status = 'withdrawn';
       if (!doc.verificationRequest) doc.verificationRequest = {};
       doc.verificationRequest.withdrawnBy = req.user.name;
+      doc.verificationRequest.withdrawnByTeacherId = req.user._id;
+      doc.verificationRequest.withdrawnByTrackId = req.user.trackId || '';
       doc.verificationRequest.withdrawnAt = new Date();
       doc.verificationRequest.withdrawnReason = 'Reopened into Draft Editor';
       doc.markModified('verificationRequest');
@@ -5301,7 +5984,7 @@ router.post('/verification-requests/:id/reopen-edit', requireManager, async (req
       if (doc.verificationRequest?.hodId) {
         await M.Notification.updateMany(
           {
-            toUserId: doc.verificationRequest.hodId,
+            toTeacherId: doc.verificationRequest.hodId,
             message: { $regex: escapeRegex(doc.className || '') },
             status: 'Pending'
           },
@@ -5335,7 +6018,7 @@ router.get('/faculty-schedule', requireDevAccess, async (req, res) => {
     const env = sanitizeToString(req.query.env || 'production').toLowerCase();
 
     const regex = new RegExp(`^${escapeRegex(teacherName)}$`, 'i');
-    const sectionTimetables = await getSlotSource(env, null, req.query.deptId || null);
+    const sectionTimetables = await getSlotSource(env, null, null);
     const facultySlots = [];
 
     sectionTimetables.forEach(st => {
@@ -5353,47 +6036,7 @@ router.get('/faculty-schedule', requireDevAccess, async (req, res) => {
       });
     });
 
-    if (env === 'production') {
-      const directSlots = await M.Timetable.find({ teacherName: regex }).lean();
-      const timeToPeriodNum = (start) => {
-        if (!start) return 1;
-        const timeMap = {
-          '08:30': 1, '09:15': 2, '10:00': 3, '10:15': 3,
-          '11:00': 4, '11:45': 5, '12:30': 6, '14:00': 7,
-          '14:45': 8, '15:45': 9
-        };
-        return timeMap[start] || (parseInt(String(start).replace(/\D/g, ''), 10) || 1);
-      };
-
-      directSlots.forEach(ds => {
-        const dayMap = { Mon: 'Monday', Tue: 'Tuesday', Wed: 'Wednesday', Thu: 'Thursday', Fri: 'Friday', Sat: 'Saturday' };
-        const fullDay = dayMap[ds.day] || ds.day;
-        const dsPNum = timeToPeriodNum(ds.start);
-        const alreadyHas = facultySlots.some(s => {
-          if (s.day !== fullDay || s.section !== ds.className) return false;
-          if (s.start && ds.start) return s.start === ds.start;
-          const sPNum = typeof s.period === 'number' ? s.period : (parseInt(String(s.period || '').replace(/\D/g, ''), 10) || null);
-          if (sPNum && dsPNum) return sPNum === dsPNum;
-          return s.subject && ds.subjectName && s.subject.trim().toLowerCase() === ds.subjectName.trim().toLowerCase();
-        });
-        if (!alreadyHas) {
-          facultySlots.push({
-            id: String(ds._id),
-            day: fullDay,
-            period: `P${dsPNum}`,
-            start: ds.start,
-            end: ds.end,
-            subject: ds.subjectName || '',
-            teacher: ds.teacherName,
-            section: ds.className,
-            room: '',
-            type: 'Theory',
-            duration: 1,
-            _source: 'production'
-          });
-        }
-      });
-    }
+// F17: Legacy M.Timetable retired; SectionTimetable Head is single source of truth
 
     res.json({ ok: true, teacherName, env, slots: facultySlots });
   } catch (err) {
@@ -5726,6 +6369,27 @@ router.get('/free-teachers', async (req, res) => {
         { employeeNo: { $regex: s, $options: 'i' } }
       ];
     }
+
+    // Exclude the faculty who is searching for substitution (caller) and any explicitly excluded teacher IDs
+    const excludeIds = [
+      req.query.excludeTeacherTrackId,
+      req.query.excludeTeacherId,
+      req.user?.trackId,
+      req.user?._id ? String(req.user._id) : null,
+      req.user?.employeeNo
+    ].filter(Boolean);
+
+    if (excludeIds.length > 0) {
+      const excludeObjIds = excludeIds.filter(id => mongoose.isValidObjectId(id)).map(id => new mongoose.Types.ObjectId(id));
+      if (excludeObjIds.length > 0) {
+        teacherFilter._id = { ...(teacherFilter._id || {}), $nin: excludeObjIds };
+      }
+      teacherFilter.trackId = { ...(teacherFilter.trackId || {}), $nin: excludeIds };
+      if (req.user?.employeeNo) {
+        teacherFilter.employeeNo = { ...(teacherFilter.employeeNo || {}), $ne: req.user.employeeNo };
+      }
+    }
+
     const teachers = await M.Teacher.find(teacherFilter).select('_id trackId fullName deptId employeeNo').sort({ fullName: 1 }).lean();
 
     // 3. Query approved leaves covering dateStr
@@ -6190,7 +6854,7 @@ router.get('/academic-calendar-stats', async (req, res) => {
             teacher: slot.teacher || '',
             room: slot.room || '',
             periodsPerWeek: 0,
-            isLab: Boolean(slot.isLab)
+            isLab: Boolean(slot.isLab || slot.type === 'Lab' || isLabText(slot.subject))
           };
           current.periodsPerWeek += Number(slot.span || 1);
           subjectMap.set(slot.subject, current);
@@ -6231,7 +6895,24 @@ router.get('/academic-calendar-stats', async (req, res) => {
 
 router.get('/resolve/:classId/:date', async (req, res) => {
   try {
-    const classId = sanitizeToObjectId(req.params.classId);
+    const rawClassId = sanitizeToString(req.params.classId);
+    let classId = sanitizeToObjectId(rawClassId);
+    let classDoc = null;
+    if (classId) {
+      classDoc = await M.Class.findById(classId).lean();
+    }
+    if (!classDoc && rawClassId) {
+      classDoc = await M.Class.findOne({
+        $or: [
+          { trackId: rawClassId },
+          { classTrackId: rawClassId },
+          { name: rawClassId }
+        ]
+      }).lean();
+      if (classDoc) {
+        classId = String(classDoc._id);
+      }
+    }
     const dateStr = sanitizeToString(req.params.date);
     const dateObj = new Date(dateStr + 'T00:00:00.000Z');
     if (isNaN(dateObj.getTime())) {
@@ -6251,9 +6932,9 @@ router.get('/resolve/:classId/:date', async (req, res) => {
     // 2. Calendar check
     const startOfDay = new Date(dateStr + 'T00:00:00.000Z');
     const endOfDay = new Date(dateStr + 'T23:59:59.999Z');
-    const [calendarDay, classDoc] = await Promise.all([
+    const [calendarDay] = await Promise.all([
       M.CalendarDay.findOne({ date: { $gte: startOfDay, $lte: endOfDay } }).lean(),
-      M.Class.findById(classId).lean()
+      classDoc ? Promise.resolve(classDoc) : M.Class.findById(classId).lean()
     ]);
 
     const clsYear = classDoc ? (classDoc.year ? String(classDoc.year).trim().toUpperCase() : '') : '';
@@ -6672,10 +7353,11 @@ router.get('/class-attendance-analytics', async (req, res) => {
 // =========================================================================
 
 // GET /dashboard-cockpit - Aggregated data for all 8 operational dashboard panels
-router.get('/dashboard-cockpit', authMiddleware, async (req, res) => {
+router.get('/dashboard-cockpit', authMiddleware, requireDevAccess, async (req, res) => {
   try {
     const targetDateStr = sanitizeToString(req.query.date || await todayInInstitutionTz());
     const targetDeptId = req.query.deptId && req.query.deptId !== 'all' ? sanitizeToObjectId(req.query.deptId) : null;
+    const env = sanitizeToString(req.query.env || 'production').toLowerCase();
 
     const targetDate = new Date(targetDateStr + 'T00:00:00.000Z');
     const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -6748,14 +7430,13 @@ router.get('/dashboard-cockpit', authMiddleware, async (req, res) => {
       }
     }
 
-    // 2. Query Classes, Published Templates & Slots
+    // 2. Query Classes, Published Templates & Slots (env-aware)
     const classFilter = {};
     if (targetDeptId) classFilter.deptId = targetDeptId;
 
-    const [classes, templates, sectionTimetables, teachers, rooms, smartBoards] = await Promise.all([
+    const [classes, slotSources, teachers, rooms, smartBoards] = await Promise.all([
       M.Class.find(classFilter).lean(),
-      M.SemesterTemplate.find({ status: 'published' }).lean(),
-      M.SectionTimetable.find().lean(),
+      getSlotSource(env, null, targetDeptId),
       M.User.find({ role: { $in: ['teacher', 'faculty'] } }).lean(),
       M.Room.find({ status: { $ne: 'Inactive' } }).lean(),
       M.SmartBoard.find().lean()
@@ -6824,32 +7505,22 @@ router.get('/dashboard-cockpit', authMiddleware, async (req, res) => {
       overrideMap.set(key, ov);
     });
 
-    // 4. Build Live Class Status Grid (Panel 2)
-    const templateByClass = new Map();
-    templates.forEach(t => templateByClass.set(String(t.classId), t));
-
-    const sectionTTByClass = new Map();
-    sectionTimetables.forEach(st => sectionTTByClass.set(String(st.classId), st));
+    // 4. Build Live Class Status Grid (Panel 2) from env-aware slot source
+    const slotSourceByClass = new Map();
+    slotSources.forEach(st => slotSourceByClass.set(String(st.classId), st));
 
     const liveClasses = [];
     const todaySlotsAll = [];
 
     classes.forEach(cls => {
       const cid = String(cls._id);
-      const tmpl = templateByClass.get(cid);
-      const secTT = sectionTTByClass.get(cid);
+      const secTT = slotSourceByClass.get(cid);
 
       const periodSlots = {};
       const classSlotsToday = [];
 
-      // Extract slots from grid or sectionTT
-      if (tmpl && Array.isArray(tmpl.grid)) {
-        tmpl.grid.forEach(slot => {
-          if (slot.day === currentDay) {
-            classSlotsToday.push({ ...slot, classId: cid, className: cls.name });
-          }
-        });
-      } else if (secTT && secTT.slots && typeof secTT.slots === 'object') {
+      // Extract slots from env slot source
+      if (secTT && secTT.slots && typeof secTT.slots === 'object') {
         Object.values(secTT.slots).forEach(slot => {
           if (slot && (slot.day === currentDay || slot.day === currentDay.slice(0, 3))) {
             classSlotsToday.push({ ...slot, classId: cid, className: cls.name });
@@ -6868,41 +7539,7 @@ router.get('/dashboard-cockpit', authMiddleware, async (req, res) => {
       });
       const cNameLower = cls.name.trim().toLowerCase();
 
-      templates.forEach(t => {
-        if (String(t.classId) === cid) return;
-        (t.grid || []).forEach(slot => {
-          if (!slot || slot.day !== currentDay) return;
-          const pNum = Number(slot.period);
-          const span = Math.max(1, Number(slot.span || slot.duration || 1));
-          let hasConflict = false;
-          for (let i = 0; i < span; i++) {
-            if (existingPeriods.has(pNum + i)) { hasConflict = true; break; }
-          }
-          if (hasConflict) return;
-          const isComb = Array.isArray(slot.combinedWith) && slot.combinedWith.some(cn =>
-            cn && cn.trim().toLowerCase() === cNameLower
-          );
-          if (isComb) {
-            const primaryName = classNameMap.get(String(t.classId)) || t.className || 'Primary Class';
-            const allComb = [primaryName, ...(slot.combinedWith || [])];
-            classSlotsToday.push({
-              ...slot,
-              classId: cid,
-              className: cls.name,
-              isCombined: true,
-              type: 'Combined',
-              combinedWith: allComb.filter(n => n && n.trim().toLowerCase() !== cNameLower),
-              primaryClassId: t.classId,
-              primaryClassName: primaryName
-            });
-            for (let i = 0; i < span; i++) {
-              existingPeriods.add(pNum + i);
-            }
-          }
-        });
-      });
-
-      sectionTimetables.forEach(st => {
+      slotSources.forEach(st => {
         if (String(st.classId) === cid) return;
         Object.values(st.slots || {}).forEach(slot => {
           if (!slot || (slot.day !== currentDay && slot.day !== currentDay.slice(0, 3))) return;
@@ -7281,6 +7918,7 @@ router.get('/dashboard-cockpit', authMiddleware, async (req, res) => {
     return res.json({
       ok: true,
       data: {
+        env,
         serverTime: now.toISOString(),
         currentTimeStr,
         currentDay,
@@ -7484,5 +8122,66 @@ router.post('/dashboard/emergency-reassign-room', authMiddleware, requireManager
   }
 });
 
-module.exports = router;
 
+// ── User Timetable Scratchpad & Clipboard History (Notes, Stash & Win+V) ──
+router.get('/user-scratchpad', authMiddleware, async (req, res) => {
+  try {
+    const userId = req.user?._id || req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized user.' });
+    }
+    let scratchpad = await M.UserTimetableScratchpad.findOne({ userId });
+    if (!scratchpad) {
+      scratchpad = await M.UserTimetableScratchpad.create({
+        userId,
+        notes: [
+          {
+            id: 'note_default_' + Date.now(),
+            title: 'General Notes',
+            content: '',
+            createdAt: new Date(),
+            updatedAt: new Date()
+          }
+        ],
+        savedSlots: [],
+        clipboardHistory: [],
+        activeNoteId: '',
+        lastSync: new Date()
+      });
+    }
+    res.json({ ok: true, data: scratchpad });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch user scratchpad: ' + err.message });
+  }
+});
+
+router.put('/user-scratchpad', authMiddleware, async (req, res) => {
+  try {
+    const userId = req.user?._id || req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized user.' });
+    }
+    const { notes, savedSlots, clipboardHistory, activeNoteId } = req.body || {};
+    const safeClipboard = Array.isArray(clipboardHistory) ? clipboardHistory.slice(0, 50) : [];
+    const safeSavedSlots = Array.isArray(savedSlots) ? savedSlots.slice(0, 100) : [];
+    const safeNotes = Array.isArray(notes) ? notes.slice(0, 30) : [];
+    const updated = await M.UserTimetableScratchpad.findOneAndUpdate(
+      { userId },
+      {
+        $set: {
+          notes: safeNotes,
+          savedSlots: safeSavedSlots,
+          clipboardHistory: safeClipboard,
+          activeNoteId: activeNoteId || '',
+          lastSync: new Date()
+        }
+      },
+      { returnDocument: 'after', upsert: true }
+    );
+    res.json({ ok: true, message: 'Scratchpad synced successfully.', data: updated });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to update user scratchpad: ' + err.message });
+  }
+});
+
+module.exports = router;

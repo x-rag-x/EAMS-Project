@@ -130,6 +130,7 @@
           Object.keys(slots).forEach(key => {
             const slot = slots[key];
             if (!slot) return;
+            if (slot.isSpanContinuation || (Number(slot.spanIndex) > 0)) return;
             const pStr = String(slot.period !== undefined && slot.period !== null ? slot.period : '');
             const pCode = pStr ? (pStr.startsWith('P') ? pStr : `P${pStr}`) : (key.split('_')[1] ? (key.split('_')[1].startsWith('P') ? key.split('_')[1] : `P${key.split('_')[1]}`) : 'P1');
             const teacherName = (slot.teacher || slot.teacherName || slot.staff || '').trim();
@@ -549,7 +550,7 @@
                   return `<tr>
                     <td style="padding:10px 16px;"><b><re-icon icon="book-open"></re-icon> ${esc(s.name)}</b></td>
                     <td style="padding:10px 16px;"><span class="pill ${s.type === 'Lab' ? 'warn' : ''}">${esc(s.type)}</span></td>
-                    <td style="padding:10px 16px;"><span class="pill pri">${Array.from(s.sections).join(', ') || '—'}</span></td>
+                    <td style="padding:10px 16px;"><span style="font-weight:600;color:var(--td);">${Array.from(s.sections).join(', ') || '—'}</span></td>
                     <td style="padding:10px 16px;"><b style="font-size:14px">${s.hours}</b> hrs/wk</td>
                     <td style="padding:10px 16px;">
                       <div style="display:flex;align-items:center;gap:8px">
@@ -724,7 +725,7 @@
               <div class="faculty-slot-card" style="${isLab ? 'border-left:3px solid #d97706;' : 'border-left:3px solid var(--gM,#388e3c);'}">
                 <div class="faculty-slot-sub"><b>${esc(entry.subject)}</b></div>
                 <div class="faculty-slot-meta">
-                  <span class="pill pri" style="font-size:10px;padding:1px 6px;"><re-icon icon="chalkboard"></re-icon> ${esc(entry.section)}</span>
+                  <span style="font-size:11px;font-weight:600;color:var(--td);display:inline-flex;align-items:center;gap:3px;"><re-icon icon="chalkboard"></re-icon> ${esc(entry.section)}</span>
                   <span style="font-size:11px;color:var(--tmu,#5a7a5a);"><re-icon icon="pin"></re-icon> ${esc(entry.room || 'Room')}</span>
                   ${span > 1 ? `<span class="pill warn" style="font-size:9.5px;padding:1px 4px;">${span}p</span>` : ''}
                 </div>

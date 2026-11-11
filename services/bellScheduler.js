@@ -29,7 +29,7 @@ function startBellScheduler() {
     }
   }, 30000);
 
-  console.log('   ✓ Bell Scheduler: active (30s interval)');
+  // Bell scheduler initialized
 }
 
 /**

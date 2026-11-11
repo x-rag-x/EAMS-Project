@@ -121,17 +121,38 @@ async function detectBatchConflicts(sections = [], existingTemplates = []) {
 
         if (slot.teacherName) {
           const tMatch = existingTemplates.find(tpl =>
-            (tpl.grid || []).some(g =>
-              g.day === slot.day &&
-              g.period >= slot.period && g.period <= endP &&
-              g.teacher && g.teacher.toLowerCase() === slot.teacherName.toLowerCase()
-            )
+            (tpl.grid || []).some(g => {
+              if (g.day !== slot.day) return false;
+              if (!g.teacher || g.teacher.toLowerCase() !== slot.teacherName.toLowerCase()) return false;
+              const gSpan = g.span || 1;
+              const gEnd = g.period + gSpan - 1;
+              return g.period <= endP && slot.period <= gEnd;
+            })
           );
           if (tMatch) {
             conflicts.push({
               type: 'faculty_db',
               severity: 'warning',
               message: `Faculty clash with DB: ${slot.teacherName} on ${slot.day} period ${slot.period} already assigned in active timetable`
+            });
+          }
+        }
+
+        if (slot.hallNo && !slot.isCombined) {
+          const rMatch = existingTemplates.find(tpl =>
+            (tpl.grid || []).some(g => {
+              if (g.day !== slot.day) return false;
+              if (!g.room || g.room.toLowerCase() !== slot.hallNo.toLowerCase()) return false;
+              const gSpan = g.span || 1;
+              const gEnd = g.period + gSpan - 1;
+              return g.period <= endP && slot.period <= gEnd;
+            })
+          );
+          if (rMatch) {
+            conflicts.push({
+              type: 'room_db',
+              severity: 'warning',
+              message: `Room clash with DB: Room ${slot.hallNo} on ${slot.day} period ${slot.period} already booked in active timetable`
             });
           }
         }
@@ -397,45 +418,56 @@ router.post('/commit', authMiddleware, requireManager, async (req, res) => {
         if (!slot.day || !slot.period) continue;
         totalCommittedSlots++;
 
-        const gridSlotEntry = {
-          day: slot.day,
-          period: slot.period,
-          subject: slot.subjectName || slot.activityLabel || slot.rawLabel || '',
-          teacher: slot.teacherName || '',
-          room: slot.hallNo || hallNo || '',
-          roomId: slot.roomId || null,
-          combinedWith: slot.combinedWith || [],
-          isLab: !!slot.isLab,
-          span: slot.span || 1,
-          state: 'scheduled',
-          activityId: slot.activityId ? sanitizeToObjectId(slot.activityId) : null,
-          activityLabel: slot.activityLabel || ''
-        };
+        const span = Math.max(1, Number(slot.span || slot.duration || 1));
+        const rootPeriod = typeof slot.period === 'number' ? slot.period : (parseInt(String(slot.period).replace(/\D/g, ''), 10) || 1);
 
-        gridSlots.push(gridSlotEntry);
+        for (let offset = 0; offset < span; offset++) {
+          const currentPeriod = rootPeriod + offset;
+          const isCont = offset > 0;
 
-        // Populate slots map for SectionTimetable
-        const key = `${slot.day}_${slot.period}`;
-        slotsObj[key] = {
-          ...gridSlotEntry,
-          subjectId: slot.subjectId || null,
-          teacherId: slot.teacherId || null,
-          teacherTrackId: slot.teacherTrackId || ''
-        };
-
-        // If slot is an academic subject with assigned teacher, build live slot candidate
-        if (slot.subjectId && slot.teacherId) {
-          liveTimetableSlots.push({
-            trackId: slot.teacherTrackId || 'TRTEA_' + Math.random().toString(36).substr(2, 6).toUpperCase(),
-            teacherName: slot.teacherName || '',
-            classId: cls._id,
-            className: cls.name,
-            subjectId: sanitizeToObjectId(slot.subjectId),
-            subjectName: slot.subjectName || '',
+          const gridSlotEntry = {
             day: slot.day,
-            start: slot.startTime || '08:30',
-            end: slot.endTime || '09:15'
-          });
+            period: currentPeriod,
+            subject: slot.subjectName || slot.activityLabel || slot.rawLabel || '',
+            teacher: slot.teacherName || '',
+            room: slot.hallNo || hallNo || '',
+            roomId: slot.roomId || null,
+            combinedWith: slot.combinedWith || [],
+            isLab: !!slot.isLab,
+            span,
+            spanRootPeriod: rootPeriod,
+            spanIndex: offset,
+            isSpanContinuation: isCont,
+            state: 'scheduled',
+            activityId: slot.activityId ? sanitizeToObjectId(slot.activityId) : null,
+            activityLabel: slot.activityLabel || ''
+          };
+
+          gridSlots.push(gridSlotEntry);
+
+          // Populate slots map for SectionTimetable
+          const key = `${slot.day}_${currentPeriod}`;
+          slotsObj[key] = {
+            ...gridSlotEntry,
+            subjectId: slot.subjectId || null,
+            teacherId: slot.teacherId || null,
+            teacherTrackId: slot.teacherTrackId || ''
+          };
+
+          // If slot is an academic subject with assigned teacher, build live slot candidate for each period
+          if (slot.subjectId && slot.teacherId) {
+            liveTimetableSlots.push({
+              trackId: slot.teacherTrackId || 'TRTEA_' + Math.random().toString(36).substr(2, 6).toUpperCase(),
+              teacherName: slot.teacherName || '',
+              classId: cls._id,
+              className: cls.name,
+              subjectId: sanitizeToObjectId(slot.subjectId),
+              subjectName: slot.subjectName || '',
+              day: slot.day,
+              start: slot.startTime || '08:30',
+              end: slot.endTime || '09:15'
+            });
+          }
         }
       }
 

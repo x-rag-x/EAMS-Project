@@ -3,6 +3,7 @@ const router = express.Router();
 const M = require('../models');
 const { authMiddleware } = require('../middleware/auth');
 const { logAction } = require('../utils/logAction');
+const countService = require('../services/countService');
 
 /**
  * Middleware enforcing Sudo Admin and active bootstrapPending state (§9, R3.2)
@@ -68,6 +69,8 @@ router.post('/department', authMiddleware, requireBootstrapSudo, async (req, res
       icon: (icon || 'building2').trim(),
       trackId
     });
+
+    await countService.modifyCount('departments', 1).catch(() => {});
 
     // Associate initial department with the current Sudo Teacher
     const teacherId = req.user.roleId || req.user._id;

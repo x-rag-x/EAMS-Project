@@ -34,9 +34,20 @@ async function verifyTeacherAssignment(user, classIdInput, subjectIdInput, conte
   }
 
   try {
+    const modelsSettings = await getSetting('models');
+    const featSettings = await getSetting('features');
+    const ttSettings = await getSetting('timetable');
+    const attendanceLinkEnabled = Boolean(
+      (modelsSettings?.timetable?.attendanceLink !== undefined)
+        ? modelsSettings.timetable.attendanceLink
+        : ((featSettings?.timetable?.attendanceLink !== undefined)
+            ? featSettings.timetable.attendanceLink
+            : ttSettings?.attendanceLink)
+    );
+
     const totalAssignments = await M.Assignment.countDocuments();
-    // Graceful onboarding bypass if assignments collection is empty
-    if (totalAssignments === 0) {
+    // Graceful onboarding bypass if assignments collection is empty ONLY when attendanceLink is disabled
+    if (totalAssignments === 0 && !attendanceLinkEnabled) {
       return { allowed: true };
     }
 
@@ -112,6 +123,47 @@ async function verifyTeacherAssignment(user, classIdInput, subjectIdInput, conte
     const uniqueClassCandidates = [...new Set(classCandidates)];
     const uniqueSubjectCandidates = [...new Set(subjectCandidates)];
 
+    // Session-based Authority Check (Section 10.4, C16)
+    // A teacher scheduled or substituted on today's ClassSession retains valid authority
+    if (context && (context.sessionId || context.date || context.periodNumber || context.period)) {
+      let sessionDoc = null;
+      if (context.sessionId && mongoose.isValidObjectId(context.sessionId)) {
+        sessionDoc = await M.ClassSession.findById(context.sessionId).lean();
+      } else if (context.date && (context.periodNumber || context.period)) {
+        const rawDate = context.date;
+        const dateStr = typeof rawDate === 'string'
+          ? rawDate.split('T')[0]
+          : (rawDate instanceof Date ? todayIST(rawDate) : '');
+        const pNum = Number(context.periodNumber || context.period || 1);
+        if (dateStr && !isNaN(pNum)) {
+          sessionDoc = await M.ClassSession.findOne({
+            date: dateStr,
+            classId: { $in: uniqueClassCandidates },
+            periodNumber: pNum
+          }).lean();
+        }
+      }
+
+      if (sessionDoc) {
+        const schedId = sessionDoc.scheduledTeacher?.trackId || '';
+        const actualId = sessionDoc.actualTeacher?.trackId || '';
+        const isSessionTeacher = uniqueTeacherCandidates.some(tc =>
+          (schedId && String(schedId).trim() === String(tc).trim()) ||
+          (actualId && String(actualId).trim() === String(tc).trim()) ||
+          (sessionDoc.scheduledTeacher?.name && normName(sessionDoc.scheduledTeacher.name) === normName(tc)) ||
+          (sessionDoc.actualTeacher?.name && normName(sessionDoc.actualTeacher.name) === normName(tc))
+        );
+
+        if (isSessionTeacher) {
+          return {
+            allowed: true,
+            via: 'session',
+            session: sessionDoc
+          };
+        }
+      }
+    }
+
     const assignment = await M.Assignment.findOne({
       $and: [
         {
@@ -157,10 +209,13 @@ async function verifyTeacherAssignment(user, classIdInput, subjectIdInput, conte
         if (startOfUtc && endOfUtc && !isNaN(pNum)) {
           const objIdCandidates = uniqueClassCandidates.filter(c => isValidObjId(c)).map(c => new mongoose.Types.ObjectId(c));
           if (objIdCandidates.length > 0) {
+            const targetPQuery = (Array.isArray(context.periodNumbers) && context.periodNumbers.length)
+              ? { $in: context.periodNumbers }
+              : pNum;
             const ovQuery = {
               type: 'substitute',
               date: { $gte: startOfUtc, $lte: endOfUtc },
-              period: pNum,
+              period: targetPQuery,
               classId: { $in: objIdCandidates }
             };
 
@@ -226,27 +281,52 @@ async function verifyTeacherAssignment(user, classIdInput, subjectIdInput, conte
         }
       }
 
-      // If strict timetable slots enforcement is OFF (forceTimetableSlots: false),
-      // allow teachers to mark attendance for any class and subject combination.
+      if (attendanceLinkEnabled) {
+        return {
+          allowed: false,
+          reason: 'You are not assigned to this class and subject, and have no scheduled session authority.'
+        };
+      }
+
+      // Verify timetableMatch / forceTimetableSlots policy for unassigned combinations
       const attSettings = await getSetting('attendance');
       const isStrict = !!(attSettings && attSettings.forceTimetableSlots);
-      if (!isStrict) {
+      const matchPolicy = isStrict ? 'block' : (attSettings?.timetableMatch || 'warn');
+
+      if (matchPolicy === 'allow') {
         return {
           allowed: true,
           via: 'open_mode',
           assignment: null
         };
       }
-
+      if (matchPolicy === 'warn') {
+        return {
+          allowed: true,
+          via: 'unscheduled_warn',
+          warning: 'Unscheduled combination: You are not assigned to teach this class and subject combination.',
+          assignment: null
+        };
+      }
       return {
         allowed: false,
-        reason: 'You are not assigned to teach this class and subject combination.'
+        reason: 'Timetable Match Policy (Block): You are not assigned to teach this class and subject combination.'
       };
     }
 
-    // If strict timetable enforcement is ON, ensure this slot actually exists on the teacher's schedule for this date
+    if (attendanceLinkEnabled) {
+      return {
+        allowed: false,
+        reason: 'You are not assigned to this class and subject, and have no scheduled session authority.'
+      };
+    }
+
+    // Verify timetable schedule matching policy (allow, warn, block)
     const attSettings = await getSetting('attendance');
-    if (attSettings && attSettings.forceTimetableSlots && !isSudoAdmin(user)) {
+    const isStrict = !!(attSettings && attSettings.forceTimetableSlots);
+    const matchPolicy = isStrict ? 'block' : (attSettings?.timetableMatch || 'warn');
+
+    if (matchPolicy !== 'allow' && !isSudoAdmin(user)) {
       const rawDate = context.date;
       const dateStr = typeof rawDate === 'string'
         ? rawDate.split('T')[0]
@@ -256,43 +336,56 @@ async function verifyTeacherAssignment(user, classIdInput, subjectIdInput, conte
       if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr) && !isNaN(pNum)) {
         const idn = await getTeacherIdentity(user);
         if (!idn) {
-          return { allowed: false, reason: 'Teacher identity not found for timetable verification.' };
-        }
-        const days = await resolveTeacherRange(idn, dateStr, dateStr);
-        const daySlots = (days && days[0] && Array.isArray(days[0].slots))
-          ? days[0].slots.filter(s => s.status === 'scheduled')
-          : [];
-
-        const slotMatch = daySlots.find(s => {
-          const matchPeriod = s.periodNumber === pNum || (Array.isArray(s.periods) && s.periods.includes(pNum));
-          if (!matchPeriod) return false;
-          const matchClass = uniqueClassCandidates.some(c =>
-            String(s.classId) === String(c) || (s.className && s.className.toLowerCase() === String(c).toLowerCase())
-          );
-          if (!matchClass) return false;
-          if (uniqueSubjectCandidates.length > 0) {
-            const matchSub = uniqueSubjectCandidates.some(subId =>
-              String(s.subjectId) === String(subId) ||
-              (s.subject && s.subject.toLowerCase() === String(subId).toLowerCase()) ||
-              (s.subjectName && s.subjectName.toLowerCase() === String(subId).toLowerCase())
-            );
-            if (!matchSub) return false;
+          if (matchPolicy === 'block') {
+            return { allowed: false, reason: 'Teacher identity not found for timetable verification.' };
           }
-          return true;
-        });
+        } else {
+          const days = await resolveTeacherRange(idn, dateStr, dateStr);
+          const daySlots = (days && days[0] && Array.isArray(days[0].slots))
+            ? days[0].slots.filter(s => s.status === 'scheduled')
+            : [];
 
-        if (!slotMatch) {
-          return {
-            allowed: false,
-            reason: 'Strict Mode: Attendance marking is restricted to scheduled timetable slots and approved substitutions only.'
-          };
+          const slotMatch = daySlots.find(s => {
+            const matchPeriod = s.periodNumber === pNum || (Array.isArray(s.periods) && s.periods.includes(pNum));
+            if (!matchPeriod) return false;
+            const matchClass = uniqueClassCandidates.some(c =>
+              String(s.classId) === String(c) || (s.className && s.className.toLowerCase() === String(c).toLowerCase())
+            );
+            if (!matchClass) return false;
+            if (uniqueSubjectCandidates.length > 0) {
+              const matchSub = uniqueSubjectCandidates.some(subId =>
+                String(s.subjectId) === String(subId) ||
+                (s.subject && s.subject.toLowerCase() === String(subId).toLowerCase()) ||
+                (s.subjectName && s.subjectName.toLowerCase() === String(subId).toLowerCase())
+              );
+              if (!matchSub) return false;
+            }
+            return true;
+          });
+
+          if (!slotMatch) {
+            if (matchPolicy === 'block') {
+              return {
+                allowed: false,
+                reason: 'Timetable Match Policy (Block): Attendance marking is restricted to scheduled timetable slots and approved substitutions only.'
+              };
+            } else if (matchPolicy === 'warn') {
+              return {
+                allowed: true,
+                assignment,
+                via: 'unscheduled_warn',
+                warning: 'Unscheduled period: This period is not on your scheduled timetable for today.'
+              };
+            }
+          } else {
+            return {
+              allowed: true,
+              assignment,
+              via: slotMatch.role === 'substitute' ? 'substitution' : 'timetable',
+              slot: slotMatch
+            };
+          }
         }
-        return {
-          allowed: true,
-          assignment,
-          via: slotMatch.role === 'substitute' ? 'substitution' : 'timetable',
-          slot: slotMatch
-        };
       }
     }
 

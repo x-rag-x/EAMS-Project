@@ -13,7 +13,7 @@
   <script src="js/core/escape.js"></script>
   <script src="js/core/icons.js"></script>
   <link rel="stylesheet" href="css/base.css">
-  <link rel="stylesheet" href="css/admin.css">
+  <link rel="stylesheet" href="css/admin.css?v=2.6.2">
 </head>
 
 <body>
@@ -463,9 +463,10 @@
 
           <div id="sv-cs" style="display:none">
             <div style="display:flex;align-items:center;gap:8px;margin-bottom:18px;">
-              <div class="tabs" style="margin:0;" id="cs-type-tabs">
-                <button class="tab act" id="cs-tab-classes" onclick="sst('classes')"><span class="tab-ic"><re-icon icon="chalkboard"></re-icon></span> Classes</button>
-                <button class="tab" id="cs-tab-subjects" onclick="sst('subjects')"><span class="tab-ic"><re-icon icon="book-open"></re-icon></span> Subjects</button>
+              <div class="sw cs-sw" style="margin:0;" id="cs-type-tabs" role="group" aria-label="Academic structure tabs">
+                <i class="ind cs-tab-ind" id="cs-tab-ind" aria-hidden="true"></i>
+                <button type="button" class="tab cs-tab-btn act" id="cs-tab-classes" onclick="sst('classes')"><span class="tab-ic"><re-icon icon="chalkboard"></re-icon></span> Classes</button>
+                <button type="button" class="tab cs-tab-btn" id="cs-tab-subjects" onclick="sst('subjects')"><span class="tab-ic"><re-icon icon="book-open"></re-icon></span> Subjects</button>
               </div>
               <div class="tabs t-view-toggle" style="margin:0;margin-left:auto;">
                 <button type="button" class="tab act" id="cs-vt-grid" onclick="toggleStructureView('grid')" title="Grid view"><re-icon icon="grid" size="16"></re-icon></button>
@@ -557,20 +558,14 @@
                   <option value="">All Classes</option>
                 </select>
               </div>
-              <div class="fg"><label class="fl">Residency</label>
-                <select class="fc" id="sf-residency" onchange="onStudentResidencyChange()">
-                  <option value="">All</option>
-                  <option value="dayscholar">Dayscholar</option>
-                  <option value="hostel">Hosteller</option>
-                </select>
-              </div>
             </div>
             <div style="display:flex;gap:10px;align-items:center;">
               <div style="position:relative;flex:1;max-width:320px;">
                 <span style="position:absolute;left:11px;top:50%;transform:translateY(-50%);color:var(--tdi);"><re-icon icon="search"></re-icon></span>
                 <input
                   style="width:100%;padding:8px 13px 8px 35px;border:1.5px solid var(--br);border-radius:9px;background:#fff;font-size:12.5px;font-family:'Poppins',sans-serif;outline:none;color:var(--td);"
-                  placeholder="Search name / reg no…" id="sf-q" oninput="filterStudentsLive(this.value)">
+                  placeholder="Search name / reg no…" id="sf-q" oninput="filterStudentsLive(this.value)"
+                  onkeydown="if(event.key==='Enter'){event.preventDefault();if(window._studentSearchTimer)clearTimeout(window._studentSearchTimer);showStudentList();}">
               </div>
               <button class="btn-pri" id="btn-show-list" onclick="showStudentList()"
                 style="cursor:pointer;flex-shrink:0;"><re-icon icon="clipboard-list" size="14"></re-icon> Show List</button>
@@ -714,34 +709,40 @@
           </div>
 
           <!-- Section Navigation Tabs -->
-          <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:16px;">
-            <div class="tabs" style="display:inline-flex;width:fit-content;margin:0;">
-              <button class="tab act" id="rtab-btn-departments" data-tab="departments" onclick="switchExecutiveTab('departments')">
-                <span class="tab-ic"><re-icon icon="building2"></re-icon></span> Departments
+          <div class="exec-nav-bar" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:14px;margin-bottom:24px;">
+            <div class="sw exec-sw" id="exec-roles-switcher" role="group" aria-label="Executive roles sections">
+              <i class="ind exec-tab-ind" id="exec-tab-ind" aria-hidden="true"></i>
+              <button type="button" class="tab exec-tab-btn act" id="rtab-btn-departments" data-tab="departments" onclick="switchExecutiveTab('departments')">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 21V5l8-3v19M12 9h8v12M2 21h20M8 8h1M8 12h1M8 16h1"></path></svg>
+                <span>Departments</span>
               </button>
-              <button class="tab" id="rtab-btn-wardens" data-tab="wardens" data-sudo-only="true" onclick="switchExecutiveTab('wardens')">
-                <span class="tab-ic"><re-icon icon="bed"></re-icon></span> Wardens
+              <button type="button" class="tab exec-tab-btn" id="rtab-btn-wardens" data-tab="wardens" data-sudo-only="true" onclick="switchExecutiveTab('wardens')" style="display:none;">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 18v-6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v6M3 18h18M6 9V7a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v2M5 21v-3M19 21v-3"></path></svg>
+                <span>Wardens</span>
               </button>
-              <button class="tab" id="rtab-btn-institution" data-tab="institution" onclick="switchExecutiveTab('institution')">
-                <span class="tab-ic"><re-icon icon="school"></re-icon></span> Institution
+              <button type="button" class="tab exec-tab-btn" id="rtab-btn-institution" data-tab="institution" onclick="switchExecutiveTab('institution')">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10l9-6 9 6M5 10v8M9.5 10v8M14.5 10v8M19 10v8M3 20h18"></path></svg>
+                <span>Institution</span>
               </button>
-              <button class="tab" id="rtab-btn-requests" data-tab="requests" data-sudo-only="true" onclick="switchExecutiveTab('requests')">
-                <span class="tab-ic"><re-icon icon="shield-alert"></re-icon></span> Access Requests <span id="badge-pending-requests" class="badge" style="display:none;background:#ef4444;color:#fff;font-size:10px;padding:1px 6px;border-radius:10px;margin-left:4px;">0</span>
+              <button type="button" class="tab exec-tab-btn" id="rtab-btn-requests" data-tab="requests" data-sudo-only="true" onclick="switchExecutiveTab('requests')">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"></path><path d="M12 9v4M12 16h.01"></path></svg>
+                <span>Sub-Admin</span>
+                <span id="badge-pending-requests" class="badge" style="display:none;background:#ef4444;color:#fff;font-size:10px;padding:2px 7px;border-radius:10px;margin-left:4px;">0</span>
               </button>
             </div>
 
             <!-- Search for Departments -->
-            <div id="roles-dept-controls" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-              <div style="position:relative;width:260px;">
-                <input type="text" id="roles-search-input" class="fc" placeholder="Search department / code…" style="padding-left:30px;height:34px;font-size:12px;" oninput="filterExecutiveCards()">
-                <span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--tmu);"><re-icon icon="search" size="14"></re-icon></span>
+            <div id="roles-dept-controls" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+              <div style="position:relative;width:280px;">
+                <input type="text" id="roles-search-input" class="fc" placeholder="Search department / code…" style="padding-left:36px;height:44px;font-size:13px;border-radius:14px;border:1px solid #d9e6d6;background:#fff;" oninput="filterExecutiveCards()">
+                <span style="position:absolute;left:13px;top:50%;transform:translateY(-50%);color:#4b6b4f;display:flex;align-items:center;"><re-icon icon="search" size="16"></re-icon></span>
               </div>
             </div>
           </div>
 
           <!-- 1. DEPARTMENTS SECTION (§7.4) -->
           <div id="role-sec-departments">
-            <div id="roles-dept-grid" style="display:grid;grid-template-columns:repeat(auto-fill, minmax(320px, 1fr));gap:16px;">
+            <div id="roles-dept-grid" class="roles-dept-grid">
               <div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--tmu);">
                 Loading executive roles overview…
               </div>
@@ -981,7 +982,7 @@
         </div>
       </div>
 
-      <!-- ─── TRUST & DEVICES MANAGEMENT TAB (§11, Phase T5) ─── -->
+      <!-- ─── TRUST & DEVICES MANAGEMENT TAB  ─── -->
       <div class="pg" id="pg-trust">
         <div class="page-hd" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;">
           <div>
@@ -994,6 +995,7 @@
           </div>
           <div style="display:flex;gap:8px;">
             <button class="btn-out" onclick="refreshTrustModule()"><re-icon icon="refresh" size="14"></re-icon> Refresh</button>
+            <button class="btn-out" onclick="switchTrustSubTab('settings')"><re-icon icon="settings" size="14"></re-icon> Policy Settings</button>
             <button class="btn-pri" id="btn-create-window-top" onclick="openCreateWindowModal()"><re-icon icon="calendar-plus" size="14"></re-icon> New Window</button>
           </div>
         </div>
@@ -1033,6 +1035,7 @@
           <button class="rtab" id="trust-tab-btn-windows" onclick="switchTrustSubTab('windows')"><re-icon icon="calendar-clock" size="14"></re-icon> Registration Windows</button>
           <button class="rtab" id="trust-tab-btn-queues" onclick="switchTrustSubTab('queues')"><re-icon icon="inbox" size="14"></re-icon> Queues &amp; Requests <span class="badge" id="trust-queue-badge" style="display:none;background:#ef4444;color:#fff;padding:1px 6px;border-radius:10px;font-size:10px;margin-left:4px;">0</span></button>
           <button class="rtab" id="trust-tab-btn-history" onclick="switchTrustSubTab('history')"><re-icon icon="scroll" size="14"></re-icon> Registration History</button>
+          <button class="rtab" id="trust-tab-btn-settings" onclick="switchTrustSubTab('settings')"><re-icon icon="settings" size="14"></re-icon> Policy Settings</button>
         </div>
 
         <!-- ── SUBTAB 1: STUDENTS & TRUST ── -->
@@ -1293,6 +1296,26 @@
             </div>
           </div>
         </div>
+
+        <!-- ── SUBTAB 5: TRUST & DEVICES POLICY SETTINGS ── -->
+        <div id="trust-subtab-settings" style="display:none;">
+          <div class="card" style="margin-bottom:14px;padding:16px;display:flex;justify-content:space-between;align-items:center;">
+            <div>
+              <div style="font-weight:700;font-size:15px;display:flex;align-items:center;gap:8px;">
+                <re-icon icon="shield-halved" size="18" style="color:var(--pri);"></re-icon> Trust &amp; Anti-Fraud Policy Rules
+              </div>
+              <div style="color:var(--tmu);font-size:12px;margin-top:2px;">Cryptographic device binding rules, trust score bands, absence penalties, and signal evaluation weights</div>
+            </div>
+            <div style="display:flex;gap:8px;">
+              <button class="btn-out" onclick="loadTrustSettingsSubTab()"><re-icon icon="refresh" size="14"></re-icon> Reload</button>
+              <a href="settings.html?tab=trust" class="btn-pri" style="text-decoration:none;display:inline-flex;align-items:center;gap:6px;"><re-icon icon="external-link" size="14"></re-icon> Full Settings Hub</a>
+            </div>
+          </div>
+
+          <div id="trust-embedded-settings-container">
+            <div style="text-align:center;padding:36px;color:var(--tmu);">Loading trust policy settings…</div>
+          </div>
+        </div>
       </div>
 
       <!-- ─── GRIEVANCES MANAGEMENT TAB ─── -->
@@ -1426,63 +1449,140 @@
 
       <!-- Add Department -->
       <div class="modal-bg" id="m-add-dept">
-        <div class="modal modal-lg">
-          <div class="modal-hd">
-            <div class="modal-title"><re-icon icon="building2" size="18"></re-icon> ️ Add Department</div>
-            <div class="modal-close" onclick="closeModalBg('m-add-dept')"><re-icon icon="x" size="18"></re-icon></div>
+        <div class="modal dept-modal-box md" role="dialog" aria-labelledby="t4-dept">
+          <header class="mh dept-modal-hd">
+            <div class="ti dept-hd-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M4 21V5l8-3v19M12 9h8v12M2 21h20M8 8h1M8 12h1M8 16h1"></path>
+              </svg>
+            </div>
+            <div>
+              <h2 id="t4-dept" class="dept-hd-title">Add Department</h2>
+              <p class="dept-hd-sub">Register a department, its codes and course mapping</p>
+            </div>
+            <button type="button" class="x dept-modal-close" aria-label="Close" onclick="closeModalBg('m-add-dept')">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+                <path d="M6 6l12 12M18 6L6 18"></path>
+              </svg>
+            </button>
+          </header>
+
+          <div class="mb dept-grid">
+            <aside class="rl dept-col-left">
+              <div class="pv dept-preview-card">
+                <div class="av dept-preview-avatar" id="dept-preview-avatar">DP</div>
+                <h4 class="dept-preview-name" id="dept-preview-name">Department Name</h4>
+                <p class="dept-preview-category" id="dept-preview-category">Programme Departments</p>
+                <span class="chp dept-preview-code" id="dept-preview-code">CODE</span>
+              </div>
+
+              <div class="au dept-autofill-sec">
+                <h5 class="dept-autofill-title">AUTO-FILLED FOR YOU</h5>
+                <div class="dept-autofill-list">
+                  <div class="ar dept-kv-row">
+                    <span class="dept-kv-label">2-letter code</span>
+                    <b class="pd dept-kv-val" id="dept-disp-2code">Pending</b>
+                  </div>
+                  <div class="ar dept-kv-row">
+                    <span class="dept-kv-label">3-letter code</span>
+                    <b class="pd dept-kv-val" id="dept-disp-code">Pending</b>
+                  </div>
+                  <div class="ar dept-kv-row">
+                    <span class="dept-kv-label">Department code</span>
+                    <b class="pd dept-kv-val" id="dept-disp-number">Pending</b>
+                  </div>
+                  <div class="ar dept-kv-row">
+                    <span class="dept-kv-label">Course type</span>
+                    <b class="pd dept-kv-val" id="dept-disp-coursetype">Pending</b>
+                  </div>
+                  <div class="ar dept-kv-row">
+                    <span class="dept-kv-label">Branch</span>
+                    <b class="pd dept-kv-val" id="dept-disp-branch">After course type</b>
+                  </div>
+                </div>
+              </div>
+            </aside>
+
+            <div class="fm dept-col-right">
+              <section class="sc">
+                <h3>IDENTITY</h3>
+                <div class="gr">
+                  <div class="c6">
+                    <label class="lb dept-lbl" for="dept-name">Department name <em>*</em><i class="q" title="Full department name like 'Computer Science and Engineering' or 'Science and Humanities'">?</i></label>
+                    <input class="in dept-inp" id="dept-name" placeholder="Enter Full Department name"
+                      oninput="if(typeof onDeptNameInput==='function'){onDeptNameInput();}else if(typeof updateAddDeptLivePreview==='function'){updateAddDeptLivePreview();}"
+                      onchange="if(typeof onDeptNameInput==='function'){onDeptNameInput();}else if(typeof updateAddDeptLivePreview==='function'){updateAddDeptLivePreview();}">
+                  </div>
+                  <div class="c6">
+                    <label class="lb dept-lbl" for="dept-category">Department classification <em>*</em></label>
+                    <select class="in sel dept-inp" id="dept-category" onchange="if(typeof updateAddDeptLivePreview==='function'){updateAddDeptLivePreview();}">
+                      <option value="programme" selected>Programme Departments</option>
+                      <option value="supporting">Supporting Departments</option>
+                    </select>
+                  </div>
+                </div>
+              </section>
+
+              <section class="sc">
+                <h3>CODES</h3>
+                <div class="gr">
+                  <div class="c4">
+                    <label class="lb dept-lbl" for="dept-2code">2-letter character <em>*</em></label>
+                    <input class="in dept-inp" id="dept-2code" placeholder="cs" maxlength="4"
+                      oninput="delete this.dataset.autoDerived; this.value=this.value.toLowerCase().replace(/[^a-z]/g,''); if(typeof updateAddDeptLivePreview==='function'){updateAddDeptLivePreview();}"
+                      onchange="if(typeof updateAddDeptLivePreview==='function'){updateAddDeptLivePreview();}">
+                  </div>
+                  <div class="c4">
+                    <label class="lb dept-lbl" for="dept-code">3-letter character <em>*</em></label>
+                    <input class="in dept-inp" id="dept-code" placeholder="CSE" maxlength="6"
+                      oninput="delete this.dataset.autoDerived; this.value=this.value.toUpperCase().replace(/[^A-Z]/g,''); if(typeof updateAddDeptLivePreview==='function'){updateAddDeptLivePreview();}"
+                      onchange="if(typeof updateAddDeptLivePreview==='function'){updateAddDeptLivePreview();}">
+                  </div>
+                  <div class="c4">
+                    <label class="lb dept-lbl" for="dept-number">Department code <em>*</em></label>
+                    <input class="in dept-inp" id="dept-number" placeholder="e.g. 104" maxlength="3"
+                      oninput="this.value=this.value.replace(/\D/g,''); if(typeof updateAddDeptLivePreview==='function'){updateAddDeptLivePreview();}"
+                      onchange="if(typeof updateAddDeptLivePreview==='function'){updateAddDeptLivePreview();}">
+                  </div>
+                </div>
+              </section>
+
+              <section class="sc">
+                <h3>ACADEMIC MAPPING</h3>
+                <div class="gr">
+                  <div class="c6">
+                    <label class="lb dept-lbl" for="co-type">Course type <em>*</em></label>
+                    <select class="in sel dept-inp" id="co-type"
+                      onchange="if(typeof updateBranch==='function'){updateBranch();}if(typeof updateAddDeptLivePreview==='function'){updateAddDeptLivePreview();}">
+                      <option value="">— Select —</option>
+                      <option value="UG">UG</option>
+                      <option value="PG">PG</option>
+                      <option value="None">None (Supporting Dept)</option>
+                    </select>
+                  </div>
+                  <div class="c6">
+                    <label class="lb dept-lbl" for="branch">Branch <em>*</em></label>
+                    <select class="in sel dept-inp dis" id="branch" disabled
+                      onchange="if(typeof updateAddDeptLivePreview==='function'){updateAddDeptLivePreview();}">
+                      <option value="">— Select Course Type First —</option>
+                    </select>
+                  </div>
+                </div>
+              </section>
+            </div>
           </div>
-          <!-- Row 1: Full name & Classification -->
-          <div class="form-grid form-grid-2" style="gap:14px;margin-bottom:14px;">
-            <div class="fg">
-              <label class="fl">Department Name
-                <span style="color:var(--red);">*</span>
-                <span class="info-icon">?<span class="tooltip-text">Full department name like 'Computer Science and Engineering' or 'Science and Humanities'</span></span></label>
-              <input type="text" class="fc2" id="dept-name" placeholder="Enter Full Department name">
+
+          <footer class="mf dept-modal-ft">
+            <span class="hint dept-req-status" id="dept-req-status">
+              <b class="dept-req-count" id="dept-req-count">6 required fields left</b>
+              <span class="dept-req-names" id="dept-req-names"> · Department name, 2-letter code, 3-letter code, Department code, Course type, Branch</span>
+            </span>
+            <div class="stu-ft-actions">
+              <button type="button" class="bt stu-btn-outline" onclick="resetDeptForm()">Clear</button>
+              <button type="button" class="bt stu-btn-outline" onclick="closeModalBg('m-add-dept')">Cancel</button>
+              <button type="button" class="bt d stu-btn-submit" id="btn-add-dept" aria-disabled="true" onclick="addDept()">Add Department</button>
             </div>
-            <div class="fg">
-              <label class="fl">Department Classification <span style="color:var(--red);">*</span></label>
-              <select class="fc2" id="dept-category">
-                <option value="programme" selected>Programme Departments</option>
-                <option value="supporting">Supporting Departments</option>
-              </select>
-            </div>
-          </div>
-          <!-- Row 2: 2-digit | 3-digit | Dept Number -->
-          <div class="form-grid" style="grid-template-columns:1fr 1fr 1fr;">
-            <div class="fg"><label class="fl">2-Letter Character<span style="color:var(--red);">*</span></label>
-              <input type="text" class="fc2" id="dept-2code" placeholder="cs" maxlength="4"
-                oninput="this.value=this.value.toLowerCase().replace(/[^a-z]/g,'')">
-            </div>
-            <div class="fg"><label class="fl">3-Letter Character<span style="color:var(--red);">*</span></label>
-              <input type="text" class="fc2" id="dept-code" placeholder="CSE" maxlength="6"
-                oninput="this.value=this.value.toUpperCase().replace(/[^A-Z]/g,'')">
-            </div>
-            <div class="fg"><label class="fl">Department Code <span style="color:var(--red);">*</span></label>
-              <input type="text" class="fc2" id="dept-number" placeholder="e.g. 104" maxlength="3"
-                oninput="this.value=this.value.replace(/\D/g,'')">
-            </div>
-          </div>
-          <!-- Row 3: Course Type | Branch -->
-          <div class="form-grid" style="grid-template-columns:1.5fr 1.5fr;">
-            <div class="fg"><label class="fl">Course Type <span style="color:var(--red);">*</span></label>
-              <select class="fc2" id="co-type" onchange="updateBranch()">
-                <option value="">— Select —</option>
-                <option value="UG">UG</option>
-                <option value="PG">PG</option>
-                <option value="None">None (Supporting Dept)</option>
-              </select>
-            </div>
-            <div class="fg"><label class="fl">Branch <span style="color:var(--red);">*</span></label>
-              <select class="fc2" id="branch">
-                <option value="">— Select Course Type First —</option>
-              </select>
-            </div>
-          </div>
-          <div class="form-actions">
-            <button class="btn-form-ghost" onclick="resetDeptForm()"><re-icon icon="refresh" size="14"></re-icon> Clear</button>
-            <button class="btn-form-ghost" onclick="closeModalBg('m-add-dept')">Cancel</button>
-            <button class="btn-form-pri" onclick="addDept()">Add Department</button>
-          </div>
+          </footer>
         </div>
       </div>
 
@@ -1622,68 +1722,133 @@
       </div>
 
       <!-- Add Class -->
-      <div class="modal-bg" id="m-add-class-quick">
-        <div class="modal modal-sm">
-          <div class="modal-hd">
-            <div class="modal-title"><re-icon icon="chalkboard" size="18"></re-icon> Add Class</div>
-            <div class="modal-close" onclick="closeModalBg('m-add-class-quick')"><re-icon icon="x" size="18"></re-icon></div>
-          </div>
-          <div class="form-grid" style="grid-template-columns:1fr;">
-            <div class="fg"><label class="fl">Department<span style="color:var(--red);">*</span></label>
-              <select class="fc2" id="nc-dept" onchange="ncAutoName()">
-                <option value="">— Select —</option>
-              </select>
+      <div class="modal-bg" id="m-add-class-quick" onclick="if(event.target===this)closeModalBg('m-add-class-quick')">
+        <div class="modal cls-modal-box md" role="dialog" aria-labelledby="t5-add">
+          <header class="mh cls-modal-hd">
+            <div class="ti cls-hd-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <rect x="3" y="4" width="18" height="12" rx="2"></rect>
+                <path d="M8 20l4-4 4 4M12 4V2"></path>
+              </svg>
+            </div>
+            <div>
+              <h2 id="t5-add" class="cls-hd-title">Add Class</h2>
+              <p class="cls-hd-sub">Create a class section for a batch</p>
+            </div>
+            <button type="button" class="x cls-modal-close" aria-label="Close" onclick="closeModalBg('m-add-class-quick')">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+                <path d="M6 6l12 12M18 6L6 18"></path>
+              </svg>
+            </button>
+          </header>
+
+          <div class="mb cls-grid">
+            <aside class="rl cls-col-left">
+              <div class="pv cls-preview-card">
+                <div class="av cls-preview-avatar" id="nc-preview-av">A</div>
+                <h4 class="cls-preview-name" id="nc-preview-name">26-30 CSE-A</h4>
+                <p class="cls-preview-sub">Class name · auto-generated</p>
+                <span class="chp cls-preview-badge" id="nc-preview-badge">I Year · Semester I</span>
+              </div>
+
+              <div class="au cls-autofill-sec">
+                <h5 class="cls-autofill-title">AUTO-FILLED FOR YOU</h5>
+                <div class="cls-autofill-list">
+                  <div class="ar cls-kv-row">
+                    <span class="cls-kv-label">Batch</span>
+                    <b class="cls-kv-val" id="nc-disp-batch">2026-2030</b>
+                  </div>
+                  <div class="ar cls-kv-row">
+                    <span class="cls-kv-label">Year</span>
+                    <b class="cls-kv-val" id="nc-disp-yr">I Year</b>
+                  </div>
+                  <div class="ar cls-kv-row">
+                    <span class="cls-kv-label">Semester</span>
+                    <b class="cls-kv-val" id="nc-disp-sem">I</b>
+                  </div>
+                  <div class="ar cls-kv-row">
+                    <span class="cls-kv-label">Room / hall</span>
+                    <b class="cls-kv-val pd" id="nc-disp-room">Not assigned</b>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Hidden inputs to preserve JS contract -->
+              <input type="hidden" id="nc-name" value="">
+              <input type="hidden" id="nc-hall" value="">
+            </aside>
+
+            <div class="fm cls-col-right">
+              <section class="sc">
+                <h3>PROGRAMME</h3>
+                <div class="gr">
+                  <div class="c12">
+                    <label class="lb cls-lbl" for="nc-dept">Department <em>*</em></label>
+                    <select class="in sel cls-inp" id="nc-dept" onchange="ncAutoName()">
+                      <option value="">— Select Department —</option>
+                    </select>
+                  </div>
+                  <div class="c4">
+                    <label class="lb cls-lbl" for="nc-batch">Batch <em>*</em></label>
+                    <select class="in sel cls-inp" id="nc-batch" onchange="onNcBatchChange()">
+                      <option value="">— Select Batch —</option>
+                    </select>
+                  </div>
+                  <div class="c4">
+                    <label class="lb cls-lbl" for="nc-yr">Year <em>*</em></label>
+                    <select class="in sel cls-inp" id="nc-yr" onchange="onNcYearChange()">
+                      <option value="I Year">I Year</option>
+                      <option value="II Year">II Year</option>
+                      <option value="III Year">III Year</option>
+                      <option value="IV Year">IV Year</option>
+                    </select>
+                  </div>
+                  <div class="c4">
+                    <label class="lb cls-lbl" for="nc-sem">Semester</label>
+                    <select class="in sel cls-inp" id="nc-sem" onchange="ncAutoName()">
+                      <option value="I">I</option>
+                      <option value="II">II</option>
+                      <option value="III">III</option>
+                      <option value="IV">IV</option>
+                      <option value="V">V</option>
+                      <option value="VI">VI</option>
+                      <option value="VII">VII</option>
+                      <option value="VIII">VIII</option>
+                    </select>
+                  </div>
+                </div>
+              </section>
+
+              <section class="sc">
+                <h3>SECTION &amp; ROOM</h3>
+                <div class="gr">
+                  <div class="c4">
+                    <label class="lb cls-lbl" for="nc-sec">Section <em>*</em></label>
+                    <input type="text" class="in cls-inp" id="nc-sec" value="A" placeholder="e.g. A / B" oninput="ncAutoName()" minlength="1" maxlength="2">
+                  </div>
+                  <div class="c8">
+                    <label class="lb cls-lbl" for="nc-room">Assigned room / hall <span id="nc-room-req" style="color:#dc2626;display:none;">*</span></label>
+                    <select class="in sel cls-inp" id="nc-room" onchange="ncOnRoomChange()">
+                      <option value="">— Select Room / Hall —</option>
+                    </select>
+                  </div>
+                </div>
+              </section>
+
+              <div id="nc-warn" style="display:none;background:#fffbeb;border:1px solid #fde68a;border-radius:12px;padding:10px 14px;font-size:12px;color:#92400e;line-height:1.4;">
+              </div>
             </div>
           </div>
-          <div class="form-grid" style="grid-template-columns:1.2fr 0.8fr 1fr;">
-            <div class="fg"><label class="fl">Batch<span style="color:var(--red);">*</span></label>
-              <select class="fc2" id="nc-batch" onchange="ncValidate()">
-                <option value="">— Select —</option>
-              </select>
+
+          <footer class="mf cls-modal-ft">
+            <span class="hint cls-req-status" id="nc-hint">
+              <b>Ready to add</b> · class name will be 26-30 CSE-A
+            </span>
+            <div class="cls-ft-actions">
+              <button type="button" class="bt cls-btn-outline" onclick="closeModalBg('m-add-class-quick')">Cancel</button>
+              <button type="button" class="bt d cls-btn-submit" id="nc-add-btn" onclick="addCls()" disabled style="opacity:.5;cursor:not-allowed;">Add Class</button>
             </div>
-            <div class="fg"><label class="fl">Year<span style="color:var(--red);">*</span></label>
-              <select class="fc2" id="nc-yr" onchange="ncValidate()">
-                <option>I Year</option>
-                <option>II Year</option>
-                <option>III Year</option>
-                <option>IV Year</option>
-              </select>
-            </div>
-            <div class="fg"><label class="fl">Semester</label>
-              <select class="fc2" id="nc-sem">
-                <option>I</option>
-                <option>II</option>
-                <option>III</option>
-                <option>IV</option>
-                <option>V</option>
-                <option>VI</option>
-                <option>VII</option>
-                <option>VIII</option>
-              </select>
-            </div>
-          </div>
-          <div class="form-grid" style="grid-template-columns:0.75fr 1.25fr;">
-            <div class="fg"><label class="fl">Section<span style="color:var(--red);">*</span></label><input type="text"
-                class="fc2" id="nc-sec" placeholder="e.g. A / B" oninput="ncAutoName()" minlength="1" maxlength="1">
-            </div>
-            <div class="fg"><label class="fl">Assigned Room / Hall<span id="nc-room-req" style="color:var(--red);">*</span></label>
-              <select class="fc2" id="nc-room" onchange="ncOnRoomChange()">
-                <option value="">— Select Room / Hall —</option>
-              </select>
-              <input type="hidden" id="nc-hall">
-            </div>
-          </div>
-          <div class="fg" style="margin-bottom:6px;"><label class="fl">Class Name <span
-                class="auto-txt">(auto)</span></label>
-            <input type="text" class="fc2" id="nc-name" readonly
-              style="background:#f8fafc;color:var(--tmu);cursor:not-allowed;" placeholder="Select dept, sem & section">
-          </div>
-          <div id="nc-warn"
-            style="display:none;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:8px 12px;font-size:12px;color:#92400e;margin-bottom:10px;">
-          </div>
-          <div class="form-actions"><button class="btn-form-ghost"
-              onclick="closeModalBg('m-add-class-quick')">Cancel</button><button class="btn-form-pri" id="nc-add-btn"
-              onclick="addCls()" disabled style="opacity:.5;cursor:not-allowed;">Add Class</button></div>
+          </footer>
         </div>
       </div>
 
@@ -1747,19 +1912,28 @@
               <div id="cm-subjects-container" style="overflow-x:auto;border:1px solid var(--br);border-radius:12px;margin-bottom:12px;"></div>
             </div>
 
-            <!-- TAB 3: STUDENTS ROSTER -->
+            <!-- TAB 3: STUDENTS ROSTER & STATS -->
             <div id="cm-panel-students" style="display:none;">
-              <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
-                <div style="display:flex;align-items:center;gap:8px;flex:1;min-width:240px;max-width:380px;">
-                  <input type="text" class="fc2" id="cm-stu-search" style="height:36px;font-size:12px;" placeholder="Search students by name or register no..." oninput="filterClassRoster(this.value)">
+              <input type="hidden" id="cm-stu-search" value="">
+              <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:16px;">
+                <div style="display:flex;align-items:center;gap:10px;">
+                  <div style="width:36px;height:36px;border-radius:10px;background:var(--gLt);color:var(--gD);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;">
+                    <re-icon icon="trend-up" size="18"></re-icon>
+                  </div>
+                  <div>
+                    <div style="font-size:13.5px;font-weight:700;color:var(--td);">Class Demographics &amp; Roster Stats</div>
+                    <div style="font-size:11px;color:var(--tmu);">Live distribution of enrolled students by residency and gender</div>
+                  </div>
                 </div>
-                <div style="display:flex;align-items:center;gap:8px;">
+                <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;">
                   <span id="cm-roster-count" class="pill pri" style="font-size:11.5px;padding:4px 10px;">0 Enrolled</span>
-                  <button type="button" class="btn-out btn-sm" id="cm-full-load-stus-btn" onclick="loadClassStudents()"><re-icon icon="refresh" size="13"></re-icon> Refresh Roster</button>
-                  <button type="button" class="btn-out btn-sm" id="cm-open-students-tab-btn" onclick="openClassInStudentsTab()" title="Open class in Students Tab"><re-icon icon="external-link" size="13"></re-icon> Open Students Tab</button>
+                  <div style="display:flex;align-items:center;gap:8px;margin-left:auto;">
+                    <button type="button" class="btn-out btn-sm" id="cm-full-load-stus-btn" onclick="loadClassStudents()"><re-icon icon="refresh" size="13"></re-icon> Refresh Stats</button>
+                    <button type="button" class="btn-pri btn-sm" id="cm-open-students-tab-btn" onclick="openClassInStudentsTab()" title="Open class in Students Tab"><re-icon icon="external-link" size="13"></re-icon> Open Students Tab</button>
+                  </div>
                 </div>
               </div>
-              <div id="cm-roster-container" style="overflow-x:auto;border:1px solid var(--br);border-radius:12px;max-height:420px;overflow-y:auto;"></div>
+              <div id="cm-roster-container"></div>
             </div>
 
             <!-- TAB 4: EDIT CLASS -->
@@ -1782,10 +1956,6 @@
                   </select>
                 </div>
                 <div class="fg">
-                  <label class="fl">Section</label>
-                  <input type="text" class="fc2" id="ec-sec" placeholder="A" oninput="ecAutoName()">
-                </div>
-                <div class="fg">
                   <label class="fl">Year</label>
                   <select class="fc2" id="ec-yr">
                     <option>I Year</option>
@@ -1793,13 +1963,6 @@
                     <option>III Year</option>
                     <option>IV Year</option>
                   </select>
-                </div>
-                <div class="fg">
-                  <label class="fl">Assigned Room / Hall</label>
-                  <select class="fc2" id="ec-room" onchange="ecOnRoomChange()">
-                    <option value="">— Select Room / Hall —</option>
-                  </select>
-                  <input type="hidden" id="ec-hall">
                 </div>
                 <div class="fg">
                   <label class="fl">Semester</label>
@@ -1812,6 +1975,25 @@
                     <option>VI</option>
                     <option>VII</option>
                     <option>VIII</option>
+                  </select>
+                </div>
+                <div class="fg">
+                  <label class="fl">Assigned Room / Hall</label>
+                  <select class="fc2" id="ec-room" onchange="ecOnRoomChange()">
+                    <option value="">— Select Room / Hall —</option>
+                  </select>
+                  <input type="hidden" id="ec-hall">
+                </div>
+                <div class="fg">
+                  <label class="fl">Class Representative 1 <span style="color:#dc2626;">*</span> <span class="auto-txt">(Primary - Required)</span></label>
+                  <select class="fc2" id="ec-rep1">
+                    <option value="">— Select Primary Representative —</option>
+                  </select>
+                </div>
+                <div class="fg">
+                  <label class="fl">Class Representative 2 <span class="auto-txt">(Secondary - Optional)</span></label>
+                  <select class="fc2" id="ec-rep2">
+                    <option value="">— None (Optional) —</option>
                   </select>
                 </div>
               </div>
@@ -1830,7 +2012,7 @@
 
       <!-- Assign Class Advisor Modal Popup -->
       <div class="modal-bg" id="m-assign-advisor" style="z-index: 1050;" onclick="if(event.target===this)closeAdvisorModal(true)">
-        <div class="modal" style="max-width: 480px; width: 95vw;">
+        <div class="modal" style="max-width: 480px; width: 95vw; overflow: visible;">
           <div class="modal-hd">
             <div>
               <div class="modal-title" style="display:flex;align-items:center;gap:8px;">
@@ -1840,13 +2022,13 @@
             </div>
             <div class="modal-close" onclick="closeAdvisorModal(true)"><re-icon icon="x" size="18"></re-icon></div>
           </div>
-          <div class="modal-body" style="padding:16px 20px;">
+          <div class="modal-body" style="padding:16px 20px; overflow: visible;">
             <div style="background:var(--bg2,#f8faf8);border:1px solid var(--br);border-radius:10px;padding:12px 14px;margin-bottom:16px;">
               <div style="font-size:11px;font-weight:700;color:var(--tmu);text-transform:uppercase;letter-spacing:.5px;">Current Advisor</div>
               <div id="adv-modal-current" style="font-size:14px;font-weight:700;color:var(--td);margin-top:2px;">Not Assigned</div>
             </div>
 
-            <div class="form-group" style="margin-bottom:16px;">
+            <div class="form-group" style="margin-bottom:16px; position: relative; overflow: visible;">
               <label class="form-label" style="display:block;font-size:12px;font-weight:700;color:var(--td);margin-bottom:6px;">Select Faculty Advisor</label>
               <select id="adv-modal-select" class="fci" style="width:100%;font-size:13px;padding:8px 10px;border-radius:8px;border:1px solid var(--br);"></select>
             </div>
@@ -1854,6 +2036,61 @@
           <div class="modal-ft" style="display:flex;justify-content:flex-end;gap:10px;padding:14px 20px;border-top:1px solid var(--br);">
             <button type="button" class="btn-form-ghost" onclick="closeAdvisorModal(true)">Cancel</button>
             <button type="button" class="btn-pri" id="adv-modal-save-btn" onclick="saveClassAdvisorFromModal()"><re-icon icon="check" size="14"></re-icon> Save Advisor</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Assign Class Representatives Modal Popup -->
+      <div class="modal-bg" id="m-assign-representatives" style="z-index: 1050; display: none;" onclick="if(event.target===this)closeRepresentativeModal(true)">
+        <div class="modal" style="max-width: 500px; width: 95vw; overflow: visible;">
+          <div class="modal-hd">
+            <div>
+              <div class="modal-title" style="display:flex;align-items:center;gap:8px;">
+                <re-icon icon="sparkles" size="18"></re-icon> Assign Class Representatives
+              </div>
+              <div class="modal-sub" id="rep-modal-sub" style="font-size:12.5px;margin-top:2px;"></div>
+            </div>
+            <div class="modal-close" onclick="closeRepresentativeModal(true)"><re-icon icon="x" size="18"></re-icon></div>
+          </div>
+          <div class="modal-body" style="padding:16px 20px; overflow: visible;">
+            <div style="background:var(--bg2,#f8faf8);border:1px solid var(--br);border-radius:10px;padding:12px 14px;margin-bottom:16px;">
+              <div style="display:flex;align-items:center;justify-content:space-between;">
+                <span style="font-size:11px;font-weight:700;color:var(--tmu);text-transform:uppercase;letter-spacing:.5px;">Current Representatives</span>
+                <span id="rep-modal-status-badge" class="pill pri" style="font-size:10.5px;padding:2px 7px;">2 Max · 1 Required</span>
+              </div>
+              <div id="rep-modal-current" style="font-size:13.5px;font-weight:600;color:var(--td);margin-top:4px;">Not Assigned</div>
+            </div>
+
+            <!-- Representative 1 (Required) -->
+            <div class="form-group" style="margin-bottom:14px; position: relative; overflow: visible;">
+              <label class="form-label" style="display:flex;align-items:center;justify-content:space-between;font-size:12px;font-weight:700;color:var(--td);margin-bottom:6px;">
+                <span>Class Representative 1 <span style="color:#dc2626;">*</span></span>
+                <span style="font-size:11px;font-weight:600;color:var(--gD);">Primary (Required)</span>
+              </label>
+              <select id="rep-modal-select-1" class="fci" style="width:100%;font-size:13px;padding:8px 10px;border-radius:8px;border:1px solid var(--br);">
+                <option value="">— Select Primary Representative —</option>
+              </select>
+            </div>
+
+            <!-- Representative 2 (Optional) -->
+            <div class="form-group" style="margin-bottom:14px; position: relative; overflow: visible;">
+              <label class="form-label" style="display:flex;align-items:center;justify-content:space-between;font-size:12px;font-weight:700;color:var(--td);margin-bottom:6px;">
+                <span>Class Representative 2</span>
+                <span style="font-size:11px;font-weight:500;color:var(--tmu);">Secondary (Optional)</span>
+              </label>
+              <select id="rep-modal-select-2" class="fci" style="width:100%;font-size:13px;padding:8px 10px;border-radius:8px;border:1px solid var(--br);">
+                <option value="">— None (Optional) —</option>
+              </select>
+            </div>
+
+            <div style="font-size:11.5px;color:var(--tmu);background:rgba(27,94,32,0.05);border:1px solid rgba(27,94,32,0.15);border-radius:8px;padding:10px 12px;display:flex;align-items:flex-start;gap:8px;">
+              <re-icon icon="info" size="14" style="color:var(--gD);margin-top:2px;flex-shrink:0;"></re-icon>
+              <span>Max 2 students per class. At least <b>1 representative is required</b>. Selected students receive delegation rights and live Class Rep badges.</span>
+            </div>
+          </div>
+          <div class="modal-ft" style="display:flex;justify-content:flex-end;gap:10px;padding:14px 20px;border-top:1px solid var(--br);">
+            <button type="button" class="btn-form-ghost" onclick="closeRepresentativeModal(true)">Cancel</button>
+            <button type="button" class="btn-pri" id="rep-modal-save-btn" onclick="saveClassRepresentativesFromModal()"><re-icon icon="check" size="14"></re-icon> Save Representatives</button>
           </div>
         </div>
       </div>
@@ -1976,6 +2213,59 @@
                     <option value="Project">Project</option>
                   </select>
                 </div>
+                <div class="fg">
+                  <label class="fl">Category</label>
+                  <select class="fc2" id="es-cat">
+                    <option value="easy">Easy</option>
+                    <option value="important">Important</option>
+                    <option value="hard">Hard</option>
+                  </select>
+                </div>
+                <div class="fg">
+                  <label class="fl">Block Length (Periods)</label>
+                  <input type="number" class="fc2" id="es-bl" min="1" max="4" value="1">
+                </div>
+              </div>
+              <div class="form-grid form-grid-3" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:14px;">
+                <div class="fg">
+                  <label class="fl">Min Classes / Wk</label>
+                  <input type="number" class="fc2" id="es-smin" min="1" max="15" value="4" onchange="validateEsSlotsOrder('min')">
+                </div>
+                <div class="fg">
+                  <label class="fl">Target Classes / Wk<span style="color:var(--red);">*</span></label>
+                  <input type="number" class="fc2" id="es-stgt" min="1" max="15" value="5" onchange="validateEsSlotsOrder('target')">
+                </div>
+                <div class="fg">
+                  <label class="fl">Max Classes / Wk</label>
+                  <input type="number" class="fc2" id="es-smax" min="1" max="15" value="7" onchange="validateEsSlotsOrder('max')">
+                </div>
+              </div>
+              <div class="fg" style="margin-bottom:12px;">
+                <label style="display:flex;align-items:center;gap:8px;font-size:12.5px;font-weight:600;cursor:pointer;color:var(--td);">
+                  <input type="checkbox" id="es-blend-chk" onchange="toggleEsBlend(this.checked)">
+                  <span>Blend Subject (Theory + Lab Component)</span>
+                </label>
+              </div>
+              <div id="es-blend-wrap" style="display:none;background:#faf5ff;border:1px solid #e9d5ff;padding:12px 14px;border-radius:10px;margin-bottom:14px;">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+                  <div style="font-size:12px;font-weight:700;color:#7e22ce;display:flex;align-items:center;gap:6px;">
+                    <re-icon icon="git-merge" size="14"></re-icon>
+                    <span>Blend Component Structure</span>
+                  </div>
+                  <span style="font-size:11px;font-family:monospace;background:#f3e8ff;color:#7e22ce;padding:1px 6px;border-radius:4px;font-weight:700;" id="es-blend-code-tag">Shared Code</span>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:8px;">
+                  <div class="fg">
+                    <label class="fl" style="font-size:11.5px;">Theory Component Classes</label>
+                    <input type="number" class="fc2" id="es-blend-theory" value="4" min="0" max="12" oninput="onEsBlendSlotsChange()">
+                  </div>
+                  <div class="fg">
+                    <label class="fl" style="font-size:11.5px;">Lab Component Classes</label>
+                    <input type="number" class="fc2" id="es-blend-lab" value="2" min="0" max="12" oninput="onEsBlendSlotsChange()">
+                  </div>
+                </div>
+                <div id="es-blend-calc-hint" style="font-size:11.5px;color:#7e22ce;margin-bottom:8px;font-weight:500;">Total: 6 classes/week</div>
+                <div id="es-blend-map-info" style="margin-top:6px;"></div>
               </div>
               <div id="es-warn" style="display:none;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:8px 12px;font-size:12px;color:#92400e;margin-bottom:14px;"></div>
 
@@ -1994,56 +2284,226 @@
 
       <!-- Add Subject -->
       <div class="modal-bg" id="m-add-subj-ctx">
-        <div class="modal modal-sm">
-          <div class="modal-hd">
-            <div class="modal-title"><re-icon icon="book-open" size="18"></re-icon> Add Subject</div>
-            <div class="modal-close" onclick="closeModalBg('m-add-subj-ctx')"><re-icon icon="x" size="18"></re-icon></div>
-          </div>
-          <div class="fg"><label class="fl">Subject Name<span style="color:var(--red);">*</span></label><input type="text" class="fc2" id="ns-nm"
-              placeholder="e.g. Data Structures Algorithm"></div>
-          <div style="height:16px;"></div>
-          <div class="fg"><label class="fl">Department</label>
-            <select class="fc2" id="ns-dept">
-              <option value="">— Select —</option>
-            </select>
-          </div>
-          <div style="height:16px;"></div>
-          <div class="form-grid form-grid-2">
-            <div class="fg">
-              <label class="fl">Course Code<span style="color:var(--red);">*</span></label>
-              <input type="text" class="fc2" id="ns-cd" placeholder="e.g. 25CSS301" oninput="nsScAuto()">
+        <div class="modal stu-modal-box" role="dialog" aria-labelledby="t-add-subj">
+          <header class="mh stu-modal-hd">
+            <div class="ti stu-hd-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V3H6.5A2.5 2.5 0 0 0 4 5.5z"></path>
+                <path d="M8 7h8M8 11h5"></path>
+              </svg>
             </div>
-            <div class="fg">
-              <label class="fl">Subject Short Form<span style="color:var(--red);">*</span></label>
-              <input type="text" class="fc2" id="ns-ssc" placeholder="e.g. DSA" oninput="nsScAuto()" minlength="2" maxlength="15" required>
+            <div>
+              <h2 id="t-add-subj" class="stu-hd-title modal-title">Add Subject</h2>
+              <p class="stu-hd-sub">Define a course and its weekly class load</p>
             </div>
+            <button type="button" class="x stu-modal-close" aria-label="Close" onclick="closeModalBg('m-add-subj-ctx')">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+                <path d="M6 6l12 12M18 6L6 18"></path>
+              </svg>
+            </button>
+          </header>
 
-            <div class="fg"><label class="fl">Credits</label><input type="number" class="fc2" id="ns-cr" value="3"
-                min="1" max="6"></div>
-            <div class="fg"><label class="fl">Type</label><select class="fc2" id="ns-tp" oninput="nsScAuto()">
-                <option>Theory</option>
-                <option>Lab</option>
-                <option>Project</option>
-              </select></div>
-          </div>
-          <div class="fg"><label class="fl">Subject Code</label><input type="text"
-              class="fc2" id="ns-sc" style="cursor: not-allowed;background:var(--gP);" placeholder="e.g. 25CSS301-DSA" readonly>
-          </div>
-          <div id="ns-warn"
-            style="display:none;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:8px 12px;font-size:12px;color:#92400e;margin-top:10px;">
-          </div>
-          <div class="fg" style="margin-top:10px;"><label class="fl">Regulation</label>
-            <select class="fc2" id="ns-reg">
-              <option value="2025" selected>Regulation 2025</option>
-              <option value="2021">Regulation 2021</option>
-            </select>
-          </div>
-          <div style="height:16px;"></div>
+          <div class="mb stu-grid">
+            <aside class="rl stu-col-left">
+              <div class="pv stu-preview-card">
+                <div class="av stu-preview-avatar" id="subj-preview-avatar">DSA</div>
+                <h4 class="stu-preview-name" id="subj-preview-name">Subject Name</h4>
+                <p class="stu-preview-reg" id="subj-preview-code">Course Code —</p>
+                <span class="chp stu-preview-batch" id="subj-preview-chip">3 credits · Theory</span>
+              </div>
 
-          <div class="form-actions"><button class="btn-form-ghost"
-              onclick="closeModalBg('m-add-subj-ctx')">Cancel</button><button class="btn-form-pri" id="ns-add-btn"
-              onclick="addSubCtx()">Add
-              Subject</button></div>
+              <div class="au stu-autofill-sec">
+                <h5 class="stu-autofill-title">WEEKLY LOAD</h5>
+                <div class="bl" id="subj-preview-bars">
+                  <i class="t"></i><i class="t"></i><i class="t"></i><i class="t"></i><i class="t"></i><i></i><i></i>
+                </div>
+                <div class="lg2">
+                  <span><i class="dt" style="background:#1b5e20"></i>Theory <span id="subj-preview-theory-cnt">5</span></span>
+                  <span id="subj-preview-lab-item" style="display:none;"><i class="dt" style="background:#7e22ce"></i>Lab <span id="subj-preview-lab-cnt">0</span></span>
+                </div>
+              </div>
+
+              <div class="au stu-autofill-sec">
+                <h5 class="stu-autofill-title">SUMMARY</h5>
+                <div class="stu-autofill-list">
+                  <div class="ar stu-kv-row">
+                    <span class="stu-kv-label">Total per week</span>
+                    <b class="stu-kv-val" id="subj-preview-tot">5 classes</b>
+                  </div>
+                  <div class="ar stu-kv-row">
+                    <span class="stu-kv-label">Allowed range</span>
+                    <b class="stu-kv-val" id="subj-preview-range">4 – 7</b>
+                  </div>
+                  <div class="ar stu-kv-row">
+                    <span class="stu-kv-label">Block length</span>
+                    <b class="stu-kv-val" id="subj-preview-block">1 period</b>
+                  </div>
+                  <div class="ar stu-kv-row">
+                    <span class="stu-kv-label">Shared code</span>
+                    <b class="stu-kv-val" id="subj-preview-shared">—</b>
+                  </div>
+                </div>
+              </div>
+            </aside>
+
+            <div class="fm stu-col-right" style="overflow-y:auto;max-height:calc(85vh - 130px);">
+              <section class="sc">
+                <h3>SUBJECT DETAILS</h3>
+                <div class="gr">
+                  <div class="c12">
+                    <label class="lb stu-lbl" for="ns-nm">Subject name <em>*</em></label>
+                    <input class="in stu-inp" id="ns-nm" placeholder="e.g. Data Structures Algorithm" oninput="onNsDetailsInput()">
+                  </div>
+                  <div class="c4">
+                    <label class="lb stu-lbl" for="ns-cd">Course code <em>*</em></label>
+                    <input class="in stu-inp" id="ns-cd" placeholder="e.g. 25CSS301" oninput="onNsDetailsInput()">
+                  </div>
+                  <div class="c4">
+                    <label class="lb stu-lbl" for="ns-ssc">Short form <em>*</em></label>
+                    <input class="in stu-inp" id="ns-ssc" placeholder="e.g. DSA" oninput="onNsDetailsInput()" minlength="2" maxlength="15" required>
+                  </div>
+                  <div class="c4">
+                    <span class="lb stu-lbl">Subject code <small>(auto)</small></span>
+                    <input class="in ro stu-inp" id="ns-sc" placeholder="e.g. 25CSS301-DSA" readonly>
+                  </div>
+                </div>
+              </section>
+
+              <div id="ns-warn" style="display:none;background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:9px 14px;font-size:12px;color:#92400e;"></div>
+
+              <section class="sc">
+                <h3>CLASSIFICATION</h3>
+                <div class="gr">
+                  <div class="c6">
+                    <span class="lb stu-lbl">Department</span>
+                    <select class="in sel stu-inp" id="ns-dept" onchange="onNsDetailsInput()">
+                      <option value="">— Select Department —</option>
+                    </select>
+                  </div>
+                  <div class="c6">
+                    <span class="lb stu-lbl">Regulation</span>
+                    <select class="in sel stu-inp" id="ns-reg" onchange="onNsDetailsInput()">
+                      <option value="2025" selected>Regulation 2025</option>
+                      <option value="2021">Regulation 2021</option>
+                    </select>
+                  </div>
+                  <div class="c3">
+                    <span class="lb stu-lbl">Type</span>
+                    <select class="in sel stu-inp" id="ns-tp" onchange="onNsTypeChange()">
+                      <option value="Theory" selected>Theory</option>
+                      <option value="Lab">Lab</option>
+                      <option value="Project">Project</option>
+                    </select>
+                  </div>
+                  <div class="c3">
+                    <span class="lb stu-lbl">Category</span>
+                    <select class="in sel stu-inp" id="ns-cat" onchange="onNsDetailsInput()">
+                      <option value="easy" selected>Easy</option>
+                      <option value="important">Important</option>
+                      <option value="hard">Hard</option>
+                    </select>
+                  </div>
+                  <div class="c3">
+                    <span class="lb stu-lbl">Credits</span>
+                    <div class="stp">
+                      <button type="button" aria-label="Decrease credits" onclick="stepNsVal('ns-cr', -1)">−</button>
+                      <input type="number" id="ns-cr" value="3" min="1" max="10" oninput="onNsDetailsInput()">
+                      <button type="button" aria-label="Increase credits" onclick="stepNsVal('ns-cr', 1)">+</button>
+                    </div>
+                  </div>
+                  <div class="c3">
+                    <span class="lb stu-lbl">SLOT length</span>
+                    <div class="stp">
+                      <button type="button" aria-label="Decrease block length" onclick="stepNsVal('ns-bl', -1)">−</button>
+                      <input type="number" id="ns-bl" value="1" min="1" max="4" oninput="onNsDetailsInput()">
+                      <button type="button" aria-label="Increase block length" onclick="stepNsVal('ns-bl', 1)">+</button>
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              <section class="sc">
+                <h3>WEEKLY LOAD</h3>
+                <div class="gr">
+                  <div class="c4">
+                    <span class="lb stu-lbl">Min classes / wk</span>
+                    <div class="stp">
+                      <button type="button" aria-label="Decrease minimum" onclick="stepNsVal('ns-smin', -1, 'min')">−</button>
+                      <input type="number" id="ns-smin" value="4" min="1" max="15" onchange="validateNsSlotsOrder('min'); onNsDetailsInput();">
+                      <button type="button" aria-label="Increase minimum" onclick="stepNsVal('ns-smin', 1, 'min')">+</button>
+                    </div>
+                  </div>
+                  <div class="c4">
+                    <span class="lb stu-lbl">Target classes / wk <em>*</em></span>
+                    <div class="stp">
+                      <button type="button" aria-label="Decrease target" onclick="stepNsVal('ns-stgt', -1, 'target')">−</button>
+                      <input type="number" id="ns-stgt" value="5" min="1" max="15" onchange="validateNsSlotsOrder('target'); onNsDetailsInput();">
+                      <button type="button" aria-label="Increase target" onclick="stepNsVal('ns-stgt', 1, 'target')">+</button>
+                    </div>
+                  </div>
+                  <div class="c4">
+                    <span class="lb stu-lbl">Max classes / wk</span>
+                    <div class="stp">
+                      <button type="button" aria-label="Decrease maximum" onclick="stepNsVal('ns-smax', -1, 'max')">−</button>
+                      <input type="number" id="ns-smax" value="7" min="1" max="15" onchange="validateNsSlotsOrder('max'); onNsDetailsInput();">
+                      <button type="button" aria-label="Increase maximum" onclick="stepNsVal('ns-smax', 1, 'max')">+</button>
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              <section class="sc">
+                <h3>BLEND COMPONENT</h3>
+                <div class="bh" style="cursor:pointer;" onclick="toggleNsBlendSwitch()">
+                  <i class="sw" id="ns-blend-sw"></i>
+                  <input type="checkbox" id="ns-blend-chk" style="display:none;" onchange="toggleNsBlend(this.checked)">
+                  <div>
+                    <b>Blend subject (Theory + Lab)</b>
+                    <p>One course code, split into two components</p>
+                  </div>
+                  <span class="tg" id="ns-blend-code-tag">Shared code</span>
+                </div>
+
+                <div class="pn" id="ns-blend-wrap" style="display:none;">
+                  <div class="gr">
+                    <div class="c4">
+                      <span class="lb stu-lbl">Theory classes / wk</span>
+                      <div class="stp">
+                        <button type="button" aria-label="Decrease theory" onclick="stepNsVal('ns-blend-theory', -1)">−</button>
+                        <input type="number" id="ns-blend-theory" value="4" min="0" max="12" oninput="onNsBlendSlotsChange(); onNsDetailsInput();">
+                        <button type="button" aria-label="Increase theory" onclick="stepNsVal('ns-blend-theory', 1)">+</button>
+                      </div>
+                    </div>
+                    <div class="c4">
+                      <span class="lb stu-lbl">Lab classes / wk</span>
+                      <div class="stp">
+                        <button type="button" aria-label="Decrease lab" onclick="stepNsVal('ns-blend-lab', -1)">−</button>
+                        <input type="number" id="ns-blend-lab" value="2" min="0" max="12" oninput="onNsBlendSlotsChange(); onNsDetailsInput();">
+                        <button type="button" aria-label="Increase lab" onclick="stepNsVal('ns-blend-lab', 1)">+</button>
+                      </div>
+                    </div>
+                    <div class="c4">
+                      <span class="lb stu-lbl">Weekly total</span>
+                      <div class="tot" id="ns-blend-calc-hint"><b>6</b> classes · 4 Theory + 2 Lab</div>
+                    </div>
+                  </div>
+
+                  <div id="ns-blend-autolab-wrap"></div>
+                </div>
+              </section>
+            </div>
+          </div>
+
+          <footer class="mf stu-modal-ft">
+            <span class="hint stu-req-status" id="ns-req-status">
+              <b id="ns-req-lead">Ready to add</b>
+              <span id="ns-req-desc"> · all required fields are filled</span>
+            </span>
+            <div class="stu-ft-actions">
+              <button type="button" class="bt stu-btn-outline" onclick="closeModalBg('m-add-subj-ctx')">Cancel</button>
+              <button type="button" class="bt d stu-btn-submit" id="ns-add-btn" onclick="addSubCtx()">Add Subject</button>
+            </div>
+          </footer>
         </div>
       </div>
 
@@ -2090,8 +2550,9 @@
               </table>
             </div>
 
-            <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap;">
               <button type="button" class="btn-pri btn-sm" onclick="addClassAssignRow()" style="gap:5px;"><re-icon icon="plus" size="14"></re-icon> Add Row</button>
+              <button type="button" class="btn-out btn-sm" id="ca-add-all-dept-btn" onclick="addAllDeptSubjectsToClassAssign()" style="gap:5px;" title="Automatically add all subjects belonging to this class's department"><re-icon icon="plus-circle" size="14"></re-icon> Add All Dept Subjects</button>
             </div>
           </div>
 
@@ -2104,324 +2565,554 @@
       </div>
       <!-- Add Student -->
       <div class="modal-bg" id="m-add-student">
-        <div class="modal modal-lg">
-          <div class="modal-hd">
-            <div class="modal-title"><re-icon icon="graduation-cap" size="18"></re-icon> Add Student</div>
-            <div class="modal-close" onclick="closeModalBg('m-add-student')"><re-icon icon="x" size="18"></re-icon></div>
-          </div>
+        <div class="modal stu-modal-box" role="dialog" aria-labelledby="t2-add">
+          <header class="mh stu-modal-hd">
+            <div class="ti stu-hd-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M2 9l10-5 10 5-10 5z"></path>
+                <path d="M6 11.5V16c0 1.5 3 3 6 3s6-1.5 6-3v-4.5"></path>
+              </svg>
+            </div>
+            <div>
+              <h2 id="t2-add" class="stu-hd-title">Add Student</h2>
+              <p class="stu-hd-sub">Create the record and generate login credentials</p>
+            </div>
+            <button type="button" class="x stu-modal-close" aria-label="Close" onclick="closeModalBg('m-add-student')">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+                <path d="M6 6l12 12M18 6L6 18"></path>
+              </svg>
+            </button>
+          </header>
 
-          <!-- Row 1: Full Name + Register No -->
-          <div class="form-grid" style="grid-template-columns:1.2fr 0.8fr;">
-            <div class="fg"><label class="fl">Full Name<span style="color:var(--red);">*</span></label>
-              <input type="text" class="fc2" id="stu-name" oninput="onStuNameInput()" placeholder="Student full name">
-            </div>
-            <div class="fg"><label class="fl">Register Number<span style="color:var(--red);">*</span></label>
-              <input type="text" class="fc2" id="stu-regNo" value="7140" oninput="onStuRegNoChange()" maxlength="12">
-            </div>
-          </div>
+          <div class="mb stu-grid">
+            <aside class="rl stu-col-left">
+              <div class="pv stu-preview-card">
+                <div class="av stu-preview-avatar" id="stu-preview-avatar">ST</div>
+                <h4 class="stu-preview-name" id="stu-preview-name">Student Name</h4>
+                <p class="stu-preview-reg" id="stu-preview-reg">Register no. —</p>
+                <span class="chp stu-preview-batch" id="stu-preview-batch">Batch —</span>
+              </div>
 
-          <!-- Row 2: First + Last name (auto-split) -->
-          <div class="form-grid form-grid-2">
-            <div class="fg"><label class="fl">First Name <span class="auto-txt">(auto)</span></label>
-              <input type="text" class="fc2" id="stu-firstName" placeholder="Auto-split from name">
-            </div>
-            <div class="fg"><label class="fl">Last Name <span class="auto-txt">(auto)</span></label>
-              <input type="text" class="fc2" id="stu-lastName" placeholder="Auto-split from name">
-            </div>
-          </div>
-
-          <!-- Row 3: Dept <re-icon icon="arrow-right"></re-icon> courseType + branch -->
-          <div class="form-grid" style="grid-template-columns:1.5fr 1fr 1fr;">
-            <div class="fg"><label class="fl">Department<span style="color:var(--red);">*</span></label>
-              <select class="fc2" id="stu-dept" onchange="onStuDeptChange()">
-                <option value="">— Select —</option>
-              </select>
-            </div>
-            <div class="fg"><label class="fl">Course Type <span class="auto-txt">(auto)</span></label>
-              <input type="text" class="fc2" id="stu-courseType" readonly class="auto-block" placeholder="Auto">
-            </div>
-            <div class="fg"><label class="fl">Branch <span class="auto-txt">(auto)</span></label>
-              <input type="text" class="fc2" id="stu-branch" readonly class="auto-block" placeholder="Auto">
-            </div>
-          </div>
-
-          <!-- Row 4: Track ID (auto) -->
-          <div class="form-grid" style="grid-template-columns:1.4fr 0.8fr 0.8fr;">
-            <div class="fg"><label class="fl">Track ID <span class="auto-txt">(auto)</span></label>
-              <input type="text" class="fc2" id="stu-trackId" readonly class="auto-block"
-                placeholder="Auto from register no">
-            </div>
-            <div class="fg"><label class="fl">Academic Year<span style="color:var(--red);">*</span></label>
-              <select class="fc2" id="stu-year"></select>
-            </div>
-            <div class="fg"><label class="fl">Batch<span style="color:var(--red);">*</span></label>
-              <select class="fc2" id="stu-batch" onchange="onStuBatchChange()">
-                <option value="">— Select —</option>
-              </select>
-            </div>
-          </div>
-
-          <!-- Row 5: Class & Gender & Dayscholar / Hosteler -->
-          <div class="form-grid" style="grid-template-columns:1.4fr 0.8fr 0.8fr;margin-bottom:12px;">
-            <div class="fg">
-              <label class="fl">Class<span style="color:var(--red);">*</span></label>
-              <select class="fc2" id="stu-class" onchange="onStuClassChange()">
-                <option value="">— Select —</option>
-              </select>
-            </div>
-            <div class="fg">
-              <label class="fl">Gender<span style="color:var(--red);">*</span></label>
-              <select class="fc2" id="stu-gender">
-                <option value="Male" selected>Male</option>
-                <option value="Female">Female</option>
-              </select>
-            </div>
-            <div class="fg">
-              <label class="fl">Dayscholar / Hosteller<span style="color:var(--red);">*</span></label>
-              <select class="fc2" id="stu-residency">
-                <option value="dayscholar" selected>Dayscholar</option>
-                <option value="hostel">Hosteller</option>
-              </select>
-            </div>
-          </div>
-
-          <!-- Row 6: Email (full, editable) + Password -->
-          <div class="fl" style="margin-bottom:6px;">Student Login Details</div>
-          <div class="form-grid form-grid-2">
-            <div class="fg" style="position:relative;">
-              <label class="fl">Email <span class="auto-txt">(auto, editable)</span></label>
-              <input type="email" class="fc2" id="stu-email" placeholder="Auto from name + year + dept code"
-                oninput="onStuEmailInput()" onfocus="showStuEmailPopup()" autocomplete="off">
-
-              <!-- Inline confirm popup — appears on focus -->
-              <div id="stu-email-popup" style="display:none;position:absolute;left:0;top:calc(100% + 6px);z-index:60;
-                   background:#fff;border:1.5px solid var(--gB);border-radius:10px;
-                   padding:10px 14px;box-shadow:0 6px 20px rgba(27,94,32,.18);min-width:230px;">
-                <div style="font-size:12px;color:var(--tmu);margin-bottom:8px;font-weight:500;">
-                  <re-icon icon="envelope"></re-icon> Is this email correct?
-                </div>
-                <div style="display:flex;gap:8px;align-items:center;">
-                  <button type="button" class="btn-form-pri" style="padding:4px 14px;font-size:12px;"
-                    onmousedown="event.preventDefault()" onclick="stuEmailVerify(true)"><re-icon icon="check" size="13"></re-icon> Yes</button>
-                  <button type="button" class="btn-form-ghost" style="padding:4px 14px;font-size:12px;"
-                    onmousedown="event.preventDefault()" onclick="stuEmailVerify(false)"><re-icon icon="x" size="13"></re-icon> No</button>
+              <div class="au stu-autofill-sec">
+                <h5 class="stu-autofill-title">AUTO-FILLED FOR YOU</h5>
+                <div class="stu-autofill-list">
+                  <div class="ar stu-kv-row">
+                    <span class="stu-kv-label">First name</span>
+                    <b class="pd stu-kv-val stu-kv-fallback" id="stu-disp-fn">After name</b>
+                  </div>
+                  <div class="ar stu-kv-row">
+                    <span class="stu-kv-label">Last name</span>
+                    <b class="pd stu-kv-val stu-kv-fallback" id="stu-disp-ln">After name</b>
+                  </div>
+                  <div class="ar stu-kv-row">
+                    <span class="stu-kv-label">Track ID</span>
+                    <b class="pd stu-kv-val stu-kv-fallback" id="stu-disp-tid">After register no</b>
+                  </div>
+                  <div class="ar stu-kv-row">
+                    <span class="stu-kv-label">Course type</span>
+                    <b class="pd stu-kv-val stu-kv-fallback" id="stu-disp-ct">After department</b>
+                  </div>
+                  <div class="ar stu-kv-row">
+                    <span class="stu-kv-label">Branch</span>
+                    <b class="pd stu-kv-val stu-kv-fallback" id="stu-disp-br">After department</b>
+                  </div>
+                  <div class="ar stu-kv-row">
+                    <span class="stu-kv-label">Username</span>
+                    <b class="pd stu-kv-val stu-kv-fallback" id="stu-disp-un">After email is set</b>
+                  </div>
                 </div>
               </div>
-            </div>
 
-            <div class="fg"><label class="fl">Password <span class="auto-txt">(default)</span></label>
-              <div class="pw-wrap">
-                <input type="password" class="fc2" id="stu-password">
-                <button type="button" class="pw-eye" onclick="togglePwField('stu-password',this)"
-                  tabindex="-1"><re-icon icon="eye" size="16"></re-icon></button>
-              </div>
+              <!-- Hidden inputs to preserve existing JavaScript data contracts -->
+              <input type="hidden" id="stu-firstName" value="">
+              <input type="hidden" id="stu-lastName" value="">
+              <input type="hidden" id="stu-courseType" value="">
+              <input type="hidden" id="stu-branch" value="">
+              <input type="hidden" id="stu-trackId" value="">
+              <input type="hidden" id="stu-username" value="">
+              <select id="stu-year" style="display:none;"></select>
+            </aside>
+
+            <div class="fm stu-col-right">
+              <section class="sc">
+                <h3>PERSONAL DETAILS</h3>
+                <div class="gr">
+                  <div class="c12">
+                    <label class="lb stu-lbl" for="stu-name">Full name <em>*</em></label>
+                    <input class="in stu-inp" id="stu-name" value="" placeholder="Student full name" oninput="onStuNameInput()">
+                  </div>
+                  <div class="c4">
+                    <label class="lb stu-lbl" for="stu-regNo">Register number <em>*</em></label>
+                    <input class="in stu-inp" id="stu-regNo" value="7140" oninput="onStuRegNoChange()" maxlength="12">
+                  </div>
+                  <div class="c4">
+                    <label class="lb stu-lbl" for="stu-rollNo">Roll Number <span class="auto-txt">(optional)</span></label>
+                    <input class="in stu-inp" id="stu-rollNo" placeholder="e.g. 25CS001" oninput="updateAddStudentLivePreview()">
+                  </div>
+                  <div class="c4">
+                    <span class="lb stu-lbl">Gender <em>*</em></span>
+                    <div class="sg stu-seg" id="stu-seg-gender">
+                      <span class="stu-seg-glider" aria-hidden="true"></span>
+                      <button type="button" class="on stu-seg-btn act" data-val="Male" onclick="setStuGender('Male')">Male</button>
+                      <button type="button" class="stu-seg-btn" data-val="Female" onclick="setStuGender('Female')">Female</button>
+                      <button type="button" class="stu-seg-btn" data-val="Other" onclick="setStuGender('Other')">Other</button>
+                    </div>
+                    <input type="hidden" id="stu-gender" value="Male">
+                  </div>
+                </div>
+              </section>
+
+              <section class="sc">
+                <h3>ACADEMIC PLACEMENT</h3>
+                <div class="gr">
+                  <div class="c6">
+                    <span class="lb stu-lbl">Department <em>*</em></span>
+                    <select class="in sel stu-inp" id="stu-dept" onchange="onStuDeptChange()">
+                      <option value="">Select department</option>
+                    </select>
+                  </div>
+                  <div class="c6">
+                    <span class="lb stu-lbl">Class <em>*</em></span>
+                    <select class="in sel stu-inp" id="stu-class" onchange="onStuClassChange()">
+                      <option value="">Select class</option>
+                    </select>
+                  </div>
+                  <div class="c4">
+                    <span class="lb stu-lbl">Batch <em>*</em></span>
+                    <select class="in sel stu-inp stu-select" id="stu-batch" onchange="onStuBatchChange()">
+                      <option value="">Select batch</option>
+                    </select>
+                  </div>
+                  <div class="c4">
+                    <span class="lb stu-lbl">Admission type <em>*</em></span>
+                    <div class="sg stu-seg" id="stu-seg-admission">
+                      <span class="stu-seg-glider" aria-hidden="true"></span>
+                      <button type="button" class="on stu-seg-btn act" data-val="Regular" onclick="setStuAdmissionType('Regular')">Regular</button>
+                      <button type="button" class="stu-seg-btn" data-val="Lateral" onclick="setStuAdmissionType('Lateral')">Lateral</button>
+                    </div>
+                    <input type="hidden" id="stu-admission-type" value="Regular">
+                  </div>
+                  <div class="c4">
+                    <span class="lb stu-lbl">Dayscholar / Hosteller <em>*</em></span>
+                    <div class="sg stu-seg" id="stu-seg-residency">
+                      <span class="stu-seg-glider" aria-hidden="true"></span>
+                      <button type="button" class="on stu-seg-btn act" data-val="dayscholar" onclick="setStuResidency('dayscholar')">Dayscholar</button>
+                      <button type="button" class="stu-seg-btn" data-val="hostel" onclick="setStuResidency('hostel')">Hosteller</button>
+                    </div>
+                    <input type="hidden" id="stu-residency" value="dayscholar">
+                  </div>
+                </div>
+              </section>
+
+              <section class="sc">
+                <h3>LOGIN DETAILS</h3>
+                <div class="gr">
+                  <div class="c6">
+                    <label class="lb stu-lbl" for="stu-email">Email <small>(auto, editable)</small></label>
+                    <input type="email" class="in stu-inp" id="stu-email" placeholder="Auto from name + year + dept code"
+                      oninput="onStuEmailInput()" onclick="showStuEmailPopup()" autocomplete="off">
+                  </div>
+                  <div class="c6">
+                    <span class="lb stu-lbl">Password <small>(default)</small></span>
+                    <div class="stu-pw-wrap">
+                      <input type="password" class="stu-pw-inp" id="stu-password" value="student123" placeholder="••••••••" autocomplete="new-password">
+                      <button type="button" class="stu-pw-eye" onclick="togglePwField('stu-password', this)" tabindex="-1" title="Toggle password visibility">
+                        <re-icon icon="eye" size="18"></re-icon>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </section>
             </div>
           </div>
 
-          <!-- Username (auto from confirmed email) -->
-          <div class="form-grid" style="grid-template-columns:1fr;">
-            <div class="fg"><label class="fl">Username <span class="auto-txt">(auto from email)</span></label>
-              <input type="text" class="fc2" id="stu-username" readonly class="auto-block"
-                placeholder="Set after email confirmed">
+          <footer class="mf stu-modal-ft">
+            <span class="hint stu-req-status" id="stu-req-status">
+              <b class="stu-req-count" id="stu-req-count">2 required fields left</b>
+              <span class="stu-req-names" id="stu-req-names"> · Department, Class</span>
+            </span>
+            <div class="stu-ft-actions">
+              <button type="button" class="bt stu-btn-outline" onclick="resetStudentForm()">Clear</button>
+              <button type="button" class="bt stu-btn-outline" onclick="closeModalBg('m-add-student')">Cancel</button>
+              <button type="button" class="bt d stu-btn-submit" id="btn-add-stu" aria-disabled="true" onclick="addStu()">Add Student</button>
             </div>
-          </div>
-
-          <div class="form-actions">
-            <button class="btn-form-ghost" onclick="resetStudentForm()"><re-icon icon="refresh" size="14"></re-icon> Clear</button>
-            <button class="btn-form-ghost" onclick="closeModalBg('m-add-student')">Cancel</button>
-            <button class="btn-form-pri" id="btn-add-stu" onclick="addStu()" disabled
-              style="opacity:.5;cursor:not-allowed;">Add Student</button>
-          </div>
+          </footer>
         </div>
       </div>
 
       <!-- Edit Student -->
       <div class="modal-bg" id="m-stu-edit">
-        <div class="modal modal-lg">
-          <div class="modal-hd">
+        <div class="modal stu-modal-box" role="dialog" aria-labelledby="t2-edit">
+          <header class="mh stu-modal-hd">
+            <div class="ti stu-hd-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M2 9l10-5 10 5-10 5z"></path>
+                <path d="M6 11.5V16c0 1.5 3 3 6 3s6-1.5 6-3v-4.5"></path>
+              </svg>
+            </div>
             <div>
-              <div class="modal-title"><re-icon icon="graduation-cap" size="18"></re-icon> Edit Student</div>
-              <div class="modal-sub" id="edit-subtitle"></div>
+              <h2 id="t2-edit" class="stu-hd-title">Edit Student</h2>
+              <p class="stu-hd-sub" id="edit-subtitle">Update student record and academic details</p>
             </div>
-            <div class="modal-close" onclick="closeModalBg('m-stu-edit')"><re-icon icon="x" size="18"></re-icon></div>
-          </div>
+            <button type="button" class="x stu-modal-close" aria-label="Close" onclick="closeModalBg('m-stu-edit')">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+                <path d="M6 6l12 12M18 6L6 18"></path>
+              </svg>
+            </button>
+          </header>
 
-          <!-- Row 1: Full Name + Register No -->
-          <div class="form-grid form-grid-2">
-            <div class="fg"><label class="fl">Full Name</label><input type="text" class="fc2" id="edit-name"
-                oninput="onEditNameInput()"></div>
-            <div class="fg"><label class="fl">Register Number</label><input type="text" class="fc2" id="edit-regNo">
-            </div>
-          </div>
+          <div class="mb stu-grid">
+            <aside class="rl stu-col-left">
+              <div class="pv stu-preview-card">
+                <div class="av stu-preview-avatar" id="edit-preview-avatar">ST</div>
+                <h4 class="stu-preview-name" id="edit-preview-name">Student Name</h4>
+                <p class="stu-preview-reg" id="edit-preview-reg">Register no. —</p>
+                <span class="chp stu-preview-batch" id="edit-preview-batch">Batch —</span>
+              </div>
 
-          <!-- Row 2: First + Last name (auto-split) -->
-          <div class="form-grid form-grid-2">
-            <div class="fg"><label class="fl">First Name <span class="auto-txt">(auto-split)</span></label>
-              <input type="text" class="fc2" id="edit-firstName" placeholder="Auto-split from name">
-            </div>
-            <div class="fg"><label class="fl">Last Name <span class="auto-txt">(auto-split)</span></label>
-              <input type="text" class="fc2" id="edit-lastName" placeholder="Auto-split from name">
-            </div>
-          </div>
-
-          <!-- Row 3: Department, Course Type, Branch -->
-          <div class="form-grid" style="grid-template-columns:1fr 1fr 1fr;">
-            <div class="fg"><label class="fl">Department</label><select class="fc2" id="edit-dept"
-                onchange="onEditDeptChange()">
-                <option value="">— Select —</option>
-              </select></div>
-            <div class="fg"><label class="fl">Course Type <span class="auto-txt">(auto)</span></label>
-              <input type="text" class="fc2" id="edit-courseType" readonly class="auto-block">
-            </div>
-            <div class="fg"><label class="fl">Branch <span class="auto-txt">(auto)</span></label>
-              <input type="text" class="fc2" id="edit-branch" readonly class="auto-block">
-            </div>
-          </div>
-
-          <!-- Row 4: Track ID (auto), Academic Year, Batch -->
-          <div class="form-grid" style="grid-template-columns:1fr 2fr 1fr;">
-            <div class="fg"><label class="fl">Track ID <span class="auto-txt">(auto)</span></label>
-              <input type="text" class="fc2" id="edit-trackId" readonly class="auto-block">
-            </div>
-            <div class="fg"><label class="fl">Academic Year</label>
-              <select class="fc2" id="edit-year"></select>
-            </div>
-            <div class="fg"><label class="fl">Batch<span style="color:var(--red);">*</span></label>
-              <select class="fc2" id="edit-batch" onchange="onEditBatchChange()"></select>
-            </div>
-          </div>
-
-          <!-- Row 5: Class & Gender & Dayscholar / Hosteler -->
-          <div class="form-grid" style="grid-template-columns:1.4fr 0.8fr 0.8fr;margin-bottom:12px;">
-            <div class="fg">
-              <label class="fl">Class</label>
-              <select class="fc2" id="edit-class" onchange="onEditClassChange()">
-              </select>
-            </div>
-            <div class="fg">
-              <label class="fl">Gender</label>
-              <select class="fc2" id="edit-gender">
-                <option value="Male">Male</option>
-                <option value="Female">Female</option>
-              </select>
-            </div>
-            <div class="fg">
-              <label class="fl">Dayscholar / Hosteller</label>
-              <select class="fc2" id="edit-residency">
-                <option value="dayscholar">Dayscholar</option>
-                <option value="hostel">Hosteller</option>
-              </select>
-            </div>
-          </div>
-
-          <!-- Row 6: Email + Password -->
-          <div class="fl" style="margin-bottom:6px;">Student Login Details</div>
-          <div class="form-grid form-grid-2">
-            <div class="fg" style="position:relative;">
-              <label class="fl">Email <span class="auto-txt">(editable)</span></label>
-              <input type="email" class="fc2" id="edit-email" placeholder="Student email" oninput="onEditEmailInput()"
-                onfocus="showEditEmailPopup()" autocomplete="off">
-
-              <!-- Inline confirm popup — appears on focus -->
-              <div id="edit-email-popup" style="display:none;position:absolute;left:0;top:calc(100% + 6px);z-index:60;
-                   background:#fff;border:1.5px solid var(--gB);border-radius:10px;
-                   padding:10px 14px;box-shadow:0 6px 20px rgba(27,94,32,.18);min-width:230px;">
-                <div style="font-size:12px;color:var(--tmu);margin-bottom:8px;font-weight:500;">
-                  <re-icon icon="envelope"></re-icon> Is this email correct?
+              <div class="au stu-autofill-sec">
+                <h5 class="stu-autofill-title">AUTO-FILLED FOR YOU</h5>
+                <div class="stu-autofill-list">
+                  <div class="ar stu-kv-row">
+                    <span class="stu-kv-label">First name</span>
+                    <b class="stu-kv-val" id="edit-disp-fn">After name</b>
+                  </div>
+                  <div class="ar stu-kv-row">
+                    <span class="stu-kv-label">Last name</span>
+                    <b class="stu-kv-val" id="edit-disp-ln">After name</b>
+                  </div>
+                  <div class="ar stu-kv-row">
+                    <span class="stu-kv-label">Track ID</span>
+                    <b class="stu-kv-val" id="edit-disp-tid">After register no</b>
+                  </div>
+                  <div class="ar stu-kv-row">
+                    <span class="stu-kv-label">Course type</span>
+                    <b class="pd stu-kv-val stu-kv-fallback" id="edit-disp-ct">After department</b>
+                  </div>
+                  <div class="ar stu-kv-row">
+                    <span class="stu-kv-label">Branch</span>
+                    <b class="pd stu-kv-val stu-kv-fallback" id="edit-disp-br">After department</b>
+                  </div>
+                  <div class="ar stu-kv-row">
+                    <span class="stu-kv-label">Username</span>
+                    <b class="pd stu-kv-val stu-kv-fallback" id="edit-disp-un">After email is set</b>
+                  </div>
                 </div>
-                <div style="display:flex;gap:8px;align-items:center;">
-                  <button type="button" class="btn-form-pri" style="padding:4px 14px;font-size:12px;"
-                    onmousedown="event.preventDefault()" onclick="editEmailVerify(true)"><re-icon icon="check" size="13"></re-icon> Yes</button>
-                  <button type="button" class="btn-form-ghost" style="padding:4px 14px;font-size:12px;"
-                    onmousedown="event.preventDefault()" onclick="editEmailVerify(false)"><re-icon icon="x" size="13"></re-icon> No</button>
+              </div>
+
+              <!-- Hidden inputs to preserve existing JavaScript data contracts -->
+              <input type="hidden" id="edit-firstName" value="">
+              <input type="hidden" id="edit-lastName" value="">
+              <input type="hidden" id="edit-courseType" value="">
+              <input type="hidden" id="edit-branch" value="">
+              <input type="hidden" id="edit-trackId" value="">
+              <input type="hidden" id="edit-username" value="">
+              <select id="edit-year" style="display:none;"></select>
+            </aside>
+
+            <div class="fm stu-col-right">
+              <section class="sc">
+                <h3>PERSONAL DETAILS</h3>
+                <div class="gr">
+                  <div class="c12">
+                    <label class="lb stu-lbl" for="edit-name">Full name <em>*</em></label>
+                    <input class="in stu-inp" id="edit-name" placeholder="Student full name" oninput="onEditNameInput()">
+                  </div>
+                  <div class="c4">
+                    <label class="lb stu-lbl" for="edit-regNo">Register number <em>*</em></label>
+                    <input class="in stu-inp" id="edit-regNo" oninput="onEditRegNoChange()">
+                  </div>
+                  <div class="c4">
+                    <label class="lb stu-lbl" for="edit-rollNo">Roll Number <span class="auto-txt">(optional)</span></label>
+                    <input class="in stu-inp" id="edit-rollNo" placeholder="e.g. 25CS001" oninput="updateEditStudentLivePreview()">
+                  </div>
+                  <div class="c4">
+                    <span class="lb stu-lbl">Gender <em>*</em></span>
+                    <div class="sg stu-seg" id="edit-seg-gender">
+                      <span class="stu-seg-glider" aria-hidden="true"></span>
+                      <button type="button" class="on stu-seg-btn act" data-val="Male" onclick="setEditGender('Male')">Male</button>
+                      <button type="button" class="stu-seg-btn" data-val="Female" onclick="setEditGender('Female')">Female</button>
+                      <button type="button" class="stu-seg-btn" data-val="Other" onclick="setEditGender('Other')">Other</button>
+                    </div>
+                    <input type="hidden" id="edit-gender" value="Male">
+                  </div>
+                </div>
+              </section>
+
+              <section class="sc">
+                <h3>ACADEMIC PLACEMENT</h3>
+                <div class="gr">
+                  <div class="c6">
+                    <span class="lb stu-lbl">Department <em>*</em></span>
+                    <select class="in sel stu-inp" id="edit-dept" onchange="onEditDeptChange()">
+                      <option value="">Select department</option>
+                    </select>
+                  </div>
+                  <div class="c6">
+                    <span class="lb stu-lbl">Class <em>*</em></span>
+                    <select class="in sel stu-inp" id="edit-class" onchange="onEditClassChange()">
+                      <option value="">Select class</option>
+                    </select>
+                  </div>
+                  <div class="c4">
+                    <span class="lb stu-lbl">Batch <em>*</em></span>
+                    <select class="in sel stu-inp stu-select" id="edit-batch" onchange="onEditBatchChange()">
+                      <option value="">Select batch</option>
+                    </select>
+                  </div>
+                  <div class="c4">
+                    <span class="lb stu-lbl">Admission type <em>*</em></span>
+                    <div class="sg stu-seg" id="edit-seg-admission">
+                      <span class="stu-seg-glider" aria-hidden="true"></span>
+                      <button type="button" class="on stu-seg-btn act" data-val="Regular" onclick="setEditAdmissionType('Regular')">Regular</button>
+                      <button type="button" class="stu-seg-btn" data-val="Lateral" onclick="setEditAdmissionType('Lateral')">Lateral</button>
+                    </div>
+                    <input type="hidden" id="edit-admission-type" value="Regular">
+                  </div>
+                  <div class="c4">
+                    <span class="lb stu-lbl">Dayscholar / Hosteller <em>*</em></span>
+                    <div class="sg stu-seg" id="edit-seg-residency">
+                      <span class="stu-seg-glider" aria-hidden="true"></span>
+                      <button type="button" class="on stu-seg-btn act" data-val="dayscholar" onclick="setEditResidency('dayscholar')">Dayscholar</button>
+                      <button type="button" class="stu-seg-btn" data-val="hostel" onclick="setEditResidency('hostel')">Hosteller</button>
+                    </div>
+                    <input type="hidden" id="edit-residency" value="dayscholar">
+                  </div>
+                </div>
+              </section>
+
+              <section class="sc">
+                <h3>LOGIN DETAILS</h3>
+                <div class="gr">
+                  <div class="c6">
+                    <label class="lb stu-lbl" for="edit-email">Email <small>(auto, editable)</small></label>
+                    <input type="email" class="in stu-inp" id="edit-email" placeholder="Student email"
+                      oninput="onEditEmailInput()" onclick="showEditEmailPopup()" autocomplete="off">
+                  </div>
+                  <div class="c6">
+                    <span class="lb stu-lbl">Password <small>(blank = keep)</small></span>
+                    <div class="stu-pw-wrap">
+                      <input type="password" class="stu-pw-inp" id="edit-password" placeholder="Leave blank to keep" autocomplete="new-password">
+                      <button type="button" class="stu-pw-eye" onclick="togglePwField('edit-password', this)" tabindex="-1" title="Toggle password visibility">
+                        <re-icon icon="eye" size="18"></re-icon>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </section>
+            </div>
+          </div>
+
+          <footer class="mf stu-modal-ft">
+            <div style="display:flex;align-items:center;gap:12px;">
+              <button type="button" class="bt stu-btn-del" onclick="dStuFromEdit()">
+                <re-icon icon="trash2" size="14"></re-icon> Delete Student
+              </button>
+              <span class="hint stu-req-status" id="edit-req-status">
+                <b class="stu-req-count" id="edit-req-count"></b>
+                <span class="stu-req-names" id="edit-req-names"></span>
+              </span>
+            </div>
+            <div class="stu-ft-actions">
+              <button type="button" class="bt stu-btn-outline" onclick="closeModalBg('m-stu-edit')">Cancel</button>
+              <button type="button" class="bt p stu-btn-submit ready" onclick="saveStuEdit()">
+                <re-icon icon="save" size="14"></re-icon> Save Changes
+              </button>
+            </div>
+          </footer>
+        </div>
+      </div>
+      
+      <!-- Student Detail View Modal -->
+      <div class="modal-bg" id="m-stu-detail" onclick="if(event.target===this)closeModalBg('m-stu-detail')">
+        <div class="modal modal-lg"
+          style="max-width:860px;width:95vw;height:90vh;max-height:92vh;display:flex;flex-direction:column;border-radius:16px;overflow:hidden;padding:0;background:#fff;border:1px solid var(--br);box-shadow:0 12px 36px rgba(0,0,0,0.12);">
+
+          <!-- Modal Header -->
+          <div class="modal-hd" style="padding:18px 24px 14px;border-bottom:1px solid var(--br);background:#fff;margin:0;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-shrink:0;">
+            <div style="display:flex;align-items:center;gap:14px;flex:1;min-width:0;">
+              <div id="sd-avatar" style="width:48px;height:48px;border-radius:12px;background:var(--gLt);color:var(--gD);display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:700;flex-shrink:0;">
+                <re-icon icon="graduation-cap" size="24"></re-icon>
+              </div>
+              <div style="flex:1;min-width:0;">
+                <div id="sd-name" style="font-family:'Poppins',-apple-system,sans-serif;font-size:18px;font-weight:700;color:var(--td);display:flex;align-items:center;gap:8px;letter-spacing:-0.2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+                  Student Details
+                </div>
+                <div id="sd-sub" style="font-size:12px;color:var(--tmu);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+                  Loading student profile…
                 </div>
               </div>
             </div>
-
-            <div class="fg"><label class="fl">Reset Password <span class="auto-txt">(blank = keep)</span></label>
-              <div class="pw-wrap">
-                <input type="password" class="fc2" id="edit-password" placeholder="Leave blank to keep">
-                <button type="button" class="pw-eye" onclick="togglePwField('edit-password',this)"
-                  tabindex="-1"><re-icon icon="eye" size="16"></re-icon></button>
-              </div>
+            <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
+              <div class="modal-close" onclick="closeModalBg('m-stu-detail')"><re-icon icon="x" size="18"></re-icon></div>
             </div>
           </div>
 
-          <!-- Row 7: Username (auto from confirmed email) -->
-          <div class="form-grid" style="grid-template-columns:1fr;">
-            <div class="fg"><label class="fl">Username <span class="auto-txt">(auto from email)</span></label>
-              <input type="text" class="fc2" id="edit-username" readonly class="auto-block"
-                placeholder="Set after email confirmed">
+          <!-- Navigation Tab Strip Bar -->
+          <div class="sd-tabs-bar" style="background:var(--gLt);padding:8px 24px;border-bottom:1px solid var(--br);display:flex;align-items:center;flex-shrink:0;min-height:52px;box-sizing:border-box;">
+            <div class="tabs" id="sd-tabs" style="margin-bottom:0;background:rgba(255,255,255,0.75);padding:3px;border-radius:10px;border:1px solid var(--br);display:flex;gap:4px;overflow-x:auto;width:100%;">
+              <button type="button" class="tab act" id="sd-tab-btn-overview" onclick="switchStuDetailTab('overview')">
+                <span class="tab-ic"><re-icon icon="user" size="14"></re-icon></span> Overview &amp; Profile
+              </button>
+              <button type="button" class="tab" id="sd-tab-btn-attendance" onclick="switchStuDetailTab('attendance')">
+                <span class="tab-ic"><re-icon icon="trend-up" size="14"></re-icon></span> Attendance Registry
+              </button>
+              <button type="button" class="tab" id="sd-tab-btn-academic" onclick="switchStuDetailTab('academic')">
+                <span class="tab-ic"><re-icon icon="book-open" size="14"></re-icon></span> Academic Participation
+              </button>
+              <button type="button" class="tab" id="sd-tab-btn-leaves" onclick="switchStuDetailTab('leaves')">
+                <span class="tab-ic"><re-icon icon="calendar" size="14"></re-icon></span> Leaves &amp; Absences
+              </button>
+              <button type="button" class="tab" id="sd-tab-btn-trust" onclick="switchStuDetailTab('trust')">
+                <span class="tab-ic"><re-icon icon="shield" size="14"></re-icon></span> Trust &amp; Devices
+              </button>
+              <button type="button" class="tab" id="sd-tab-btn-actions" onclick="switchStuDetailTab('actions')">
+                <span class="tab-ic"><re-icon icon="settings" size="14"></re-icon></span> Student Actions
+              </button>
             </div>
           </div>
 
-          <div class="form-actions">
-            <button class="btn bdan bsm" onclick="dStuFromEdit()"><re-icon icon="trash2" size="14"></re-icon> Delete</button>
-            <div style="display:flex;gap:8px;">
-              <button class="btn-form-ghost" onclick="closeModalBg('m-stu-edit')">Cancel</button>
-              <button class="btn-form-pri" onclick="saveStuEdit()"><re-icon icon="save" size="14"></re-icon> Save Changes</button>
-            </div>
+          <!-- Modal Body (Scrollable container) -->
+          <div class="subj-modal-body" id="sd-body" style="flex:1 1 0%;min-height:0;overflow-y:auto;padding:20px 24px;background:#fff;">
+            <!-- Populated dynamically -->
           </div>
+
+          <!-- Modal Footer Toolbar -->
+          <div class="modal-ft" style="padding:12px 24px;border-top:1px solid var(--br);background:#f8fafc;display:flex;align-items:center;justify-content:flex-end;margin:0;gap:12px;flex-shrink:0;">
+            <button type="button" class="btn-out btn-sm" onclick="closeModalBg('m-stu-detail')">Close</button>
+          </div>
+
         </div>
       </div>
 
-      <!-- Add Teacher -->
+      <!-- Add Teacher Modal -->
       <div class="modal-bg" id="m-add-teacher">
-        <div class="modal modal-lg">
-          <div class="modal-hd">
-            <div class="modal-title"><re-icon icon="teacher" size="18"></re-icon> Add Teacher</div>
-            <div class="modal-close" onclick="closeModalBg('m-add-teacher')"><re-icon icon="x" size="18"></re-icon></div>
-          </div>
-          <div class="form-grid" style="grid-template-columns: 1.4fr 0.8fr 0.8fr;">
-            <div class="fg"><label class="fl">Full Name</label><input type="text" class="fc2" id="t-nm"
-                oninput="onTchNameInput()" placeholder="Teacher name">
+        <div class="modal stu-modal-box md" role="dialog" aria-labelledby="t3">
+          <header class="mh stu-modal-hd">
+            <div class="ti stu-hd-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <circle cx="12" cy="8" r="4"></circle>
+                <path d="M4 21c0-4 4-6 8-6s8 2 8 6"></path>
+              </svg>
             </div>
-            <div class="fg"><label class="fl">First Name <span class="auto-txt">(auto)</span></label>
-              <input type="text" class="fc2" id="t-fn" placeholder="Auto-split from name" readonly>
+            <div>
+              <h2 id="t3" class="stu-hd-title">Add Teacher</h2>
+              <p class="stu-hd-sub">Create a faculty record and login</p>
             </div>
-            <div class="fg"><label class="fl">Last Name <span class="auto-txt">(auto)</span></label>
-              <input type="text" class="fc2" id="t-ln" placeholder="Auto-split from name" readonly>
+            <button type="button" class="x stu-modal-close" aria-label="Close" onclick="closeModalBg('m-add-teacher')">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+                <path d="M6 6l12 12M18 6L6 18"></path>
+              </svg>
+            </button>
+          </header>
+
+          <div class="mb stu-grid">
+            <aside class="rl stu-col-left">
+              <div class="pv stu-preview-card">
+                <div class="av stu-preview-avatar" id="tch-preview-avatar">TC</div>
+                <h4 class="stu-preview-name" id="tch-preview-name">Teacher Name</h4>
+                <p class="stu-preview-reg" id="tch-preview-empid">Employee ID —</p>
+                <span class="chp stu-preview-batch" id="tch-preview-desig">Assistant Professor</span>
+              </div>
+
+              <div class="au stu-autofill-sec">
+                <h5 class="stu-autofill-title">AUTO-FILLED FOR YOU</h5>
+                <div class="stu-autofill-list">
+                  <div class="ar stu-kv-row">
+                    <span class="stu-kv-label">First name</span>
+                    <b class="pd stu-kv-val stu-kv-fallback" id="tch-disp-fn">After name</b>
+                  </div>
+                  <div class="ar stu-kv-row">
+                    <span class="stu-kv-label">Last name</span>
+                    <b class="pd stu-kv-val stu-kv-fallback" id="tch-disp-ln">After name</b>
+                  </div>
+                  <div class="ar stu-kv-row">
+                    <span class="stu-kv-label">Track ID</span>
+                    <b class="pd stu-kv-val stu-kv-fallback" id="tch-disp-tid">After employee ID</b>
+                  </div>
+                  <div class="ar stu-kv-row">
+                    <span class="stu-kv-label">Username</span>
+                    <b class="pd stu-kv-val stu-kv-fallback" id="tch-disp-un">From email</b>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Hidden inputs to preserve existing JavaScript data contracts -->
+              <input type="hidden" id="t-fn" value="">
+              <input type="hidden" id="t-ln" value="">
+              <input type="hidden" id="t-ti" value="">
+              <input type="hidden" id="t-us" value="">
+            </aside>
+
+            <div class="fm stu-col-right">
+              <section class="sc">
+                <h3 class="stu-sec-title">PERSONAL DETAILS</h3>
+                <div class="gr">
+                  <div class="c12">
+                    <label class="lb stu-lbl" for="t-nm">Full name <em>*</em></label>
+                    <input class="in stu-inp" id="t-nm" placeholder="Teacher name" oninput="onTchNameInput()">
+                  </div>
+                </div>
+              </section>
+
+              <section class="sc">
+                <h3 class="stu-sec-title">EMPLOYMENT</h3>
+                <div class="gr">
+                  <div class="c4">
+                    <label class="lb stu-lbl" for="t-ei">Employee ID <em>*</em></label>
+                    <input class="in stu-inp" id="t-ei" placeholder="EMP-001" oninput="onTchEmpIdInput(event)" onblur="onTchEmpIdBlur()">
+                  </div>
+                  <div class="c4">
+                    <span class="lb stu-lbl">Department <em>*</em></span>
+                    <select class="in sel stu-inp" id="t-dp" onchange="onTchDeptChange()">
+                      <option value="">— Select —</option>
+                    </select>
+                  </div>
+                  <div class="c4">
+                    <span class="lb stu-lbl">Designation <em>*</em></span>
+                    <select class="in sel stu-inp" id="t-dg" onchange="onTchDesigChange()">
+                      <option>Assistant Professor</option>
+                      <option>Associate Professor</option>
+                      <option>Professor</option>
+                      <option>HOD</option>
+                      <option>Lecturer</option>
+                    </select>
+                  </div>
+                </div>
+              </section>
+
+              <section class="sc">
+                <h3 class="stu-sec-title">LOGIN DETAILS</h3>
+                <div class="gr">
+                  <div class="c6">
+                    <label class="lb stu-lbl" for="t-em">Email <small>(auto, editable)</small></label>
+                    <input type="email" class="in stu-inp" id="t-em" placeholder="Email Address"
+                      oninput="onTchEmailInput()" onkeydown="if(event.key===' ')event.preventDefault();" autocomplete="off">
+                  </div>
+                  <div class="c6">
+                    <span class="lb stu-lbl">Password <small>(default)</small></span>
+                    <div class="stu-pw-wrap">
+                      <input type="password" class="stu-pw-inp" id="t-pw" value="teacher123" placeholder="••••••••" autocomplete="new-password">
+                      <button type="button" class="stu-pw-eye" onclick="togglePwField('t-pw', this)" tabindex="-1" title="Toggle password visibility">
+                        <re-icon icon="eye" size="18"></re-icon>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </section>
             </div>
           </div>
 
-          <div class="form-grid" style="grid-template-columns: 1fr 1fr;">
-            <div class="fg"><label class="fl">Employee ID</label><input type="text" class="fc2" id="t-ei"
-                placeholder="EMP001" oninput="buildTchTrackId()">
+          <footer class="mf stu-modal-ft">
+            <span class="hint stu-req-status" id="tch-req-status">
+              Auto fields fill in as you type
+            </span>
+            <div class="stu-ft-actions">
+              <button type="button" class="bt stu-btn-outline" onclick="resetTeacherForm()">Clear</button>
+              <button type="button" class="bt stu-btn-outline" onclick="closeModalBg('m-add-teacher')">Cancel</button>
+              <button type="button" class="bt p stu-btn-submit" id="btn-add-tch" onclick="addTch()">Add Teacher</button>
             </div>
-            <div class="fg"><label class="fl">Track ID <span class="auto-txt">(auto)</span></label>
-              <input type="text" class="fc2" id="t-ti" readonly class="auto-block" placeholder="Auto from Employee ID">
-            </div>
-          </div>
-
-          <div class="form-grid" style="grid-template-columns: 1.2fr 0.8fr;">
-            <div class="fg"><label class="fl">Department</label><select class="fc2" id="t-dp">
-                <option value="">— Select —</option>
-              </select></div>
-            <div class="fg"><label class="fl">Designation</label><select class="fc2" id="t-dg">
-                <option>Assistant Professor</option>
-                <option>Associate Professor</option>
-                <option>Professor</option>
-                <option>HOD</option>
-                <option>Lecturer</option>
-              </select></div>
-          </div>
-
-          <div class="form-grid" style="grid-template-columns: 1.5fr 0.6fr 0.9fr;">
-            <div class="fg"><label class="fl">Email</label><input type="email" class="fc2" id="t-em"
-                onkeydown="if(event.key===' ')event.preventDefault();" oninput="onTchEmailInput()" placeholder="Email Address"></div>
-            <div class="fg"><label class="fl">Password</label>
-              <div class="pw-wrap"><input type="password" class="fc2" id="t-pw" value="teacher123"><button type="button"
-                  class="pw-eye" onclick="togglePwField('t-pw',this)" tabindex="-1"><re-icon icon="eye" size="16"></re-icon></button></div>
-            </div>
-            <div class="fg"><label class="fl">Username</label><input type="text" class="fc2" id="t-us"
-                onkeydown="if(event.key===' ')event.preventDefault();" placeholder="Auto from Email" readonly></div>
-          </div>
-
-          <div class="form-actions">
-            <button class="btn-form-ghost" onclick="resetTeacherForm()"><re-icon icon="refresh" size="14"></re-icon> Clear</button>
-            <button class="btn-form-ghost" onclick="closeModalBg('m-add-teacher')">Cancel</button>
-            <button class="btn-form-pri" onclick="addTch()">Add Teacher</button>
-          </div>
+          </footer>
         </div>
       </div>
 
@@ -3319,7 +4010,7 @@
     </div>
   </div>
 
-  <!-- ── TRUST & DEVICES MODALS (§11, §14, §16, Phase T5) ── -->
+  <!-- ── TRUST & DEVICES MODALS── -->
 
   <!-- 1. Student Trust Details & Ledger Drawer Modal -->
   <div class="modal-bg" id="m-trust-drawer" style="display:none;" onclick="if(event.target===this)closeModalBg('m-trust-drawer')">
@@ -3596,7 +4287,10 @@
         <button type="button" class="btn-form-pri" onclick="submitGrievanceResolution()"><re-icon icon="check" size="14"></re-icon> Save &amp; Notify Teacher</button>
       </div>
     </div>
-  </div>
+  </div><!-- /m-grievance-solve -->
+
+  </div><!-- Close .mc (line 121) -->
+</div><!-- Close #app-shell (line 41) -->
 
 <script src="js/core/session.js"></script>
 <script src="js/core/api.js"></script>
@@ -3605,9 +4299,9 @@
 <script src="js/core/popup.js"></script>
 <script src="js/core/guard.js"></script>
 <script src="js/core/searchableDropdown.js"></script>
-<script src="js/pages/admin.page.js?v=2.5.7"></script>
-<script src="js/pages/admin.roles.js"></script>
-<script src="js/pages/admin.trust.js"></script>
+<script src="js/pages/admin.page.js?v=2.6.2"></script>
+<script src="js/pages/admin.roles.js?v=2.6.2"></script>
+<script src="js/pages/admin.trust.js?v=2.6.2"></script>
 
 </body>
 </html>

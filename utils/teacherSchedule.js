@@ -250,7 +250,7 @@ function refMatches(slot, idn) {
   const rawName = slot.teacher || slot.teacherName;
   if (rawName) {
     const n = normName(rawName);
-    if (n && idn.normNames.includes(n)) return true;
+    if (n && Array.isArray(idn.normNames) && idn.normNames.includes(n)) return true;
   }
 
   return false;
@@ -300,6 +300,7 @@ function normalizeProdSlot(key, raw, section, classDoc, timingSet, timingSets = 
     day: dayAbbr(dFull),
     dayFull: dFull,
     classId: section.classId ? String(section.classId) : '',
+    classTrackId: classDoc?.trackId || section?.classTrackId || section?.trackId || classDoc?.name || '',
     className: section.className || classDoc?.name || 'Class',
     deptName: section.deptName || classDoc?.deptName || '',
     periodNumber: pNum,
@@ -372,6 +373,8 @@ async function buildWeeklyTemplate(idn) {
 
     Object.entries(sectionSlots).forEach(([key, raw]) => {
       if (!raw) return;
+      // Skip continuation slots so multi-period slots appear as a single combined slot (no doubles)
+      if (raw.isSpanContinuation || Number(raw.spanIndex) > 0) return;
       if (refMatches(raw, idn)) {
         const slotTiming = timingForClass(classDoc, timingSets, section, raw);
         const canonical = normalizeProdSlot(key, raw, section, classDoc, slotTiming, timingSets, classes);
@@ -385,35 +388,6 @@ async function buildWeeklyTemplate(idn) {
           }
         }
         slots.push(canonical);
-
-        // If this is a multi-period slot whose continuation periods are not stored as separate keys in sectionSlots,
-        // expand them into canonical continuation slots so the teacher's schedule covers all periods:
-        const pNum = parsePeriod(raw.period, key);
-        const span = Math.max(1, Number(raw.span || raw.duration || 1));
-        if (span > 1 && !raw.isSpanContinuation) {
-          const dFull = dayFull(raw.day || key.split('_')[0]);
-          for (let offset = 1; offset < span; offset++) {
-            const nextPNum = pNum + offset;
-            const nextKey = `${dFull}_${nextPNum}`;
-            if (!sectionSlots[nextKey]) {
-              const contRaw = {
-                ...raw,
-                period: nextPNum,
-                span,
-                spanIndex: offset,
-                spanRootPeriod: pNum,
-                isSpanContinuation: true
-              };
-              const contTiming = timingForClass(classDoc, timingSets, section, contRaw);
-              const contCanonical = normalizeProdSlot(nextKey, contRaw, section, classDoc, contTiming, timingSets, classes);
-              if (canonical.subjectId) {
-                contCanonical.subjectId = canonical.subjectId;
-                contCanonical.subjectName = canonical.subjectName;
-              }
-              slots.push(contCanonical);
-            }
-          }
-        }
       }
     });
   });
@@ -513,6 +487,10 @@ async function resolveTeacherRange(idn, fromISO, toISO) {
     date: { $gte: fromDate, $lte: toDate }
   }).lean();
 
+  const classSessions = (M.ClassSession && typeof M.ClassSession.find === 'function')
+    ? await M.ClassSession.find({ date: { $in: dateStrings } }).lean()
+    : [];
+
   const daysResult = [];
 
   for (const dateStr of dateStrings) {
@@ -575,6 +553,9 @@ async function resolveTeacherRange(idn, fromISO, toISO) {
       };
 
       const classDoc = classesMap.get(slot.classId);
+      if (classDoc && classDoc.trackId) {
+        slot.classTrackId = classDoc.trackId;
+      }
       const clsYear = classDoc ? normalizeYear(classDoc.year) : '';
 
       // Check class-specific holiday / half-day in CalendarDay
@@ -668,6 +649,29 @@ async function resolveTeacherRange(idn, fromISO, toISO) {
         }
       }
 
+      const sSess = classSessions.find(cs =>
+        cs.date === dateStr &&
+        String(cs.classId) === String(slot.classId) &&
+        Number(cs.periodNumber) === Number(slot.periodNumber)
+      );
+
+      const secDoc = sectionsMap.get(String(slot.classId));
+      slot.headTrackId = secDoc?.headTrackId || '';
+      slot.sessionId = sSess ? String(sSess._id) : null;
+      if (!slot.attendance && sSess?.attendance?.savedAt) {
+        slot.attendance = { marked: true, finalized: true };
+      }
+      slot.attendanceState = (slot.attendance && slot.attendance.marked) || Boolean(sSess?.attendance?.savedAt)
+        ? 'marked'
+        : (slot.status === 'cancelled'
+            ? 'cancelled'
+            : (slot.status === 'substituted'
+                ? 'substituted'
+                : (sSess?.status === 'cancelled' ? 'cancelled' : 'pending')));
+      slot.markAttendanceUrl = slot.sessionId
+        ? `/teacher.html?tab=att&sessionId=${slot.sessionId}&classId=${slot.classId}&period=${slot.periodNumber}&date=${dateStr}`
+        : `/teacher.html?tab=att&classId=${slot.classId}&period=${slot.periodNumber}&date=${dateStr}`;
+
       daySlots.push(slot);
     }
 
@@ -710,6 +714,7 @@ async function resolveTeacherRange(idn, fromISO, toISO) {
         day: dayAbbr(dayName),
         dayFull: dayName,
         classId: ov.classId ? String(ov.classId) : '',
+        classTrackId: classDoc?.trackId || sectionDoc?.classTrackId || sectionDoc?.trackId || classDoc?.name || '',
         className: sectionDoc?.className || classDoc?.name || 'Class',
         deptName: sectionDoc?.deptName || classDoc?.deptName || '',
         periodNumber: ov.period,
@@ -755,6 +760,26 @@ async function resolveTeacherRange(idn, fromISO, toISO) {
           };
         }
       }
+
+      const subSess = classSessions.find(cs =>
+        cs.date === dateStr &&
+        String(cs.classId) === String(subSlot.classId) &&
+        Number(cs.periodNumber) === Number(subSlot.periodNumber)
+      );
+
+      subSlot.headTrackId = sectionDoc?.headTrackId || '';
+      subSlot.sessionId = subSess ? String(subSess._id) : null;
+      if (!subSlot.attendance?.marked && subSess?.attendance?.savedAt) {
+        subSlot.attendance = { marked: true, finalized: true };
+      }
+      subSlot.attendanceState = (subSlot.attendance && subSlot.attendance.marked) || Boolean(subSess?.attendance?.savedAt)
+        ? 'marked'
+        : (subSlot.status === 'cancelled'
+            ? 'cancelled'
+            : (subSess?.status === 'cancelled' ? 'cancelled' : 'pending'));
+      subSlot.markAttendanceUrl = subSlot.sessionId
+        ? `/teacher.html?tab=att&sessionId=${subSlot.sessionId}&classId=${subSlot.classId}&period=${subSlot.periodNumber}&date=${dateStr}`
+        : `/teacher.html?tab=att&classId=${subSlot.classId}&period=${subSlot.periodNumber}&date=${dateStr}`;
 
       daySlots.push(subSlot);
     }

@@ -66,10 +66,34 @@ async function getFreeTeachers({
     const teacherId = sess.actualTeacher?.trackId || sess.scheduledTeacher?.trackId;
     if (!teacherId) continue;
 
-    if (sessP === pNum) {
+    const span = Math.max(1, Number(sess.span || 1));
+    const isBusyInPeriod = (sessP === pNum) || (sessP <= pNum && pNum < sessP + span);
+
+    if (isBusyInPeriod) {
       busyTeacherTrackIds.add(teacherId);
-    } else if (sessP === pNum - 1 || sessP === pNum + 1) {
+    } else if (sessP === pNum - 1 || (sessP + span - 1) === (pNum - 1) || sessP === pNum + 1) {
       adjacentTeacherTrackIds.add(teacherId);
+    }
+  }
+
+  // Fallback to SectionTimetable heads if no ClassSessions generated yet (future date / Section 10.7)
+  if (dateSessions.length === 0 && M.SectionTimetable) {
+    const dObj = new Date(targetDate + 'T00:00:00.000Z');
+    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const dName = dayNames[dObj.getUTCDay()];
+    if (dName !== 'Sunday') {
+      const prodSections = await M.SectionTimetable.find({}).lean();
+      for (const st of prodSections) {
+        const slots = st.slots || {};
+        for (const slot of Object.values(slots)) {
+          if (!slot || slot.day !== dName) continue;
+          const sP = Number(slot.period);
+          const tId = slot.teacherTrackId || slot.teacherId;
+          if (!tId) continue;
+          if (sP === pNum) busyTeacherTrackIds.add(String(tId));
+          else if (sP === pNum - 1 || sP === pNum + 1) adjacentTeacherTrackIds.add(String(tId));
+        }
+      }
     }
   }
 
@@ -85,7 +109,11 @@ async function getFreeTeachers({
       // Full day absence
       busyTeacherTrackIds.add(lv.teacherTrackId);
     } else {
-      const coversP = lv.substitutions.some(s => Number(s.periodNumber) === pNum);
+      const coversP = lv.substitutions.some(s => {
+        const sP = Number(s.periodNumber);
+        const sSpan = Math.max(1, Number(s.span || 1));
+        return sP === pNum || (sP <= pNum && pNum < sP + sSpan);
+      });
       if (coversP) {
         busyTeacherTrackIds.add(lv.teacherTrackId);
       }

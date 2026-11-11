@@ -8,5 +8,4 @@ dev/
 AGENTS.md
 scratch/
 .antigravity
-uploads/
-backups/
+tests/

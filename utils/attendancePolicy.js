@@ -10,7 +10,7 @@ const M = require('../models');
  * @param {number} [params.periodNumber] - Specific period number (1..N)
  * @returns {Promise<Map<string, Object>>} Map of studentTrackId -> entitlement resolution
  */
-async function resolveEntitlements({ classId, date, periodNumber = null }) {
+async function resolveEntitlements({ classId, date, periodNumber = null, periodNumbers = null }) {
   const query = {
     classId: String(classId),
     date: String(date),
@@ -21,8 +21,12 @@ async function resolveEntitlements({ classId, date, periodNumber = null }) {
   const resolutionMap = new Map();
 
   for (const ent of entitlements) {
-    // If periodNumber is provided and entitlement specifies periodNumbers, check match
-    if (periodNumber !== null && Array.isArray(ent.periodNumbers) && ent.periodNumbers.length > 0) {
+    // If periodNumbers or periodNumber is provided and entitlement specifies periodNumbers, check match
+    if (Array.isArray(periodNumbers) && periodNumbers.length > 0 && Array.isArray(ent.periodNumbers) && ent.periodNumbers.length > 0) {
+      if (!ent.periodNumbers.some(p => periodNumbers.includes(Number(p)))) {
+        continue;
+      }
+    } else if (periodNumber !== null && Array.isArray(ent.periodNumbers) && ent.periodNumbers.length > 0) {
       if (!ent.periodNumbers.includes(Number(periodNumber))) {
         continue;
       }
@@ -62,8 +66,8 @@ async function resolveEntitlements({ classId, date, periodNumber = null }) {
  * @param {string} params.actorRole
  * @returns {Promise<Array<Object>>} Enforced records array
  */
-async function enforceAttendancePolicy({ classId, date, periodNumber, records, actorTrackId, actorRole }) {
-  const entitlements = await resolveEntitlements({ classId, date, periodNumber });
+async function enforceAttendancePolicy({ classId, date, periodNumber, periodNumbers, records, actorTrackId, actorRole }) {
+  const entitlements = await resolveEntitlements({ classId, date, periodNumber, periodNumbers });
   const processedRecords = [];
 
   for (const rec of records) {

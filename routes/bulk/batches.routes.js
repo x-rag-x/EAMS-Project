@@ -266,7 +266,7 @@ router.get('/batches/active', authMiddleware, requirePage('bulk', 'view'), async
 router.get('/batches/:id', authMiddleware, requirePage('bulk', 'view'), loadBatch('view'), async (req, res) => {
   try {
     const limit24h = await get24HourVerificationCount();
-    const previewLimit = req.query.includeAllRows === 'true' ? null : 50;
+    const previewLimit = req.query.previewLimit ? parseInt(req.query.previewLimit, 10) : (req.query.includeAllRows === 'false' ? 50 : null);
     const clientBatch = toClient(req.batch, req.user, { previewLimit });
     res.json({
       ok: true,
@@ -466,7 +466,7 @@ router.post('/batches/:id/clone', authMiddleware, requirePage('bulk', 'create'),
 router.get('/batches/:id/rows', authMiddleware, requirePage('bulk', 'view'), loadBatch('view'), async (req, res) => {
   try {
     const page = Math.max(1, parseInt(req.query.page, 10) || 1);
-    const limit = Math.min(200, Math.max(1, parseInt(req.query.limit, 10) || 50));
+    const limit = Math.min(1000, Math.max(1, parseInt(req.query.limit, 10) || 50));
     const filter = String(req.query.filter || 'all').toLowerCase().trim();
     const q = String(req.query.q || '').toLowerCase().trim();
 

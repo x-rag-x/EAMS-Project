@@ -34,12 +34,12 @@ mongoose.connect(cfg.MONGO_URI, {
   minPoolSize: 2,
   socketTimeoutMS: 45000,
   connectTimeoutMS: 30000,
-  serverSelectionTimeoutMS: 8000,
+  serverSelectionTimeoutMS: 15000,
+  bufferTimeoutMS: 30000,
   autoIndex: true
 })
   .then(async() => {
-    console.log(`   3/5: MongoDB connected → ${cfg.DB_NAME}`);
-    console.log(`> Checking Admin User...`);
+    console.log(`  [3/4] Database      →  MongoDB connected (${cfg.DB_NAME})`);
     await seedAdmin();
     await seedSettings();
     await seedAcademicYear();
@@ -47,11 +47,15 @@ mongoose.connect(cfg.MONGO_URI, {
     await seedTeacher();
     await syncActiveLoginSessions();
     await mergeDuplicateClassAttendance();
+    await backfillLeaveRequestIds();
+    await initAggregatedCounts();
+    startSessionMonitor();
+    console.log(`  [4/4] System State  →  Admin user verified · Default settings loaded · Telemetry synced`);
+    console.log(`\n  ✔ EAMS Server is ready for access → http://localhost:${process.env.PORT || cfg.PORT || 3000}\n`);
   })
-  .catch(err => { console.error('   3/5: MongoDB error:', err.message); process.exit(1); });
+  .catch(err => { console.error('  [!] MongoDB error:', err.message); process.exit(1); });
 
 async function seedSettings() {  
-  console.log(`> Checking settings...`);
   let seeded = 0;
   for (const d of DEFAULT_SETTINGS_LIST) {
     const exists = await M.Settings.findOne({ key: d.key });
@@ -114,8 +118,6 @@ async function seedSettings() {
       }
     }
 
-    if (seeded > 0) console.log(`   5/5: Default settings not found, ${seeded} setting(s) added successfully`);
-    else console.log(`   5/5: Default Settings Found`);
   
     // Set default maintenance fields if missing in legacy records
     await M.Settings.findOneAndUpdate(
@@ -132,15 +134,12 @@ async function seedSettings() {
       { module: 'system', subType: 'action', trackId: 'TR-SYS-001' }
     );
 
-    console.log(`EAMS ready for Access...`)
-    startSessionMonitor();
   }
 
   async function seedAdmin() {
     // Seed default admin account in Teacher and User collections
     const adminExists = await M.Teacher.findOne({ username: 'admin' });
     if (adminExists) {
-      console.log(`   4/5: Admin User found...`);
       // Ensure shadow User record is normalized to role: 'teacher' and matches trackId (§4.8, R1.7, R3)
       const shadowUser = await M.User.findOne({ username: 'admin' });
       if (!shadowUser) {
@@ -184,7 +183,7 @@ async function seedSettings() {
       } else {
         await M.User.updateOne({ username: 'admin' }, { $set: { role: 'teacher', bootstrapPending: true } });
       }
-      console.log(`   4/5: Admin User not found, Created new user successfully (bootstrapPending: true)`);
+      console.log('   • Created initial admin user (bootstrapPending: true)');
     }
   }
 
@@ -341,3 +340,44 @@ async function seedSettings() {
       console.warn('   [WARNING] seedAcademicYear:', e.message);
     }
   }
+
+async function backfillLeaveRequestIds() {
+  try {
+    const { getNextRequestId } = require('../utils/requestIds');
+    const nullFacultyLeaves = await M.TeacherLeaveRequest.find({
+      $or: [{ requestId: null }, { requestId: { $exists: false } }]
+    });
+    for (const doc of nullFacultyLeaves) {
+      doc.requestId = await getNextRequestId('FL');
+      await doc.save();
+    }
+  } catch (e) {
+    console.warn('   [WARNING] backfillLeaveRequestIds:', e.message);
+  }
+}
+
+/**
+ * Safely initialize aggregated counts during server startup.
+ * If the global singleton document does not exist, triggers and awaits recountAll('system_init')
+ * so the singleton document is guaranteed to be saved and ready before user traffic arrives.
+ */
+async function initAggregatedCounts() {
+  try {
+    const existing = await M.AggregatedCount.findOne({ key: 'global' }).lean();
+    if (!existing) {
+      const { recountAll } = require('../services/countService');
+      if (typeof recountAll === 'function') {
+        await recountAll('system_init');
+        console.log('   ✓ Aggregated counts initialized and saved (system_init)');
+      }
+    } else {
+      const { getCounts } = require('../services/countService');
+      if (typeof getCounts === 'function') {
+        await getCounts();
+      }
+    }
+  } catch (err) {
+    console.warn('   [WARNING] Count auto-initialization failed:', err.message);
+  }
+}
+

@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const M = require('../models');
 const { getSettings } = require('./settingsCache');
 
@@ -10,21 +11,25 @@ const { getSettings } = require('./settingsCache');
 function startSessionMonitor() {
   // Check every 10 seconds
   setInterval(async () => {
+    if (!mongoose.connection || mongoose.connection.readyState !== 1) {
+      return;
+    }
     try {
       const now = new Date();
 
       // Fetch dynamic security settings from cached source of truth (§3.9, F17)
       const secSettings = await getSettings(['security']);
       const security = secSettings?.security || {};
-      const globalTimeoutMins = security.sessionTimeoutMins !== undefined ? Number(security.sessionTimeoutMins) : 60;
+      const isSessionTimeoutEnabled = security.sessionTimeout !== false;
+      const globalTimeoutMins = security.sessionTimeoutMins !== undefined ? Number(security.sessionTimeoutMins) : 10;
 
       const adminMins = Number(security.adminInactivityMins || globalTimeoutMins);
-      const teacherMins = Number(security.teacherInactivityMins || globalTimeoutMins);
+      const teacherMins = Number(security.teacherInactivityMins || globalTimeoutMins || 10);
       const studentMins = Number(security.studentInactivityMins || globalTimeoutMins);
       const boardMins = Number(security.boardInactivityMins || globalTimeoutMins);
 
       // Perform atomic updateMany per role on LoginSession without loading documents (§3.10, S7.4)
-      const sweepPromises = [
+      const sweepPromises = isSessionTimeoutEnabled ? [
         // Admin sessions inactive sweep
         M.LoginSession.updateMany(
           { active: true, role: 'admin', lastActivity: { $lt: new Date(now.getTime() - adminMins * 60 * 1000) } },
@@ -50,6 +55,12 @@ function startSessionMonitor() {
           { active: true, role: 'board', lastActivity: { $lt: new Date(now.getTime() - boardMins * 60 * 1000) } },
           { $set: { active: false, logoutAt: now, logoutMethod: 'auto' } }
         ),
+        // Hard expiresAt limit reached across any active session
+        M.LoginSession.updateMany(
+          { active: true, expiresAt: { $lte: now } },
+          { $set: { active: false, logoutAt: now, logoutMethod: 'auto' } }
+        )
+      ] : [
         // Hard expiresAt limit reached across any active session
         M.LoginSession.updateMany(
           { active: true, expiresAt: { $lte: now } },

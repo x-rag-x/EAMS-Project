@@ -27,6 +27,10 @@ router.post('/start', authMiddleware, checkLiveSessionGuard, async (req, res) =>
   }
   try {
     const { classId, subjectId, date, attendanceMode = 'code', periodNumber = 1 } = req.body;
+    const targetPeriodNumbers = Array.isArray(req.body.periodNumbers) && req.body.periodNumbers.length
+      ? req.body.periodNumbers.map(Number).filter(n => !isNaN(n) && n > 0)
+      : [Number(periodNumber) || 1];
+    const targetPeriodNumber = targetPeriodNumbers[0] || (Number(periodNumber) || 1);
     if (!classId || !subjectId || !date) return res.status(400).json({ error: 'classId, subjectId, date required' });
 
     const teacherTrackId = req.user.trackId || String(req.user._id);
@@ -51,7 +55,8 @@ router.post('/start', authMiddleware, checkLiveSessionGuard, async (req, res) =>
     // Verify teacher assignment to this class and subject (A3, permit valid substitute)
     const assignCheck = await verifyTeacherAssignment(req.user, targetClassId, targetSubjectId, {
       date,
-      periodNumber
+      periodNumber: targetPeriodNumber,
+      periodNumbers: targetPeriodNumbers
     });
     if (!assignCheck.allowed) {
       return res.status(403).json({ error: assignCheck.reason });
@@ -105,7 +110,8 @@ router.post('/start', authMiddleware, checkLiveSessionGuard, async (req, res) =>
         classId: targetClassId,
         subjectId: targetSubjectId,
         date,
-        periodNumber: Number(periodNumber) || 1,
+        periodNumber: targetPeriodNumber,
+        periodNumbers: targetPeriodNumbers,
         rotationCount: rotCount,
         rotationTimeSec: rotTimeSec,
         currentRotation: 1,

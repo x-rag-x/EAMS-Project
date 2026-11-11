@@ -17,12 +17,19 @@ var SETTINGS_STATE = {
     pageBulk: 'enabled',
     pageTimeTable: 'enabled',
     pageSelector: 'enabled',
+    pageHostel: 'enabled',
+    pageTrust: 'enabled',
+    pageExport: 'enabled',
+    pageControl: 'enabled',
+    pageLogs: 'enabled',
   },
   attendance: {},
   teachers: {},
   models: {},
   academic: {},
   security: {},
+  driveSync: {},
+  mailer: {},
   device: {},
   trust: {},
   broadcast: {},
@@ -156,7 +163,7 @@ function nav(tabName) {
     window.location.href = 'manage.html?tab=years';
     return;
   }
-  var validTabs = ['institution', 'pages', 'attendance', 'teachers', 'models', 'security', 'trust', 'academic', 'broadcast', 'history', 'advanced'];
+  var validTabs = ['institution', 'pages', 'attendance', 'teachers', 'models', 'security', 'trust', 'academic', 'broadcast', 'driveSync', 'mailer', 'history', 'advanced'];
   if (validTabs.indexOf(tabName) === -1) tabName = 'institution';
   currentTab = tabName;
 
@@ -247,6 +254,11 @@ function getCardValues(cardKey) {
       pageBulk: SETTINGS_STATE.pages.pageBulk || 'enabled',
       pageTimeTable: SETTINGS_STATE.pages.pageTimeTable || 'enabled',
       pageSelector: SETTINGS_STATE.pages.pageSelector || 'enabled',
+      pageHostel: SETTINGS_STATE.pages.pageHostel || 'enabled',
+      pageTrust: SETTINGS_STATE.pages.pageTrust || 'enabled',
+      pageExport: SETTINGS_STATE.pages.pageExport || 'enabled',
+      pageControl: SETTINGS_STATE.pages.pageControl || 'enabled',
+      pageLogs: SETTINGS_STATE.pages.pageLogs || 'enabled',
     };
   } else if (cardKey === 'attendance') {
     var rotSec = parseInt(document.getElementById('att-rotation-time')?.value, 10) || 60;
@@ -260,10 +272,14 @@ function getCardValues(cardKey) {
       forwardToRep: document.getElementById('att-rep') ? document.getElementById('att-rep').checked : true,
       allowAttendanceEdit: document.getElementById('att-edit') ? document.getElementById('att-edit').checked : true,
       forceTimetableSlots: document.getElementById('att-force-timetable') ? document.getElementById('att-force-timetable').checked : false,
+      timetableMatch: document.getElementById('att-timetable-match') ? document.getElementById('att-timetable-match').value : 'warn',
       requirePeriodRemark: document.getElementById('att-remark') ? document.getElementById('att-remark').checked : false,
       maxAttendanceBackdateDays: parseInt(document.getElementById('att-backdate')?.value, 10) || 0,
       autoLockAttendanceHours: parseInt(document.getElementById('att-autolock')?.value, 10) || 24,
       defaultAttendanceStatus: document.getElementById('att-default-status')?.value || 'Present',
+      enforceAttendanceGeofence: document.getElementById('att-geofence') ? document.getElementById('att-geofence').checked : true,
+      attendanceMaxRadiusM: parseInt(document.getElementById('att-max-radius')?.value, 10) || 200,
+      attendanceMaxAccuracyM: parseInt(document.getElementById('att-max-accuracy')?.value, 10) || 100,
     };
   } else if (cardKey === 'teachers') {
     return {
@@ -289,7 +305,11 @@ function getCardValues(cardKey) {
       modelAddStudent: document.getElementById('mod-addstud') ? document.getElementById('mod-addstud').checked : true,
       modelExportSheet: document.getElementById('mod-export') ? document.getElementById('mod-export').checked : true,
       moduleDelUseAdminPass: document.getElementById('mod-delpass') ? document.getElementById('mod-delpass').checked : true,
+      requireHodApproval: document.getElementById('mod-hodapproval') ? document.getElementById('mod-hodapproval').checked : true,
       modelSmartBoards: document.getElementById('mod-smartboards') ? document.getElementById('mod-smartboards').checked : true,
+      modelStudentLeave: document.getElementById('mod-student-leave') ? document.getElementById('mod-student-leave').checked : true,
+      modelStaffLeave: document.getElementById('mod-staff-leave') ? document.getElementById('mod-staff-leave').checked : true,
+      bulkMailCredentials: document.getElementById('mod-bulk-mail') ? document.getElementById('mod-bulk-mail').checked : true,
     };
   } else if (cardKey === 'security') {
     return {
@@ -297,14 +317,23 @@ function getCardValues(cardKey) {
       requireStrongPassword: document.getElementById('sec-strongpw') ? document.getElementById('sec-strongpw').checked : true,
       sessionTimeout: document.getElementById('sec-timeout') ? document.getElementById('sec-timeout').checked : true,
       allowSubAdminLogs: document.getElementById('sec-subadmin-logs') ? document.getElementById('sec-subadmin-logs').checked : false,
-      sessionTimeoutMins: parseInt(document.getElementById('sec-timeout-mins')?.value, 10) || 7,
+      sessionTimeoutMins: parseInt(document.getElementById('sec-timeout-mins')?.value, 10) || 10,
+      teacherInactivityMins: parseInt(document.getElementById('sec-teacher-inactivity')?.value, 10) || 10,
+      maxSessionLifetimeHours: parseInt(document.getElementById('sec-max-session-hours')?.value, 10) || 24,
+      studentDeviceSessionLifetimeDays: parseInt(document.getElementById('sec-student-device-days')?.value, 10) || 15,
       maxLoginAttempts: parseInt(document.getElementById('sec-maxlogin')?.value, 10) || 3,
       lockoutDurationMins: parseInt(document.getElementById('sec-lockout-mins')?.value, 10) || 15,
       logRetentionDays: parseInt(document.getElementById('sec-log-retention')?.value, 10) || 0,
       loginLocationRequired: document.getElementById('sec-loc-required') ? document.getElementById('sec-loc-required').checked : true,
       loginLocationAccuracyCheck: document.getElementById('sec-loc-acc-check') ? document.getElementById('sec-loc-acc-check').checked : true,
       loginLocationMaxAccuracyM: document.getElementById('sec-loc-max-acc')?.value !== '' ? (parseInt(document.getElementById('sec-loc-max-acc')?.value, 10) ?? 2000) : 2000,
-      loginLocationMaxAgeSec: parseInt(document.getElementById('sec-loc-max-age')?.value, 10) || 300
+      loginLocationMaxAgeSec: parseInt(document.getElementById('sec-loc-max-age')?.value, 10) || 300,
+      sudoMfaRequired: document.getElementById('sec-sudo-mfa') ? document.getElementById('sec-sudo-mfa').checked : false,
+      sudoNotifyOnLogin: document.getElementById('sec-sudo-notify') ? document.getElementById('sec-sudo-notify').checked : true,
+      sudoAllowedIps: (document.getElementById('sec-sudo-ips')?.value || '').trim(),
+      sudoSessionTimeoutMins: parseInt(document.getElementById('sec-sudo-timeout')?.value, 10) || 30,
+      sudoMaxSessionLifetimeHours: parseInt(document.getElementById('sec-sudo-lifetime')?.value, 10) || 24,
+      sudoForcePasswordChangeDays: parseInt(document.getElementById('sec-sudo-pw-days')?.value, 10) || 90
     };
   } else if (cardKey === 'device') {
     return {
@@ -374,6 +403,31 @@ function getCardValues(cardKey) {
       multiAdminSession: document.getElementById('adv-multisess') ? document.getElementById('adv-multisess').checked : true,
       autoSeedDemoData: document.getElementById('adv-seed') ? document.getElementById('adv-seed').checked : false,
       errorsCount: parseInt(document.getElementById('adv-errors-count')?.value, 10) || 20,
+    };
+  } else if (cardKey === 'driveSync') {
+    return {
+      enabled: document.getElementById('drive-enabled') ? document.getElementById('drive-enabled').checked : false,
+      backupSchedule: document.getElementById('drive-schedule')?.value || 'daily',
+      backupFolderId: (document.getElementById('drive-folder-id')?.value || '').trim(),
+      syncAttendanceReports: document.getElementById('drive-sync-att') ? document.getElementById('drive-sync-att').checked : true,
+      syncSystemBackups: document.getElementById('drive-sync-backups') ? document.getElementById('drive-sync-backups').checked : true,
+      retentionDays: parseInt(document.getElementById('drive-retention')?.value, 10) || 30,
+      serviceAccountEmail: (document.getElementById('drive-sa-email')?.value || '').trim(),
+    };
+  } else if (cardKey === 'mailer') {
+    return {
+      enabled: document.getElementById('mail-enabled') ? document.getElementById('mail-enabled').checked : false,
+      provider: document.getElementById('mail-provider')?.value || 'smtp',
+      fromName: (document.getElementById('mail-from-name')?.value || '').trim(),
+      fromEmail: (document.getElementById('mail-from-email')?.value || '').trim(),
+      smtpHost: (document.getElementById('mail-smtp-host')?.value || '').trim(),
+      smtpPort: parseInt(document.getElementById('mail-smtp-port')?.value, 10) || 587,
+      smtpSecure: document.getElementById('mail-smtp-secure') ? document.getElementById('mail-smtp-secure').checked : false,
+      smtpUser: (document.getElementById('mail-smtp-user')?.value || '').trim(),
+      smtpPass: (document.getElementById('mail-smtp-pass')?.value || '').trim(),
+      notifyOnAbsence: document.getElementById('mail-notify-absence') ? document.getElementById('mail-notify-absence').checked : true,
+      notifyOnLeaveStatus: document.getElementById('mail-notify-leave') ? document.getElementById('mail-notify-leave').checked : true,
+      notifyOnSudoLogin: document.getElementById('mail-notify-sudo') ? document.getElementById('mail-notify-sudo').checked : true,
     };
   }
   return {};
@@ -475,6 +529,11 @@ function loadAllSettings() {
       applyTriStateUI('pageBulk', pages.pageBulk || 'enabled');
       applyTriStateUI('pageTimeTable', pages.pageTimeTable || 'enabled');
       applyTriStateUI('pageSelector', pages.pageSelector || 'enabled');
+      applyTriStateUI('pageHostel', pages.pageHostel || 'enabled');
+      applyTriStateUI('pageTrust', pages.pageTrust || 'enabled');
+      applyTriStateUI('pageExport', pages.pageExport || 'enabled');
+      applyTriStateUI('pageControl', pages.pageControl || 'enabled');
+      applyTriStateUI('pageLogs', pages.pageLogs || 'enabled');
 
       // 3. Attendance
       var att = data.attendance || {};
@@ -484,6 +543,7 @@ function loadAllSettings() {
       setChk('att-rep', att.forwardToRep !== false);
       setChk('att-edit', att.allowAttendanceEdit !== false);
       setChk('att-force-timetable', !!att.forceTimetableSlots);
+      setVal('att-timetable-match', att.timetableMatch || 'warn');
       setChk('att-remark', !!att.requirePeriodRemark);
       setVal('att-backdate', att.maxAttendanceBackdateDays !== undefined ? att.maxAttendanceBackdateDays : 3);
       setVal('att-autolock', att.autoLockAttendanceHours !== undefined ? att.autoLockAttendanceHours : 24);
@@ -492,6 +552,9 @@ function loadAllSettings() {
       setVal('att-rotation-time', rotTime);
       setVal('att-qr-interval', rotTime);
       setVal('att-default-status', att.defaultAttendanceStatus || 'Present');
+      setChk('att-geofence', att.enforceAttendanceGeofence !== false);
+      setVal('att-max-radius', att.attendanceMaxRadiusM !== undefined ? att.attendanceMaxRadiusM : 200);
+      setVal('att-max-accuracy', att.attendanceMaxAccuracyM !== undefined ? att.attendanceMaxAccuracyM : 100);
 
       // Teachers Management
       var tch = data.teachers || {};
@@ -517,7 +580,11 @@ function loadAllSettings() {
       setChk('mod-addstud', mod.modelAddStudent !== false);
       setChk('mod-export', mod.modelExportSheet !== false);
       setChk('mod-delpass', mod.moduleDelUseAdminPass !== false);
+      setChk('mod-hodapproval', mod.requireHodApproval !== false);
       setChk('mod-smartboards', mod.modelSmartBoards !== false);
+      setChk('mod-student-leave', mod.modelStudentLeave !== false);
+      setChk('mod-staff-leave', mod.modelStaffLeave !== false);
+      setChk('mod-bulk-mail', mod.bulkMailCredentials !== false);
 
       // 5. Security
       var sec = data.security || {};
@@ -525,7 +592,10 @@ function loadAllSettings() {
       setChk('sec-strongpw', sec.requireStrongPassword !== false);
       setChk('sec-timeout', sec.sessionTimeout !== false);
       setChk('sec-subadmin-logs', !!sec.allowSubAdminLogs);
-      setVal('sec-timeout-mins', sec.sessionTimeoutMins !== undefined ? sec.sessionTimeoutMins : 7);
+      setVal('sec-timeout-mins', sec.sessionTimeoutMins !== undefined ? sec.sessionTimeoutMins : 10);
+      setVal('sec-teacher-inactivity', sec.teacherInactivityMins !== undefined ? sec.teacherInactivityMins : 10);
+      setVal('sec-max-session-hours', sec.maxSessionLifetimeHours || 24);
+      setVal('sec-student-device-days', sec.studentDeviceSessionLifetimeDays || 15);
       setVal('sec-maxlogin', sec.maxLoginAttempts || 3);
       setVal('sec-lockout-mins', sec.lockoutDurationMins || 15);
       setVal('sec-log-retention', sec.logRetentionDays || 0);
@@ -533,6 +603,12 @@ function loadAllSettings() {
       setChk('sec-loc-acc-check', sec.loginLocationAccuracyCheck !== false);
       setVal('sec-loc-max-acc', sec.loginLocationMaxAccuracyM !== undefined ? sec.loginLocationMaxAccuracyM : 2000);
       setVal('sec-loc-max-age', sec.loginLocationMaxAgeSec !== undefined ? sec.loginLocationMaxAgeSec : 300);
+      setChk('sec-sudo-mfa', !!sec.sudoMfaRequired);
+      setChk('sec-sudo-notify', sec.sudoNotifyOnLogin !== false);
+      setVal('sec-sudo-ips', sec.sudoAllowedIps || '');
+      setVal('sec-sudo-timeout', sec.sudoSessionTimeoutMins !== undefined ? sec.sudoSessionTimeoutMins : 30);
+      setVal('sec-sudo-lifetime', sec.sudoMaxSessionLifetimeHours !== undefined ? sec.sudoMaxSessionLifetimeHours : 24);
+      setVal('sec-sudo-pw-days', sec.sudoForcePasswordChangeDays !== undefined ? sec.sudoForcePasswordChangeDays : 90);
 
       // 5b. Device Registration & Sessions (§15)
       var dev = data.device || {};
@@ -596,6 +672,31 @@ function loadAllSettings() {
       setChk('adv-seed', !!adv.autoSeedDemoData);
       setVal('adv-errors-count', adv.errorsCount || 20);
 
+      // 9. Google Drive Sync
+      var drive = data.driveSync || {};
+      setChk('drive-enabled', !!drive.enabled);
+      setVal('drive-schedule', drive.backupSchedule || 'daily');
+      setVal('drive-folder-id', drive.backupFolderId || '');
+      setChk('drive-sync-att', drive.syncAttendanceReports !== false);
+      setChk('drive-sync-backups', drive.syncSystemBackups !== false);
+      setVal('drive-retention', drive.retentionDays !== undefined ? drive.retentionDays : 30);
+      setVal('drive-sa-email', drive.serviceAccountEmail || '');
+
+      // 10. Mail Notifications
+      var mail = data.mailer || {};
+      setChk('mail-enabled', !!mail.enabled);
+      setVal('mail-provider', mail.provider || 'smtp');
+      setVal('mail-from-name', mail.fromName || '');
+      setVal('mail-from-email', mail.fromEmail || '');
+      setVal('mail-smtp-host', mail.smtpHost || '');
+      setVal('mail-smtp-port', mail.smtpPort !== undefined ? mail.smtpPort : 587);
+      setChk('mail-smtp-secure', !!mail.smtpSecure);
+      setVal('mail-smtp-user', mail.smtpUser || '');
+      setVal('mail-smtp-pass', mail.smtpPass || '');
+      setChk('mail-notify-absence', mail.notifyOnAbsence !== false);
+      setChk('mail-notify-leave', mail.notifyOnLeaveStatus !== false);
+      setChk('mail-notify-sudo', mail.notifyOnSudoLogin !== false);
+
       recordBaselineSnapshot();
       setSettingStatus('saved', 'Saved');
       checkDirtyState();
@@ -635,6 +736,8 @@ function getCardKeyForElement(el) {
   if (id.startsWith('sec-')) return 'security';
   if (id.startsWith('acad-') || el.classList.contains('reg-minatt-input')) return 'academic';
   if (id.startsWith('bcast-')) return 'broadcast';
+  if (id.startsWith('drive-')) return 'driveSync';
+  if (id.startsWith('mail-')) return 'mailer';
   if (id.startsWith('adv-')) return 'advanced';
 
   var pg = el.closest('.pg');
@@ -677,6 +780,11 @@ function restoreCardValues(cardKey, snapshot) {
     applyTriStateUI('pageBulk', d.pageBulk || 'enabled');
     applyTriStateUI('pageTimeTable', d.pageTimeTable || 'enabled');
     applyTriStateUI('pageSelector', d.pageSelector || 'enabled');
+    applyTriStateUI('pageHostel', d.pageHostel || 'enabled');
+    applyTriStateUI('pageTrust', d.pageTrust || 'enabled');
+    applyTriStateUI('pageExport', d.pageExport || 'enabled');
+    applyTriStateUI('pageControl', d.pageControl || 'enabled');
+    applyTriStateUI('pageLogs', d.pageLogs || 'enabled');
   } else if (cardKey === 'attendance') {
     setChk('att-mark', d.markAttendance !== false);
     setChk('att-live', d.liveSessions !== false);
@@ -684,10 +792,14 @@ function restoreCardValues(cardKey, snapshot) {
     setChk('att-rep', d.forwardToRep !== false);
     setChk('att-edit', d.allowAttendanceEdit !== false);
     setChk('att-force-timetable', !!d.forceTimetableSlots);
+    setVal('att-timetable-match', d.timetableMatch || 'warn');
     setChk('att-remark', !!d.requirePeriodRemark);
     setVal('att-backdate', d.maxAttendanceBackdateDays !== undefined ? d.maxAttendanceBackdateDays : 3);
     setVal('att-autolock', d.autoLockAttendanceHours !== undefined ? d.autoLockAttendanceHours : 24);
     setVal('att-rotation-count', d.rotationCount !== undefined ? d.rotationCount : 2);
+    setChk('att-geofence', d.enforceAttendanceGeofence !== false);
+    setVal('att-max-radius', d.attendanceMaxRadiusM !== undefined ? d.attendanceMaxRadiusM : 200);
+    setVal('att-max-accuracy', d.attendanceMaxAccuracyM !== undefined ? d.attendanceMaxAccuracyM : 100);
     var rot = d.rotationTimeSec !== undefined ? d.rotationTimeSec : (d.qrIntervalSec !== undefined ? d.qrIntervalSec : 60);
     setVal('att-rotation-time', rot);
     setVal('att-qr-interval', rot);
@@ -714,12 +826,15 @@ function restoreCardValues(cardKey, snapshot) {
     setChk('mod-export', d.modelExportSheet !== false);
     setChk('mod-delpass', d.moduleDelUseAdminPass !== false);
     setChk('mod-smartboards', d.modelSmartBoards !== false);
+    setChk('mod-student-leave', d.modelStudentLeave !== false);
+    setChk('mod-staff-leave', d.modelStaffLeave !== false);
+    setChk('mod-bulk-mail', d.bulkMailCredentials !== false);
   } else if (cardKey === 'security') {
     setChk('sec-forcepw', d.forcePasswordChange !== false);
     setChk('sec-strongpw', d.requireStrongPassword !== false);
     setChk('sec-timeout', d.sessionTimeout !== false);
     setChk('sec-subadmin-logs', !!d.allowSubAdminLogs);
-    setVal('sec-timeout-mins', d.sessionTimeoutMins !== undefined ? d.sessionTimeoutMins : 7);
+    setVal('sec-timeout-mins', d.sessionTimeoutMins !== undefined ? d.sessionTimeoutMins : 10);
     setVal('sec-maxlogin', d.maxLoginAttempts || 3);
     setVal('sec-lockout-mins', d.lockoutDurationMins || 15);
     setVal('sec-log-retention', d.logRetentionDays || 0);
@@ -727,6 +842,12 @@ function restoreCardValues(cardKey, snapshot) {
     setChk('sec-loc-acc-check', d.loginLocationAccuracyCheck !== false);
     setVal('sec-loc-max-acc', d.loginLocationMaxAccuracyM !== undefined ? d.loginLocationMaxAccuracyM : 2000);
     setVal('sec-loc-max-age', d.loginLocationMaxAgeSec !== undefined ? d.loginLocationMaxAgeSec : 300);
+    setChk('sec-sudo-mfa', !!d.sudoMfaRequired);
+    setChk('sec-sudo-notify', d.sudoNotifyOnLogin !== false);
+    setVal('sec-sudo-ips', d.sudoAllowedIps || '');
+    setVal('sec-sudo-timeout', d.sudoSessionTimeoutMins !== undefined ? d.sudoSessionTimeoutMins : 30);
+    setVal('sec-sudo-lifetime', d.sudoMaxSessionLifetimeHours !== undefined ? d.sudoMaxSessionLifetimeHours : 24);
+    setVal('sec-sudo-pw-days', d.sudoForcePasswordChangeDays !== undefined ? d.sudoForcePasswordChangeDays : 90);
   } else if (cardKey === 'device') {
     setChk('dev-req-bound', d.requireRegisteredDevice !== false);
     setVal('dev-session-days', d.studentSessionDays || 15);
@@ -785,6 +906,27 @@ function restoreCardValues(cardKey, snapshot) {
     setChk('adv-multisess', d.multiAdminSession !== false);
     setChk('adv-seed', !!d.autoSeedDemoData);
     setVal('adv-errors-count', d.errorsCount || 20);
+  } else if (cardKey === 'driveSync') {
+    setChk('drive-enabled', !!d.enabled);
+    setVal('drive-schedule', d.backupSchedule || 'daily');
+    setVal('drive-folder-id', d.backupFolderId || '');
+    setChk('drive-sync-att', d.syncAttendanceReports !== false);
+    setChk('drive-sync-backups', d.syncSystemBackups !== false);
+    setVal('drive-retention', d.retentionDays !== undefined ? d.retentionDays : 30);
+    setVal('drive-sa-email', d.serviceAccountEmail || '');
+  } else if (cardKey === 'mailer') {
+    setChk('mail-enabled', !!d.enabled);
+    setVal('mail-provider', d.provider || 'smtp');
+    setVal('mail-from-name', d.fromName || '');
+    setVal('mail-from-email', d.fromEmail || '');
+    setVal('mail-smtp-host', d.smtpHost || '');
+    setVal('mail-smtp-port', d.smtpPort !== undefined ? d.smtpPort : 587);
+    setChk('mail-smtp-secure', !!d.smtpSecure);
+    setVal('mail-smtp-user', d.smtpUser || '');
+    setVal('mail-smtp-pass', d.smtpPass || '');
+    setChk('mail-notify-absence', d.notifyOnAbsence !== false);
+    setChk('mail-notify-leave', d.notifyOnLeaveStatus !== false);
+    setChk('mail-notify-sudo', d.notifyOnSudoLogin !== false);
   }
 }
 window.restoreCardValues = restoreCardValues;
@@ -922,7 +1064,7 @@ function saveCard(cardKey, opts) {
       if (cardKey === 'security') {
         try {
           sessionStorage.setItem('eams_session_timeout', payload.sessionTimeout !== false ? 'true' : 'false');
-          sessionStorage.setItem('eams_session_timeout_mins', String(payload.sessionTimeoutMins || 7));
+          sessionStorage.setItem('eams_session_timeout_mins', String(payload.sessionTimeoutMins || 10));
         } catch(e) {}
       }
       try {
@@ -1493,6 +1635,86 @@ var KEY_EXPLANATIONS = {
       "hidden": "Hidden: Completely suppresses selector.html; automatically redirects users straight to their primary role page upon login."
     }
   },
+  "pageHostel": {
+    "type": "tristate",
+    "name": "Hostel Management Portal (hostel.html)",
+    "enabledLabel": "Enabled",
+    "desc": "Master Tri-State access controller for hostel resident management, block allocations, and nightly roll-call verification.",
+    "effects": {
+      "enabled": "Enabled / Accessible: Wardens and residential staff have full access to nightly roll-calls, student passes, and block allocations.",
+      "disabled": "Disabled: Displays lockout notification. Hides the Wardens tab in Executive Roles & Access, and pauses roll-call submissions.",
+      "hidden": "Hidden: Completely restricts and hides the Hostel Portal from workspace selector, and removes the Wardens tab from Executive Roles."
+    }
+  },
+  "pageTrust": {
+    "type": "tristate",
+    "name": "Trust & Devices Management",
+    "enabledLabel": "Enabled",
+    "desc": "Master Tri-State access controller for the student cryptographic device registry and trust score audit console.",
+    "effects": {
+      "enabled": "Enabled / Accessible: Administrators have complete access to the Trust & Devices console, ledger audits, and ticket issuance.",
+      "disabled": "Disabled: Locks the Trust & Devices tab in admin console with an administrative maintenance notice.",
+      "hidden": "Hidden: Completely hides Trust & Devices Management from the admin navigation sidebar and restricts direct navigation."
+    }
+  },
+  "pageExport": {
+    "type": "tristate",
+    "name": "Export & Report Center (export.html)",
+    "enabledLabel": "Enabled",
+    "desc": "Controls access to institutional attendance registers, batch PDF generation, and workload reports.",
+    "effects": {
+      "enabled": "Enabled / Accessible: Staff can generate and export institutional attendance registers and PDF reports.",
+      "disabled": "Disabled: Export Center card appears locked with an administrative maintenance notice.",
+      "hidden": "Hidden: Hides the Export Center card from the workspace launcher."
+    }
+  },
+  "pageControl": {
+    "type": "tristate",
+    "name": "Control Dashboard (control.html)",
+    "enabledLabel": "Enabled",
+    "desc": "Controls access to system health, server diagnostics, and operational administration.",
+    "effects": {
+      "enabled": "Enabled / Accessible: Authorized administrators can monitor server health, system metrics, and audit feeds.",
+      "disabled": "Disabled: Locks the Control Dashboard card in the workspace launcher.",
+      "hidden": "Hidden: Hides Control Dashboard from launcher menus."
+    }
+  },
+  "pageLogs": {
+    "type": "tristate",
+    "name": "Activity Logs (logs.html)",
+    "enabledLabel": "Enabled",
+    "desc": "Controls access to cryptographic tamper-evident audit logs and security event records.",
+    "effects": {
+      "enabled": "Enabled / Accessible: Administrators can review tamper-evident system logs and security transactions.",
+      "disabled": "Disabled: Locks access to the audit logs hub.",
+      "hidden": "Hidden: Hides Activity Logs from the workspace launcher."
+    }
+  },
+  "requireHodApproval": {
+    "type": "boolean",
+    "name": "Require HOD Approval for Leaves",
+    "desc": "Mandates department head sign-off on faculty leave requests prior to principal review.",
+    "trueEffect": "Faculty leave requests must be approved by the Department Head before reaching the Principal.",
+    "falseEffect": "Faculty leave requests can bypass HOD review and escalate directly to Principal."
+  },
+  "teacherInactivityMins": {
+    "type": "number",
+    "name": "Faculty Inactivity Timeout (Minutes)",
+    "desc": "Maximum idle time permitted for faculty sessions before automatic token expiration.",
+    "neutral": "Defaults to 10 minutes. Higher values allow longer idle periods between period marks."
+  },
+  "maxSessionLifetimeHours": {
+    "type": "number",
+    "name": "Maximum Session Lifetime (Hours)",
+    "desc": "Absolute upper bound on session lifetime regardless of user activity.",
+    "neutral": "Defaults to 24 hours. After this duration, users must authenticate afresh."
+  },
+  "studentDeviceSessionLifetimeDays": {
+    "type": "number",
+    "name": "Student Device Session Lifetime (Days)",
+    "desc": "Cryptographic authentication token lifetime for registered student devices.",
+    "neutral": "Defaults to 15 days, aligning with the 15-day bi-weekly re-authentication policy."
+  },
   "markAttendance": {
     "type": "boolean",
     "name": "Mark Attendance (Master Switch)",
@@ -1541,6 +1763,12 @@ var KEY_EXPLANATIONS = {
     "desc": "Restricts attendance recording strictly to officially scheduled periods and rooms.",
     "trueEffect": "Teachers can only take attendance for periods, subjects, and rooms officially allocated in their timetable.",
     "falseEffect": "Allows flexible ad-hoc marking for substituted, combined, or rescheduled class sessions."
+  },
+  "timetableMatch": {
+    "type": "select",
+    "name": "Timetable Match Policy",
+    "desc": "Defines validation behavior when marking unscheduled periods (warn, allow, or block).",
+    "neutral": "Warn alerts teachers while allowing mark; Allow permits freely; Block forbids marking unscheduled slots."
   },
   "maxAttendanceBackdateDays": {
     "type": "number",
@@ -2043,6 +2271,131 @@ var KEY_EXPLANATIONS = {
     "name": "Recent Error Logs Limit",
     "desc": "Maximum number of recent encrypted system exceptions and API failure traces displayed in System Health.",
     "neutral": "Sets maximum error log history capacity (e.g. 20 entries) rendered in the administrative diagnostic viewer."
+  },
+  "enforceAttendanceGeofence": {
+    "type": "boolean",
+    "name": "Enforce Classroom Geofencing",
+    "desc": "Restricts student attendance check-ins to valid physical proximity within the classroom geofence.",
+    "trueEffect": "Rejects attendance check-in attempts made outside the designated classroom radius or with coarse GPS fixes.",
+    "falseEffect": "Bypasses geographical coordinates check; students may sign in regardless of GPS distance."
+  },
+  "attendanceMaxRadiusM": {
+    "type": "number",
+    "name": "Maximum Geofence Radius (Meters)",
+    "desc": "Radial tolerance boundary around the classroom coordinates for QR and Quick Pass attendance check-in.",
+    "neutral": "Students further than this distance from classroom coordinates are rejected with location out-of-bounds."
+  },
+  "attendanceMaxAccuracyM": {
+    "type": "number",
+    "name": "Maximum GPS Inaccuracy Allowed (Meters)",
+    "desc": "Confidence radius threshold for mobile device GPS hardware fixes.",
+    "neutral": "Rejects cellular triangulation or simulated/spoofed coarse coordinates exceeding this inaccuracy limit."
+  },
+  "modelStudentLeave": {
+    "type": "boolean",
+    "name": "Student Leave & OD Module",
+    "desc": "Student-facing leave application submission, tracking, and advisor/warden approval workflows.",
+    "trueEffect": "Student portal displays Leave navigation; students can submit leave/OD requests.",
+    "falseEffect": "Hides student leave interfaces and returns 403 HTTP error on submission attempts."
+  },
+  "modelStaffLeave": {
+    "type": "boolean",
+    "name": "Faculty & Staff Leave Module",
+    "desc": "Teacher and staff leave application, period substitution assignment, and executive approvals.",
+    "trueEffect": "Teacher portal enables Leave application, substitution routing, and approval queues.",
+    "falseEffect": "Hides faculty leave menus and rejects leave application endpoints with 403 HTTP error."
+  },
+  "bulkMailCredentials": {
+    "type": "boolean",
+    "name": "Bulk Mail Credentials",
+    "desc": "Automatically sends email credentials when importing batches of students or teachers via CSV/Excel.",
+    "trueEffect": "Generates welcome emails containing temporary passwords upon bulk roster ingestion.",
+    "falseEffect": "Suppresses email dispatch during bulk user operations."
+  },
+  "sudoMfaRequired": {
+    "type": "boolean",
+    "name": "Sudo Admin MFA Required",
+    "desc": "Mandates multi-factor authentication for root Sudo Administrator account logins.",
+    "trueEffect": "Requires secondary verification token before granting root Sudo administrative session.",
+    "falseEffect": "Permits standard password and IP verified sign-in for Sudo Administrator."
+  },
+  "sudoNotifyOnLogin": {
+    "type": "boolean",
+    "name": "Sudo Login Security Alerts",
+    "desc": "Dispatches high-priority security notifications whenever a Sudo Administrator logs into the system.",
+    "trueEffect": "Immediately records elevated security audit logs and dispatches alerts upon Sudo login.",
+    "falseEffect": "Disables active notifications on Sudo sign-ins (standard audit log is still recorded)."
+  },
+  "sudoAllowedIps": {
+    "type": "string",
+    "name": "Authorized Sudo IP Addresses",
+    "desc": "Comma-separated IPv4/IPv6 address whitelist allowed to authenticate as Sudo Administrator.",
+    "neutral": "When configured, rejects any login attempt to Sudo accounts originating from unlisted IP addresses."
+  },
+  "sudoSessionTimeoutMins": {
+    "type": "number",
+    "name": "Sudo Inactivity Timeout (Minutes)",
+    "desc": "Minutes of user idle inactivity before a Sudo Administrator session automatically expires.",
+    "neutral": "Terminates idle Sudo sessions and requires re-authentication."
+  },
+  "sudoMaxSessionLifetimeHours": {
+    "type": "number",
+    "name": "Sudo Max Session Lifetime (Hours)",
+    "desc": "Absolute maximum lifetime for a Sudo Administrator session regardless of continuous activity.",
+    "neutral": "Hard expiration limit forcing fresh sign-in after designated elapsed hours."
+  },
+  "sudoForcePasswordChangeDays": {
+    "type": "number",
+    "name": "Sudo Password Expiry Period (Days)",
+    "desc": "Maximum number of days before Sudo Administrator password must be changed.",
+    "neutral": "Prompts mandatory password update when current password exceeds this age limit."
+  },
+  "backupSchedule": {
+    "type": "string",
+    "name": "Google Drive Backup Schedule",
+    "desc": "Automated frequency for exporting encrypted database backups to Google Drive.",
+    "neutral": "Controls cron schedule: disabled, daily, weekly, or monthly."
+  },
+  "backupFolderId": {
+    "type": "string",
+    "name": "Google Drive Backup Folder ID",
+    "desc": "Unique Google Drive folder identifier where database archives and reports are stored.",
+    "neutral": "Files are placed in this destination folder."
+  },
+  "syncAttendanceReports": {
+    "type": "boolean",
+    "name": "Sync Attendance Reports to Drive",
+    "desc": "Automatically pushes formatted attendance spreadsheets to the configured Google Drive folder.",
+    "trueEffect": "Enables automated sheet upload after daily attendance cutoff.",
+    "falseEffect": "Disables attendance spreadsheet sync to Google Drive."
+  },
+  "syncSystemBackups": {
+    "type": "boolean",
+    "name": "Sync Database Backups to Drive",
+    "desc": "Automatically uploads encrypted database archive backups to Google Drive.",
+    "trueEffect": "Syncs full encrypted database backups according to the backup schedule.",
+    "falseEffect": "Restricts database backups to local storage only."
+  },
+  "notifyOnAbsence": {
+    "type": "boolean",
+    "name": "Notify Students on Absence",
+    "desc": "Sends automated email notifications to students and parents when marked absent.",
+    "trueEffect": "Dispatches absence notification email immediately upon period attendance lock.",
+    "falseEffect": "Absence emails are suppressed."
+  },
+  "notifyOnLeaveStatus": {
+    "type": "boolean",
+    "name": "Notify on Leave Status Change",
+    "desc": "Sends email updates when student or faculty leave/OD requests are approved or rejected.",
+    "trueEffect": "Emails applicants their updated approval status in real time.",
+    "falseEffect": "Suppresses status notification emails."
+  },
+  "notifyOnSudoLogin": {
+    "type": "boolean",
+    "name": "Notify on Sudo Admin Sign-In",
+    "desc": "Sends high-priority security alert emails when Sudo account signs in.",
+    "trueEffect": "Immediately dispatches email security notice with client IP, timestamp, and device fingerprint.",
+    "falseEffect": "Suppresses email alerts on Sudo login."
   }
 };
 

@@ -2205,3 +2205,117 @@ body {
 }
 
 
+
+/* Auto-generate Device ID Controls */
+.btn-auto-gen-id {
+  background: var(--gLt, #e8f5e9);
+  color: var(--gD, #1b5e20);
+  border: 1px solid rgba(46, 125, 50, 0.25);
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: all .15s ease;
+  line-height: 1.4;
+}
+.btn-auto-gen-id:hover {
+  background: var(--gM, #2e7d32);
+  color: #fff;
+  border-color: var(--gM, #2e7d32);
+}
+.btn-auto-gen-id:active {
+  transform: scale(0.96);
+}
+
+.device-id-input-wrap {
+  position: relative;
+  width: 100%;
+}
+.device-id-input-wrap input:focus {
+  border-color: var(--gM, #2e7d32);
+}
+
+.btn-input-magic {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: transparent;
+  border: none;
+  color: var(--gM, #2e7d32);
+  cursor: pointer;
+  padding: 4px 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: all .15s ease;
+}
+.btn-input-magic:hover {
+  background: var(--gLt, #e8f5e9);
+  color: var(--gD, #1b5e20);
+}
+
+.badge-auto-gen {
+  background: var(--gLt, #e8f5e9);
+  color: var(--gD, #1b5e20);
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  border: 1px solid rgba(46, 125, 50, 0.2);
+}
+
+.highlight-pulse {
+  animation: deviceIdPulse 1.2s ease-out;
+}
+@keyframes deviceIdPulse {
+  0% { box-shadow: 0 0 0 0 rgba(46, 125, 50, 0.6); }
+  50% { box-shadow: 0 0 0 4px rgba(46, 125, 50, 0.2); }
+  100% { box-shadow: 0 0 0 0 rgba(46, 125, 50, 0); }
+}
+
+
+/* ── BUTTON LOADING & SPINNER STYLES ─────────────────── */
+.btn-loading,
+.btn[data-loading="true"],
+.btn-pri.btn-loading,
+.btn-out.btn-loading {
+  pointer-events: none !important;
+  cursor: wait !important;
+  opacity: .88 !important;
+}
+
+.btn-spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255, 255, 255, .35);
+  border-top-color: #ffffff;
+  border-radius: 50%;
+  animation: btnSpin .65s linear infinite;
+  display: inline-block;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+
+.btn-out .btn-spinner,
+.btno .btn-spinner {
+  border-color: rgba(27, 94, 32, .25);
+  border-top-color: var(--gD, #1b5e20);
+}
+
+@keyframes btnSpin {
+  to { transform: rotate(360deg); }
+}
+
+.spin {
+  animation: btnSpin .65s linear infinite;
+  display: inline-block;
+}

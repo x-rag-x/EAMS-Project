@@ -1,10 +1,6 @@
 const mongoose = require('mongoose');
 
-/**
- * LoginSession Schema (§3.10, Phase S7)
- * Standalone collection for high-throughput session management.
- * Replaces embedded array scans in LoginHistory with direct O(1) indexed lookups.
- */
+
 const LoginSessionSchema = new mongoose.Schema({
   trackId:         { type: String, required: true, trim: true, index: true },
   username:        { type: String, trim: true, lowercase: true, index: true },

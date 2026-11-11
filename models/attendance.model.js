@@ -8,7 +8,18 @@ const ClassAttendanceSchema = new mongoose.Schema({
     departmentCode: { type: String, required: true },
     date: { type: Date, required: true },
     periods: [{
+        periodNumber: { type: Number },
         periodNumbers: { type: [Number], required: true },
+        sessionId: { type: mongoose.Schema.Types.ObjectId, ref: 'ClassSession', default: null },
+        slotKey: { type: String, default: '' },
+        timetableTrackId: { type: String, default: '' },
+        scheduledTeacherTrackId: { type: String, default: '' },
+        source: {
+            method: { type: String, enum: ['Manual', 'QuickPass Code', 'Live QR', 'Rep Share', 'Admin Edit', 'Unknown (legacy)'], default: 'Manual' },
+            sessionTrackId: { type: String, default: '' },
+            sessionModel: { type: String, default: '' },
+            via: { type: String, enum: ['direct', 'substitution', 'admin'], default: 'direct' }
+        },
         subjectTrackId: { type: String, required: true },
         teacherTrackId: { type: String, required: true },
         markedBy: { type: String, required: true },
@@ -93,6 +104,7 @@ const QuickPassSessionSchema = new mongoose.Schema({
     subjectId: { type: mongoose.Schema.Types.ObjectId, ref: 'Subject', required: true },
     date: { type: String, required: true },
     periodNumber: { type: Number, default: 1 },
+    periodNumbers: { type: [Number], default: [] },
 
     // Rotation config (snapshot from settings at creation time)
     rotationCount: { type: Number, default: 2 },
@@ -125,6 +137,7 @@ const QuickPassSessionSchema = new mongoose.Schema({
         locationAccuracy: { type: Number },
         ipAddress: { type: String, default: '' },
         deviceId: { type: String, default: '' },
+        deviceSessionId: { type: String, default: '' },
         userAgent: { type: String, default: '' },
         status: { type: String, enum: ['pending', 'completed'], default: 'completed' },
         security: {
@@ -159,6 +172,7 @@ const ScanLiveSessionSchema = new mongoose.Schema({
     subjectId: { type: mongoose.Schema.Types.ObjectId, ref: 'Subject', required: true },
     date: { type: String, required: true },
     periodNumber: { type: Number, default: 1 },
+    periodNumbers: { type: [Number], default: [] },
 
     // Rotation config (snapshot from settings at creation time)
     rotationCount: { type: Number, default: 2 },
@@ -237,6 +251,7 @@ const RepShareSessionSchema = new mongoose.Schema({
     subjectName: { type: String, default: '' },
     date: { type: String, required: true },
     periodNumber: { type: Number, default: 1 },
+    periodNumbers: { type: [Number], default: [] },
     topic: { type: String, default: '' },
 
     // Selected Rep

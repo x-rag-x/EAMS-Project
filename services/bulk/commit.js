@@ -75,6 +75,7 @@ async function runCommitJob(batchId, user, reqMeta = {}) {
               class: data.class,
               classId: cls ? cls._id : null,
               residency: data.residency ? (String(data.residency).toLowerCase().includes('hostel') ? 'hostel' : 'dayscholar') : 'dayscholar',
+              admissionType: data.admissionType ? (String(data.admissionType).toLowerCase().includes('lateral') ? 'Lateral Entry' : 'Regular') : 'Regular',
               email: data.email,
               username: data.username,
               password: hash,
@@ -221,6 +222,14 @@ async function runCommitJob(batchId, user, reqMeta = {}) {
     }
 
     await tracker.done('rows', `Committed ${addedCount} records successfully`);
+    if (addedCount > 0) {
+      const typeMap = { student: 'students', teacher: 'teachers', dept: 'departments', class: 'classes', subject: 'subjects' };
+      const ent = typeMap[batch.type];
+      if (ent) {
+        await countService.modifyCount(ent, addedCount).catch(() => {});
+        if (ent === 'teachers') { await countService.modifyCount('activeTeachers', addedCount).catch(() => {}); }
+      }
+    }
 
     // 2. Build ZIP Archive (Passwords redacted per A2)
     await tracker.start('zip', 'Compiling archive and scrubbing credentials');
