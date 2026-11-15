@@ -3,7 +3,7 @@ const M = require('../models');
 const { DEFAULT_TIMINGS, timesOverlap, getSlotClockTimes } = require('./clashDetector');
 
 /**
- * Global Ledger (Phase 3)
+ * Global Ledger
  * Institutional multi-batch constraint ledger for faculty, room, and hall commitments.
  */
 class GlobalLedger {
@@ -40,7 +40,7 @@ class GlobalLedger {
 
       if (!otherClassIds.length) return 0;
 
-      // 1. Read from SectionTimetable
+      // Read from SectionTimetable
       const sectionTables = await M.SectionTimetable.find({ classId: { $in: otherClassIds } }).lean();
       for (const st of sectionTables) {
         const slotsObj = st.slots || {};
@@ -55,7 +55,7 @@ class GlobalLedger {
         });
       }
 
-      // 2. Read from published SemesterTemplate grids
+      // Read from published SemesterTemplate grids
       const publishedTemplates = await M.SemesterTemplate.find({
         classId: { $in: otherClassIds },
         status: 'published'
@@ -85,11 +85,11 @@ class GlobalLedger {
     if (!teacherId || !day || !period) return false;
     const tId = String(teacherId);
 
-    // 1. Direct period check
+    // Direct period check
     const pKey = `${tId}_${day}_${period}`;
     if (this.teacherSlots.has(pKey)) return true;
 
-    // 2. Clock-time check across timing sets (e.g. SET_1 vs SET_2)
+    // Clock-time check across timing sets (e.g. SET_1 vs SET_2)
     if (startTime && endTime) {
       const wKey = `${tId}_${day}`;
       const windows = this.teacherClockWindows.get(wKey) || [];
@@ -110,11 +110,11 @@ class GlobalLedger {
     if (!roomId || !day || !period) return false;
     const rId = String(roomId);
 
-    // 1. Direct period check
+    // Direct period check
     const pKey = `${rId}_${day}_${period}`;
     if (this.roomSlots.has(pKey)) return true;
 
-    // 2. Clock-time check
+    // Clock-time check
     if (startTime && endTime) {
       const wKey = `${rId}_${day}`;
       const windows = this.roomClockWindows.get(wKey) || [];
@@ -146,7 +146,7 @@ class GlobalLedger {
       end: times.end
     };
 
-    // 1. Register teacher
+    // Register teacher
     if (slot.teacherId) {
       const tId = String(slot.teacherId);
       const pKey = `${tId}_${day}_${period}`;
@@ -158,7 +158,7 @@ class GlobalLedger {
       this.teacherClockWindows.set(wKey, wins);
     }
 
-    // 2. Register room
+    // Register room
     if (slot.roomId) {
       const rId = String(slot.roomId);
       const pKey = `${rId}_${day}_${period}`;

@@ -1,7 +1,6 @@
 /**
  * services/shareCrypto.js
- *
- * Cryptographic URL Code Generation & Slot Integrity Hashing (Phase 5):
+ * Cryptographic URL Code Generation & Slot Integrity Hashing:
  * - Generates 10-character deterministic URL codes using HMAC-SHA-256 + Crockford Base32.
  * - Supports link reset / epoch rotation (incrementing epoch invalidates old URLs instantly).
  * - Generates canonical slot hashes for comments to survive timetable modifications/deploys.
@@ -16,7 +15,6 @@ const CROCKFORD_ALPHABET = '0123456789abcdefghjkmnpqrstvwxyz';
 
 /**
  * Encodes a buffer into Crockford Base32 string.
- *
  * @param {Buffer} buffer
  * @returns {String}
  */
@@ -44,7 +42,6 @@ function encodeBase32Crockford(buffer) {
 
 /**
  * Generates deterministic 10-character URL code for a workspace/draft.
- *
  * @param {String} trackId - e.g. 'TR-WS-0012' or 'WS-2026-000007'
  * @param {Number} epoch - Link rotation epoch (default 0)
  * @param {String} secret - TT_LINK_SECRET from environment
@@ -65,7 +62,6 @@ function generateLinkCode(trackId, epoch = 0, secret = null) {
 /**
  * Computes canonical hash of a slot's contents.
  * Used by comments to determine if the slot changed after comment was posted.
- *
  * @param {Object} slot - { subject, subjectId, teacher, teacherId, room, roomId, duration, span, isLab, type }
  * @returns {String} 16-character hex hash
  */

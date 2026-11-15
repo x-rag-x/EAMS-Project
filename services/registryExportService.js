@@ -1,8 +1,7 @@
 /**
  * services/registryExportService.js
- *
- * AttReg Part 2 (§4.6, §4.7): Server-Side Excel (.xlsx) and PDF (.pdf) Exporters.
- * Consumes buildRegistry() output to guarantee 100% data and calculation parity.
+ * AttReg Part 2: Server-Side Excel (.xlsx) and PDF (.pdf) Exporters.
+ * Consumes buildRegistry output to guarantee 100% data and calculation parity.
  */
 
 const ExcelJS = require('exceljs');
@@ -36,7 +35,6 @@ function colToLetter(colIndex) {
 
 /**
  * Generates Excel Workbook with live COUNTIF formulas, merged bands, and freeze panes.
- *
  * @param {object} reg - buildRegistry output
  * @returns {Promise<Buffer>} Excel file buffer
  */
@@ -308,7 +306,6 @@ async function generateExcel(reg) {
 
 /**
  * Generates PDF Document in Landscape A4 with week blocks.
- *
  * @param {object} reg - buildRegistry output
  * @returns {Promise<Buffer>} PDF file buffer
  */
@@ -351,7 +348,7 @@ function generatePdf(reg) {
         const sNoWidth = 20;
         const regNoWidth = 65;
         const nameWidth = 100;
-        const idWidth = sNoWidth + regNoWidth + nameWidth; // 185 pt
+        const idWidth = sNoWidth + regNoWidth + nameWidth; // pt
 
         const availWidth = 842 - 56 - idWidth - (bIdx === blocks.length - 1 ? 70 : 0);
         const totalPeriodsInBlock = blockDays.length * periodsPerDay;

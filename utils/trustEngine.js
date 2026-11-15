@@ -4,8 +4,7 @@ const { logAction } = require('./logAction');
 
 /**
  * utils/trustEngine.js
- *
- * Electronic Attendance Management System (EAMS) - Trust Score Engine (§7, §8, §15, T4.1)
+ * Electronic Attendance Management System (EAMS) - Trust Score Engine
  * Manages immutable TrustEvent ledger operations, band computation, locks, and self-attendance gating.
  */
 
@@ -16,7 +15,7 @@ const DEFAULT_BANDS = {
 };
 
 /**
- * Computes trust band from numeric score (§3, §8)
+ * Computes trust band from numeric score
  * @param {number} score - 0 to 100
  * @param {object} [bandsConfig] - { normal: 80, monitor: 60, verify: 40 }
  * @returns {'normal'|'monitor'|'verify'|'disabled'}
@@ -31,8 +30,7 @@ function computeTrustBand(score, bandsConfig) {
 }
 
 /**
- * Applies a TrustEvent delta and updates the student cache in an idempotent manner (§8).
- *
+ * Applies a TrustEvent delta and updates the student cache in an idempotent manner.
  * @param {object} params
  * @param {string|mongoose.Types.ObjectId} params.studentId
  * @param {string} [params.studentTrackId]
@@ -66,7 +64,7 @@ async function applyTrustEvent(params) {
     return { ok: false, error: 'studentId, refKey, and type are required', code: 'INVALID_PARAMS' };
   }
 
-  // 1. Idempotency Check: if event with refKey already exists for student, do NOT reapply (§8)
+  // Idempotency Check: if event with refKey already exists for student, do NOT reapply
   const existingEvent = await M.TrustEvent.findOne({ studentId, refKey }).lean();
   if (existingEvent) {
     const student = await M.Student.findById(studentId).lean();
@@ -79,22 +77,22 @@ async function applyTrustEvent(params) {
     };
   }
 
-  // 2. Fetch student document
+  // Fetch student document
   const student = await M.Student.findById(studentId);
   if (!student) {
     return { ok: false, error: 'Student record not found', code: 'STUDENT_NOT_FOUND' };
   }
 
-  // 3. Score Calculation & Clamping (0–100)
+  // Score Calculation & Clamping (0–100)
   const before = typeof student.trust?.score === 'number' ? student.trust.score : 100;
   let after = before + (Number(delta) || 0);
   after = Math.max(0, Math.min(100, Math.round(after)));
 
-  // 4. Resolve band from settings
+  // Resolve band from settings
   const settingsMap = await getSettings(['trust']);
   const band = computeTrustBand(after, settingsMap?.trust?.bands);
 
-  // 5. Lock Evaluation (§4, §7.2, §8)
+  // Lock Evaluation
   let lockedUntil = student.trust?.lockedUntil || null;
   let currentLockReason = student.trust?.lockReason || '';
   let currentLockEventId = student.trust?.lockEventId || '';
@@ -111,7 +109,7 @@ async function applyTrustEvent(params) {
     currentLockEventId = '';
   }
 
-  // 6. Create immutable TrustEvent ledger record
+  // Create immutable TrustEvent ledger record
   const newEvent = new M.TrustEvent({
     eventId,
     studentId: student._id,
@@ -129,7 +127,7 @@ async function applyTrustEvent(params) {
 
   await newEvent.save();
 
-  // 7. Update Student cache
+  // Update Student cache
   student.trust = {
     score: after,
     band,
@@ -141,7 +139,7 @@ async function applyTrustEvent(params) {
 
   await student.save();
 
-  // 8. Audit log Action
+  // Audit log Action
   try {
     const actorTrackId = typeof actor === 'object' && actor ? (actor.trackId || '') : 'system';
     const actorName = typeof actor === 'object' && actor ? (actor.name || '') : 'System Engine';
@@ -179,7 +177,7 @@ async function applyTrustEvent(params) {
 }
 
 /**
- * Checks whether self-attendance is currently allowed for student (§7.2)
+ * Checks whether self-attendance is currently allowed for student
  * @param {object} student - Student doc or lean object
  * @returns {{ allowed: boolean, isLocked?: boolean, code?: string, reason?: string }}
  */
@@ -220,7 +218,7 @@ function isSelfAttendanceAllowed(student) {
 }
 
 /**
- * Retrieves student trust ledger history (§10, T4.6)
+ * Retrieves student trust ledger history
  * @param {string|mongoose.Types.ObjectId} studentId
  * @param {object} [options] - { limit: 50, skip: 0 }
  */

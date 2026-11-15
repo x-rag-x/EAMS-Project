@@ -52,7 +52,7 @@ function issueWsTicket(deviceId, boardId) {
   boardWsTickets.set(ticket, {
     deviceId: String(deviceId).toUpperCase(),
     boardId: String(boardId),
-    expiresAt: Date.now() + 30000 // 30 seconds
+    expiresAt: Date.now() + 30000 // seconds
   });
   return { ticket, expiresIn: 30 };
 }
@@ -184,7 +184,7 @@ async function handleBoardConnection(ws, req) {
   const rawDeviceId = (ticketRecord ? ticketRecord.deviceId : (query.device || query.deviceId || '')).trim().toUpperCase();
   const token = (query.token || '').trim();
 
-  // 1. Require deviceId parameter
+  // Require deviceId parameter
   if (!rawDeviceId) {
     ws.send(JSON.stringify({
       type: 'error',
@@ -215,7 +215,7 @@ async function handleBoardConnection(ws, req) {
     return;
   }
 
-  // 2. Try JWT verification if token provided (board token flow)
+  // Try JWT verification if token provided (board token flow)
   let tokenValid = false;
   if (token) {
     try {
@@ -228,10 +228,10 @@ async function handleBoardConnection(ws, req) {
     }
   }
 
-  // 3. Lookup board in DB by deviceId
+  // Lookup board in DB by deviceId
   authenticatedBoard = await M.SmartBoard.findOne({ deviceId: rawDeviceId });
 
-  // 4. Reject unregistered or unauthorized boards
+  // Reject unregistered or unauthorized boards
   if (!authenticatedBoard) {
     ws.send(JSON.stringify({
       type: 'error',
@@ -251,7 +251,7 @@ async function handleBoardConnection(ws, req) {
     return;
   }
 
-  // 5. Check board status
+  // Check board status
   if (authenticatedBoard.status !== 'Active') {
     ws.send(JSON.stringify({
       type: 'error',
@@ -271,7 +271,7 @@ async function handleBoardConnection(ws, req) {
     return;
   }
 
-  // 6. Require valid authentication: either ticketRecord OR valid board token
+  // Require valid authentication: either ticketRecord OR valid board token
   if (!ticketRecord && !tokenValid) {
     ws.send(JSON.stringify({
       type: 'error',
@@ -534,7 +534,7 @@ function startStaleSweeper() {
   if (staleSweeperInterval) clearInterval(staleSweeperInterval);
   staleSweeperInterval = setInterval(async () => {
     const now = Date.now();
-    const timeoutMs = 45000; // 45s without heartbeat = disconnected
+    const timeoutMs = 45000; // without heartbeat = disconnected
 
     // Clean expired WebSocket tickets (30s lifetime)
     for (const [t, data] of boardWsTickets.entries()) {
@@ -657,7 +657,7 @@ async function pushContextToRoomBoards(roomId) {
  * Initialize WebSocket service attaching to Node HTTP Server
  */
 function initBoardSocket(httpServer) {
-  const MAX_PAYLOAD_BYTES = 64 * 1024; // 64 KiB ceiling to prevent memory exhaustion DoS
+  const MAX_PAYLOAD_BYTES = 64 * 1024; // KiB ceiling to prevent memory exhaustion DoS
   wssBoard = new WebSocketServer({ noServer: true, maxPayload: MAX_PAYLOAD_BYTES });
   wssMonitor = new WebSocketServer({ noServer: true, maxPayload: MAX_PAYLOAD_BYTES });
 

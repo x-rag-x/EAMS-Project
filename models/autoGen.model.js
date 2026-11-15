@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
 
-// 1. AutoGenDraft — named snapshot of the development workspace
+// AutoGenDraft — named snapshot of the development workspace
 const AutoGenDraftSchema = new mongoose.Schema({
   trackId:              { type: String, required: true, unique: true },
   name:                 { type: String, required: true, trim: true },
@@ -19,7 +19,7 @@ const AutoGenDraftSchema = new mongoose.Schema({
 AutoGenDraftSchema.index({ deptId: 1, batch: 1 });
 AutoGenDraftSchema.index({ status: 1 });
 
-// 2. AutoGenRun — single run attempt record
+// AutoGenRun — single run attempt record
 const AutoGenRunSchema = new mongoose.Schema({
   trackId:        { type: String, required: true, unique: true },
   draftId:        { type: mongoose.Schema.Types.ObjectId, ref: 'AutoGenDraft' },
@@ -51,7 +51,7 @@ const AutoGenRunSchema = new mongoose.Schema({
 
 AutoGenRunSchema.index({ deptId: 1, batch: 1, status: 1 });
 
-// 3. HallShift — hall conflict requests raised by exam overlap
+// HallShift — hall conflict requests raised by exam overlap
 const HallShiftSchema = new mongoose.Schema({
   trackId:          { type: String, required: true, unique: true },
   examId:           { type: mongoose.Schema.Types.ObjectId, ref: 'Exam', required: true },

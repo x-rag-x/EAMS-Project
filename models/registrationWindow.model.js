@@ -1,8 +1,7 @@
 const mongoose = require('mongoose');
 
 /**
- * RegistrationWindow Schema (§4, T1.1)
- *
+ * RegistrationWindow Schema
  * Controls time-boxed windows during which Class Advisors can generate device registration tickets.
  * Created per department or per class by Super Admin or Sudo Admin.
  */

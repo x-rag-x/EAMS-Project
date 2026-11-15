@@ -69,7 +69,7 @@ function formatDatesDDMMYYYY(dates) {
   return formatDDMMYYYY(dates);
 }
 
-// ── CONTROLLER PORTAL JAVASCRIPT ────────────────────────────────
+// ── CONTROLLER PORTAL JAVASCRIPT
 var currentUser = getUser();
 var controllerContext = null;
 var selectedDeptFilter = '';
@@ -404,8 +404,8 @@ function onGlobalDeptChange(val) {
   }
 }
 
-// ── NAVIGATION ROUTING ──────────────────────────────────────────
-// ── NAVIGATION ROUTING & TAB MANAGER ──────────────────────────
+// ── NAVIGATION ROUTING ──
+// ── NAVIGATION ROUTING & TAB MANAGER ──
 function nav(pageId, tabId) {
   // Support legacy pageId calls:
   if (LEGACY_PAGE_MAP[pageId]) {
@@ -862,7 +862,7 @@ function loadStaffCompliance() {
 }
 
 
-// ── 0. REAL-TIME LIVE BOARD ─────────────────────────────────────
+// ── REAL-TIME LIVE BOARD ─
 var _cachedBoardSessions = [];
 var _problemsOnly = false;
 var _timeMachineActive = false;
@@ -1668,7 +1668,7 @@ function printWarningLetter() {
 
 
 
-// ── 1. DASHBOARD OVERVIEW ───────────────────────────────────────
+// ── DASHBOARD OVERVIEW ───
 function loadDashboardData() {
   var token = getToken();
   var url = '/api/controller/dashboard?_t=' + Date.now();
@@ -1780,7 +1780,7 @@ function renderHodMatrix(hods) {
   }).join('');
 }
 
-// ── 2. DAILY ATTENDANCE OVERVIEW ────────────────────────────────
+// ── DAILY ATTENDANCE OVERVIEW
 function changeAttendanceDate(delta) {
   var picker = document.getElementById('att-date-picker');
   if (!picker || !picker.value) return;
@@ -1851,7 +1851,7 @@ function loadDailyAttendance() {
     });
 }
 
-// ── 3. LEAVE APPROVALS WORKFLOW ─────────────────────────────────
+// ── LEAVE APPROVALS WORKFLOW ─
 function switchLeaveTab(tab) {
   activeLeaveTab = tab;
   var btnStu = document.getElementById('tab-btn-student-leaves');
@@ -2063,7 +2063,7 @@ function confirmLeaveAction() {
     });
 }
 
-// ── 4. FACULTY OVERVIEW ─────────────────────────────────────────
+// ── FACULTY OVERVIEW ─
 function loadFacultyData() {
   var token = getToken();
   var url = '/api/controller/faculty?_t=' + Date.now();
@@ -2132,7 +2132,7 @@ function filterFacultyTable(q) {
   renderFacultyTable(filtered);
 }
 
-// ── 5. STUDENT DIRECTORY ────────────────────────────────────────
+// ── STUDENT DIRECTORY
 var cachedStudents = [];
 var _stuFilter = {
   search: '',
@@ -2310,7 +2310,7 @@ function filterStudentsTable(q) {
   onStudentSearchInput(q);
 }
 
-// ── 6. PERIOD RECORDS & TEACHING NOTES ──────────────────────────
+// ── PERIOD RECORDS & TEACHING NOTES ──
 var cachedPeriodRecords = [];
 
 function loadPeriodRecords() {
@@ -2387,7 +2387,7 @@ function changeRecordsDate(delta) {
   loadPeriodRecords();
 }
 
-// ── 7. DEFAULTERS REPORT & BULK MEET ME ACTION ───────────────────
+// ── DEFAULTERS REPORT & BULK MEET ME ACTION ───
 var _activeDefaulterBand = 'all';
 
 function loadDefaultersData(band) {
@@ -2528,7 +2528,7 @@ function confirmSendMeetNotice() {
     });
 }
 
-// ── 8. ATTENDANCE REPORTS & CSV EXPORT ───────────────────────────
+// ── ATTENDANCE REPORTS & CSV EXPORT ───
 function switchReportTab(tab) {
   var tabs = ['daily', 'punctuality', 'heatmap', 'monthly', 'semester'];
   tabs.forEach(function (t) {
@@ -2814,7 +2814,7 @@ function exportReportToCsv() {
   showToast('Exported report to CSV!');
 }
 
-// ── 9. BROADCAST HUB ────────────────────────────────────────────
+// ── BROADCAST HUB
 function handleSendBroadcast(e) {
   e.preventDefault();
   var msg = document.getElementById('bc-msg')?.value || '';
@@ -2887,7 +2887,7 @@ function loadBroadcastHistory() {
     });
 }
 
-// ── 10. ACADEMIC CALENDAR ───────────────────────────────────────
+// ── ACADEMIC CALENDAR ───
 function loadAcademicCalendar() {
   var token = getToken();
   var tbody = document.getElementById('calendar-tbody');
@@ -2927,7 +2927,7 @@ function loadAcademicCalendar() {
     });
 }
 
-// ── 11. TIMETABLE VIEW ──────────────────────────────────────────
+// ── TIMETABLE VIEW ──
 function loadTimetableClasses() {
   checkTimetablePendingAlert();
   var token = getToken();
@@ -3002,7 +3002,7 @@ function renderClassTimetable(idxStr) {
   }).join('');
 }
 
-// ── 11b. FACULTY WORKLOAD & SCHEDULE ────────────────────────────
+// ── FACULTY WORKLOAD & SCHEDULE
 function loadWorkloadSection() {
   if (typeof WorkloadShared === 'undefined') {
     console.warn('[WorkloadShared] Module not loaded');
@@ -3018,7 +3018,7 @@ function loadWorkloadSection() {
   });
 }
 
-// ── 11c. TIMETABLE VERIFICATION & APPROVALS (HOD & PRINCIPAL) ───
+// ── TIMETABLE VERIFICATION & APPROVALS (HOD & PRINCIPAL) ───
 var _ctrlTtRequests = [];
 var _ctrlTtFilter = 'pending';
 
@@ -3510,7 +3510,7 @@ async function openCtrlTimetableMatrixModal(id) {
   }
 }
 
-// ── 12. MY PROFILE ──────────────────────────────────────────────
+// ── MY PROFILE ──
 function loadProfileData() {
   if (!controllerContext) return;
   var ctx = controllerContext;
@@ -3540,7 +3540,7 @@ function loadProfileData() {
   if (pDept) pDept.textContent = ctx.deptName || 'All Departments';
 }
 
-// ── 13. APPROVALS INBOX (HOD & EXECUTIVE QUEUE) ─────────────────
+// ── APPROVALS INBOX (HOD & EXECUTIVE QUEUE) ─
 var _inboxItems = [];
 var _inboxFilter = 'all';
 var _inboxSort = 'priority'; // 'priority' | 'newest' | 'oldest'
@@ -4090,7 +4090,7 @@ document.addEventListener('keydown', function (e) {
     }
   }
 });
-// ── 14. FACULTY LEAVE & SUBSTITUTIONS ───────────────────────────
+// ── FACULTY LEAVE & SUBSTITUTIONS ───
 var _pendingDirectAssign = null;
 
 function loadFacultyLeaveData() {
@@ -4567,7 +4567,7 @@ function saveDepartmentLeavePolicy() {
   });
 }
 
-// ── 14B. DEPARTMENT SETTINGS & LEAVE POLICY ─────────────────────
+// ── DEPARTMENT SETTINGS & LEAVE POLICY ─
 var _currentDeptPolicy = null;
 var _institutionalDefaults = null;
 
@@ -4769,7 +4769,7 @@ window.loadDeptSettings = loadDeptSettings;
 window.saveDeptPolicySettings = saveDeptPolicySettings;
 window.resetDeptPolicyToDefaults = resetDeptPolicyToDefaults;
 
-// ── 15. ACADEMIC PARTICIPATION COMMAND CENTRE ───────────────────
+// ── ACADEMIC PARTICIPATION COMMAND CENTRE ───
 var _cachedParticipationRecords = [];
 var _pendingODRevocationId = null;
 
@@ -5296,7 +5296,7 @@ function exportParticipationCsv() {
   window.open('/api/participation/tracker/export.csv?deptCode=' + encodeURIComponent(dept) + '&token=' + encodeURIComponent(token), '_blank');
 }
 
-// ── 16. EXECUTIVE AUDIT LOG ─────────────────────────────────────
+// ── EXECUTIVE AUDIT LOG ─
 var _auditSearchTimer = null;
 var _auditCurrentPage = 1;
 var _auditTotalPages = 1;
@@ -5388,7 +5388,7 @@ function handleAuditSearch(val) {
   }, 300);
 }
 
-// ── 17. CLASS LIVE TELEMETRY DRAWER ─────────────────────────────
+// ── CLASS LIVE TELEMETRY DRAWER ─
 var _currentDrawerClassId = null;
 var _currentDrawerData = null;
 var _liveDateOverride = null;
@@ -5650,7 +5650,7 @@ function drawerOpenCancelModal() {
   openCancelSessionModal(now._id, now.periodNumber || 1, _currentDrawerData.classInfo?.name || 'Class');
 }
 
-// ── GLOBAL WINDOW BINDINGS ──────────────────────────────────────
+// ── GLOBAL WINDOW BINDINGS ──
 window.nav = nav;
 window.toggleSidebar = toggleSidebar;
 window.onGlobalDeptChange = onGlobalDeptChange;
@@ -5811,7 +5811,7 @@ window.toggleAttendanceChartView = toggleAttendanceChartView;
 window.loadStaffCompliance = loadStaffCompliance;
 
 
-// ── GLOBAL SEARCH (Ctrl+K) & ATTENTION STRIP ─────────────────────
+// ── GLOBAL SEARCH (Ctrl+K) & ATTENTION STRIP ─
 var _globalSearchDebounce = null;
 var _globalSearchResults = [];
 var _globalSearchActiveIndex = -1;

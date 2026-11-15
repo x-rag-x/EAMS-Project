@@ -98,7 +98,7 @@ router.get('/me/roster', authMiddleware, async (req, res) => {
       String(idn.employeeNo || '')
     ].filter(Boolean);
 
-    // 1. Fetch this teacher's assignments
+    // Fetch this teacher's assignments
     const assignments = await M.Assignment.find({
       teacherId: { $in: myTeacherIds }
     }).lean();
@@ -128,7 +128,7 @@ router.get('/me/roster', authMiddleware, async (req, res) => {
     const classIds = Array.from(classIdsSet);
     const subjectIds = Array.from(subjectIdsSet);
 
-    // 2. Resolve Class documents
+    // Resolve Class documents
     const classObjIds = classIds.filter(id => mongoose.isValidObjectId(id));
     const classes = await M.Class.find({
       $or: [
@@ -147,7 +147,7 @@ router.get('/me/roster', authMiddleware, async (req, res) => {
     });
     classIds.forEach(id => allValidClassIds.add(id));
 
-    // 3. Resolve Subject documents
+    // Resolve Subject documents
     const subjectObjIds = subjectIds.filter(id => mongoose.isValidObjectId(id));
     const subjects = await M.Subject.find({
       $or: [
@@ -158,7 +158,7 @@ router.get('/me/roster', authMiddleware, async (req, res) => {
       ]
     }).select('_id subjectTrackId subjectCode name deptId').lean();
 
-    // 4. Resolve Students for all assigned/advised classes
+    // Resolve Students for all assigned/advised classes
     const validStudentClassObjIds = Array.from(allValidClassIds).filter(id => mongoose.isValidObjectId(id));
     const studentQuery = [];
     if (validStudentClassObjIds.length > 0) {
@@ -200,7 +200,7 @@ router.get('/me/roster', authMiddleware, async (req, res) => {
       };
     });
 
-    // 5. Resolve today's slots
+    // Resolve today's slots
     let todaySlots = [];
     try {
       const todayStr = await todayInInstitutionTz();

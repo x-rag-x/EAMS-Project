@@ -95,7 +95,7 @@ TimetableCommitClassSchema.index({ classId: 1, version: -1 });
 
 // ── DeployRun: Pipeline Execution Record ──
 const DeployStageSchema = new Schema({
-  key:        { type: Number, required: true }, // 0 to 7
+  key:        { type: Number, required: true }, // to 7
   label:      { type: String, required: true },
   status:     { type: String, enum: ['pending', 'running', 'success', 'warning', 'failed', 'skipped'], default: 'pending' },
   startedAt:  { type: Date, default: null },

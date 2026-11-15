@@ -1,7 +1,7 @@
 /**
  * jobs/timetableGoLive.js
  *
- * Scheduled Go-Live Worker for EAMS Timetable (§10.4 & D16):
+ * Scheduled Go-Live Worker for EAMS Timetable:
  * - Checks for approved TimetableCommits with goLiveAt in the past/present
  * - Executes the 8-stage deployment pipeline automatically
  * - Idempotent, robust against concurrent executions

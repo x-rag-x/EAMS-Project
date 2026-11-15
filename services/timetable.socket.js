@@ -1,7 +1,6 @@
 /**
  * services/timetable.socket.js
- *
- * Real-Time Presence & Live Collaboration WebSocket Server (Phase 5):
+ * Real-Time Presence & Live Collaboration WebSocket Server:
  * - Mounts /ws/timetable for real-time collaboration in draft workspaces.
  * - Broadcasts live cell outlines (USER_EDITING_SLOT / SLOT_HELD) with 30s auto-expiry.
  * - Broadcasts applied operations (OP_BROADCAST) to peer clients for instant synchronization.
@@ -26,7 +25,6 @@ let wssTimetable = null;
 
 /**
  * Initializes Timetable Collaboration WebSocket Server.
- *
  * @param {http.Server} httpServer
  */
 function initTimetableSocket(httpServer) {
@@ -134,7 +132,7 @@ function handleConnection(ws, req) {
           const existingHold = activeSlotHolds.get(holdKey);
           if (existingHold?.timer) clearTimeout(existingHold.timer);
 
-          const expiresAt = Date.now() + 30000; // 30s auto-expiry
+          const expiresAt = Date.now() + 30000; // auto-expiry
           const timer = setTimeout(() => {
             activeSlotHolds.delete(holdKey);
             broadcastToDraft(currentDraftId, {

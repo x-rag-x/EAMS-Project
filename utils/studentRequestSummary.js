@@ -4,7 +4,6 @@
  * Student request summary — the numbers an approver needs next to a Leave/OD request:
  * attendance percentage, how much leave / OD the student has already taken, and the
  * student's complete request history (Leave + OD, newest first).
- *
  * Read-only. Never writes to the database (unlike utils/attendanceCalculator.js).
  */
 

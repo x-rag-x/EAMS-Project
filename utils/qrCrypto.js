@@ -128,7 +128,7 @@ function verifyQrToken(submittedQrTrackId, qrSecret, intervalSec = DEFAULT_QR_IN
     };
   }
 
-  // 1. Check against active current window
+  // Check against active current window
   if (submittedQrTrackId === info.currentQrTrackId) {
     return {
       valid: true,
@@ -140,7 +140,7 @@ function verifyQrToken(submittedQrTrackId, qrSecret, intervalSec = DEFAULT_QR_IN
     };
   }
 
-  // 2. Check against last old window within grace period
+  // Check against last old window within grace period
   if (submittedQrTrackId === info.previousQrTrackId) {
     if (info.windowElapsedSec <= graceSec) {
       return {

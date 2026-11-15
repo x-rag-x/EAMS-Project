@@ -2117,7 +2117,7 @@ function saveBatch() {
 }
 
 // =========================================================================
-//  SUBJECTS MANAGER (PHASE 1)
+//  SUBJECTS MANAGER
 // =========================================================================
 
 var _smData = {
@@ -2149,17 +2149,17 @@ async function loadSmMasterData() {
     var tok = getToken();
     var headers = tok ? { 'Authorization': 'Bearer ' + tok } : {};
 
-    // 1. Regulations
+    // Regulations
     var regRes = await fetch('/api/settings/curriculum-regulations', { headers: headers });
     var regJson = await regRes.json();
     _smData.regulations = Array.isArray(regJson) ? regJson : (regJson?.data || [{ code: '2021' }, { code: '2025' }]);
 
-    // 2. Departments
+    // Departments
     var deptRes = await fetch('/api/departments', { headers: headers });
     var deptJson = await deptRes.json();
     _smData.departments = Array.isArray(deptJson) ? deptJson : (deptJson?.data || []);
 
-    // 3. Batches
+    // Batches
     var batchRes = await fetch('/api/year/academic-years', { headers: headers });
     var batchJson = await batchRes.json();
     var allBatches = [];
@@ -2174,7 +2174,7 @@ async function loadSmMasterData() {
     if (!allBatches.length) allBatches = ['2023-2027', '2024-2028', '2025-2029', '2026-2030'];
     _smData.batches = allBatches;
 
-    // 4. Classes
+    // Classes
     var clsRes = await fetch('/api/classes', { headers: headers });
     var clsJson = await clsRes.json();
     _smData.classes = Array.isArray(clsJson) ? clsJson : (clsJson?.data || []);

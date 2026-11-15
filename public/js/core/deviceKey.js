@@ -1,15 +1,13 @@
 /**
  * public/js/core/deviceKey.js
- *
- * EAMS Client-Side Device Trust & Hardware Key Helper (§2, §4, T1.2).
- *
+ * EAMS Client-Side Device Trust & Hardware Key Helper.
  * Features:
- * 1. Generates non-extractable WebCrypto ECDSA P-256 signing keys stored safely in IndexedDB.
- * 2. Computes canonical SHA-256 JWK thumbprints.
- * 3. Gathers descriptive device info and stable hardware fingerprint signals.
- * 4. Checks iOS Safari PWA installation (preventing 7-day Safari storage wipe).
- * 5. Requests persistent storage quota via navigator.storage.persist().
- * 6. Enumerates stored key thumbprints for friend-marking / shared-phone detection.
+ * Generates non-extractable WebCrypto ECDSA P-256 signing keys stored safely in IndexedDB.
+ * Computes canonical SHA-256 JWK thumbprints.
+ * Gathers descriptive device info and stable hardware fingerprint signals.
+ * Checks iOS Safari PWA installation (preventing 7-day Safari storage wipe).
+ * Requests persistent storage quota via navigator.storage.persist.
+ * Enumerates stored key thumbprints for friend-marking / shared-phone detection.
  */
 
 (function (root, factory) {
@@ -160,7 +158,7 @@
     return sha256Hex(signalStr);
   }
 
-  // Descriptive device info object (§4)
+  // Descriptive device info object
   async function getDeviceInfo() {
     var ua = navigator.userAgent || '';
     var isMobile = /Mobile|Android|iPhone|iPad/i.test(ua);
@@ -228,7 +226,7 @@
     });
   }
 
-  // Get all stored keys (for friend-marking detection §13)
+  // Get all stored keys (for friend-marking detection)
   async function getAllStoredKeys() {
     var db = await openKeyDb();
     return new Promise(function (resolve, reject) {
@@ -327,7 +325,7 @@
     }
   }
 
-  // Create signed device proof for attendance marking (§7, T2.1)
+  // Create signed device proof for attendance marking
   async function createDeviceProof(messagePayload, studentTrackId) {
     var ts = Date.now();
     var installId = getOrCreateInstallId();
@@ -359,7 +357,7 @@
     };
   }
 
-  // Seamless 15-day student device session refresh (§6, T3.1)
+  // Seamless 15-day student device session refresh
   async function trySessionRefresh() {
     try {
       var allKeys = await getAllStoredKeys();

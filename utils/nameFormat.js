@@ -2,7 +2,6 @@
  * Sanitizes full name by removing dots, commas, slashes, backslashes,
  * colons, semicolons, and underscores, normalizing whitespace.
  * Ensures the full name NEVER contains '.', ',', '/', or '\'.
- *
  * @param {string} raw - Raw input name
  * @returns {string} Sanitized full name (e.g. "AADHIL YUNIS.U" -> "AADHIL YUNIS U")
  */
@@ -22,7 +21,6 @@ function sanitizeFullName(raw) {
  * Correctly splits full name into First Name and Last Name.
  * Handles single names, standard names, single initials, and multi-letter initials
  * whether positioned at the end or the beginning.
- *
  * @param {string} rawName - Full name string
  * @returns {{ firstName: string, lastName: string, fullName: string }}
  */
@@ -47,7 +45,7 @@ function splitFirstLastName(rawName) {
     return { firstName: parts[0], lastName: parts[1], fullName: clean };
   }
 
-  // 3 or more parts (e.g. "AADHIL YUNIS U", "MOHAMED RIYAZ K A", "U AADHIL YUNIS", "JOHN FITZGERALD KENNEDY")
+  // or more parts (e.g. "AADHIL YUNIS U", "MOHAMED RIYAZ K A", "U AADHIL YUNIS", "JOHN FITZGERALD KENNEDY")
   const last = parts[parts.length - 1];
   const secondLast = parts[parts.length - 2];
   const first = parts[0];

@@ -669,9 +669,9 @@ router.get('/approved-for-date', authMiddleware, async (req, res) => {
   }
 });
 
-// ─────────────────────────────────────────────────────────────
+// ─
 // PLAN 4 (FEATURE 6): TEACHER LEAVE & SUBSTITUTION INTEGRATION
-// ─────────────────────────────────────────────────────────────
+// ─
 
 const DAY_ABBR_MAP_LEAVE = {
   0: 'Sun', 1: 'Mon', 2: 'Tue', 3: 'Wed', 4: 'Thu', 5: 'Fri', 6: 'Sat'
@@ -1189,10 +1189,10 @@ router.put('/teacher/cancel/:id', authMiddleware, async (req, res) => {
   }
 });
 
-// ─────────────────────────────────────────────────────────────
-// ─────────────────────────────────────────────────────────────
+// ─
+// ─
 // STAGE 6: FACULTY LEAVE & SUBSTITUTIONS WORKFLOW (L7 & L8)
-// ─────────────────────────────────────────────────────────────
+// ─
 
 // GET /api/leave/policy — Get department leave policy
 router.get('/policy', authMiddleware, async (req, res) => {
@@ -1567,7 +1567,7 @@ router.post('/faculty', authMiddleware, async (req, res) => {
     if (isDraft) {
       initialStatus = 'draft';
     } else if (isHod) {
-      // HOD's own leave skips HOD stage and goes straight to Principal (§6.6 / LD8)
+      // HOD's own leave skips HOD stage and goes straight to Principal
       initialStatus = 'pending_principal';
       escalationLevel = 'principal';
     }
@@ -2149,7 +2149,7 @@ router.post('/faculty/:id/principal-approve', authMiddleware, async (req, res) =
     leaveReq.principalReviewedAt = new Date();
     leaveReq.principalRemarks = sanitizeToString(req.body.remarks || 'Approved by Principal');
 
-    // 1. Confirm all substitutions and write Override documents
+    // Confirm all substitutions and write Override documents
     let overridesCreated = 0;
     for (const sub of (leaveReq.substitutions || [])) {
       if (!sub.substituteTeacherTrackId) continue;
@@ -2215,7 +2215,7 @@ router.post('/faculty/:id/principal-approve', authMiddleware, async (req, res) =
       overridesCreated++;
     }
 
-    // 2. Activate Acting Roles if appointed
+    // Activate Acting Roles if appointed
     if (leaveReq.actingAdvisor?.teacherTrackId) {
       await M.ActingRole.create({
         role: 'advisor',
@@ -2256,7 +2256,7 @@ router.post('/faculty/:id/principal-approve', authMiddleware, async (req, res) =
 
     await leaveReq.save();
 
-    // 3. Dispatch notifications
+    // Dispatch notifications
     // Notify Applicant
     await M.Notification.create({
       type: 'leave-approval',
@@ -2376,9 +2376,9 @@ router.post('/faculty/emergency', authMiddleware, async (req, res) => {
   return router.handle(req, res);
 });
 
-// ─────────────────────────────────────────────────────────────
+// ─
 // LEGACY COMPATIBILITY HANDLERS
-// ─────────────────────────────────────────────────────────────
+// ─
 
 // GET /api/leave/teacher/pending-hod — List teacher leave requests awaiting HOD
 router.get('/teacher/pending-hod', authMiddleware, async (req, res) => {

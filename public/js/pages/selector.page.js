@@ -107,7 +107,7 @@ function checkLoadingCompletion() {
     onAccessReceived(currentAccess);
   }
 
-  // 1. Initial loader state & progressive step messages across 2-4 seconds
+  // Initial loader state & progressive step messages across 2-4 seconds
   setLoaderStep(0, 'Initializing Workspace Hub...');
 
   setTimeout(function () {
@@ -118,13 +118,13 @@ function checkLoadingCompletion() {
     if (!revealed) setLoaderStep(2, 'Verifying administrative access & portal policies...');
   }, 1350);
 
-  // 2. Minimum loading timer (2s minimum loading threshold)
+  // Minimum loading timer (2s minimum loading threshold)
   setTimeout(function () {
     minTimerPassed = true;
     checkLoadingCompletion();
   }, MIN_LOADER_DURATION);
 
-  // 3. Safety ceiling timeout (4s maximum fallback)
+  // Safety ceiling timeout (4s maximum fallback)
   setTimeout(function () {
     if (!revealed) {
       console.warn('[Selector] Reached 4s maximum loader ceiling. Proceeding with available access state.');
@@ -134,7 +134,7 @@ function checkLoadingCompletion() {
     }
   }, MAX_LOADER_TIMEOUT);
 
-  // 4. Hook into Page Guard ready lifecycle (§8, R6.1)
+  // Hook into Page Guard ready lifecycle
   if (window.Guard && typeof window.Guard.onReady === 'function') {
     window.Guard.onReady(function (accessData) {
       if (accessData) {
@@ -164,7 +164,7 @@ function checkLoadingCompletion() {
     }
   });
 
-  // 5. Fetch fresh access authority (teacher schema page rights & admin flags) and public portal settings in parallel
+  // Fetch fresh access authority (teacher schema page rights & admin flags) and public portal settings in parallel
   Promise.all([
     fetchAccessAuthority().catch(function (e) { console.warn('[Selector] Access fetch fallback:', e); }),
     fetchPortalStatus().catch(function (e) { console.warn('[Selector] Portal status fetch fallback:', e); })
@@ -375,7 +375,7 @@ function fetchPortalStatus() {
     .catch(function () {});
 }
 
-// Format expiry badge for Sub-Admin grants (§8, R6.2)
+// Format expiry badge for Sub-Admin grants
 function formatExpiryBadge(validTo) {
   if (!validTo) return '';
   var exp = new Date(validTo);
@@ -396,7 +396,7 @@ function formatExpiryBadge(validTo) {
   }
 }
 
-// Format scope badge (§8, R6.2)
+// Format scope badge
 function formatScopeBadge(scope, deptName) {
   if (scope === 'institution') {
     return '<span class="card-scope-badge inst"><re-icon icon="globe"></re-icon> Institution</span>';
@@ -411,7 +411,7 @@ function formatScopeBadge(scope, deptName) {
   return '';
 }
 
-// Format actions metadata line (§8, R6.2)
+// Format actions metadata line
 function formatActionsMeta(actions) {
   if (!actions || !actions.length) return '';
   var labels = {
@@ -432,7 +432,7 @@ function formatActionsMeta(actions) {
 }
 
 /**
- * Derives comprehensive cards list from /api/auth/access (§8, R6.1, R6.2, R6.3)
+ * Derives comprehensive cards list from /api/auth/access
  */
 function getPortalDefinitions(accessData, user) {
   var flags = (accessData && accessData.flags) || {};
@@ -467,7 +467,7 @@ function getPortalDefinitions(accessData, user) {
   var logsState = isSudo ? 'enabled' : (portalPagesState.pageLogs || 'enabled');
 
   var defs = [
-    // 1. Teacher Portal (Always present for staff)
+    // Teacher Portal (Always present for staff)
     {
       id: 'teacher',
       title: 'Teacher Portal',
@@ -489,7 +489,7 @@ function getPortalDefinitions(accessData, user) {
       isLocked: false
     },
 
-    // 2. Controller Portal (Principal & HOD)
+    // Controller Portal (Principal & HOD)
     {
       id: 'controller',
       title: 'Controller Portal',
@@ -511,7 +511,7 @@ function getPortalDefinitions(accessData, user) {
       isLocked: controllerState === 'disabled'
     },
 
-    // 3. Admin Console (Sudo & Super Admin)
+    // Admin Console (Sudo & Super Admin)
     {
       id: 'admin',
       title: 'Full Admin Console',
@@ -535,7 +535,7 @@ function getPortalDefinitions(accessData, user) {
       isLocked: false
     },
 
-    // 4. Data & Exam Management (manage.html)
+    // Data & Exam Management (manage.html)
     {
       id: 'manage',
       title: 'Data & Exam Management',
@@ -558,7 +558,7 @@ function getPortalDefinitions(accessData, user) {
       isLocked: false
     },
 
-    // 5. Timetable Management (timetable.html)
+    // Timetable Management
     {
       id: 'timetable',
       title: 'Timetable Management',
@@ -581,8 +581,8 @@ function getPortalDefinitions(accessData, user) {
       isLocked: false
     },
 
-    // 6. Bulk Upload & Operations (bulk.html)
-    // Sudo has full access; Super Admin has locked card with Request Access by default unless bulkUploadsAllowed is true (§6.4, §8, R6.3)
+    // Bulk Upload & Operations (bulk.html)
+    // Sudo has full access; Super Admin has locked card with Request Access by default unless bulkUploadsAllowed is true
     {
       id: 'bulk',
       title: 'Bulk Upload & Operations',
@@ -605,7 +605,7 @@ function getPortalDefinitions(accessData, user) {
       isLocked: Boolean(!isSudo && !pages.bulk && (isSuper || (findGrant('bulk') && !findGrant('bulk').enabled)))
     },
 
-    // 7. Export & Report Center (export.html)
+    // Export & Report Center (export.html)
     {
       id: 'export',
       title: 'Export & Report Center',
@@ -628,7 +628,7 @@ function getPortalDefinitions(accessData, user) {
       isLocked: exportState === 'disabled'
     },
 
-    // 8. Control Dashboard (control.html)
+    // Control Dashboard (control.html)
     {
       id: 'control',
       title: 'Control Dashboard',
@@ -651,7 +651,7 @@ function getPortalDefinitions(accessData, user) {
       isLocked: controlState === 'disabled'
     },
 
-    // 9. System Settings (settings.html)
+    // System Settings (settings.html)
     {
       id: 'settings',
       title: 'System Settings',
@@ -674,7 +674,7 @@ function getPortalDefinitions(accessData, user) {
       isLocked: false
     },
 
-    // 10. Activity Logs (logs.html)
+    // Activity Logs (logs.html)
     {
       id: 'logs',
       title: 'Activity Logs',
@@ -697,7 +697,7 @@ function getPortalDefinitions(accessData, user) {
       isLocked: logsState === 'disabled'
     },
 
-    // 11. Room & Board Manager (rooms.html)
+    // Room & Board Manager (rooms.html)
     {
       id: 'rooms',
       title: 'Room & Board Manager',
@@ -720,7 +720,7 @@ function getPortalDefinitions(accessData, user) {
       isLocked: roomsState === 'disabled'
     },
 
-    // 12. Maintenance Controls (maintenance-admin.html)
+    // Maintenance Controls (maintenance-admin.html)
     {
       id: 'maintenance',
       title: 'Maintenance Controls',
@@ -743,7 +743,7 @@ function getPortalDefinitions(accessData, user) {
       isLocked: false
     },
 
-    // 13. Hostel Management Portal (hostel.html)
+    // Hostel Management Portal (hostel.html)
     {
       id: 'hostel',
       title: 'Hostel Management Portal',
@@ -810,7 +810,7 @@ function renderCards(accessData, user) {
 
     var scopeBadgeHtml = formatScopeBadge(card.scope, card.scopeDept);
 
-    // Locked card: a div, so the Request Access button stays valid markup (§8, R6.3)
+    // Locked card: a div, so the Request Access button stays valid markup
     if (isLocked) {
       return '<div class="sel-card card-locked" style="' + cardVars + '">'
         + '<div class="card-top"><div class="card-icon">' + card.icon + '</div>'
@@ -855,7 +855,7 @@ function showDisabledNotice(event, portalTitle) {
   showToast('<re-icon icon="lock"></re-icon> ' + portalTitle + ' is currently disabled by administrator for maintenance.');
 }
 
-// ── REQUEST ACCESS MODAL HANDLERS (§8, R6.3) ──────────────────────
+// ── REQUEST ACCESS MODAL HANDLERS ──
 function openRequestAccessModal(cardId, cardTitle, scopeDisplay) {
   var modal = document.getElementById('modal-request-access');
   if (!modal) return;

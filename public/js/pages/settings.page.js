@@ -131,7 +131,7 @@ function goBackHub() {
   }
 }
 
-// ─── SIDEBAR TOGGLE (Matching admin.html / admin.page.js) ─────────────────────
+// ─── SIDEBAR TOGGLE (Matching admin.html / admin.page.js) ─
 function toggleAdminSidebar() {
   var sidebar = document.querySelector('#app-shell .sb') || document.querySelector('.sb');
   var mainContent = document.querySelector('.mc');
@@ -509,7 +509,7 @@ function loadAllSettings() {
         return;
       }
 
-      // 1. Institution
+      // Institution
       var inst = data.institution || {};
       setVal('inst-name', inst.institutionName || '');
       setVal('inst-short', inst.institutionShort || '');
@@ -519,7 +519,7 @@ function loadAllSettings() {
       setVal('inst-phone', inst.institutionPhone || '');
       setVal('inst-web', inst.institutionWebsite || '');
 
-      // 2. Pages (Tri-State)
+      // Pages
       var pages = data.pages || {};
       applyTriStateUI('pageStudents', pages.pageStudents || 'enabled');
       applyTriStateUI('pageTeachers', pages.pageTeachers || 'enabled');
@@ -535,7 +535,7 @@ function loadAllSettings() {
       applyTriStateUI('pageControl', pages.pageControl || 'enabled');
       applyTriStateUI('pageLogs', pages.pageLogs || 'enabled');
 
-      // 3. Attendance
+      // Attendance
       var att = data.attendance || {};
       setChk('att-mark', att.markAttendance !== false);
       setChk('att-live', att.liveSessions !== false);
@@ -569,7 +569,7 @@ function loadAllSettings() {
       setChk('tch-carry-forward', tch.carryForward !== false);
       setChk('tch-auto-escalate', !!tch.autoEscalatePrincipal);
 
-      // 4. Models
+      // Models
       var mod = data.models || {};
       setChk('mod-leave', mod.modelLeave !== false);
       setChk('mod-griev', mod.modelGrievances !== false);
@@ -586,7 +586,7 @@ function loadAllSettings() {
       setChk('mod-staff-leave', mod.modelStaffLeave !== false);
       setChk('mod-bulk-mail', mod.bulkMailCredentials !== false);
 
-      // 5. Security
+      // Security
       var sec = data.security || {};
       setChk('sec-forcepw', sec.forcePasswordChange !== false);
       setChk('sec-strongpw', sec.requireStrongPassword !== false);
@@ -610,7 +610,7 @@ function loadAllSettings() {
       setVal('sec-sudo-lifetime', sec.sudoMaxSessionLifetimeHours !== undefined ? sec.sudoMaxSessionLifetimeHours : 24);
       setVal('sec-sudo-pw-days', sec.sudoForcePasswordChangeDays !== undefined ? sec.sudoForcePasswordChangeDays : 90);
 
-      // 5b. Device Registration & Sessions (§15)
+      // Device Registration & Sessions
       var dev = data.device || {};
       setChk('dev-req-bound', dev.requireRegisteredDevice !== false);
       setVal('dev-session-days', dev.studentSessionDays || 15);
@@ -620,7 +620,7 @@ function loadAllSettings() {
       setVal('dev-code-attempts', dev.verifyCodeMaxAttempts || 3);
       setVal('dev-rep-limit', dev.replacementRequestsPerDay || 3);
 
-      // 5c. Trust Score Engine (§15)
+      // Trust Score Engine
       var tr = data.trust || {};
       setChk('trust-enabled', tr.enabled !== false);
       setVal('trust-start-score', tr.startScore || 100);
@@ -644,7 +644,7 @@ function loadAllSettings() {
       setVal('trust-wt-ip', tr.deviceWeights?.campusIp || 5);
       setVal('trust-wt-spoof', tr.deviceWeights?.spoofPenalty || 10);
 
-      // 6. Academic
+      // Academic
       var acad = data.academic || {};
       setVal('acad-year', acad.academicYear || '2026-2027');
       setVal('acad-semtype', acad.currentSemesterType || 'Odd');
@@ -659,20 +659,20 @@ function loadAllSettings() {
 
       renderRegulationMinAttInputs(acad.regulationsList || [], acad.regulationMinAttendance || {});
 
-      // 7. Broadcast Settings
+      // Broadcast Settings
       var bcast = data.broadcast || {};
       setVal('bcast-duration', bcast.defaultPopupDurationSec || 10);
       setVal('bcast-expire', bcast.autoExpireHours || 24);
       setChk('bcast-teacher-allow', !!bcast.allowTeacherBroadcasts);
 
-      // 8. Advanced
+      // Advanced
       var adv = data.advanced || {};
       setChk('adv-debug', !!adv.debugMode);
       setChk('adv-multisess', adv.multiAdminSession !== false);
       setChk('adv-seed', !!adv.autoSeedDemoData);
       setVal('adv-errors-count', adv.errorsCount || 20);
 
-      // 9. Google Drive Sync
+      // Google Drive Sync
       var drive = data.driveSync || {};
       setChk('drive-enabled', !!drive.enabled);
       setVal('drive-schedule', drive.backupSchedule || 'daily');
@@ -682,7 +682,7 @@ function loadAllSettings() {
       setVal('drive-retention', drive.retentionDays !== undefined ? drive.retentionDays : 30);
       setVal('drive-sa-email', drive.serviceAccountEmail || '');
 
-      // 10. Mail Notifications
+      // Mail Notifications
       var mail = data.mailer || {};
       setChk('mail-enabled', !!mail.enabled);
       setVal('mail-provider', mail.provider || 'smtp');

@@ -3,7 +3,6 @@ const M = require('../models');
 /**
  * Resolve attendance entitlements for a class, date, and period.
  * Checks approved and pending AttendanceEntitlement records.
- *
  * @param {Object} params
  * @param {string} params.classId - Target class ID or trackId
  * @param {string} params.date - Date in YYYY-MM-DD (IST)
@@ -56,7 +55,6 @@ async function resolveEntitlements({ classId, date, periodNumber = null, periodN
 /**
  * Enforce entitlements on an array of attendance records being saved.
  * Server-side guard: replaces/locks records according to active entitlements.
- *
  * @param {Object} params
  * @param {string} params.classId
  * @param {string} params.date

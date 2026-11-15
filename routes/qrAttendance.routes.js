@@ -444,7 +444,7 @@ router.post('/submit', authMiddleware, qrAttendanceIpLimiter, qrAttendanceLimite
       failReason: locationOk ? '' : 'Valid device geolocation (latitude and longitude) is required for QR attendance'
     };
 
-    // 1. Session check
+    // Session check
     const liveSession = await M.LiveSession.findOne({ trackId: sessionTrackId });
     if (!liveSession) {
       verification.failReason = 'Live session not found';
@@ -510,7 +510,7 @@ router.post('/submit', authMiddleware, qrAttendanceIpLimiter, qrAttendanceLimite
       }
     }
 
-    // 2. QR Token and Expiry with Grace Period check
+    // QR Token and Expiry with Grace Period check
     let qrVerification = { valid: false, type: 'invalid' };
     if (verification.sessionOk && liveSession) {
       qrVerification = verifyQrToken(
@@ -527,7 +527,7 @@ router.post('/submit', authMiddleware, qrAttendanceIpLimiter, qrAttendanceLimite
       }
     }
 
-    // 3. Cross-device and One-device Restriction check (A5, §7.1)
+    // Cross-device and One-device Restriction check
     const effectiveDeviceId = (deviceId || deviceProof?.installId || '').trim();
     if (verification.sessionOk && verification.qrOk) {
       if (effectiveDeviceId) {
@@ -585,7 +585,7 @@ router.post('/submit', authMiddleware, qrAttendanceIpLimiter, qrAttendanceLimite
       }
     }
 
-    // 4. Evaluate Device Trust & Risk Gate (§7, §9, T2.1-T2.5)
+    // Evaluate Device Trust & Risk Gate
     const trustEval = await evaluateDeviceTrust({
       student,
       deviceProof,
@@ -617,7 +617,7 @@ router.post('/submit', authMiddleware, qrAttendanceIpLimiter, qrAttendanceLimite
     verification.trustOk = trustEval.trustOk;
     verification.riskOk = trustEval.riskOk;
 
-    // 5. Determine final status
+    // Determine final status
     const allQrPassed =
       verification.authOk &&
       verification.sessionOk &&
@@ -788,7 +788,7 @@ router.get('/participation/:sessionTrackId', authMiddleware, async (req, res) =>
 
     const sessionTrackId = req.params.sessionTrackId;
 
-    // Verify session ownership (A15)
+    // Verify session ownership
     if (!isSudoAdmin(req.user)) {
       const session = await M.LiveSession.findOne({ trackId: sessionTrackId }).lean() ||
                       await M.ScanLiveSession.findOne({ sessionTrackId }).lean();

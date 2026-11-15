@@ -33,7 +33,7 @@ function validateFile(file) {
   }
 }
 
-// ── 1. UPLOAD FILE & START BACKGROUND STAGE JOB ──
+// ── UPLOAD FILE & START BACKGROUND STAGE JOB ──
 router.post(
   '/batches/:id/upload',
   authMiddleware,
@@ -62,7 +62,7 @@ router.post(
           fileRef,
           originalFileName: req.file.originalname,
           mimeType: req.file.mimetype,
-          // Keep base64 temporarily until migration phase P7
+          // Keep base64 temporarily until migration
           fileBufferBase64: req.file.buffer.toString('base64')
         };
         if (req.scope) {
@@ -136,7 +136,7 @@ router.post(
   }
 );
 
-// ── 2. RETRY FAILED JOB (STAGE OR COMMIT) ──
+// ── RETRY FAILED JOB (STAGE OR COMMIT) ──
 router.post('/batches/:id/retry', authMiddleware, requirePage('bulk', 'create'), loadBatch('ownerOrSudo'), async (req, res) => {
   try {
     const batch = req.batch;
@@ -176,7 +176,7 @@ router.post('/batches/:id/retry', authMiddleware, requirePage('bulk', 'create'),
   }
 });
 
-// ── 3. RESCAN BATCH ──
+// ── RESCAN BATCH ──
 router.post('/batches/:id/rescan', authMiddleware, requirePage('bulk', 'create'), loadBatch('ownerOrSudo'), async (req, res) => {
   try {
     const batch = req.batch;
@@ -212,7 +212,7 @@ router.post('/batches/:id/rescan', authMiddleware, requirePage('bulk', 'create')
   }
 });
 
-// ── 3b. RETRY DRIVE UPLOAD ONLY ──
+// ── RETRY DRIVE UPLOAD ONLY ──
 router.post('/batches/:id/retry-drive', authMiddleware, requirePage('bulk', 'create'), loadBatch('ownerOrSudo'), async (req, res) => {
   try {
     const batch = req.batch;
@@ -252,7 +252,7 @@ router.post('/batches/:id/retry-drive', authMiddleware, requirePage('bulk', 'cre
   }
 });
 
-// ── 4. DEPRECATED / LEGACY BLOCKING STAGE WRAPPER (FOR OLD UI) ──
+// ── DEPRECATED / LEGACY BLOCKING STAGE WRAPPER (FOR OLD UI) ──
 router.post('/stage', authMiddleware, requirePage('bulk', 'create'), upload.single('file'), async (req, res) => {
   try {
     validateFile(req.file);

@@ -1,19 +1,17 @@
 /**
  * services/timetableDeploy.js
- *
  * One unified deployment pipeline (D8) for production timetables.
  * Input: an approved TimetableCommit (or commit trackId/doc)
  * Output: DeployRun with per-stage results.
- *
  * Stages:
- *  0 - Gate
- *  1 - Write (atomic transaction)
- *  2 - Link staff & subjects, create assignments
- *  3 - Combined classes
- *  4 - Boards
- *  5 - Notifications
- *  6 - Teacher matrix refresh & DayInstance cache reset
- *  7 - Finalize
+ *  - Gate
+ *  - Write (atomic transaction)
+ *  - Link staff & subjects, create assignments
+ *  - Combined classes
+ *  - Boards
+ *  - Notifications
+ *  - Teacher matrix refresh & DayInstance cache reset
+ *  - Finalize
  */
 
 const mongoose = require('mongoose');
@@ -78,7 +76,6 @@ function gridToSlotsObj(grid = [], className = '') {
 
 /**
  * Execute the 8-stage deployment pipeline for a TimetableCommit
- *
  * @param {string|Object} commitIdOrDoc - TimetableCommit document, _id, or trackId
  * @param {Object} [options]
  * @param {Object} [options.actor] - User initiating the deploy
@@ -90,7 +87,7 @@ function gridToSlotsObj(grid = [], className = '') {
 async function executeDeployPipeline(commitIdOrDoc, options = {}) {
   const { actor = {}, classGrids = {}, injectedFailure = null, autoApprove = false } = options;
 
-  // 1. Resolve commit document
+  // Resolve commit document
   let commit = null;
   if (typeof commitIdOrDoc === 'string') {
     commit = await M.TimetableCommit.findOne({
@@ -103,7 +100,7 @@ async function executeDeployPipeline(commitIdOrDoc, options = {}) {
     throw new Error('TimetableCommit record not found');
   }
 
-  // 2. Initialize DeployRun
+  // Initialize DeployRun
   const initialStages = [
     { key: 0, label: 'Gate', status: 'pending', retryable: false },
     { key: 1, label: 'Write', status: 'pending', retryable: false },
@@ -168,9 +165,9 @@ async function executeDeployPipeline(commitIdOrDoc, options = {}) {
     }
   }
 
-  // ─────────────────────────────────────────────────────────────
+  // ─
   // STAGE 0: GATE
-  // ─────────────────────────────────────────────────────────────
+  // ─
   updateStage(0, 'running');
   try {
     if (injectedFailure && injectedFailure.stage === 0) {
@@ -230,9 +227,9 @@ async function executeDeployPipeline(commitIdOrDoc, options = {}) {
     return { ok: false, stage: 0, error: err.message, commit, deployRun };
   }
 
-  // ─────────────────────────────────────────────────────────────
+  // ─
   // STAGE 1: WRITE (ATOMIC)
-  // ─────────────────────────────────────────────────────────────
+  // ─
   updateStage(1, 'running');
   let dbSession = null;
   try {
@@ -339,9 +336,9 @@ async function executeDeployPipeline(commitIdOrDoc, options = {}) {
     }
   }
 
-  // ─────────────────────────────────────────────────────────────
+  // ─
   // STAGES 2–6: Post-write idempotent steps (warnings if failed)
-  // ─────────────────────────────────────────────────────────────
+  // ─
   await runStage2_Assignments(commit, resolvedClassGrids, deployRun, injectedFailure);
   await runStage3_Combined(commit, resolvedClassGrids, deployRun, actor, injectedFailure);
   await runStage4_Boards(commit, resolvedClassGrids, deployRun, injectedFailure);
@@ -349,9 +346,9 @@ async function executeDeployPipeline(commitIdOrDoc, options = {}) {
   await runStage6_RefreshCache(commit, resolvedClassGrids, deployRun, injectedFailure);
   await runStage6b_SessionsSync(commit, resolvedClassGrids, deployRun, injectedFailure);
 
-  // ─────────────────────────────────────────────────────────────
+  // ─
   // STAGE 7: FINALIZE
-  // ─────────────────────────────────────────────────────────────
+  // ─
   await runStage7_Finalize(commit, deployRun, actor);
 
   return {
@@ -571,7 +568,7 @@ async function runStage5_Notify(commit, resolvedClassGrids, deployRun, actor, in
       const cls = await M.Class.findById(cId).lean();
       const className = cls?.name || 'Class';
 
-      // 1. Teachers notification
+      // Teachers notification
       const teacherIds = new Set();
       for (const s of grid) {
         if (s?.teacherId) teacherIds.add(String(s.teacherId));
@@ -598,7 +595,7 @@ async function runStage5_Notify(commit, resolvedClassGrids, deployRun, actor, in
         }
       }
 
-      // 2. Students notification
+      // Students notification
       const students = await M.Student.find({ classId: cId }).select('_id trackId fullName registerNo').lean();
       for (const st of students) {
         const dedupeKey = `${commit.trackId}:student:${st._id}`;
@@ -621,7 +618,7 @@ async function runStage5_Notify(commit, resolvedClassGrids, deployRun, actor, in
       }
     }
 
-    // 3. Sharee departments notification
+    // Sharee departments notification
     let supportingHodsNotified = 0;
     if (commit.workspaceId && M.WorkspaceShare) {
       try {
@@ -696,7 +693,7 @@ async function runStage6_RefreshCache(commit, resolvedClassGrids, deployRun, inj
       ]
     });
 
-    // Check future-dated overrides (§5.5, §10.4):
+    // Check future-dated overrides:
     // Overrides whose original slots no longer exist are listed for review in deploy report, never deleted.
     const overridesNeedingReview = [];
     if (M.Override && typeof M.Override.find === 'function') {
@@ -748,7 +745,7 @@ async function runStage6_RefreshCache(commit, resolvedClassGrids, deployRun, inj
   }
 }
 
-// ── Stage 6b: Sessions Sync Engine (Phase 8, Section 10.5) ──
+// ── Stage 6b: Sessions Sync Engine ──
 function isSessionStarted(sess, now = new Date()) {
   if (sess.startClass && sess.startClass.at) return true;
   if (!sess.start) return false;
@@ -818,13 +815,13 @@ async function runStage6b_SessionsSync(commit, resolvedClassGrids, deployRun, in
           const pNum = Number(sess.periodNumber);
           const isMarked = !!(sess.attendance?.savedAt || (sess.attendance?.total > 0 && sess.attendance?.present !== undefined));
 
-          // 1. Marked attendance (evidence) -> TOUCH NOTHING
+          // Marked attendance (evidence) -> TOUCH NOTHING
           if (isMarked) {
             syncReport.skippedMarked++;
             continue;
           }
 
-          // 2. Started, still unmarked -> tag timetableDrift: true
+          // Started, still unmarked -> tag timetableDrift: true
           if (isSessionStarted(sess)) {
             sess.timetableDrift = true;
             await sess.save();
@@ -838,7 +835,7 @@ async function runStage6b_SessionsSync(commit, resolvedClassGrids, deployRun, in
             continue;
           }
 
-          // 3. Active substitution or extra
+          // Active substitution or extra
           if (sess.source === 'substitution' || sess.source === 'extra') {
             const matchingSlot = newSlotsToday.find(s => {
               const startP = Number(s.period !== undefined ? s.period : (parseInt(String(s.periodCode || '').replace(/\D/g, ''), 10) || 1));
@@ -856,7 +853,7 @@ async function runStage6b_SessionsSync(commit, resolvedClassGrids, deployRun, in
             continue;
           }
 
-          // 4. Unstarted, unmarked
+          // Unstarted, unmarked
           const matchingSlot = newSlotsToday.find(s => {
             const startP = Number(s.period !== undefined ? s.period : (parseInt(String(s.periodCode || '').replace(/\D/g, ''), 10) || 1));
             const span = Math.max(1, Number(s.span || s.duration || 1));
@@ -895,7 +892,7 @@ async function runStage6b_SessionsSync(commit, resolvedClassGrids, deployRun, in
           }
         }
 
-        // 5. New slots today
+        // New slots today
         for (const slot of newSlotsToday) {
           const startP = Number(slot.period !== undefined ? slot.period : (parseInt(String(slot.periodCode || '').replace(/\D/g, ''), 10) || 1));
           const span = Math.max(1, Number(slot.span || slot.duration || 1));
@@ -1001,7 +998,6 @@ async function runStage7_Finalize(commit, deployRun, actor) {
 
 /**
  * Retry an individual retryable stage of a DeployRun
- *
  * @param {string|ObjectId} deployRunId
  * @param {number} stageKey
  * @param {Object} [actor]

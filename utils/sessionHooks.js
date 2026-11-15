@@ -6,7 +6,6 @@ const { getSettings } = require('./settingsCache');
 
 /**
  * Hook triggered when a teacher taps ▶ Start Class.
- *
  * @param {Object} params
  * @param {string} params.sessionId
  * @param {string} params.teacherTrackId
@@ -57,7 +56,6 @@ async function onStartClass({ sessionId, teacherTrackId, lat = null, lng = null,
 
 /**
  * Hook triggered whenever attendance is saved for a period.
- *
  * @param {Object} params
  * @param {string} params.classId
  * @param {string} params.date - YYYY-MM-DD

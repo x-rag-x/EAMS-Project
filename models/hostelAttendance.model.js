@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
 
-// ── 1. RollCall (Nightly roll-call session per block) ─────────────────────────
+// ── RollCall (Nightly roll-call session per block) ─
 const RollCallSchema = new mongoose.Schema({
   date: { type: String, required: true, trim: true }, // 'YYYY-MM-DD'
   blockId: { type: mongoose.Schema.Types.ObjectId, ref: 'Block', required: true },
@@ -31,7 +31,7 @@ const RollCallSchema = new mongoose.Schema({
 RollCallSchema.index({ date: 1, blockId: 1 }, { unique: true });
 RollCallSchema.index({ status: 1 });
 
-// ── 2. HostelAttendance (Resident roll-call record) ───────────────────────────
+// ── HostelAttendance (Resident roll-call record) ───
 const AttendanceHistorySchema = new mongoose.Schema({
   prevStatus: { type: String, required: true },
   newStatus: { type: String, required: true },

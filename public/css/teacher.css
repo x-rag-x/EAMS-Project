@@ -148,7 +148,7 @@
 .tbl tr:last-child td{border-bottom:none;}
 .tbl tr.pr td{background:rgba(76,175,80,.04);}
 .tbl tr.ab td{background:rgba(239,68,68,.03);}
-/* Attendance Toggle Buttons — High-class Animated Micro-interactions (§11, §8.1) */
+/* Attendance Toggle Buttons — High-class Animated Micro-interactions */
 .attog {
   display: inline-flex;
   gap: 6px;
@@ -1582,7 +1582,7 @@ textarea.fc2{resize:vertical;min-height:80px;}
 }
 
 
-/* ── HIGH-CLASS MOTION, TOKENS & INTERACTION SYSTEM (§11, §8.2) ── */
+/* ── HIGH-CLASS MOTION, TOKENS & INTERACTION SYSTEM ── */
 :root {
   --dur-fast: 120ms;
   --dur-base: 220ms;
@@ -1621,7 +1621,7 @@ button:active, .btn-pri:active, .btn-out:active, .btno:active, .sb-item:active, 
   100% { background-position: 0 0; }
 }
 
-/* Schedule Health Strip (§8.2) */
+/* Schedule Health Strip */
 .sched-health-strip {
   display: flex;
   align-items: center;
@@ -1665,7 +1665,7 @@ button:active, .btn-pri:active, .btn-out:active, .btno:active, .sb-item:active, 
 .sh-pill-sub-out { background: #faf5ff; color: #7e22ce; border: 1px solid #e9d5ff; }
 .sh-pill-room { background: #ecfeff; color: #0e7490; border: 1px solid #a5f3fc; }
 
-/* Live Roster Joins Animation (§8.2, §N4) */
+/* Live Roster Joins Animation */
 @keyframes liveJoinSlideIn {
   0% { opacity: 0; transform: translateY(-8px) scale(0.97); background-color: rgba(76, 175, 80, 0.22); }
   60% { background-color: rgba(76, 175, 80, 0.10); }
@@ -1686,7 +1686,7 @@ button:active, .btn-pri:active, .btn-out:active, .btno:active, .sb-item:active, 
   color: #15803d;
 }
 
-/* Faculty Leave Policy Meter (§8.2) */
+/* Faculty Leave Policy Meter */
 .policy-meter-wrap {
   background: #fff;
   border: 1px solid var(--br);
@@ -1733,7 +1733,7 @@ button:active, .btn-pri:active, .btn-out:active, .btno:active, .sb-item:active, 
 .pm-notice.warn { background: #fef3c7; color: #92400e; border: 1px solid #fde68a; }
 .pm-notice.info { background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; }
 
-/* Navigation Grouping Labels & Role Tools (§8.2, §10.1) */
+/* Navigation Grouping Labels & Role Tools */
 .sb-group-label {
   font-size:11px;
   font-weight: 700;
@@ -1758,7 +1758,7 @@ button:active, .btn-pri:active, .btn-out:active, .btno:active, .sb-item:active, 
   transform: rotate(-90deg);
 }
 
-/* My Class Register Badges & Forensic Register View (§8.2) */
+/* My Class Register Badges & Forensic Register View */
 .register-badge-safe { background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0; font-weight: 700; padding: 2px 8px; border-radius: 6px; font-size: 11px; display: inline-flex; align-items: center; gap: 4px; }
 .register-badge-condonation { background: #fffbeb; color: #b45309; border: 1px solid #fde68a; font-weight: 700; padding: 2px 8px; border-radius: 6px; font-size: 11px; display: inline-flex; align-items: center; gap: 4px; }
 .register-badge-defaulter { background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; font-weight: 700; padding: 2px 8px; border-radius: 6px; font-size: 11px; display: inline-flex; align-items: center; gap: 4px; }
@@ -1767,7 +1767,7 @@ button:active, .btn-pri:active, .btn-out:active, .btno:active, .sb-item:active, 
    AUDIT REDESIGN C1–C5 ENHANCEMENTS
    ───────────────────────────────────────────────────────────── */
 
-/* C1: Quick Slot Chips & 1-Tap Hero Card */
+/* Quick Slot Chips & 1-Tap Hero Card */
 .slot-hero-card {
   display: flex;
   align-items: center;
@@ -1838,7 +1838,7 @@ button:active, .btn-pri:active, .btn-out:active, .btno:active, .sb-item:active, 
   font-weight: 600;
 }
 
-/* C2: Button Method Cards, Animated Policy Banner & Disabled Reason Chips (§8.1, §11) */
+/* Button Method Cards, Animated Policy Banner & Disabled Reason Chips */
 button.att-method-card {
   appearance: none;
   font-family: inherit;
@@ -1908,7 +1908,7 @@ button.att-method-card {
   50% { opacity: 1; transform: scale(1.2); }
 }
 
-/* Animated Policy Alert Banner (§8.1) */
+/* Animated Policy Alert Banner */
 .att-policy-banner-animated {
   animation: slideDownFade 0.28s cubic-bezier(0.2, 0.8, 0.2, 1);
   box-shadow: 0 4px 14px rgba(220, 38, 38, 0.08);
@@ -1918,7 +1918,7 @@ button.att-method-card {
   100% { opacity: 1; transform: translateY(0); }
 }
 
-/* Auto-lock Countdown Chip Live Ticker (§8.1) */
+/* Auto-lock Countdown Chip Live Ticker */
 #att-lock-countdown {
   display: inline-flex;
   align-items: center;
@@ -1933,7 +1933,7 @@ button.att-method-card {
   50% { box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.25); }
 }
 
-/* C3: Attendance Sheet Sticky Dock, Counters, Undo & Sticky Save Bar */
+/* Attendance Sheet Sticky Dock, Counters, Undo & Sticky Save Bar */
 .att-sticky-dock {
   position: sticky;
   top: 0;
@@ -2016,7 +2016,7 @@ button.att-method-card {
   animation: pulseGlow 1.5s infinite;
 }
 
-/* C4: Dashboard Now and Next Hero & KPI Strip */
+/* Dashboard Now and Next Hero & KPI Strip */
 .now-next-hero {
   background: linear-gradient(135deg, #064e3b 0%, #047857 50%, #059669 100%);
   color: #ffffff;
@@ -2148,7 +2148,7 @@ button.att-method-card {
   margin-top: 3px;
 }
 
-/* C5: "My Classes" Tabbed Reports */
+/* "My Classes" Tabbed Reports */
 .classes-tabs-bar {
   display: flex;
   gap: 6px;
@@ -2209,7 +2209,7 @@ button.att-method-card {
 }
 
 
-/* ══ C9: UNIFIED BUTTON & FORM DESIGN SYSTEM ══ */
+/* ══ UNIFIED BUTTON & FORM DESIGN SYSTEM ══ */
 :root {
   --btn-radius: 10px;
   --btn-h-sm: 36px;
@@ -2333,7 +2333,7 @@ button.att-method-card {
   background: rgba(0, 0, 0, 0.05) !important;
 }
 
-/* ══ C7: MODERN NOTIFICATIONS DRAWER ══ */
+/* ══ MODERN NOTIFICATIONS DRAWER ══ */
 .ndrop {
   position: absolute;
   top: 48px;
@@ -2451,7 +2451,7 @@ button.att-method-card {
   flex-shrink: 0;
 }
 
-/* ══ C6: APPROVALS INBOX & SHARED CARDS ══ */
+/* ══ APPROVALS INBOX & SHARED CARDS ══ */
 .appr-triage-hint {
   display: flex;
   align-items: center;
@@ -2669,7 +2669,7 @@ button.att-method-card {
   }
 }
 
-/* ══ C8: SKELETONS, EMPTY & ERROR STATES ══ */
+/* ══ SKELETONS, EMPTY & ERROR STATES ══ */
 @keyframes uiSkeletonShimmer {
   0% { background-position: -200% 0; }
   100% { background-position: 200% 0; }
@@ -2914,7 +2914,7 @@ button.att-method-card {
   background: var(--gM);
 }
 
-/* Reduced Motion Compliance (§11) */
+/* Reduced Motion Compliance */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;

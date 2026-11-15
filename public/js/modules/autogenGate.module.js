@@ -1,7 +1,6 @@
 /**
  * public/js/modules/autogenGate.module.js
- *
- * AutoGen Verification Gate Modal & Change Request Engine (Phase 4):
+ * AutoGen Verification Gate Modal & Change Request Engine:
  * - Intercepts Auto-Generate button clicks with curriculum verification.
  * - Displays canonical allocation summary table with SHA-256 hash.
  * - Surfaces validation alerts (unassigned lab rooms, hours exceeding slots).

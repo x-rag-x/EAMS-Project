@@ -13,7 +13,7 @@
 </head>
 <body>
 
-<!-- Page loader overlay shown until initial database sync completes -->
+
   <div id="page-loader">
     <div class="loader-brand">🌿 EAMS Admin</div>
     <div class="three-body">
@@ -39,10 +39,10 @@
 
 <div class="sb-overlay" id="sb-overlay" onclick="toggleSidebar()"></div>
 
-<!-- SIDEBAR TOGGLE -->
+
 <button class="sb-toggle-btn" id="sbtoggle" onclick="toggleSidebar()" title="Toggle"><re-icon icon="x" size="16"></re-icon></button>
 
-<!-- SIDEBAR -->
+
 <nav class="sb">
   <div class="sb-logo">
     <div class="sb-logo-mark"><re-icon icon="calendar"></re-icon></div>
@@ -82,7 +82,7 @@
   </div>
 </nav>
 
-<!-- MAIN -->
+
 <div class="mc">
   <div class="topbar">
     <div class="topbar-left">
@@ -97,7 +97,7 @@
     </div>
   </div>
 
-  <!-- PAGE: OVERVIEW -->
+  
   <div class="pg act" id="pg-overview">
     <div class="page-hd">
       <div>
@@ -107,7 +107,7 @@
       <button class="btn-pri" onclick="nav('calendar')">Edit Calendar <re-icon icon="arrow-right"></re-icon></button>
     </div>
 
-    <!-- Stats row -->
+    
     <div id="ov-stats-bar" style="display:none;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px;">
       <div class="ov-stat"><div class="ov-stat-dot" style="background:var(--gK);"></div><div><div class="ov-stat-num" id="ov-working">—</div><div class="ov-stat-label">Working Days</div></div></div>
       <div class="ov-stat"><div class="ov-stat-dot" style="background:#dc2626;"></div><div><div class="ov-stat-num" id="ov-leave">—</div><div class="ov-stat-label">Leave</div></div></div>
@@ -116,7 +116,7 @@
     </div>
 
     <div style="display:grid;grid-template-columns:2fr 1fr;gap:16px;">
-      <!-- Read-only calendar -->
+      
       <div class="card">
         <div class="card-hd">
           <div class="card-title" id="ov-month-label">—</div>
@@ -139,7 +139,7 @@
         </div>
       </div>
 
-      <!-- Upcoming exams -->
+      
       <div>
         <div class="card">
           <div class="card-hd">
@@ -154,7 +154,7 @@
     </div>
   </div>
 
-  <!-- PAGE: COLLEGE DAYS -->
+  
   <div class="pg" id="pg-calendar">
     <div class="page-hd">
       <div>
@@ -169,10 +169,10 @@
       </div>
     </div>
 
-    <!-- Controls -->
+    
     <div style="padding:15px 15px 20px;">
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:20px;">
-        <!-- Left: Month Name & Navigation -->
+        
         <div style="display:flex;align-items:center;gap:12px;">
           <div class="page-title" id="month-label" style="font-size:28px;">—</div>
           <div style="display:flex;gap:8px;">
@@ -181,7 +181,7 @@
           </div>
         </div>
         
-        <!-- Right: Modern Filters -->
+        
         <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
           <div class="fg" style="min-width:140px;">
             <label class="fl">Month</label>
@@ -208,7 +208,7 @@
       </div>
     </div>
 
-    <!-- Stats -->
+    
     <div id="cal-stats-bar" style="display:none;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:12px;">
       <div class="ov-stat"><div class="ov-stat-dot" style="background:var(--gK);"></div><div><div class="ov-stat-num" id="cs-working">—</div><div class="ov-stat-label">Working</div></div></div>
       <div class="ov-stat"><div class="ov-stat-dot" style="background:#dc2626;"></div><div><div class="ov-stat-num" id="cs-leave">—</div><div class="ov-stat-label">Leave</div></div></div>
@@ -216,7 +216,7 @@
       <div class="ov-stat"><div class="ov-stat-dot" style="background:var(--tdi);"></div><div><div class="ov-stat-num" id="cs-total">—</div><div class="ov-stat-label">Total</div></div></div>
     </div>
 
-    <!-- Calendar grid -->
+    
     <div class="card">
       <div class="card-hd">
         <div style="display:flex;align-items:center;gap:8px;">
@@ -250,7 +250,7 @@
     <div style="margin-top:8px;font-size:10.5px;color:var(--tdi);text-align:center;"><re-icon icon="lightbulb"></re-icon> Default: Sundays = Leave &nbsp;|&nbsp; 1st &amp; 3rd Saturdays = Leave &nbsp;|&nbsp; 2nd &amp; 4th Saturdays = Working &nbsp;|&nbsp; Click any day to edit.</div>
   </div>
 
-  <!-- PAGE: EXAM -->
+  
   <div class="pg" id="pg-exam">
     <div class="page-hd">
       <div>
@@ -264,7 +264,7 @@
       <button class="tab-btn"     id="est-att-btn"    onclick="examSubTab('attendance')"><re-icon icon="check-circle" size="14"></re-icon> Exam Attendance</button>
     </div>
 
-    <!-- EXAM DATES -->
+    
     <div id="est-dates-panel">
       <div class="card" style="margin-bottom:12px;">
         <div class="card-body-p">
@@ -319,10 +319,10 @@
       </div>
     </div>
 
-    <!-- EXAM ATTENDANCE -->
+    
     <div id="est-att-panel" style="display:none;">
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
-        <!-- Left: form -->
+        
         <div style="display:flex;flex-direction:column;gap:12px;">
           <div class="card">
             <div class="card-hd" style="padding-bottom:8px;"><div class="card-title"><re-icon icon="tag"></re-icon> Step 1 — Select Exam &amp; Hall</div></div>
@@ -379,7 +379,7 @@
             5. Toggle Absent for no-shows.<br>6. Submit when done.
           </div>
         </div>
-        <!-- Right: student list -->
+        
         <div>
           <div class="card" style="height:100%;display:flex;flex-direction:column;">
             <div class="card-hd">
@@ -402,7 +402,7 @@
           </div>
         </div>
       </div>
-      <!-- Hall summary -->
+      
       <div class="card" style="margin-top:14px;">
         <div class="card-hd">
           <div class="card-title"><re-icon icon="building2"></re-icon> Today's Hall Submissions</div>
@@ -418,7 +418,7 @@
     </div>
   </div>
 
-  <!-- PAGE: YEARS -->
+  
   <div class="pg" id="pg-years">
     <div class="page-hd">
       <div>
@@ -428,7 +428,7 @@
       <button class="btn-pri" onclick="openYearModal(null)">+ Add Academic Year</button>
     </div>
 
-    <!-- Current Year -->
+    
     <div class="card" style="margin-bottom:16px;">
       <div class="card-hd">
         <div class="card-title"><re-icon icon="flag"></re-icon> Current Academic Year</div>
@@ -444,7 +444,7 @@
       </div>
     </div>
 
-    <!-- Curriculum Regulations (Change 2) -->
+    
     <div class="card" style="margin-bottom:16px;">
       <div class="card-hd">
         <div>
@@ -467,7 +467,7 @@
       </div>
     </div>
 
-    <!-- All Years -->
+    
     <div class="card">
       <div class="card-hd">
         <div class="card-title"><re-icon icon="clipboard-list"></re-icon> All Academic Years</div>
@@ -481,7 +481,7 @@
     </div>
   </div>
 
-  <!-- PAGE: SUBJECTS MANAGER -->
+  
   <div class="pg" id="pg-subjects">
     <div class="page-hd">
       <div>
@@ -494,7 +494,7 @@
       </div>
     </div>
 
-    <!-- Filter / Selection Ribbon -->
+    
     <div class="card sm-filter-card" style="margin-bottom:16px;">
       <div class="sm-filter-ribbon">
         <div class="sm-filter-field">
@@ -537,7 +537,7 @@
       </div>
     </div>
 
-    <!-- Active Set Editor & Details Container -->
+    
     <div id="sm-active-set-container">
       <div style="text-align:center;padding:48px;background:#fff;border-radius:12px;border:1px dashed var(--br);color:var(--tmu);">
         Select parameters above or click "+ New Semester Set" to configure courses for a semester.
@@ -545,7 +545,7 @@
     </div>
   </div>
 
-  <!-- PAGE: SETTINGS -->
+  
   <div class="pg" id="pg-settings">
     <div class="page-hd">
       <div>
@@ -565,11 +565,9 @@
       </div>
     </div>
   </div>
-</div><!-- /mc -->
-</div><!-- /app-shell -->
+</div>
+</div>
 
-
-<!-- MODAL: DAY DETAIL -->
 <div class="modal-bg" id="day-modal-bg" onclick="if(event.target===this)closeModal('day-modal-bg')">
   <div class="modal">
     <div class="modal-hd">
@@ -625,7 +623,7 @@
   </div>
 </div>
 
-<!-- MODAL: ADD / EDIT EXAM -->
+
 <div class="modal-bg" id="exam-modal-bg" onclick="if(event.target===this)closeModal('exam-modal-bg')">
   <div class="modal modal-lg">
     <div class="modal-hd">
@@ -688,7 +686,7 @@
   </div>
 </div>
 
-<!-- MODAL: VIEW HALL ATTENDANCE -->
+
 <div class="modal-bg" id="view-att-bg" onclick="if(event.target===this)closeModal('view-att-bg')">
   <div class="modal modal-lg">
     <div class="modal-hd">
@@ -712,7 +710,7 @@
   </div>
 </div>
 
-<!-- MODAL: GRANT MANAGE ACCESS -->
+
 <div class="modal-bg" id="admin-modal-bg" onclick="if(event.target===this)closeModal('admin-modal-bg')">
   <div class="modal">
     <div class="modal-hd">
@@ -732,7 +730,7 @@
       </select>
     </div>
 
-    <!-- Selected Faculty Preview Card -->
+    
     <div id="am-teacher-preview" style="display:none;background:var(--bg3);border:1px solid var(--br);border-radius:8px;padding:12px;margin-bottom:14px;">
       <div style="font-size:11px;font-weight:700;color:var(--tmu);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px;">Faculty Details</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12px;">
@@ -764,7 +762,7 @@
   </div>
 </div>
 
-<!-- MODAL: ADD / EDIT ACADEMIC YEAR -->
+
 <div class="modal-bg" id="year-modal-bg" onclick="if(event.target===this)closeModal('year-modal-bg')">
   <div class="modal modal-lg">
     <div class="modal-hd">
@@ -776,13 +774,13 @@
     </div>
     <input type="hidden" id="ym-id">
 
-    <!-- Auto-fill bar (new years only) -->
+    
     <div class="ym-autofill-bar" id="ym-autofill-bar" style="display:none;">
       <div style="font-size:11.5px;color:#5b21b6;line-height:1.5;"><re-icon icon="sparkles"></re-icon> <strong>Auto-fill available</strong> — pull last year's batches forward, advanced by one semester, plus a fresh Year I intake.</div>
       <button type="button" class="magic-btn" onclick="autoFillFromCurrentYear()" style="white-space:nowrap;"><re-icon icon="sparkles"></re-icon> Auto-fill</button>
     </div>
 
-    <!-- Academic Year & Current Status -->
+    
     <div style="display:grid;grid-template-columns:1.5fr 1fr;gap:12px;margin-bottom:14px;">
       <div class="fg">
         <label class="fl">Academic Year <span style="color:#dc2626;">*</span></label>
@@ -799,7 +797,7 @@
       </div>
     </div>
 
-    <!-- Batches Section -->
+    
     <div style="border-top:1px solid var(--brl);padding-top:14px;margin-bottom:12px;">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px;">
         <div>
@@ -818,11 +816,11 @@
       </div>
 
       <div id="ym-batch-rows" style="display:flex;flex-direction:column;gap:8px;">
-        <!-- Batch rows will be added here dynamically -->
+        
       </div>
     </div>
 
-    <!-- Semester Dates Section -->
+    
     <div style="border-top:1px solid var(--brl);padding-top:14px;margin-bottom:12px;">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px;">
         <div>
@@ -833,7 +831,7 @@
       </div>
 
       <div id="ym-semester-rows" style="display:flex;flex-direction:column;gap:8px;">
-        <!-- Semester date rows will be added here dynamically -->
+        
       </div>
     </div>
 
@@ -849,7 +847,7 @@
   </div>
 </div>
 
-<!-- MODAL: EDIT BATCH -->
+
 <div class="modal-bg" id="batch-modal-bg" onclick="if(event.target===this)closeModal('batch-modal-bg')">
   <div class="modal">
     <div class="modal-hd">
@@ -891,7 +889,7 @@
   </div>
 </div>
 
-<!-- MODAL: DELETE MONTH CONFIRMATION -->
+
 <div class="modal-bg" id="delete-month-modal-bg" onclick="if(event.target===this)closeModal('delete-month-modal-bg')">
   <div class="modal" style="max-width:480px;">
     <div class="modal-hd">
@@ -916,7 +914,7 @@
   </div>
 </div>
 
-<!-- MODAL: ADD / EDIT REGULATION -->
+
 <div class="modal-bg" id="reg-modal-bg" onclick="if(event.target===this)closeModal('reg-modal-bg')">
   <div class="modal" style="max-width:480px;">
     <div class="modal-hd">
@@ -961,7 +959,7 @@
 <script src="js/core/api.js"></script>
 <script src="js/pages/manage.page.js?v=20261028b"></script>
 
-  <!-- MODAL: NEW SEMESTER SUBJECT SET -->
+  
   <div class="modal-bg" id="modal-sm-new-set">
     <div class="modal modal-sm" style="max-width:480px;background:#fff;border-radius:12px;padding:24px;">
       <div class="modal-hd" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
@@ -1013,7 +1011,7 @@
     </div>
   </div>
 
-  <!-- MODAL: ADD SUBJECT TO SET -->
+  
   <div class="modal-bg" id="modal-sm-add-subj">
     <div class="modal modal-sm" style="max-width:540px;background:#fff;border-radius:12px;padding:24px;">
       <div class="modal-hd" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
@@ -1081,7 +1079,7 @@
     </div>
   </div>
 
-  <!-- MODAL: AMEND SET -->
+  
   <div class="modal-bg" id="modal-sm-amend">
     <div class="modal modal-sm" style="max-width:440px;background:#fff;border-radius:12px;padding:24px;">
       <div class="modal-hd" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
@@ -1102,7 +1100,7 @@
     </div>
   </div>
 
-  <!-- MODAL: CLONE SET -->
+  
   <div class="modal-bg" id="modal-sm-clone">
     <div class="modal modal-sm" style="max-width:460px;background:#fff;border-radius:12px;padding:24px;">
       <div class="modal-hd" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">

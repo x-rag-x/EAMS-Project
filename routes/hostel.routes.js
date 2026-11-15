@@ -32,7 +32,7 @@ function getTodayIST() {
 // All hostel routes require authentication, portal enablement guard, and hostel scope resolution
 router.use(authMiddleware, checkHostelPortalGuard, hostelScopeMiddleware);
 
-// ── 1. SETUP ENDPOINTS (Admin Only) ──────────────────────────────────────────
+// ── SETUP ENDPOINTS (Admin Only) ──
 
 // List Hostels
 router.get('/setup/hostels', async (req, res) => {
@@ -231,7 +231,7 @@ router.get('/setup/wardens', async (req, res) => {
   }
 });
 
-// ── 2. ROOM & ALLOCATION ENDPOINTS ───────────────────────────────────────────
+// ── ROOM & ALLOCATION ENDPOINTS ───
 
 // Free Rooms & Beds
 router.get('/rooms/free', async (req, res) => {
@@ -571,7 +571,7 @@ router.post('/allocations/move', async (req, res) => {
   }
 });
 
-// ── 3. ROLL CALL LIFECYCLE & SHEET ENDPOINTS ─────────────────────────────────
+// ── ROLL CALL LIFECYCLE & SHEET ENDPOINTS ─
 
 // Get or Prepare Tonight's Roll Call for Warden's Block
 router.get('/rollcalls/today', async (req, res) => {
@@ -989,7 +989,7 @@ router.post('/rollcalls/:id/parent-call', async (req, res) => {
   }
 });
 
-// ── 4. STUDENT SELF CHECK-IN & MOVEMENT ───────────────────────────────────────
+// ── STUDENT SELF CHECK-IN & MOVEMENT ───
 
 // Student Self Check-In via Rotating QR
 router.post('/checkin', async (req, res) => {
@@ -1001,13 +1001,13 @@ router.post('/checkin', async (req, res) => {
       return res.status(400).json({ error: 'Token is required' });
     }
 
-    // 1. Get student & current allocation
+    // Get student & current allocation
     const student = await M.Student.findOne({ trackId: studentTrackId }).populate('blockId').lean();
     if (!student || student.residency !== 'hostel' || !student.blockId) {
       return res.status(403).json({ error: 'You are not registered as an active hostel resident.' });
     }
 
-    // 2. Token parts
+    // Token parts
     const parts = token.split('.');
     if (parts.length !== 3) return res.status(400).json({ error: 'Invalid QR token structure' });
     const rollCallId = parts[0];
@@ -1018,18 +1018,18 @@ router.post('/checkin', async (req, res) => {
       return res.status(400).json({ error: `Roll call is ${rollCall.status}. Check-in is not open.` });
     }
 
-    // 3. Verify block match
+    // Verify block match
     if (String(rollCall.blockId._id || rollCall.blockId) !== String(student.blockId._id || student.blockId)) {
       return res.status(403).json({ error: 'QR does not belong to your assigned block.' });
     }
 
-    // 4. Verify HMAC token
+    // Verify HMAC token
     const tokenCheck = verifyQRToken(token, rollCall.qrSecret, 15);
     if (!tokenCheck.valid) {
       return res.status(400).json({ error: tokenCheck.error || 'Token expired or invalid' });
     }
 
-    // 5. Device Binding Check
+    // Device Binding Check
     if (deviceId) {
       const binding = await M.DeviceBinding.findOne({ studentTrackId, deviceId, active: true });
       if (!binding) {
@@ -1051,7 +1051,7 @@ router.post('/checkin', async (req, res) => {
       }
     }
 
-    // 6. Geofence verification
+    // Geofence verification
     const blockDoc = await M.Block.findById(student.blockId).populate('hostelId').lean();
     if (blockDoc && blockDoc.hostelId && blockDoc.hostelId.geofence && blockDoc.hostelId.geofence.lat) {
       const fence = blockDoc.hostelId.geofence;
@@ -1063,7 +1063,7 @@ router.post('/checkin', async (req, res) => {
       }
     }
 
-    // 7. Record Attendance
+    // Record Attendance
     const today = rollCall.date;
     const existingRec = await M.HostelAttendance.findOne({ rollCallId: rollCall._id, studentTrackId });
     if (existingRec && existingRec.locked) {
@@ -1258,7 +1258,7 @@ router.post('/devices/:id/approve', async (req, res) => {
   }
 });
 
-// ── 5. LEAVES & OUTINGS ENDPOINTS ─────────────────────────────────────────────
+// ── LEAVES & OUTINGS ENDPOINTS ─
 
 // Apply for Outing / Home Leave
 router.post('/leaves', async (req, res) => {
@@ -1281,13 +1281,13 @@ router.post('/leaves', async (req, res) => {
 
     // Smart checks for Local Outing
     if (type === 'outing') {
-      // 1. Same day check
+      // Same day check
       const isSameDay = fromDate.toDateString() === toDate.toDateString();
-      // 2. Before curfew check (21:00)
+      // Before curfew check (21:00)
       const toHour = toDate.getHours();
       const beforeCurfew = toHour < 21 || (toHour === 21 && toDate.getMinutes() === 0);
 
-      // 3. Weekly quota check
+      // Weekly quota check
       const oneWeekAgo = new Date(Date.now() - 7 * 86400000);
       const pastOutingsCount = await M.HostelLeave.countDocuments({
         studentTrackId,
@@ -1475,7 +1475,7 @@ router.post('/leaves/:id/reject', async (req, res) => {
   }
 });
 
-// ── 6. REPORTS & SNAPSHOTS ───────────────────────────────────────────────────
+// ── REPORTS & SNAPSHOTS ───
 
 // Night Report (07:00 summary)
 router.get('/reports/night', async (req, res) => {
@@ -1517,7 +1517,7 @@ router.get('/reports/night', async (req, res) => {
   }
 });
 
-// Controller / Principal Hostel Snapshot (§10.3)
+// Controller / Principal Hostel Snapshot
 router.get('/summary', async (req, res) => {
   try {
     const today = getTodayIST();

@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 
 /**
- * AccessRequest Model (§4.6, §10, R7.1)
+ * AccessRequest Model
  * Formal approval workflow for sub-admin privileges requested by Super Admins or Staff.
  */
 const GrantItemSchema = new mongoose.Schema({

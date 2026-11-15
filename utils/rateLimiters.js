@@ -12,7 +12,7 @@ const authLimiter = rateLimit({
 });
 
 const deleteAuthLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
+  windowMs: 15 * 60 * 1000, // minutes
   max: 5,
   message: { error: 'Too many delete verification attempts. Please try again after 15 minutes.' },
   standardHeaders: true,
@@ -21,7 +21,7 @@ const deleteAuthLimiter = rateLimit({
 
 // Attendance marking limiters: keyed per authenticated user trackId, with high-ceiling IP backstops for campus Wi-Fi / NAT
 const liveSessionMarkLimiter = rateLimit({
-  windowMs: 10 * 60 * 1000, // 10 minutes
+  windowMs: 10 * 60 * 1000, // minutes
   max: 10,
   keyGenerator: (req) => req.user?.trackId || req.user?._id?.toString() || req.ip,
   validate: { keyGeneratorIpFallback: false },
@@ -32,7 +32,7 @@ const liveSessionMarkLimiter = rateLimit({
 
 // High per-IP ceiling backstop to accommodate entire classrooms/lecture halls sharing one NAT IP
 const liveSessionMarkIpLimiter = rateLimit({
-  windowMs: 10 * 60 * 1000, // 10 minutes
+  windowMs: 10 * 60 * 1000, // minutes
   max: 1000,
   message: { error: 'Too many attendance marking attempts from this network. Please try again after 10 minutes.' },
   standardHeaders: true,
@@ -40,7 +40,7 @@ const liveSessionMarkIpLimiter = rateLimit({
 });
 
 const criticalDeleteLimiter = rateLimit({
-  windowMs: 30 * 60 * 1000, // 30 minutes
+  windowMs: 30 * 60 * 1000, // minutes
   max: 2,
   message: { error: 'Too many bulk deletion requests. Please try again later.' },
   standardHeaders: true,
@@ -48,7 +48,7 @@ const criticalDeleteLimiter = rateLimit({
 });
 
 const attendanceClearLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000, // 60 minutes
+  windowMs: 60 * 60 * 1000, // minutes
   max: 2,
   keyGenerator: (req) => req.user?.trackId || req.user?._id?.toString() || req.ip,
   validate: { keyGeneratorIpFallback: false },
@@ -58,7 +58,7 @@ const attendanceClearLimiter = rateLimit({
 });
 
 const qrAttendanceLimiter = rateLimit({
-  windowMs: 5 * 60 * 1000, // 5 minutes
+  windowMs: 5 * 60 * 1000, // minutes
   max: 15,
   keyGenerator: (req) => req.user?.trackId || req.user?._id?.toString() || req.ip,
   validate: { keyGeneratorIpFallback: false },
@@ -69,7 +69,7 @@ const qrAttendanceLimiter = rateLimit({
 
 // High per-IP ceiling backstop for QR scans across campus Wi-Fi
 const qrAttendanceIpLimiter = rateLimit({
-  windowMs: 5 * 60 * 1000, // 5 minutes
+  windowMs: 5 * 60 * 1000, // minutes
   max: 1000,
   message: { error: 'Too many QR attendance requests from this network. Please wait a moment.' },
   standardHeaders: true,
@@ -77,7 +77,7 @@ const qrAttendanceIpLimiter = rateLimit({
 });
 
 const attendanceMarkLimiter = rateLimit({
-  windowMs: 5 * 60 * 1000, // 5 minutes
+  windowMs: 5 * 60 * 1000, // minutes
   max: 60,
   keyGenerator: (req) => req.user?.trackId || req.user?._id?.toString() || req.ip,
   validate: { keyGeneratorIpFallback: false },
@@ -88,7 +88,7 @@ const attendanceMarkLimiter = rateLimit({
 
 // High per-IP ceiling backstop for teacher submissions
 const attendanceMarkIpLimiter = rateLimit({
-  windowMs: 5 * 60 * 1000, // 5 minutes
+  windowMs: 5 * 60 * 1000, // minutes
   max: 1000,
   message: { error: 'Too many attendance marking requests from this network. Please slow down.' },
   standardHeaders: true,
@@ -96,7 +96,7 @@ const attendanceMarkIpLimiter = rateLimit({
 });
 
 const attendanceUpdateLimiter = rateLimit({
-  windowMs: 5 * 60 * 1000, // 5 minutes
+  windowMs: 5 * 60 * 1000, // minutes
   max: 60,
   keyGenerator: (req) => req.user?.trackId || req.user?._id?.toString() || req.ip,
   validate: { keyGeneratorIpFallback: false },
@@ -107,7 +107,7 @@ const attendanceUpdateLimiter = rateLimit({
 
 // High per-IP ceiling backstop for attendance updates
 const attendanceUpdateIpLimiter = rateLimit({
-  windowMs: 5 * 60 * 1000, // 5 minutes
+  windowMs: 5 * 60 * 1000, // minutes
   max: 1000,
   message: { error: 'Too many attendance update requests from this network. Please slow down.' },
   standardHeaders: true,
@@ -115,7 +115,7 @@ const attendanceUpdateIpLimiter = rateLimit({
 });
 
 const boardHandshakeLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
+  windowMs: 15 * 60 * 1000, // minutes
   max: 10,
   message: { error: 'Too many handshake attempts. Please try again later.' },
   standardHeaders: true,
@@ -124,7 +124,7 @@ const boardHandshakeLimiter = rateLimit({
 
 // S6.3 / Proposal D1: skip successful requests, 30 failed / 15 min per IP
 const loginLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
+  windowMs: 15 * 60 * 1000, // minutes
   max: 30,
   skipSuccessfulRequests: true,
   skip: () => process.env.NODE_ENV === 'development',
@@ -135,7 +135,7 @@ const loginLimiter = rateLimit({
 
 // S6.3 / Proposal D1: 10 failed / 15 min per username
 const loginUsernameLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
+  windowMs: 15 * 60 * 1000, // minutes
   max: 10,
   skipSuccessfulRequests: true,
   skip: () => process.env.NODE_ENV === 'development',
@@ -149,10 +149,10 @@ const loginUsernameLimiter = rateLimit({
   legacyHeaders: false,
 });
 
-// Device Registration & Trust rate limiters (§5, T1.6)
+// Device Registration & Trust rate limiters
 const deviceTicketGenerateLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 30, // 30 / 15 min per advisor
+  windowMs: 15 * 60 * 1000, // minutes
+  max: 30, // / 15 min per advisor
   skip: () => process.env.NODE_ENV === 'development',
   keyGenerator: (req) => req.user?.trackId || req.user?._id?.toString() || req.ip,
   validate: { keyGeneratorIpFallback: false },
@@ -162,8 +162,8 @@ const deviceTicketGenerateLimiter = rateLimit({
 });
 
 const deviceClaimIpLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 10, // 10 / 15 min per IP
+  windowMs: 15 * 60 * 1000, // minutes
+  max: 10, // / 15 min per IP
   skip: () => process.env.NODE_ENV === 'development',
   message: { error: 'Too many registration claim attempts from this IP. Please wait 15 minutes.' },
   standardHeaders: true,
@@ -171,7 +171,7 @@ const deviceClaimIpLimiter = rateLimit({
 });
 
 const deviceVerifyLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
+  windowMs: 15 * 60 * 1000, // minutes
   max: 5,
   skip: () => process.env.NODE_ENV === 'development',
   keyGenerator: (req) => req.params?.id || req.body?.ticketId || req.ip,
@@ -182,8 +182,8 @@ const deviceVerifyLimiter = rateLimit({
 });
 
 const deviceReplacementLimiter = rateLimit({
-  windowMs: 24 * 60 * 60 * 1000, // 24 hours
-  max: 3, // 3 / day per student
+  windowMs: 24 * 60 * 60 * 1000, // hours
+  max: 3, // / day per student
   skip: () => process.env.NODE_ENV === 'development',
   keyGenerator: (req) => req.user?.trackId || req.user?._id?.toString() || req.ip,
   validate: { keyGeneratorIpFallback: false },
@@ -193,8 +193,8 @@ const deviceReplacementLimiter = rateLimit({
 });
 
 const registryExportLimiter = rateLimit({
-  windowMs: 5 * 60 * 1000, // 5 minutes
-  max: 30, // 30 exports per 5 minutes per user/IP
+  windowMs: 5 * 60 * 1000, // minutes
+  max: 30, // exports per 5 minutes per user/IP
   skip: () => process.env.NODE_ENV === 'development',
   keyGenerator: (req) => req.user?.trackId || req.user?._id?.toString() || req.ip,
   validate: { keyGeneratorIpFallback: false },
@@ -204,7 +204,7 @@ const registryExportLimiter = rateLimit({
 });
 
 const repShareRequestLimiter = rateLimit({
-  windowMs: 5 * 60 * 1000, // 5 minutes
+  windowMs: 5 * 60 * 1000, // minutes
   max: 30,
   keyGenerator: (req) => req.user?.trackId || req.user?._id?.toString() || req.ip,
   validate: { keyGeneratorIpFallback: false },
@@ -214,7 +214,7 @@ const repShareRequestLimiter = rateLimit({
 });
 
 const repShareSubmitLimiter = rateLimit({
-  windowMs: 5 * 60 * 1000, // 5 minutes
+  windowMs: 5 * 60 * 1000, // minutes
   max: 20,
   keyGenerator: (req) => req.user?.trackId || req.user?._id?.toString() || req.ip,
   validate: { keyGeneratorIpFallback: false },
@@ -224,8 +224,8 @@ const repShareSubmitLimiter = rateLimit({
 });
 
 const publicSettingsLimiter = rateLimit({
-  windowMs: 1 * 60 * 1000, // 1 minute
-  max: 60, // 60 requests per minute per IP
+  windowMs: 1 * 60 * 1000, // minute
+  max: 60, // requests per minute per IP
   skip: () => process.env.NODE_ENV === 'development',
   message: { error: 'Too many settings requests from this IP. Please try again in a minute.' },
   standardHeaders: true,
@@ -234,7 +234,7 @@ const publicSettingsLimiter = rateLimit({
 
 // Leave, OD, Files, Participation, and Trust Rate Limiters (Audit S15)
 const leaveApplyLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
+  windowMs: 15 * 60 * 1000, // minutes
   max: 20,
   skip: () => process.env.NODE_ENV === 'development',
   keyGenerator: (req) => req.user?.trackId || req.user?._id?.toString() || req.ip,
@@ -245,7 +245,7 @@ const leaveApplyLimiter = rateLimit({
 });
 
 const odCreateLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
+  windowMs: 15 * 60 * 1000, // minutes
   max: 20,
   skip: () => process.env.NODE_ENV === 'development',
   keyGenerator: (req) => req.user?.trackId || req.user?._id?.toString() || req.ip,
@@ -256,7 +256,7 @@ const odCreateLimiter = rateLimit({
 });
 
 const odEventCreateLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
+  windowMs: 15 * 60 * 1000, // minutes
   max: 20,
   skip: () => process.env.NODE_ENV === 'development',
   keyGenerator: (req) => req.user?.trackId || req.user?._id?.toString() || req.ip,
@@ -267,7 +267,7 @@ const odEventCreateLimiter = rateLimit({
 });
 
 const fileUploadLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
+  windowMs: 15 * 60 * 1000, // minutes
   max: 30,
   skip: () => process.env.NODE_ENV === 'development',
   keyGenerator: (req) => req.user?.trackId || req.user?._id?.toString() || req.ip,
@@ -278,7 +278,7 @@ const fileUploadLimiter = rateLimit({
 });
 
 const fileStreamLimiter = rateLimit({
-  windowMs: 5 * 60 * 1000, // 5 minutes
+  windowMs: 5 * 60 * 1000, // minutes
   max: 100,
   skip: () => process.env.NODE_ENV === 'development',
   keyGenerator: (req) => req.user?.trackId || req.user?._id?.toString() || req.ip,
@@ -289,7 +289,7 @@ const fileStreamLimiter = rateLimit({
 });
 
 const trustActionLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
+  windowMs: 15 * 60 * 1000, // minutes
   max: 30,
   skip: () => process.env.NODE_ENV === 'development',
   keyGenerator: (req) => req.user?.trackId || req.user?._id?.toString() || req.ip,
@@ -300,7 +300,7 @@ const trustActionLimiter = rateLimit({
 });
 
 const participationLimiter = rateLimit({
-  windowMs: 5 * 60 * 1000, // 5 minutes
+  windowMs: 5 * 60 * 1000, // minutes
   max: 50,
   skip: () => process.env.NODE_ENV === 'development',
   keyGenerator: (req) => req.user?.trackId || req.user?._id?.toString() || req.ip,

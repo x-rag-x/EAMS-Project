@@ -1,6 +1,5 @@
 /**
  * services/timetableDiff.js
- *
  * Generalised, span-aware diffing between two timetable grids.
  * Used by compare, submit, the approval screen, deploy notifications, and history.
  */
@@ -91,7 +90,6 @@ function getSlotChanges(before, after) {
 
 /**
  * Diff two timetable grids keyed by (day, rootPeriod), span-aware.
- *
  * @param {Array} oldGrid - Baseline or production grid
  * @param {Array} newGrid - Draft or commit grid
  * @param {Object} [options]
@@ -279,7 +277,6 @@ function diffGrids(oldGrid = [], newGrid = [], options = {}) {
 
 /**
  * Backward-compatible publish diff evaluator
- *
  * @param {Object} draftTemplate - SemesterTemplate document or draft payload with classId and grid
  * @returns {Promise<Object>}
  */

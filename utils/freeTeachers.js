@@ -4,16 +4,14 @@ const { todayIST } = require('./institutionTime');
 /**
  * Free-Teacher Finder Engine
  * Finds and ranks available faculty for a specific date and period.
- * 
  * Rules:
  * - Free = No active ClassSession at that period, not on approved faculty leave, not RESERVED.
  * - RESERVED = Holding an accepted-but-not-yet-approved substitution.
  * - Ranking:
- *   1. Can teach the subject (teaches subject in this or another section)
- *   2. Same department as the class
- *   3. Lowest substitution load this week (fewest substitutions taken)
- *   4. Schedule spacing: not teaching immediately adjacent periods (P-1 or P+1 today)
- * 
+ *   Can teach the subject (teaches subject in this or another section)
+ *   Same department as the class
+ *   Lowest substitution load this week (fewest substitutions taken)
+ *   Schedule spacing: not teaching immediately adjacent periods (P-1 or P+1 today)
  * @param {Object} params
  * @param {string} params.dateStr - YYYY-MM-DD (IST)
  * @param {number} params.periodNumber - Period number (1..8)
@@ -36,7 +34,7 @@ async function getFreeTeachers({
   const pNum = Number(periodNumber);
   const targetDate = dateStr;
 
-  // 1. Fetch all active teachers (optionally prioritize department)
+  // Fetch all active teachers (optionally prioritize department)
   const teacherFilter = {
     // Exclude specified teachers
     trackId: { $nin: excludeTeacherTrackIds || [] }
@@ -50,7 +48,7 @@ async function getFreeTeachers({
     return [];
   }
 
-  // 2. Fetch ClassSessions for this date to determine:
+  // Fetch ClassSessions for this date to determine:
   //    a) Who is teaching period pNum (BUSY)
   //    b) Who is teaching pNum - 1 or pNum + 1 (adjacent period teaching)
   const dateSessions = await M.ClassSession.find({
@@ -97,7 +95,7 @@ async function getFreeTeachers({
     }
   }
 
-  // 3. Fetch approved TeacherLeaveRequests covering this date & period
+  // Fetch approved TeacherLeaveRequests covering this date & period
   const leaveDocs = await M.TeacherLeaveRequest.find({
     dates: targetDate,
     status: 'Approved'
@@ -120,7 +118,7 @@ async function getFreeTeachers({
     }
   }
 
-  // 4. Check for RESERVED teachers (holding an accepted-but-pending substitution)
+  // Check for RESERVED teachers (holding an accepted-but-pending substitution)
   const pendingLeaves = await M.TeacherLeaveRequest.find({
     status: 'Pending',
     'substitutions.date': targetDate,
@@ -137,7 +135,7 @@ async function getFreeTeachers({
     }
   }
 
-  // 5. Calculate weekly substitution load per teacher (past 7 days)
+  // Calculate weekly substitution load per teacher (past 7 days)
   const past7DaysStart = todayIST(new Date(new Date(targetDate).getTime() - 7 * 86400000));
   const weeklySubs = await M.ClassSession.find({
     date: { $gte: past7DaysStart, $lte: targetDate },
@@ -153,7 +151,7 @@ async function getFreeTeachers({
     }
   }
 
-  // 6. Check subject familiarity if subjectId or subjectCode provided
+  // Check subject familiarity if subjectId or subjectCode provided
   let familiarTeacherTrackIds = new Set();
   if (subjectId || subjectCode) {
     // Look up recent timetable slots or teacher qualifications for this subject
@@ -180,7 +178,7 @@ async function getFreeTeachers({
     }
   }
 
-  // 7. Filter and Score Candidates
+  // Filter and Score Candidates
   const candidates = [];
 
   for (const t of allTeachers) {
@@ -228,7 +226,7 @@ async function getFreeTeachers({
     });
   }
 
-  // 8. Sort: Unreserved first, then highest score, then lowest workload
+  // Sort: Unreserved first, then highest score, then lowest workload
   candidates.sort((a, b) => {
     if (a.isReserved !== b.isReserved) return a.isReserved ? 1 : -1;
     if (b.matchScore !== a.matchScore) return b.matchScore - a.matchScore;

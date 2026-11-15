@@ -1,7 +1,6 @@
 /**
  * services/subjectSetService.js
- *
- * Subject Set Record, Auditing & Verification Gate Service (Phase 4):
+ * Subject Set Record, Auditing & Verification Gate Service:
  * - Canonical SHA-256 hash calculation across class curriculum allocations.
  * - Manages ClassSubjectSet records with author audit tracking (createdBy, updatedBy).
  * - Enforces the AutoGen Verification Gate clearance via SubjectSetConfirmation.
@@ -15,7 +14,6 @@ const M = require('../models');
 
 /**
  * Computes canonical SHA-256 hash of subject set rows.
- *
  * @param {Array<Object>} items
  * @returns {String} Hex SHA-256 digest
  */
@@ -62,7 +60,6 @@ function computeRowsHash(items = []) {
 
 /**
  * Synchronizes ClassSubjectSet from assignments or allocations.
- *
  * @param {ObjectId|String} classId
  * @param {Array<Object>} assignmentRows
  * @param {Object} actor - { _id, name, trackId }
@@ -118,7 +115,6 @@ async function syncClassSubjectSet(classId, assignmentRows = [], actor = {}) {
 
 /**
  * Verifies if an AutoGen run is permitted by checking for an active SubjectSetConfirmation.
- *
  * @param {ObjectId|String} draftId
  * @param {ObjectId|String} classId
  * @param {String} expectedHash

@@ -1,6 +1,5 @@
 /**
  * EAMS Access Control and RBAC Utilities
- *
  * Centralizes capability derivation for Admin Unification:
  * - Pure functions with no direct database queries.
  * - Sudo Admin: institution-wide administrator.
@@ -315,14 +314,14 @@ function getPrecomputedAccess(u) {
 
 /**
  * Computes landing page based on user attributes, role tier, and environment.
- * Precedence defined in signin_plan.md §3.3:
- * 1. Student -> student.html
- * 2. Sudo Admin, bootstrap pending -> admin.html
- * 3. Sudo Admin, development -> admin.html
- * 4. Sudo Admin, production -> selector.html
- * 5. Principal or HOD -> controller.html
- * 6. Super Admin or Sub-Admin (active grants) -> selector.html
- * 7. Any other staff -> teacher.html
+ * Precedence defined in signin_plan.md:
+ * Student -> student.html
+ * Sudo Admin, bootstrap pending -> admin.html
+ * Sudo Admin, development -> admin.html
+ * Sudo Admin, production -> selector.html
+ * Principal or HOD -> controller.html
+ * Super Admin or Sub-Admin (active grants) -> selector.html
+ * Any other staff -> teacher.html
  * Smart board -> board.html
  */
 function resolveLanding(userObj, { env } = {}) {
@@ -349,7 +348,7 @@ function resolveLanding(userObj, { env } = {}) {
     return 'selector.html';
   }
 
-  // Principal or HOD -> controller.html (§3.3: Principal/HOD with admin grants land on controller.html with Switch portal link)
+  // Principal or HOD -> controller.html (Principal/HOD with admin grants land on controller.html with Switch portal link)
   if (isPrincipalUser(userObj) || isHodUser(userObj)) {
     return 'controller.html';
   }
@@ -361,7 +360,7 @@ function resolveLanding(userObj, { env } = {}) {
 const { resolveAccess } = require('./resolveAccess');
 
 /**
- * Resolves whether a request or user holds Sudo Admin authority (§5.2, R1.5).
+ * Resolves whether a request or user holds Sudo Admin authority.
  * Replaces every legacy admin role check.
  */
 function isSudo(reqOrUser) {

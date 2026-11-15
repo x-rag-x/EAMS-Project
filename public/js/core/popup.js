@@ -2,9 +2,8 @@
  * public/js/core/popup.js
  * Electronic Attendance Management System (EAMS)
  * Special Module Popup Window & Modal Dialog Subsystem
- *
  * 100% offline, zero-dependency, non-blocking modal popup window.
- * Replaces native browser alert(), confirm(), and prompt() with themed EAMS modal dialogs.
+ * Replaces native browser alert, confirm, and prompt with themed EAMS modal dialogs.
  */
 (function (global) {
   'use strict';
@@ -399,7 +398,7 @@
   }
 
   // ── Native Browser Dialog Interceptors Invariant ──
-  // Permanently prevents ugly native browser alert(), confirm(), prompt() dialogs
+  // Permanently prevents ugly native browser alert, confirm, prompt dialogs
   // across the entire application, redirecting all calls to EAMS Special Modal Popups.
   global.alert = function (message, title) {
     console.warn('[EAMS UI]: Native alert() intercepted. Displaying special popup window.');

@@ -1,6 +1,6 @@
 /**
  * scripts/backfillRoleAssignments.js
- * Backfills RoleAssignment collection from existing database records (§4.5, R4.3).
+ * Backfills RoleAssignment collection from existing database records.
  * Detects and reports data conflicts without throwing unhandled exceptions.
  */
 const mongoose = require('mongoose');
@@ -78,7 +78,7 @@ async function backfillRoles(options = {}) {
     created.push({ role, teacherName: teacher.fullName, slotKey });
   }
 
-  // 1. Backfill HODs from Department collection
+  // Backfill HODs from Department collection
   const departments = await M.Department.find().lean();
   for (const dept of departments) {
     if (dept.hodId) {
@@ -96,7 +96,7 @@ async function backfillRoles(options = {}) {
     }
   }
 
-  // 2. Backfill Class Advisors from Class collection
+  // Backfill Class Advisors from Class collection
   const classes = await M.Class.find().lean();
   for (const cls of classes) {
     if (cls.advisorTeacherId) {
@@ -114,7 +114,7 @@ async function backfillRoles(options = {}) {
     }
   }
 
-  // 3. Backfill Principals from Specials
+  // Backfill Principals from Specials
   const principalTeachers = await M.Teacher.find({
     'specials.option': 'isPrincipal'
   }).lean();
@@ -129,7 +129,7 @@ async function backfillRoles(options = {}) {
     });
   }
 
-  // 4. Backfill Super Admins from Teacher pageRights
+  // Backfill Super Admins from Teacher pageRights
   const superAdminTeachers = await M.Teacher.find({
     'pageRights.accessRole': 'superAdmin'
   }).lean();
@@ -144,7 +144,7 @@ async function backfillRoles(options = {}) {
     });
   }
 
-  // 5. Backfill TT Coordinators from Teacher specials
+  // Backfill TT Coordinators from Teacher specials
   const ttTeachers = await M.Teacher.find({
     'specials.option': 'isTimeTableCoordinator'
   }).lean();
@@ -159,7 +159,7 @@ async function backfillRoles(options = {}) {
     });
   }
 
-  // 6. Backfill Placement Coordinators from Teacher specials
+  // Backfill Placement Coordinators from Teacher specials
   const placeTeachers = await M.Teacher.find({
     'specials.option': 'isPlacementCoordinator'
   }).lean();
@@ -174,7 +174,7 @@ async function backfillRoles(options = {}) {
     });
   }
 
-  // 7. Backfill Wardens from Block collection
+  // Backfill Wardens from Block collection
   const blocks = await M.Block.find().lean();
   for (const blk of blocks) {
     if (blk.wardenTrackId) {
@@ -192,7 +192,7 @@ async function backfillRoles(options = {}) {
     }
   }
 
-  // 8. Backfill Sudo Admin
+  // Backfill Sudo Admin
   const sudoTeachers = await M.Teacher.find({
     $or: [
       { username: 'admin' },

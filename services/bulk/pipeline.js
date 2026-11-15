@@ -70,7 +70,7 @@ async function runStageJob(batchId, user, reqMeta = {}) {
     const batch = await M.BulkImportBatch.findById(batchId);
     if (!batch) throw new Error('Batch not found');
 
-    // 1. Receive file
+    // Receive file
     await tracker.start('receive', 'File received on server');
     let buffer = null;
     if (batch.fileRef && batch.fileRef.gridFsId) {
@@ -84,7 +84,7 @@ async function runStageJob(batchId, user, reqMeta = {}) {
     }
     await tracker.done('receive', `${(buffer.length / (1024 * 1024)).toFixed(2)} MB loaded`);
 
-    // 2. Parallel Google Drive upload (failures are non-fatal warnings)
+    // Parallel Google Drive upload (failures are non-fatal warnings)
     await tracker.start('drive', 'Creating Google Drive folder & archiving sheet');
     const drivePromise = (async () => {
       const driveMeta = {
@@ -136,11 +136,11 @@ async function runStageJob(batchId, user, reqMeta = {}) {
       return driveMeta;
     })();
 
-    // 3. Read spreadsheet
+    // Read spreadsheet
     await tracker.start('read', 'Parsing spreadsheet rows and headers');
     const { scanAndValidateWorkbook } = require('./scan');
 
-    // 4. Validate rows against reference collections
+    // Validate rows against reference collections
     await tracker.start('validate', 'Validating constraints, foreign keys, and formats');
     const fakeReq = await buildExecutionContext(user, batch);
 
@@ -161,7 +161,7 @@ async function runStageJob(batchId, user, reqMeta = {}) {
     // Wait for drive upload to finish or settle
     const driveMeta = await drivePromise;
 
-    // 5. Save to EAMS
+    // Save to EAMS
     await tracker.start('save', 'Persisting staged records to database');
     const isAutoVerified = ['dept', 'class', 'subject'].includes(batch.type);
     const verifiedCount = isAutoVerified ? scanResult.eligibleRows.length : 0;

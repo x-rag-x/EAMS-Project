@@ -1,6 +1,6 @@
 /**
  * Returns YYYY-MM-DD in IST (Asia/Kolkata).
- * Eliminates midnight to 5:30 AM IST UTC rollover bug where toISOString().slice(0, 10) was yesterday.
+ * Eliminates midnight to 5:30 AM IST UTC rollover bug where toISOString.slice(0, 10) was yesterday.
  * @param {Date|string|number} [d] - Optional date to format in IST (defaults to now)
  * @returns {string} YYYY-MM-DD
  */
@@ -261,7 +261,7 @@ async function doLogout(reasonType) {
 
   function getTimeoutConfig() {
     var enabledStr = sessionStorage.getItem('eams_session_timeout');
-    // Default is enabled (true) unless explicitly configured as 'false'
+    // Default is enabled unless explicitly configured as 'false'
     var isEnabled = (enabledStr !== 'false');
     var rawMins = sessionStorage.getItem('eams_session_timeout_mins');
     var mins = (rawMins && !isNaN(parseInt(rawMins, 10))) ? parseInt(rawMins, 10) : 10;
@@ -400,7 +400,7 @@ async function doLogout(reasonType) {
   function checkSessionExpiry() {
     if (!sessionStorage.getItem('eams_token')) return;
 
-    // Phase T3: 15-day student device sessions are exempt
+
     if (sessionStorage.getItem('eams_session_class') === 'student-device') return;
 
     var cfg = getTimeoutConfig();

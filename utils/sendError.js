@@ -4,7 +4,6 @@ const cfg = require('../config');
  * Centralized error responder that logs internal server errors with request ID
  * and returns safe generic error messages in production while exposing details
  * during development or for client-side (4xx) errors.
- *
  * @param {import('express').Response} res - Express response object
  * @param {Error|string} err - The error object or error message
  * @param {number} [status=500] - HTTP status code

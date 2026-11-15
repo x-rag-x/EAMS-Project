@@ -39,7 +39,7 @@ const TimetableDraftSchema = new Schema({
 
 TimetableDraftSchema.index({ workspaceId: 1, seq: -1 });
 
-// ── DraftOp: Append-only granular cell operation log (Phase 3) ──
+// ── DraftOp: Append-only granular cell operation log ──
 const DraftOpSchema = new Schema({
   draftId:     { type: Schema.Types.ObjectId, required: true, index: true },
   workspaceId: { type: Schema.Types.ObjectId, ref: 'TimetableWorkspace', default: null, index: true },
@@ -63,7 +63,7 @@ DraftOpSchema.index({ draftId: 1, clientOpId: 1 }, { unique: true });
 DraftOpSchema.index({ draftId: 1, seq: -1 });
 DraftOpSchema.index({ draftId: 1, classId: 1, slotKey: 1, seq: -1 });
 
-// ── DraftVersion: 15-Minute IST Time Bucket Version (Phase 3) ──
+// ── DraftVersion: 15-Minute IST Time Bucket Version ──
 const DraftVersionSchema = new Schema({
   draftId:     { type: Schema.Types.ObjectId, required: true, index: true },
   workspaceId: { type: Schema.Types.ObjectId, ref: 'TimetableWorkspace', default: null },

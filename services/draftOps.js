@@ -1,12 +1,11 @@
 /**
  * services/draftOps.js
- * 
- * Cell-Level Operation Engine, Version Bucketing, and Reversible Restore (Phase 3).
+ * Cell-Level Operation Engine, Version Bucketing, and Reversible Restore.
  * Invariants:
  * - Append-only operation log (DraftOp) with monotonic sequencing.
  * - Idempotency through unique clientOpId.
  * - Per-cell optimistic locking via baseRev on DraftClass.slotRevs.
- * - 15-minute IST clock-window version grouping based on server receivedAt (C10).
+ * - 15-minute IST clock-window version grouping based on server receivedAt.
  * - Invariant Z10: Closing job or new bucket arrival closes prior open version with pre-edit snapshot.
  * - Restores append forward operations (type: 'restore') so all restores are completely undoable.
  */
@@ -79,7 +78,6 @@ function formatVersionLabel(startedAt) {
 
 /**
  * Applies a batch of cell operations to a draft
- * 
  * @param {Object} draftRef { draftId, workspaceId }
  * @param {Array} ops Array of operations: [{ clientOpId, classId, slotKey, baseRev, type, before?, after, editedAt }]
  * @param {Object} actor { _id, name, deviceId, offline }
@@ -157,7 +155,7 @@ async function applyDraftOps(draftRef, ops, actor = {}) {
   for (const op of batch) {
     const { clientOpId, classId, slotKey, baseRev, type, after } = op;
 
-    // 1. Idempotency Check via clientOpId
+    // Idempotency Check via clientOpId
     const existingOp = await M.DraftOp.findOne({ draftId, clientOpId }).lean();
     if (existingOp) {
       results.push({
@@ -187,7 +185,7 @@ async function applyDraftOps(draftRef, ops, actor = {}) {
     draftClass.slotRevs = draftClass.slotRevs || {};
     const currentRev = Number(draftClass.slotRevs[slotKey]) || 1;
 
-    // 2. Per-Cell Concurrency Control (baseRev validation, bypassed on force push)
+    // Per-Cell Concurrency Control (baseRev validation, bypassed on force push)
     if (!op.force && baseRev !== undefined && baseRev !== null && Number(baseRev) !== currentRev) {
       const currentSlot = (draftClass.grid || []).find(s => normalizeSlotKey(s.day, s.period) === slotKey) || null;
       results.push({
@@ -200,7 +198,7 @@ async function applyDraftOps(draftRef, ops, actor = {}) {
       continue;
     }
 
-    // 3. Apply Slot Delta
+    // Apply Slot Delta
     const grid = draftClass.grid || [];
     const existingSlotIndex = grid.findIndex(s => normalizeSlotKey(s.day, s.period) === slotKey);
     const beforeSlot = existingSlotIndex >= 0 ? { ...grid[existingSlotIndex].toObject?.() || grid[existingSlotIndex] } : null;
@@ -242,7 +240,7 @@ async function applyDraftOps(draftRef, ops, actor = {}) {
     draftClass.seq = currentSeq;
     await draftClass.save();
 
-    // 4. Append Immutable DraftOp
+    // Append Immutable DraftOp
     await M.DraftOp.create({
       draftId,
       workspaceId,
@@ -262,7 +260,7 @@ async function applyDraftOps(draftRef, ops, actor = {}) {
       offline: Boolean(actor.offline || op.offline)
     });
 
-    // 5. Update Version Metadata
+    // Update Version Metadata
     currentVersion.lastSeq = currentSeq;
     currentVersion.opCount = (currentVersion.opCount || 0) + 1;
     if (!currentVersion.classIds.some(cid => String(cid) === String(classId))) {
@@ -330,7 +328,7 @@ async function getDraftSnapshot(draftId, workspaceId) {
 }
 
 /**
- * Encodes snapshot classes into dictionary-compressed representation (Phase 7, Section 4.1)
+ * Encodes snapshot classes into dictionary-compressed representation
  */
 function encodeDictionarySnapshot(snapshot) {
   const teacherMap = new Map();

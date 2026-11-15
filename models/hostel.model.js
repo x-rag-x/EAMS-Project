@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
 
-// ── 1. Hostel (Boys / Girls) ─────────────────────────────────────────────────
+// ── Hostel (Boys / Girls) ─
 const HostelSchema = new mongoose.Schema({
     code: { type: String, required: true, unique: true, uppercase: true, trim: true },
     name: { type: String, required: true, trim: true },
@@ -14,7 +14,7 @@ const HostelSchema = new mongoose.Schema({
     status: { type: String, enum: ['active', 'inactive'], default: 'active' },
 }, { timestamps: true });
 
-// ── 2. Block (1 per Warden) ──────────────────────────────────────────────────
+// ── Block (1 per Warden) ──
 const BlockSchema = new mongoose.Schema({
     hostelId: { type: mongoose.Schema.Types.ObjectId, ref: 'Hostel', required: true },
     code: { type: String, required: true, unique: true, uppercase: true, trim: true }, // e.g. 'BH-A', 'GH-1'
@@ -26,7 +26,7 @@ const BlockSchema = new mongoose.Schema({
 BlockSchema.index({ hostelId: 1 });
 BlockSchema.index({ wardenTrackId: 1 });
 
-// ── 3. Room ──────────────────────────────────────────────────────────────────
+// ── Room ──
 const RoomSchema = new mongoose.Schema({
     blockId: { type: mongoose.Schema.Types.ObjectId, ref: 'Block', required: true },
     floor: { type: Number, required: true, min: 0 },
@@ -39,7 +39,7 @@ const RoomSchema = new mongoose.Schema({
 RoomSchema.index({ blockId: 1, roomNo: 1 }, { unique: true });
 RoomSchema.index({ blockId: 1, floor: 1 });
 
-// ── 4. Bed Allocation ────────────────────────────────────────────────────────
+// ── Bed Allocation
 const AllocationHistorySchema = new mongoose.Schema({
     action: { type: String, required: true },
     by: { type: String, required: true },

@@ -1,6 +1,5 @@
 /**
  * routes/manageAdmins.routes.js
- *
  * Manage Portal Admin Management API
  * Backed by modern M.Teacher.pageRights access system.
  * Allows viewing, granting, and revoking Manage portal delegated access.

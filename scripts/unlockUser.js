@@ -5,7 +5,7 @@
  * Usage:
  *   node scripts/unlockUser.js <username> [--reset-password <newPassword>]
  * 
- * Part of Sign-in Phase S6.5 (Hardening + Break-Glass Recovery).
+ * Part of Sign-in  (Hardening + Break-Glass Recovery).
  */
 
 require('dotenv').config();

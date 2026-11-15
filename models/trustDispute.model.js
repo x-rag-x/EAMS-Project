@@ -2,8 +2,7 @@ const mongoose = require('mongoose');
 
 /**
  * models/trustDispute.model.js
- *
- * Trust and Attendance Dispute Schema (§12, T6.1)
+ * Trust and Attendance Dispute Schema
  * Records student disputes with auto-attached frozen evidence snapshot,
  * teacher statement, advisor review, and department admin decisions.
  */
@@ -82,7 +81,7 @@ const TrustDisputeSchema = new mongoose.Schema({
     index: true
   },
 
-  // Frozen Evidence Snapshot (§12)
+  // Frozen Evidence Snapshot
   evidenceSnapshot: {
     attendanceSession: { type: mongoose.Schema.Types.Mixed, default: null },
     teacherVerification: { type: mongoose.Schema.Types.Mixed, default: null },
@@ -125,7 +124,7 @@ const TrustDisputeSchema = new mongoose.Schema({
     decidedAt: { type: Date, default: null }
   },
 
-  // Automatic correction transaction results (§12)
+  // Automatic correction transaction results
   resolution: {
     attendanceCorrected: { type: Boolean, default: false },
     trustPointsRestored: { type: Number, default: 0 },

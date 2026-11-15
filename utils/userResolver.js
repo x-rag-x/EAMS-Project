@@ -1,14 +1,12 @@
 /**
  * Unified Identity Resolver
- *
  * Resolves an identifier (username or Smart Board Device ID) to its
  * identity type (human / board) and role, without requiring the client
  * to specify a role upfront.
- *
  * Resolution order:
- *   1. UserSchema  → human (student | teacher)
- *   2. SmartBoard  → board
- *   3. Not found   → { found: false }
+ *   UserSchema  → human (student | teacher)
+ *   SmartBoard  → board
+ *   Not found   → { found: false }
  */
 
 const M = require('../models');
@@ -16,7 +14,6 @@ const { getRoleModel } = require('../middleware/auth');
 
 /**
  * Resolve an identifier to its identity type.
- *
  * @param {string} identifier - Username or Board Device ID
  * @returns {Promise<{
  *   found: boolean,
@@ -34,7 +31,7 @@ async function resolveIdentity(identifier, hintRole = null) {
 
   const clean = identifier.toLowerCase().trim();
 
-  // 1. Hardware device quick path: Smart Board device IDs begin with SB- or TR-
+  // Hardware device quick path: Smart Board device IDs begin with SB- or TR-
   const isLikelyBoard = clean.startsWith('sb-') || clean.startsWith('tr-');
   if (isLikelyBoard) {
     const boardDoc = await M.SmartBoard.findOne({
@@ -50,7 +47,7 @@ async function resolveIdentity(identifier, hintRole = null) {
     }
   }
 
-  // 2. Search UserSchema (human users) using fast .lean() point query
+  // Search UserSchema (human users) using fast .lean point query
   let shadowUser = null;
   if (hintRole && ['student', 'teacher'].includes(hintRole)) {
     shadowUser = await M.User.findOne({ username: clean, role: hintRole }).lean().maxTimeMS(4000);
@@ -70,7 +67,7 @@ async function resolveIdentity(identifier, hintRole = null) {
     };
   }
 
-  // 3. Fallback search Smart Board registry if not already checked
+  // Fallback search Smart Board registry if not already checked
   if (!isLikelyBoard) {
     const boardDoc = await M.SmartBoard.findOne({
       deviceId: identifier.trim().toUpperCase(),
@@ -85,7 +82,7 @@ async function resolveIdentity(identifier, hintRole = null) {
     }
   }
 
-  // 4. Not found
+  // Not found
   return { found: false };
 }
 

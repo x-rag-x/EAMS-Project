@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 const { Schema } = mongoose;
 
 /**
- * 1. ClassSubjectSet: Curriculum Definition Record (Section 2.2 / N20, C12, C13)
+ * ClassSubjectSet: Curriculum Definition Record (Section 2.2 / N20, C12, C13)
  * Tracks the authoritative curriculum configuration for each section,
  * its human author, and cryptographic SHA-256 hash of assignments.
  */
@@ -39,7 +39,7 @@ const ClassSubjectSetSchema = new Schema({
 ClassSubjectSetSchema.index({ rowsHash: 1 });
 
 /**
- * 2. SubjectSetConfirmation: Gate Clearance Token (Section 2.3 / Invariant Z15)
+ * SubjectSetConfirmation: Gate Clearance Token (Section 2.3 / Invariant Z15)
  * Dedicated collection recording human verification before AutoGen runs.
  * Gated with 30-day expiration token bound to the specific rowsHash.
  */
@@ -50,14 +50,14 @@ const SubjectSetConfirmationSchema = new Schema({
   confirmedBy:     { type: Schema.Types.ObjectId, ref: 'User', required: true },
   confirmedByName: { type: String, default: '' },
   confirmedAt:     { type: Date, default: Date.now },
-  expiresAt:       { type: Date, default: () => new Date(Date.now() + 30 * 86400000) } // 30 days
+  expiresAt:       { type: Date, default: () => new Date(Date.now() + 30 * 86400000) } // days
 }, { timestamps: true });
 
 SubjectSetConfirmationSchema.index({ draftId: 1, classId: 1, rowsHash: 1 });
 SubjectSetConfirmationSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 
 /**
- * 3. TeacherAvailability: Faculty Constraints & Preferences (Section 2.4 / K10, C19)
+ * TeacherAvailability: Faculty Constraints & Preferences (Section 2.4 / K10, C19)
  * Persistent faculty schedule constraints used for conflict warnings and AutoGen placement.
  */
 const TeacherAvailabilitySchema = new Schema({

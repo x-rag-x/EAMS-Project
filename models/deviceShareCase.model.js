@@ -2,8 +2,7 @@ const mongoose = require('mongoose');
 
 /**
  * models/deviceShareCase.model.js
- *
- * Anti-proxy and Friend-marking Detection Case Schema (§13, T7.2)
+ * Anti-proxy and Friend-marking Detection Case Schema
  * Opened automatically when one phone/browser is shared across multiple students
  * (detected at device registration or live attendance).
  */

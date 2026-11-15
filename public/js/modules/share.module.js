@@ -1,7 +1,6 @@
 /**
  * public/js/modules/share.module.js
- *
- * Universal Share Modal, Access Requests, Comments & Real-Time Presence (Phase 5):
+ * Universal Share Modal, Access Requests, Comments & Real-Time Presence:
  * - Multi-Role Collaborator Invitations (Viewer, Commenter, Editor Full/Fill-Only).
  * - Cryptographic 10-char shareable links with epoch rotation.
  * - Approval gate for editor links (WorkspaceAccessRequest).

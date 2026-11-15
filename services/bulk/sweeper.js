@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 const M = require('../../models');
 const { postMessage } = require('./messages');
 
-const HEARTBEAT_TIMEOUT_MS = 90 * 1000; // 90 seconds
+const HEARTBEAT_TIMEOUT_MS = 90 * 1000; // seconds
 const STALE_DRAFT_DAYS = 7;
 
 /**

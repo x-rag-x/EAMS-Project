@@ -1,6 +1,5 @@
 /**
  * utils/fuzzyMatch.js
- *
  * Zero-dependency entity resolution & fuzzy matching engine for EAMS Timetable Import.
  * Resolves course codes, teacher names, special activities, and room numbers
  * using normalized Levenshtein distance, token overlap, institutional designation stripping,
@@ -102,14 +101,14 @@ function cleanFacultyName(raw) {
   if (!raw) return '';
   let str = String(raw).trim();
 
-  // 1. Remove designations and department annotations e.g. "/ AP / CSE", "(AP/CSE)", "/ HOD", "/ Math", "/ MAT"
+  // Remove designations and department annotations e.g. "/ AP / CSE", "(AP/CSE)", "/ HOD", "/ Math", "/ MAT"
   str = str.replace(/[\/\(\[\-]\s*(?:AP|ASP|PROF|PROFESSOR|HOD|DEAN|DIR|DIRECTOR|CSE|IT|ECE|EEE|MECH|CIVIL|AIDS|AIML|MAT|MATH|MATHEMATICS|PHY|PHYSICS|CHEM|CHEMISTRY|ENG|ENGLISH)[^\)\]]*[\)\]]?/gi, ' ');
   str = str.replace(/\s*[\/\\].*$/, ' '); // strip everything after a slash
 
-  // 2. Remove salutations
+  // Remove salutations
   str = str.replace(/\b(?:Dr|Prof|Mr|Mrs|Ms|Er|Capt)\.?\s+/gi, ' ');
 
-  // 3. Normalize dots and whitespace (e.g. "S. Ramasamy" -> "S Ramasamy")
+  // Normalize dots and whitespace (e.g. "S. Ramasamy" -> "S Ramasamy")
   str = str.replace(/\./g, ' ');
   str = str.replace(/\s+/g, ' ').trim();
 
@@ -136,7 +135,6 @@ function generateAcronym(title) {
 
 /**
  * Resolve a raw course label to a Subject, SpecialActivity, or Legend entry.
- *
  * @param {string} rawLabel - The text in the timetable grid cell (e.g. "25CSC321", "DSA", "VERBAL", "KVD LAB 2")
  * @param {Object} context - { subjects: [], specialActivities: [], legend: [] }
  * @returns {Object} Resolution result
@@ -151,7 +149,7 @@ function resolveCourse(rawLabel, context = {}) {
     return { resolved: false, type: 'empty', confidence: 0, candidate: null };
   }
 
-  // 1. Direct Exact Match against SpecialActivity (shortLabel or name)
+  // Direct Exact Match against SpecialActivity (shortLabel or name)
   for (const act of specialActivities) {
     const actLabel = (act.shortLabel || '').trim().toLowerCase();
     const actName = (act.name || '').trim().toLowerCase();
@@ -168,7 +166,7 @@ function resolveCourse(rawLabel, context = {}) {
     }
   }
 
-  // 2. Direct Exact Match against Subject (subjectCode, shortName, code)
+  // Direct Exact Match against Subject (subjectCode, shortName, code)
   for (const subj of subjects) {
     const sCode = cleanCourseCode(subj.subjectCode || subj.code);
     const sShort = (subj.shortName || '').trim().toLowerCase();
@@ -211,7 +209,7 @@ function resolveCourse(rawLabel, context = {}) {
     }
   }
 
-  // 3. Cross-reference with Section Legend Table
+  // Cross-reference with Section Legend Table
   // Check if rawLabel matches any legend item's courseCode, courseTitle, or generated acronym
   for (const leg of legend) {
     const lCodeClean = cleanCourseCode(leg.courseCode);
@@ -253,7 +251,7 @@ function resolveCourse(rawLabel, context = {}) {
     }
   }
 
-  // 4. Fuzzy Match against Subject Codes & Names
+  // Fuzzy Match against Subject Codes & Names
   const candidates = [];
 
   for (const subj of subjects) {
@@ -318,7 +316,7 @@ function resolveCourse(rawLabel, context = {}) {
     }
   }
 
-  // 5. Unresolved Fallback
+  // Unresolved Fallback
   return {
     resolved: false,
     type: 'unmatched',
@@ -330,7 +328,6 @@ function resolveCourse(rawLabel, context = {}) {
 
 /**
  * Resolve a raw teacher name to a Teacher document in DB.
- *
  * @param {string} rawName - e.g. "Dr. S. Ramasamy / AP / CSE" or "Alice"
  * @param {Array} teachers - List of Teacher documents
  * @param {string|ObjectId} preferredDeptId - Optional department preference
@@ -345,7 +342,7 @@ function resolveTeacher(rawName, teachers = [], preferredDeptId = null) {
   const cleaned = cleanFacultyName(rawClean);
   const cleanedLower = cleaned.toLowerCase();
 
-  // 1. Exact Match against fullName
+  // Exact Match against fullName
   for (const t of teachers) {
     const tName = (t.fullName || '').trim().toLowerCase();
     const tClean = cleanFacultyName(t.fullName).toLowerCase();
@@ -364,7 +361,7 @@ function resolveTeacher(rawName, teachers = [], preferredDeptId = null) {
     }
   }
 
-  // 2. Token / Hybrid Similarity Match
+  // Token / Hybrid Similarity Match
   const candidates = [];
 
   for (const t of teachers) {
@@ -399,7 +396,7 @@ function resolveTeacher(rawName, teachers = [], preferredDeptId = null) {
     };
   }
 
-  // 3. Unresolved Fallback
+  // Unresolved Fallback
   return {
     resolved: false,
     confidence: candidates.length > 0 ? candidates[0].score : 0,
@@ -411,7 +408,6 @@ function resolveTeacher(rawName, teachers = [], preferredDeptId = null) {
 
 /**
  * Resolve Room / Hall No to a Room document in DB.
- *
  * @param {string} rawHall - e.g. "TP-2D", "Hall 401", "Lab 2"
  * @param {Array} rooms - List of Room documents
  * @returns {Object} Resolution result
@@ -476,7 +472,6 @@ function resolveRoom(rawHall, rooms = []) {
 /**
  * Comprehensive resolution for an entire parsed Section block.
  * Connects parsed slots with parsed legend items, subjects, teachers, activities, and rooms.
- *
  * @param {Object} section - Section block from timetableExcelParser
  * @param {Object} dbData - { subjects, teachers, specialActivities, rooms }
  * @param {string|ObjectId} deptId - Active Department ID
@@ -486,7 +481,7 @@ function resolveSectionEntities(section, dbData = {}, deptId = null) {
   const { subjects = [], teachers = [], specialActivities = [], rooms = [] } = dbData;
   const unmatched = { courses: [], faculty: [], rooms: [] };
 
-  // 1. Resolve Class Advisor
+  // Resolve Class Advisor
   let resolvedAdvisor = null;
   if (section.meta && section.meta.advisorRaw) {
     const advRes = resolveTeacher(section.meta.advisorRaw, teachers, deptId);
@@ -506,7 +501,7 @@ function resolveSectionEntities(section, dbData = {}, deptId = null) {
     }
   }
 
-  // 2. Resolve Section Default Room
+  // Resolve Section Default Room
   let resolvedRoom = null;
   if (section.meta && section.meta.hallNo) {
     const roomRes = resolveRoom(section.meta.hallNo, rooms);
@@ -525,7 +520,7 @@ function resolveSectionEntities(section, dbData = {}, deptId = null) {
     }
   }
 
-  // 3. Resolve Legend Items (Courses & Faculty)
+  // Resolve Legend Items (Courses & Faculty)
   const resolvedLegend = (section.legend || []).map(leg => {
     // Resolve course
     const courseRes = resolveCourse(leg.courseCode || leg.courseTitle, { subjects, specialActivities, legend: section.legend });
@@ -574,7 +569,7 @@ function resolveSectionEntities(section, dbData = {}, deptId = null) {
     if (acr) legendCourseMap.set(acr.toLowerCase(), leg);
   });
 
-  // 4. Resolve Grid Slots
+  // Resolve Grid Slots
   const resolvedSlots = (section.slots || []).map(slot => {
     const courseRes = resolveCourse(slot.rawLabel, { subjects, specialActivities, legend: resolvedLegend });
     let teacherId = null;

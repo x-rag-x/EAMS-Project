@@ -130,7 +130,7 @@ router.get('/', authMiddleware, logsAdminOnly, requirePage('logs', 'view'), asyn
 
     const logs = await M.Log.find(filter).sort({ createdAt: -1 }).limit(limit).lean();
 
-    // Batch join sessions directly from LoginSession by sessionId (indexed O(1)) (§3.10, S7.5)
+    // Batch join sessions directly from LoginSession by sessionId (indexed O(1))
     const sessionLogs = logs.filter(l => l.sessionId);
     const sessionIdsToFetch = [...new Set(sessionLogs.map(l => l.sessionId).filter(Boolean))];
 

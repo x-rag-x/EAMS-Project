@@ -2,7 +2,6 @@
  * Sanitize query parameters to prevent NoSQL injection.
  * Converts query values to primitives (strings, numbers, booleans, dates)
  * and rejects nested objects that could contain MongoDB operators.
- *
  * Express's qs parser converts ?role[$ne]=x into {role: {$ne: 'x'}},
  * which would bypass string comparisons in filters. This function prevents that.
  */
@@ -45,11 +44,9 @@ function sanitizeQueryValue(value) {
 /**
  * Sanitize multiple query parameters.
  * Whitelist-based: only include parameters you explicitly allow.
- *
  * @param {Object} queryParams - req.query object
  * @param {Array<string>} allowedFields - List of field names to extract and sanitize
  * @returns {Object} Sanitized filter object with only allowed fields
- *
  * Example:
  *   sanitizeQuery(req.query, ['role', 'status', 'deptId'])
  *   Input:  {role: 'admin', status: {$ne: 'inactive'}, extra: 'ignored'}
@@ -73,7 +70,6 @@ function sanitizeQuery(queryParams, allowedFields = []) {
 /**
  * Sanitize a specific query parameter to a string.
  * Useful for scalar filters where you expect a string value.
- *
  * @param {any} value - Query parameter value
  * @returns {string|undefined} The value as a string, or undefined if rejected
  */
@@ -87,7 +83,6 @@ function sanitizeToString(value) {
 /**
  * Sanitize a specific query parameter to a number.
  * Useful for numeric filters (e.g., deptId, classId).
- *
  * @param {any} value - Query parameter value
  * @returns {number|undefined} The value as a number, or undefined if rejected
  */
@@ -102,7 +97,6 @@ function sanitizeToNumber(value) {
 /**
  * Sanitize a specific query parameter to an ObjectId string.
  * Validates that the value is a valid MongoDB ObjectId format.
- *
  * @param {any} value - Query parameter value
  * @returns {string|undefined} The value as a string if valid ObjectId format, else undefined
  */
@@ -117,8 +111,7 @@ function sanitizeToObjectId(value) {
 }
 
 /**
- * Escape regular expression special characters to safely use in new RegExp().
- *
+ * Escape regular expression special characters to safely use in new RegExp.
  * @param {string} string - Input string
  * @returns {string} Escaped string
  */

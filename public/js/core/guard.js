@@ -1,16 +1,14 @@
 /**
  * public/js/core/guard.js
- * 
  * Electronic Attendance Management System (EAMS) - Page Guard & Continuous Checks
- * 
  * Invariants & Lifecycle:
- *  1. Token Check: If unauthenticated, redirect to index.html with sanitized next relative path.
- *  2. Access Gate: Fetch GET /api/auth/access before rendering page or trusting client storage.
- *  3. Page Authorization: If page not granted, flash toast and redirect to access.landing.
- *  4. Tab Guard: Remove unauthorized tabs from DOM; deep links fallback to first allowed tab.
- *  5. Action Guard: Hide elements carrying data-requires="<action>"; expose Guard.can(action).
- *  6. Continuous Check: Staff session ping every 60s, on visibility change, and on window focus.
- *  7. Students excluded from ping per D6.
+ *  Token Check: If unauthenticated, redirect to index.html with sanitized next relative path.
+ *  Access Gate: Fetch GET /api/auth/access before rendering page or trusting client storage.
+ *  Page Authorization: If page not granted, flash toast and redirect to access.landing.
+ *  Tab Guard: Remove unauthorized tabs from DOM; deep links fallback to first allowed tab.
+ *  Action Guard: Hide elements carrying data-requires="<action>"; expose Guard.can(action).
+ *  Continuous Check: Staff session ping every 60s, on visibility change, and on window focus.
+ *  Students excluded from ping per D6.
  */
 
 (function (window, document) {
@@ -508,7 +506,7 @@
 
       var token = sessionStorage.getItem('eams_token');
 
-      // ── Step 1: Token Check ──
+      // ── Token Check ──
       if (!token) {
         var performRedirect = function () {
           // Attendance deep link preservation
@@ -523,7 +521,7 @@
             }
           }
 
-          // admin.html and teacher.html do not keep next (per §3.8 rule)
+          // admin.html and teacher.html do not keep next (rule)
           if (pageKey === 'admin' || pageKey === 'teacher') {
             window.location.replace('index.html');
             return;
@@ -562,7 +560,7 @@
         return;
       }
 
-      // ── Step 2: Access Check ──
+      // ── Access Check ──
       fetch('/api/auth/access', {
         method: 'GET',
         headers: {
@@ -628,7 +626,7 @@
           try { sessionStorage.removeItem('eams_bootstrapPending'); } catch (e) {}
         }
 
-        // ── Step 3: Authorization Gate ──
+        // ── Authorization Gate ──
         var isAllowed = data.pages && (Boolean(data.pages[pageKey]) || Boolean(data.pages[pageKey.replace(/\.html$/, '')]));
 
         if (!isAllowed) {
@@ -640,14 +638,14 @@
           return;
         }
 
-        // ── Step 4 & 5: Tab & Action Checks ──
+        // ── Tab & Action Checks ──
         self.applyTabRestrictions();
         self.applyActionRestrictions();
 
-        // ── Step 6: Reveal Page ──
+        // ── Reveal Page ──
         self.revealPage();
 
-        // ── Step 7: Continuous Checks (Staff) ──
+        // ── Continuous Checks (Staff) ──
         self.startContinuousPing();
       })
       .catch(function (err) {

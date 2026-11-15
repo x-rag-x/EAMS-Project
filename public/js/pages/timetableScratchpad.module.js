@@ -81,7 +81,7 @@
     return d.toLocaleDateString('en-IN', { month: 'short', day: 'numeric' });
   }
 
-  /* ── 1. Hybrid Persistence Engine ─────────────────────────────────── */
+  /* ── Hybrid Persistence Engine ─── */
   function loadLocalState() {
     try {
       var raw = localStorage.getItem(getStorageKey());
@@ -156,11 +156,11 @@
       });
   }
 
-  /* ── 2. DOM Rendering & Template Construction ──────────────────────── */
+  /* ── DOM Rendering & Template Construction  */
   function mountDOM() {
     if (document.getElementById('tt-scratchpad-fab')) return;
 
-    // 1. Fixed FAB
+    // Fixed FAB
     var fab = document.createElement('button');
     fab.type = 'button';
     fab.id = 'tt-scratchpad-fab';
@@ -190,7 +190,7 @@
     });
     document.body.appendChild(fab);
 
-    // 2. Backdrop Overlay
+    // Backdrop Overlay
     var backdrop = document.createElement('div');
     backdrop.id = 'tt-scratchpad-backdrop';
     backdrop.className = 'tt-scratchpad-backdrop';
@@ -199,7 +199,7 @@
     });
     document.body.appendChild(backdrop);
 
-    // 3. Slide-out Drawer
+    // Slide-out Drawer
     var drawer = document.createElement('aside');
     drawer.id = 'tt-scratchpad-drawer';
     drawer.className = 'tt-scratchpad-drawer';
@@ -268,7 +268,7 @@
     updateFabBadge();
   }
 
-  /* ── 3. Event Listeners ───────────────────────────────────────────── */
+  /* ── Event Listeners ─ */
   function bindDrawerEvents() {
     var drawer = document.getElementById('tt-scratchpad-drawer');
     var closeBtn = document.getElementById('tt-drawer-close-btn');
@@ -461,7 +461,7 @@
     }
   }
 
-  /* ── 4. Tab Switching & Open/Close ─────────────────────────────────── */
+  /* ── Tab Switching & Open/Close ─── */
   function openDrawer(tab) {
     mountDOM();
     var drawer = document.getElementById('tt-scratchpad-drawer');
@@ -558,7 +558,7 @@
     }
   }
 
-  /* ── 5. Tab 1: Notepad Multi-File Management ──────────────────────── */
+  /* ── Tab 1: Notepad Multi-File Management  */
   function getActiveNote() {
     var note = state.notes.find(function (n) { return n.id === state.activeNoteId; });
     if (!note) {
@@ -691,7 +691,7 @@
     statsEl.textContent = words + ' words · ' + chars + ' chars';
   }
 
-  /* ── 6. Tab 2 & 3: Slot Stash & Clipboard Feeds ───────────────────── */
+  /* ── Tab 2 & 3: Slot Stash & Clipboard Feeds ─ */
   function renderStashFeed() {
     var feed = document.getElementById('tt-stash-feed');
     if (!feed) return;
@@ -847,7 +847,7 @@
     });
   }
 
-  /* ── 7. Public API Methods for Timetable Integration ──────────────── */
+  /* ── Public API Methods for Timetable Integration  */
   function normalizeSlotObject(rawSlot, sourceSection) {
     if (!rawSlot) return null;
     return {
@@ -904,14 +904,14 @@
     }
   }
 
-  /* ── 7a. Smooth Drop Into Stash Animation Engine ─────────────────── */
+  /* ── Smooth Drop Into Stash Animation Engine ─── */
   function resolveSourceCoordinates(options, slot) {
-    // 1. Direct Mouse / Touch / Pointer / Drag Event
+    // Direct Mouse / Touch / Pointer / Drag Event
     if (options && typeof options.clientX === 'number' && options.clientX > 0) {
       return { x: options.clientX, y: options.clientY };
     }
 
-    // 2. Direct DOM Element
+    // Direct DOM Element
     if (options && options.nodeType === 1 && typeof options.getBoundingClientRect === 'function') {
       var r = options.getBoundingClientRect();
       if (r.width > 0 && r.height > 0) {
@@ -919,7 +919,7 @@
       }
     }
 
-    // 3. Structured options object
+    // Structured options object
     if (options && typeof options === 'object') {
       if (options.sourceEvent && typeof options.sourceEvent.clientX === 'number' && options.sourceEvent.clientX > 0) {
         return { x: options.sourceEvent.clientX, y: options.sourceEvent.clientY };
@@ -956,7 +956,7 @@
       }
     }
 
-    // 4. Fallback search by slot ID in timetable DOM
+    // Fallback search by slot ID in timetable DOM
     if (slot && slot.id) {
       var slotDom = document.querySelector('.slot[data-entry-id="' + slot.id + '"], [data-slot-id="' + slot.id + '"]');
       if (slotDom && slotDom.getBoundingClientRect) {
@@ -967,7 +967,7 @@
       }
     }
 
-    // 5. Center-left of viewport safe default
+    // Center-left of viewport safe default
     return {
       x: Math.round(window.innerWidth * 0.45),
       y: Math.round(window.innerHeight * 0.4)
@@ -1033,7 +1033,7 @@
   function triggerLandingReaction(target, isDuplicate) {
     var el = target.el || document.getElementById('tt-scratchpad-fab');
 
-    // 1. Expanding ripple effect around landing target
+    // Expanding ripple effect around landing target
     try {
       var ripple = document.createElement('div');
       ripple.className = 'tt-stash-ripple' + (isDuplicate ? ' warn' : '');
@@ -1146,7 +1146,7 @@
     var controlY = Math.min(startY, endY) - arcHeight;
 
     var startTime = null;
-    var duration = 520; // 520ms smooth flight
+    var duration = 520; // smooth flight
 
     function ease(t) {
       // Cubic bezier: starts with slight lift, accelerates then smoothly eases into target
@@ -1264,7 +1264,7 @@
       var parsed = null;
       try { parsed = JSON.parse(raw); } catch (err) {}
 
-      // 1. Direct slot object inside parsed payload
+      // Direct slot object inside parsed payload
       if (parsed && (parsed.slot || (parsed.type === 'tt-scratchpad-slot' && parsed.slot))) {
         saveSlotToStash(parsed.slot, parsed.section || (window.state && window.state.filterSection), { sourceEvent: e });
         return;
@@ -1272,7 +1272,7 @@
 
       var slotId = (parsed && parsed.entryId) ? parsed.entryId : (rawText || raw);
 
-      // 2. Resolve via window.resolveSlotEntry
+      // Resolve via window.resolveSlotEntry
       if (typeof window.resolveSlotEntry === 'function') {
         var entryFromResolve = window.resolveSlotEntry(slotId);
         if (entryFromResolve) {
@@ -1281,7 +1281,7 @@
         }
       }
 
-      // 3. Resolve via window.activeEntries
+      // Resolve via window.activeEntries
       if (typeof window.activeEntries === 'function') {
         var active = window.activeEntries();
         if (Array.isArray(active)) {
@@ -1295,7 +1295,7 @@
         }
       }
 
-      // 4. Resolve via window.state.entries
+      // Resolve via window.state.entries
       if (window.state && Array.isArray(window.state.entries)) {
         var entry = window.state.entries.find(function (x) {
           return String(x.id || x._id) === String(slotId);
@@ -1310,16 +1310,16 @@
     }
   }
 
-  /* ── 8. Applying / Pasting Slot to Grid Cell ───────────────────────── */
+  /* ── Applying / Pasting Slot to Grid Cell ─ */
   function applySlotToActiveCell(slot) {
-    // 1. Check if user clicked a cell previously
+    // Check if user clicked a cell previously
     var cell = state.focusedCell;
     if (cell && cell.day && cell.period) {
       executeCellPaste(slot, cell.day, cell.period, cell.section);
       return;
     }
 
-    // 2. Otherwise set as active clipboard and guide user
+    // Otherwise set as active clipboard and guide user
     setSystemClipboard(slot);
     toast('Slot ready to paste! Click any cell in the timetable matrix or press Paste.', 'success');
 
@@ -1432,7 +1432,7 @@
     }
   }
 
-  /* ── 9. Module Bootstrapping ──────────────────────────────────────── */
+  /* ── Module Bootstrapping  */
   function init() {
     loadLocalState();
     if (document.readyState === 'loading') {

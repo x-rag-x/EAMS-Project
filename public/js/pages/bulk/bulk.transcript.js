@@ -200,7 +200,7 @@
 
         // Delegated click listener for transcript-level interactions (individual cards handle their own buttons via bind)
         container.addEventListener('click', function (e) {
-          // 1. Pick type button (rendered in transcript hero)
+          // Pick type button (rendered in transcript hero)
           var pickBtn = e.target.closest('[data-action="pick-type"]');
           if (pickBtn && !pickBtn.disabled) {
             var t = pickBtn.getAttribute('data-type');
@@ -210,7 +210,7 @@
             return;
           }
 
-          // 2. Open verification drawer
+          // Open verification drawer
           var drawerBtn = e.target.closest('[data-action="open-drawer"]');
           if (drawerBtn) {
             store.setState({ drawerOpen: true });

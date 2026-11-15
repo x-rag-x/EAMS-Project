@@ -31,7 +31,7 @@
   </style>
 </head>
 <body>
-  <!-- Header -->
+  
   <header class="topbar" style="background:#fff;border-bottom:1px solid var(--br,#e2e8f0);padding:12px 24px;display:flex;align-items:center;justify-content:space-between;">
     <div style="display:flex;align-items:center;gap:12px;">
       <a href="admin.html" class="btn-out" style="padding:6px 12px;font-size:12px;border-radius:8px;text-decoration:none;">← Admin Hub</a>
@@ -46,7 +46,7 @@
   </header>
 
   <main style="max-width:1400px;margin:0 auto;padding:20px;">
-    <!-- Filter bar -->
+    
     <div class="panel" style="padding:14px;background:#fff;border-radius:12px;border:1px solid var(--br,#e2e8f0);display:flex;gap:14px;align-items:center;flex-wrap:wrap;">
       <div style="flex:1;min-width:240px;">
         <input type="text" id="resp-search" class="fc2" placeholder="Search responsibilities or teachers…" oninput="filterResponsibilities()" style="width:100%;font-size:13px;border-radius:8px;">
@@ -61,9 +61,9 @@
       </div>
     </div>
 
-    <!-- Main 2-column layout -->
+    
     <div class="resp-layout">
-      <!-- Left Column: Responsibilities List -->
+      
       <section>
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
           <h2 style="font-size:15px;font-weight:700;margin:0;">Defined Responsibilities (<span id="resp-count">0</span>)</h2>
@@ -73,7 +73,7 @@
         </div>
       </section>
 
-      <!-- Right Column: Selected Responsibility & Teacher Assignment -->
+      
       <section>
         <div id="resp-detail-card" class="panel" style="background:#fff;border-radius:12px;border:1px solid var(--br,#e2e8f0);padding:20px;min-height:300px;">
           <div style="text-align:center;padding:60px 20px;color:var(--tmu,#64748b);">
@@ -85,7 +85,7 @@
     </div>
   </main>
 
-  <!-- Modal: Add/Edit Responsibility -->
+  
   <div class="modal-bg" id="modal-resp">
     <div class="modal modal-sm" style="max-width:500px;background:#fff;border-radius:12px;padding:24px;">
       <div class="modal-hd" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">

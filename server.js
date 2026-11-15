@@ -33,7 +33,7 @@ if (isBehindProxy) {
   app.set('trust proxy', false);
 }
 
-// Nonce generation middleware for Content Security Policy (§S7)
+// Nonce generation middleware for Content Security Policy
 app.use((req, res, next) => {
   res.locals.cspNonce = crypto.randomBytes(16).toString('base64');
   next();
@@ -253,10 +253,21 @@ app.use((req, res, next) => {
   next();
 });
 
+// Backward compatibility route for legacy timetable service worker registrations
+app.get('/tt-sw.js', (req, res) => {
+  res.setHeader('Service-Worker-Allowed', '/');
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.sendFile(path.resolve(__dirname, 'public/js/tt-sw.js'));
+});
+
 app.use(express.static(path.join(__dirname, 'public'), {
   setHeaders: (res, filePath) => {
     if (filePath.endsWith('.html')) {
       res.setHeader('Cache-Control', 'no-cache');
+    }
+    if (filePath.endsWith('tt-sw.js')) {
+      res.setHeader('Service-Worker-Allowed', '/');
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
     }
   },
   maxAge: cfg.NODE_ENV === 'production' ? '1d' : 3600000,
@@ -354,19 +365,15 @@ initBoardSocket(server);
 const { initTimetableSocket } = require('./services/timetable.socket');
 initTimetableSocket(server);
 
-// Start Bell Scheduler
 const { startBellScheduler } = require('./services/bellScheduler');
 startBellScheduler();
 
-// Start Sub-Admin Grant Expiry Scheduler (§10, R7.5)
 const { startSubAdminExpiryScheduler } = require('./services/subAdminExpiryService');
 startSubAdminExpiryScheduler();
 
-// Start Daily Trust Engine Scheduler (§8, T4.2)
 const { startTrustDailyScheduler } = require('./services/trustDailyService');
 startTrustDailyScheduler();
 
-// Start Bulk Background Job Sweeper (§8.6)
 const { startBulkSweeper } = require('./services/bulk/sweeper');
 startBulkSweeper();
 
@@ -379,6 +386,6 @@ server.listen(PORT, () => {
   console.log(`        • Background  : Bulk sweeper & GoLive workers active`);
 });
 
-// Start Timetable Scheduled Go-Live Worker (§Phase 9, FP P6)
+// Start Timetable Scheduled Go-Live Worker
 const { startTimetableGoLiveJob } = require('./jobs/timetableGoLive');
 startTimetableGoLiveJob();

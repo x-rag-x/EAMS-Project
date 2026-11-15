@@ -1,6 +1,6 @@
 /**
  * scripts/buildIconSubset.js
- * EAMS Timetable v3 — Icon Subset Compiler (Phase 7, Section 2.2)
+ * EAMS Timetable v3 — Icon Subset Compiler
  *
  * Scans timetable HTML and modules for used icons and extracts a lightweight
  * subset from public/js/core/icons.js into public/js/core/icons.timetable.js
@@ -51,7 +51,7 @@ function buildIconSubset() {
 
   const outJs = `/**
  * public/js/core/icons.timetable.js
- * EAMS Timetable v3 — Optimized Icon Subset (Phase 7, Section 2.2)
+ * EAMS Timetable v3 — Optimized Icon Subset
  *
  * Compiled subset of ~${Object.keys(subset).length} icons strictly needed by Timetable views.
  * Reduced from 367 KB down to <= 30 KB for low-bandwidth mobile loading.

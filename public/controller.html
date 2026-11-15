@@ -18,7 +18,7 @@
 </head>
 
 <body>
-  <!-- PAGE LOADER -->
+  
   <div id="page-loader">
     <div class="loader-brand">EAMS Controller Hub</div>
     <div class="three-body">
@@ -35,14 +35,14 @@
     </div>
   </div>
 
-  <!-- Toast & Notification containers -->
+  
   <div id="toast" class="toast"></div>
   <div id="db-toast"></div>
 
-  <!-- MAIN APP SHELL -->
+  
   <div id="app-shell" class="ctrl-shell">
 
-    <!-- SIDEBAR NAVIGATION -->
+    
     <nav class="sb" id="sidebar">
       <div class="sb-logo">
         <div class="ctrl-logo-badge"><re-icon icon="building2"></re-icon></div>
@@ -53,7 +53,7 @@
       </div>
 
             <div class="sb-navs">
-        <!-- Group 1: Real-time operations -->
+        
         <div class="sb-section-label">Real-time operations</div>
         <button class="sb-item act" data-page="dashboard" onclick="nav('dashboard')">
           <span class="sbi-ic"><re-icon icon="layout-dashboard"></re-icon></span>Dashboard
@@ -64,7 +64,7 @@
           <span class="sb-badge alert-badge" id="sb-inbox-badge" style="display:none;background:var(--warn);color:#fff;">0</span>
         </button>
 
-        <!-- Group 2: Academics -->
+        
         <div class="sb-section-label">Academics</div>
         <button class="sb-item" data-page="timetable" onclick="nav('timetable')">
           <span class="sbi-ic"><re-icon icon="calendar-days"></re-icon></span>Timetable
@@ -74,7 +74,7 @@
           <span class="sbi-ic"><re-icon icon="clipboard-list"></re-icon></span>Attendance
         </button>
 
-        <!-- Group 3: People -->
+        
         <div class="sb-section-label">People</div>
         <button class="sb-item" data-page="students" onclick="nav('students')">
           <span class="sbi-ic"><re-icon icon="graduation-cap"></re-icon></span>Student Management
@@ -83,7 +83,7 @@
           <span class="sbi-ic"><re-icon icon="teacher"></re-icon></span>Staff Management
         </button>
 
-        <!-- Group 4: Communicate and govern -->
+        
         <div class="sb-section-label">Communicate and govern</div>
         <button class="sb-item" data-page="broadcast" onclick="nav('broadcast')">
           <span class="sbi-ic"><re-icon icon="bullhorn"></re-icon></span>Broadcast
@@ -92,7 +92,7 @@
           <span class="sbi-ic"><re-icon icon="shield-check"></re-icon></span>Policy &amp; Audit
         </button>
 
-        <!-- Hidden legacy badges for backward compatibility -->
+        
         <span id="sb-leave-badge" style="display:none;"></span>
         <span id="sb-fl-badge" style="display:none;"></span>
         <span id="sb-part-badge" style="display:none;"></span>
@@ -114,13 +114,13 @@
       </div>
     </nav>
 
-    <!-- MOBILE SIDEBAR BACKDROP -->
+    
     <div id="sb-backdrop" class="sb-backdrop" onclick="toggleSidebar()"></div>
 
-    <!-- MAIN CONTENT CONTAINER -->
+    
     <div class="mc" id="main-content">
 
-      <!-- TOPBAR -->
+      
       <header class="ctrl-topbar">
         <div class="ctrl-topbar-left">
           <button class="sb-toggle-btn" id="sbtoggle" onclick="toggleSidebar()" title="Toggle Menu"><re-icon icon="x" size="16"></re-icon></button>
@@ -136,7 +136,7 @@
         </div>
 
         <div class="ctrl-topbar-right">
-          <!-- Department Selector (Shown for Principal only) -->
+          
           <div class="ctrl-dept-filter-wrap" id="dept-filter-wrap" style="display:none;">
             <label for="global-dept-select">Department:</label>
             <select id="global-dept-select" class="form-input form-select-sm" onchange="onGlobalDeptChange(this.value)">
@@ -144,7 +144,7 @@
             </select>
           </div>
 
-                    <!-- Global Search Trigger (Ctrl+K) -->
+                    
           <button type="button" class="ctrl-topbar-search-btn" id="ctrl-global-search-btn" onclick="openGlobalSearch()" title="Search students, faculty, or classes (Ctrl+K)">
             <re-icon icon="search" size="14"></re-icon>
             <span class="search-btn-text">Search...</span>
@@ -161,21 +161,18 @@
         </div>
       </header>
 
-      <!-- PAGE 0: <re-icon icon="radio"></re-icon> LIVE BOARD (pg-board) [DEFAULT ACTIVE] -->
-      
-      <!-- PAGE 1: DASHBOARD (pg-dashboard) [DEFAULT ACTIVE] -->
       <section class="ctrl-page act" id="pg-dashboard">
-        <!-- Needs Attention Strip -->
+        
         <div class="ctrl-needs-attention-strip" id="ctrl-needs-attention-strip" style="display:none;margin-bottom:16px;"></div>
 
-        <!-- Dashboard Tab Bar -->
+        
         <div class="ctrl-tabs" role="tablist" aria-label="Dashboard views" style="margin-bottom:16px;">
           <button class="ctrl-tab act" role="tab" aria-selected="true" id="tab-btn-dash-board" onclick="switchDashboardTab('board')"><re-icon icon="grid" size="14"></re-icon> Live Board</button>
           <button class="ctrl-tab" role="tab" aria-selected="false" id="tab-btn-dash-overview" onclick="switchDashboardTab('overview')"><re-icon icon="trend-up" size="14"></re-icon> Overview</button>
           <button class="ctrl-tab" role="tab" aria-selected="false" id="tab-btn-dash-alerts" onclick="switchDashboardTab('alerts')"><re-icon icon="alert-triangle" size="14"></re-icon> Alerts</button>
         </div>
 
-        <!-- Tab 1: Live Board -->
+        
         <div class="ctrl-tab-panel act" id="pg-board">
 
         <div class="page-hd">
@@ -191,12 +188,12 @@
             </div>
             <button class="btn btn-sec" onclick="reloadLiveBoardData()" title="Reload board data"><re-icon icon="refresh" size="14"></re-icon> Refresh</button>
             <button class="btn btn-pri" onclick="generateTodaySessions()" title="Sync / Regenerate Class Sessions from Timetables"><re-icon icon="bolt" size="14"></re-icon> Sync Timetable</button>
-            <button class="btn btn-sec" onclick="openModal('m-declare-holiday')" title="Declare Holiday / Half-Day (C7 §14)"><re-icon icon="calendar" size="14"></re-icon> Declare Holiday</button>
-            <button class="btn btn-warning" onclick="openModal('m-extend-lock')" title="Extend Lock Window (C7 §14)"><re-icon icon="timer" size="14"></re-icon> ️ Extend Lock</button>
+            <button class="btn btn-sec" onclick="openModal('m-declare-holiday')" title="Declare Holiday / Half-Day"><re-icon icon="calendar" size="14"></re-icon> Declare Holiday</button>
+            <button class="btn btn-warning" onclick="openModal('m-extend-lock')" title="Extend Lock Window"><re-icon icon="timer" size="14"></re-icon> ️ Extend Lock</button>
           </div>
         </div>
 
-        <!-- Metric Stat Cards -->
+        
         <div class="live-kpi-grid stats-row">
           <div class="live-kpi-card t-stat-mini">
             <div class="live-kpi-icon t-stat-icon blue"><re-icon icon="rocket" size="20"></re-icon></div>
@@ -242,7 +239,7 @@
           </div>
         </div>
 
-        <!-- Time Machine bar (hidden unless activated) -->
+        
         <div class="time-machine-bar" id="time-machine-bar" style="display:none;">
           <label style="font-size:12px;font-weight:600;color:#475569;">Date:
             <input type="date" id="tm-date-picker" class="form-input form-input-sm" style="width:140px;margin-left:4px;">
@@ -255,7 +252,7 @@
           <span id="tm-active-label" style="font-size:12px;color:#dc2626;font-weight:600;display:none;"><re-icon icon="alert-triangle"></re-icon> Viewing historical replay</span>
         </div>
 
-        <!-- Filter Toolbar -->
+        
         <div class="live-toolbar">
           <div class="live-toolbar-left">
             <button class="btn-problems-toggle" id="btn-problems-toggle" onclick="toggleProblemsOnly()">
@@ -280,18 +277,18 @@
           </div>
         </div>
 
-        <!-- Split View: Grid / Matrix on left, Live Alerts on right -->
+        
         <div class="live-board-layout">
-          <!-- Main Display Area -->
+          
           <div class="live-main-content">
-            <!-- Grid View -->
+            
             <div id="board-view-grid">
               <div class="tiles-grid-wrap" id="board-tiles-container">
                 <div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--tmu);">Loading classroom sessions…</div>
               </div>
             </div>
 
-            <!-- Day Matrix View -->
+            
             <div id="board-view-matrix" style="display:none;">
               <div class="day-matrix-card">
                 <table class="matrix-tbl">
@@ -316,7 +313,7 @@
             </div>
           </div>
 
-          <!-- Live Alerts Panel -->
+          
           <div class="live-alerts-card">
             <div class="live-alerts-hd">
               <div class="live-alerts-title">
@@ -333,11 +330,9 @@
       
         </div>
 
-        <!-- Tab 2: Overview (Dash KPIs) -->
+        
         <div class="ctrl-tab-panel" id="pg-dash">
 
-        
-        <!-- Needs Attention Executive Strip -->
         <div class="ctrl-attention-strip" id="ctrl-needs-attention-strip" style="display:none;margin-bottom:18px;">
           <div class="card" style="padding:12px 18px;border-left:4px solid #dc2626;background:var(--bg2,#f8fafc);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
             <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
@@ -362,7 +357,7 @@
           </div>
         </div>
 
-        <!-- Metric Stat Cards -->
+        
         <div class="stats-grid stats-row">
           <div class="stat-card t-stat-mini">
             <div class="stat-icon t-stat-icon blue"><re-icon icon="graduation-cap" size="20"></re-icon></div>
@@ -401,7 +396,7 @@
           </div>
         </div>
 
-        <!-- Attendance Trend & Summary Charts -->
+        
         <div class="dash-grid-2">
           <div class="card">
             <div class="card-hd">
@@ -409,7 +404,7 @@
               <span class="card-badge" id="trend-badge">Weekly Performance</span>
             </div>
             <div class="chart-container" id="chart-bars-wrap">
-              <!-- Rendered via JS -->
+              
               <div class="chart-placeholder">Loading attendance trends…</div>
             </div>
           </div>
@@ -447,18 +442,18 @@
           </div>
         </div>
 
-        <!-- Principal Section: Department Comparison Cards -->
+        
         <div class="card" id="principal-comparison-card" style="display:none;margin-top:20px;">
           <div class="card-hd">
             <div class="card-title"><re-icon icon="chalkboard"></re-icon> Department Comparison (Institutional View)</div>
             <span class="card-badge">All Departments</span>
           </div>
           <div class="dept-compare-grid" id="dept-compare-grid">
-            <!-- Injected dynamically -->
+            
           </div>
         </div>
 
-        <!-- Principal Section: HOD Matrix -->
+        
         <div class="card" id="principal-hod-card" style="display:none;margin-top:20px;">
           <div class="card-hd">
             <div class="card-title"><re-icon icon="building2"></re-icon> Department Leadership Matrix</div>
@@ -482,7 +477,7 @@
       
         </div>
 
-        <!-- Tab 3: Alerts Focus Panel -->
+        
         <div class="ctrl-tab-panel" id="tab-dash-alerts">
           <div class="card" style="padding:20px;">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
@@ -499,8 +494,6 @@
         </div>
       </section>
 
-
-      <!-- PAGE 2: APPROVALS INBOX (pg-inbox) -->
       <section class="ctrl-page" id="pg-inbox">
         <div class="page-hd">
           <div>
@@ -512,7 +505,7 @@
           </div>
         </div>
 
-        <!-- Filter bar -->
+        
         <div class="card" style="margin-bottom:14px;padding:12px 16px;">
           <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
             <div style="display:flex;gap:6px;flex-wrap:wrap;" id="inbox-filter-chips">
@@ -536,16 +529,16 @@
           </div>
         </div>
 
-        <!-- Master-Detail Split Shell -->
+        
         <div class="ctrl-inbox-shell" id="ctrl-inbox-shell">
-          <!-- Left Column: Master List (380px) -->
+          
           <div class="ctrl-inbox-list-pane" id="ctrl-inbox-list-pane">
             <div id="inbox-items-container" class="ctrl-inbox-items-container">
               <div style="text-align:center;padding:40px;color:var(--tmu);">Loading approvals queue…</div>
             </div>
           </div>
 
-          <!-- Right Column: Detail Pane (Flexible) -->
+          
           <div class="ctrl-inbox-detail-pane" id="ctrl-inbox-detail-pane">
             <div class="ctrl-inbox-detail-empty" id="ctrl-inbox-detail-empty">
               <div style="text-align:center;padding:60px 20px;color:var(--tmu);">
@@ -559,10 +552,8 @@
         </div>
       </section>
 
-
-      <!-- PAGE 3: TIMETABLE (pg-timetable) -->
       <section class="ctrl-page" id="pg-timetable">
-        <!-- Timetable Tab Bar -->
+        
         <div class="ctrl-tabs" role="tablist" aria-label="Timetable views" style="margin-bottom:16px;">
           <button class="ctrl-tab act" role="tab" aria-selected="true" id="tab-btn-tt-view" onclick="switchTimetableTab('view')"><re-icon icon="calendar-days" size="14"></re-icon> Class View</button>
           <button class="ctrl-tab" role="tab" aria-selected="false" id="tab-btn-tt-verify" onclick="switchTimetableTab('verify')"><re-icon icon="clipboard-list" size="14"></re-icon> Verification <span class="badge" id="tt-verify-tab-badge" style="display:none;background:var(--warn);color:#fff;margin-left:4px;">0</span></button>
@@ -589,7 +580,7 @@
           </div>
         </div>
 
-        <!-- Pending draft notification banner -->
+        
         <div id="ctrl-tt-pending-alert" style="display:none;margin-bottom:14px;padding:12px 16px;background:#fffbeb;border:1px solid #fde68a;border-radius:10px;display:flex;align-items:center;justify-content:space-between;gap:12px;">
           <div style="display:flex;align-items:center;gap:10px;">
             <span style="font-size:20px;color:#d97706;"><re-icon icon="alert-triangle"></re-icon></span>
@@ -648,7 +639,7 @@
           </div>
         </div>
 
-        <!-- KPI SUMMARY CARDS -->
+        
         <div class="stats-row" style="display:grid;grid-template-columns:repeat(auto-fit, minmax(220px, 1fr));gap:14px;margin-bottom:20px;">
           <div class="card t-stat-mini">
             <div class="t-stat-icon amber">
@@ -679,7 +670,7 @@
           </div>
         </div>
 
-        <!-- TABLE CONTAINER -->
+        
         <div class="card" style="padding:0;overflow:hidden;">
           <div style="padding:14px 18px;border-bottom:1px solid var(--br);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;background:var(--bg2,#f8faf8);">
             <div style="display:flex;align-items:center;gap:10px;">
@@ -732,10 +723,8 @@
         </div>
       </section>
 
-
-      <!-- PAGE 4: ATTENDANCE (pg-attendance) -->
       <section class="ctrl-page" id="pg-attendance">
-        <!-- Attendance Tab Bar -->
+        
         <div class="ctrl-tabs" role="tablist" aria-label="Attendance views" style="margin-bottom:16px;">
           <button class="ctrl-tab act" role="tab" aria-selected="true" id="tab-btn-att-overview" onclick="switchAttendanceTab('overview')"><re-icon icon="trend-up" size="14"></re-icon> Overview</button>
           <button class="ctrl-tab" role="tab" aria-selected="false" id="tab-btn-att-daily" onclick="switchAttendanceTab('daily')"><re-icon icon="clipboard-list" size="14"></re-icon> Daily Rosters</button>
@@ -744,7 +733,7 @@
           <button class="ctrl-tab" role="tab" aria-selected="false" id="tab-btn-att-reports" onclick="switchAttendanceTab('reports')"><re-icon icon="bar-chart-2" size="14"></re-icon> Reports</button>
         </div>
 
-        <!-- TAB 1: Trend Overview -->
+        
         <div class="ctrl-tab-panel act" id="tab-att-overview">
           <div class="page-hd">
             <div>
@@ -795,7 +784,7 @@
           </div>
         </div>
 
-        <!-- TAB 2: Daily Rosters -->
+        
         <div class="ctrl-tab-panel" id="tab-att-daily">
 
         <div class="page-hd">
@@ -854,7 +843,7 @@
       
         </div>
 
-        <!-- TAB 3: Defaulters -->
+        
         <div class="ctrl-tab-panel" id="pg-defaulters">
 
         <div class="page-hd">
@@ -905,7 +894,7 @@
       
         </div>
 
-        <!-- TAB 4: Period Records -->
+        
         <div class="ctrl-tab-panel" id="pg-records">
 
         <div class="page-hd">
@@ -944,7 +933,7 @@
       
         </div>
 
-        <!-- TAB 5: Reports -->
+        
         <div class="ctrl-tab-panel" id="pg-reports">
 
         <div class="page-hd">
@@ -965,7 +954,7 @@
           <button class="ctrl-tab" id="tab-btn-sem-rpt" onclick="switchReportTab('semester')"><re-icon icon="book-open" size="14"></re-icon> Semester Subject Report</button>
         </div>
 
-        <!-- Daily Roll-up Section (C7 §12) -->
+        
         <div class="card" id="rpt-daily-sec" style="margin-top:16px;">
           <div class="toolbar-flex" style="margin-bottom:14px;">
             <div style="display:flex;align-items:center;gap:10px;">
@@ -978,7 +967,7 @@
             </div>
           </div>
 
-          <!-- KPI Cards -->
+          
           <div class="dash-kpi-grid stats-row" style="grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));gap:14px;margin-bottom:18px;">
             <div class="kpi-card t-stat-mini">
               <div class="t-stat-icon blue"><re-icon icon="calendar" size="20"></re-icon></div>
@@ -1038,7 +1027,7 @@
           </div>
         </div>
 
-        <!-- Faculty Punctuality Section (C7 §12) -->
+        
         <div class="card" id="rpt-punct-sec" style="display:none;margin-top:16px;">
           <div class="toolbar-flex" style="margin-bottom:14px;">
             <div style="font-weight:700;font-size:14px;">Faculty Start-Class &amp; Attendance Punctuality Compliance</div>
@@ -1065,7 +1054,7 @@
           </div>
         </div>
 
-        <!-- Presence Heatmap Section (C7 §12) -->
+        
         <div class="card" id="rpt-heat-sec" style="display:none;margin-top:16px;">
           <div class="toolbar-flex" style="margin-bottom:14px;">
             <div>
@@ -1089,7 +1078,7 @@
           </div>
         </div>
 
-        <!-- Monthly Report Section -->
+        
         <div class="card" id="rpt-monthly-sec" style="display:none;margin-top:16px;">
           <div class="toolbar-flex" style="margin-bottom:14px;">
             <div style="display:flex;align-items:center;gap:10px;">
@@ -1119,7 +1108,7 @@
           </div>
         </div>
 
-        <!-- Semester Report Section -->
+        
         <div class="card" id="rpt-semester-sec" style="display:none;margin-top:16px;">
           <div class="toolbar-flex" style="margin-bottom:14px;">
             <div style="display:flex;align-items:center;gap:10px;">
@@ -1161,10 +1150,8 @@
         </div>
       </section>
 
-
-      <!-- PAGE 5: STUDENT MANAGEMENT (pg-students) -->
       <section class="ctrl-page" id="pg-students">
-        <!-- Student Tab Bar -->
+        
         <div class="ctrl-tabs" role="tablist" aria-label="Student management views" style="margin-bottom:16px;">
           <button class="ctrl-tab act" role="tab" aria-selected="true" id="tab-btn-stu-directory" onclick="switchStudentTab('directory')"><re-icon icon="graduation-cap" size="14"></re-icon> Directory</button>
           <button class="ctrl-tab" role="tab" aria-selected="false" id="tab-btn-stu-participation" onclick="switchStudentTab('participation')"><re-icon icon="award" size="14"></re-icon> Participation &amp; OD</button>
@@ -1183,7 +1170,7 @@
           </div>
         </div>
 
-        <!-- Filter Bar -->
+        
         <div class="card student-dir-filter-bar">
           <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;flex:1;min-width:260px;">
             <div style="position:relative;flex:1;min-width:200px;max-width:320px;">
@@ -1241,7 +1228,7 @@
               </tbody>
             </table>
           </div>
-          <!-- Server Pagination Bar -->
+          
           <div class="stu-pagination-bar" id="stu-pagination-bar">
             <div id="stu-pagination-info">Showing 0 of 0 students</div>
             <div style="display:flex;align-items:center;gap:8px;">
@@ -1267,7 +1254,7 @@
           </div>
         </div>
 
-        <!-- Institutional Metric KPI Cards -->
+        
         <div class="part-kpi-grid stats-row">
           <div class="part-kpi-card t-stat-mini">
             <div class="t-stat-icon blue"><re-icon icon="trophy" size="20"></re-icon></div>
@@ -1327,7 +1314,7 @@
           </div>
         </div>
 
-        <!-- View Sub-Tabs -->
+        
         <div class="ctrl-tabs" style="margin-top:16px;">
           <button class="ctrl-tab act" id="tab-btn-part-roster" onclick="switchParticipationTab('roster')"><re-icon icon="clipboard-list" size="14"></re-icon> Master Roster</button>
           <button class="ctrl-tab" id="tab-btn-part-events" onclick="switchParticipationTab('events')"><re-icon icon="building2" size="14"></re-icon> ️ Events View</button>
@@ -1336,7 +1323,7 @@
           <button class="ctrl-tab" id="tab-btn-part-queue" onclick="switchParticipationTab('queue')"><re-icon icon="scale" size="14"></re-icon> ️ Approvals &amp; Revocation Queue</button>
         </div>
 
-        <!-- Filter & Search Toolbar -->
+        
         <div class="card" style="margin-top:16px;">
           <div class="toolbar-flex" style="flex-wrap:wrap;gap:10px;">
             <div style="flex:1;min-width:220px;">
@@ -1375,7 +1362,7 @@
             </div>
           </div>
 
-          <!-- SUB-VIEW 1: MASTER ROSTER -->
+          
           <div id="part-view-roster" style="margin-top:14px;">
             <div class="table-responsive">
               <table class="data-table" id="part-roster-table">
@@ -1400,7 +1387,7 @@
             </div>
           </div>
 
-          <!-- SUB-VIEW 2: EVENTS VIEW -->
+          
           <div id="part-view-events" style="margin-top:14px;display:none;">
             <div class="table-responsive">
               <table class="data-table" id="part-events-table">
@@ -1424,7 +1411,7 @@
             </div>
           </div>
 
-          <!-- SUB-VIEW 3: STUDENTS DIRECTORY -->
+          
           <div id="part-view-students" style="margin-top:14px;display:none;">
             <div class="table-responsive">
               <table class="data-table" id="part-students-table">
@@ -1448,7 +1435,7 @@
             </div>
           </div>
 
-          <!-- SUB-VIEW 4: CHARTS & DISTRIBUTION -->
+          
           <div id="part-view-charts" style="margin-top:14px;display:none;">
             <div class="part-charts-grid">
               <div class="part-chart-card">
@@ -1478,7 +1465,7 @@
             </div>
           </div>
 
-          <!-- SUB-VIEW 5: APPROVALS & REVOCATION QUEUE -->
+          
           <div id="part-view-queue" style="margin-top:14px;display:none;">
             <div style="margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;">
               <div>
@@ -1521,13 +1508,13 @@
           </div>
         </div>
 
-        <!-- Sub Tabs -->
+        
         <div class="ctrl-tabs">
           <button class="ctrl-tab act" id="tab-btn-student-leaves" onclick="switchLeaveTab('student')"><re-icon icon="graduation-cap" size="14"></re-icon> Student Leave Requests</button>
           <button class="ctrl-tab" id="tab-btn-teacher-leaves" onclick="switchLeaveTab('teacher')"><re-icon icon="teacher" size="14"></re-icon> Faculty Leave Requests</button>
         </div>
 
-        <!-- Filter & Bulk Action Toolbar -->
+        
         <div class="card" style="margin-top:16px;">
           <div class="toolbar-flex">
             <div class="filter-pills">
@@ -1568,10 +1555,8 @@
         </div>
       </section>
 
-
-      <!-- PAGE 6: STAFF MANAGEMENT (pg-staff) -->
       <section class="ctrl-page" id="pg-staff">
-        <!-- Staff Tab Bar -->
+        
         <div class="ctrl-tabs" role="tablist" aria-label="Staff management views" style="margin-bottom:16px;">
           <button class="ctrl-tab act" role="tab" aria-selected="true" id="tab-btn-staff-directory" onclick="switchStaffTab('directory')"><re-icon icon="teacher" size="14"></re-icon> Directory &amp; Roles</button>
           <button class="ctrl-tab" role="tab" aria-selected="false" id="tab-btn-staff-workload" onclick="switchStaffTab('workload')"><re-icon icon="users" size="14"></re-icon> Workload</button>
@@ -1647,7 +1632,7 @@
           </div>
         </div>
 
-        <!-- Metric KPI Cards -->
+        
         <div class="part-kpi-grid stats-row" style="grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));">
           <div class="part-kpi-card t-stat-mini">
             <div class="t-stat-icon amber"><re-icon icon="hourglass" size="20"></re-icon></div>
@@ -1679,7 +1664,7 @@
           </div>
         </div>
 
-        <!-- Sub Tabs -->
+        
         <div class="ctrl-tabs" style="margin-top:16px;">
           <button class="ctrl-tab act" id="tab-fl-pending" onclick="switchFacultyLeaveTab('pending')"><re-icon icon="download" size="14"></re-icon> Pending Approvals (<span id="fl-tab-pending-count">0</span>)</button>
           <button class="ctrl-tab" id="tab-fl-today" onclick="switchFacultyLeaveTab('today')"><re-icon icon="refresh" size="14"></re-icon> Today's Substitutions (<span id="fl-tab-today-count">0</span>)</button>
@@ -1688,9 +1673,9 @@
           <button class="ctrl-tab" id="tab-fl-policy" onclick="switchFacultyLeaveTab('policy')"><re-icon icon="settings" size="14"></re-icon> ️ Leave Policy</button>
         </div>
 
-        <!-- Content Area -->
+        
         <div class="card" style="margin-top:16px;">
-          <!-- SUB-VIEW 1: PENDING APPROVALS -->
+          
           <div id="fl-view-pending">
             <div class="table-responsive">
               <table class="data-table" id="fl-pending-table">
@@ -1714,7 +1699,7 @@
             </div>
           </div>
 
-          <!-- SUB-VIEW 2: TODAY'S SUBSTITUTIONS -->
+          
           <div id="fl-view-today" style="display:none;">
             <div class="table-responsive">
               <table class="data-table" id="fl-today-table">
@@ -1737,7 +1722,7 @@
             </div>
           </div>
 
-          <!-- SUB-VIEW 3: UNRESOLVED SLOTS -->
+          
           <div id="fl-view-unresolved" style="display:none;">
             <div class="table-responsive">
               <table class="data-table" id="fl-unresolved-table">
@@ -1759,17 +1744,17 @@
             </div>
           </div>
 
-          <!-- SUB-VIEW 4: LEAVE CALENDAR -->
+          
           <div id="fl-view-calendar" style="display:none;">
             <div id="fl-calendar-container" style="padding:16px;">
-              <!-- Loaded dynamically -->
+              
             </div>
           </div>
 
-          <!-- SUB-VIEW 5: POLICY VIEW -->
+          
           <div id="fl-view-policy" style="display:none;">
             <div id="fl-policy-container" style="padding:16px;">
-              <!-- Loaded dynamically -->
+              
             </div>
           </div>
         </div>
@@ -1803,10 +1788,8 @@
         </div>
       </section>
 
-
-      <!-- PAGE 7: BROADCAST (pg-broadcast) -->
       <section class="ctrl-page" id="pg-broadcast">
-        <!-- Broadcast Tab Bar -->
+        
         <div class="ctrl-tabs" role="tablist" aria-label="Broadcast views" style="margin-bottom:16px;">
           <button class="ctrl-tab act" role="tab" aria-selected="true" id="tab-btn-bc-compose" onclick="switchBroadcastTab('compose')"><re-icon icon="edit-3" size="14"></re-icon> Compose Notice</button>
           <button class="ctrl-tab" role="tab" aria-selected="false" id="tab-btn-bc-history" onclick="switchBroadcastTab('history')"><re-icon icon="clock" size="14"></re-icon> Notice History</button>
@@ -1822,7 +1805,7 @@
         </div>
 
         <div class="dash-grid-2">
-          <!-- Composer Panel -->
+          
           <div class="card">
             <div class="card-hd">
               <div class="card-title"><re-icon icon="bullhorn"></re-icon> Compose Announcement</div>
@@ -1858,7 +1841,7 @@
             </form>
           </div>
 
-          <!-- History Panel -->
+          
           <div class="card">
             <div class="card-hd">
               <div class="card-title"><re-icon icon="scroll"></re-icon> Dispatch History</div>
@@ -1873,10 +1856,8 @@
         </div>
       </section>
 
-
-      <!-- PAGE 8: POLICY & AUDIT (pg-policy-audit) -->
       <section class="ctrl-page" id="pg-policy-audit">
-        <!-- Policy & Audit Tab Bar -->
+        
         <div class="ctrl-tabs" role="tablist" aria-label="Policy and audit views" style="margin-bottom:16px;">
           <button class="ctrl-tab act" role="tab" aria-selected="true" id="tab-btn-pa-policy" onclick="switchPolicyAuditTab('policy')"><re-icon icon="settings" size="14"></re-icon> Department Policy</button>
           <button class="ctrl-tab" role="tab" aria-selected="false" id="tab-btn-pa-audit" onclick="switchPolicyAuditTab('audit')"><re-icon icon="shield-check" size="14"></re-icon> Executive Audit Log</button>
@@ -1896,7 +1877,7 @@
           </div>
         </div>
 
-        <!-- Scope & Hierarchy Notice -->
+        
         <div class="card" style="margin-bottom:16px;padding:14px 18px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.2);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
           <div style="display:flex;align-items:center;gap:12px;">
             <div style="width:36px;height:36px;border-radius:8px;background:#3b82f6;color:#fff;display:flex;align-items:center;justify-content:center;">
@@ -1911,7 +1892,7 @@
         </div>
 
         <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(340px, 1fr));gap:16px;margin-bottom:16px;">
-          <!-- CARD 1: ANNUAL LEAVE ALLOTMENTS -->
+          
           <div class="card" style="padding:18px;">
             <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid #f1f5f9;">
               <div style="width:28px;height:28px;border-radius:6px;background:var(--gLt);color:var(--gD);display:flex;align-items:center;justify-content:center;">
@@ -1953,7 +1934,7 @@
             </div>
           </div>
 
-          <!-- CARD 2: OPERATIONAL ABSENCE & SUBSTITUTION CONTROLS -->
+          
           <div class="card" style="padding:18px;">
             <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid #f1f5f9;">
               <div style="width:28px;height:28px;border-radius:6px;background:rgba(245,158,11,0.1);color:#d97706;display:flex;align-items:center;justify-content:center;">
@@ -1995,7 +1976,7 @@
           </div>
         </div>
 
-        <!-- REVISION NOTE & SUBMIT -->
+        
         <div class="card" style="margin-bottom:16px;padding:18px;">
           <div class="form-group">
             <label for="dept-pol-reason" style="font-size:12px;font-weight:700;color:var(--td);display:block;margin-bottom:6px;">
@@ -2009,7 +1990,7 @@
           </div>
         </div>
 
-        <!-- REVISION HISTORY TABLE -->
+        
         <div class="card">
           <div style="padding:14px 18px;border-bottom:1px solid #f1f5f9;display:flex;align-items:center;justify-content:space-between;">
             <div>
@@ -2104,8 +2085,6 @@
         </div>
       </section>
 
-
-      <!-- PAGE 9: PROFILE (pg-profile) -->
       <section class="ctrl-page" id="pg-profile">
 
         <div class="page-hd">
@@ -2147,13 +2126,10 @@
       
       </section>
 
-
-
-
     </div>
   </div>
 
-  <!-- MODAL: BULK "MEET ME" NOTICE -->
+  
   <div id="meet-modal" class="modal-backdrop">
     <div class="modal-box">
       <div class="modal-hd">
@@ -2176,7 +2152,7 @@
     </div>
   </div>
 
-  <!-- MODAL: LEAVE REVIEW REMARKS -->
+  
   <div id="leave-action-modal" class="modal-backdrop">
     <div class="modal-box">
       <div class="modal-hd">
@@ -2196,7 +2172,7 @@
     </div>
   </div>
 
-  <!-- MODAL: FREE-TEACHER FINDER & ASSIGN SUBSTITUTE (§C5) -->
+  
   <div id="substitute-picker-modal" class="modal-backdrop">
     <div class="modal-box modal-box-lg">
       <div class="modal-hd">
@@ -2224,7 +2200,7 @@
     </div>
   </div>
 
-  <!-- MODAL: CANCEL CLASS PERIOD (§C4) -->
+  
   <div id="cancel-session-modal" class="modal-backdrop">
     <div class="modal-box">
       <div class="modal-hd">
@@ -2247,7 +2223,7 @@
     </div>
   </div>
 
-  <!-- MODAL: MOVE SESSION ROOM (§C4) -->
+  
   <div id="move-room-modal" class="modal-backdrop">
     <div class="modal-box">
       <div class="modal-hd">
@@ -2271,7 +2247,7 @@
     </div>
   </div>
 
-  <!-- MODAL: EXECUTIVE SESSION NOTE (§C4) -->
+  
   <div id="session-note-modal" class="modal-backdrop">
     <div class="modal-box">
       <div class="modal-hd">
@@ -2294,7 +2270,7 @@
     </div>
   </div>
 
-  <!-- MODAL: STUDENT PROFILE & ATTENDANCE RECORD (§C6) -->
+  
   <div id="student-record-modal" class="modal-backdrop">
     <div class="modal-box modal-box-xl" style="max-height:90vh;display:flex;flex-direction:column;">
       <div class="modal-hd">
@@ -2308,7 +2284,7 @@
         <button class="modal-close-btn" onclick="closeStudentRecordModal()" aria-label="Close modal"><re-icon icon="x" size="14"></re-icon></button>
       </div>
       <div class="modal-body" style="overflow-y:auto;flex:1;display:flex;flex-direction:column;gap:16px;">
-        <!-- Banner Stats & Classes Needed Math -->
+        
         <div class="student-rec-kpis">
           <div class="sr-kpi-card t-stat-mini">
             <div class="t-stat-icon green"><re-icon icon="grid" size="20"></re-icon></div>
@@ -2328,7 +2304,7 @@
           </div>
         </div>
 
-        <!-- Month Heatmap (31 Days) -->
+        
         <div class="card" style="margin:0;padding:14px;box-shadow:none;border:1px solid #e2e8f0;">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
             <div style="font-size:12.5px;font-weight:700;color:var(--td);">Daily Attendance Calendar (Current Month)</div>
@@ -2340,11 +2316,11 @@
             </div>
           </div>
           <div id="sr-month-heatmap" class="month-heatmap-grid">
-            <!-- Days rendered by JS -->
+            
           </div>
         </div>
 
-        <!-- Subject Breakdown Table -->
+        
         <div class="card" style="margin:0;padding:0;box-shadow:none;border:1px solid #e2e8f0;overflow:hidden;">
           <div style="padding:10px 14px;background:#f8fafc;border-bottom:1px solid #e2e8f0;font-size:12.5px;font-weight:700;color:var(--td);">
             Subject-wise Attendance Performance
@@ -2375,7 +2351,7 @@
     </div>
   </div>
 
-  <!-- MODAL: OFFICIAL WARNING LETTERHEAD (§C6) -->
+  
   <div id="warning-letter-modal" class="modal-backdrop">
     <div class="modal-box modal-box-xl" style="max-height:92vh;display:flex;flex-direction:column;">
       <div class="modal-hd">
@@ -2383,7 +2359,7 @@
         <button class="modal-close-btn" onclick="closeWarningLetterModal()" aria-label="Close modal"><re-icon icon="x" size="14"></re-icon></button>
       </div>
       <div class="modal-body" style="overflow-y:auto;flex:1;background:#f1f5f9;padding:16px;">
-        <!-- Printable Sheet -->
+        
         <div class="letterhead-sheet" id="letterhead-print-area">
           <div class="lh-header">
             <div class="lh-inst-name">EXCELLENCE INSTITUTE OF ENGINEERING &amp; TECHNOLOGY</div>
@@ -2403,7 +2379,7 @@
             <strong>SUBJECT: URGENT ATTENDANCE SHORTAGE NOTICE &amp; CONDONATION WARNING</strong>
           </div>
           <div class="lh-body" id="wl-letter-body">
-            <!-- Dynamic Letter Body -->
+            
           </div>
           <div class="lh-signature-row">
             <div class="lh-sig-box">
@@ -2428,7 +2404,7 @@
     </div>
   </div>
 
-  <!-- DRAWER: CLASS LIVE VIEW (§5) -->
+  
   <div id="class-live-drawer" class="drawer-backdrop" onclick="onDrawerBackdropClick(event)">
     <div class="drawer-panel" id="drawer-panel">
       <div class="drawer-hd">
@@ -2440,7 +2416,7 @@
       </div>
 
       <div class="drawer-body">
-        <!-- Now Card -->
+        
         <div class="drawer-now-card">
           <div class="drawer-now-hd">
             <div style="display:flex;align-items:center;gap:8px;">
@@ -2476,26 +2452,26 @@
           </div>
         </div>
 
-        <!-- Today's Period Strip -->
+        
         <div>
           <label style="font-size:11.5px;font-weight:700;text-transform:uppercase;color:#64748b;letter-spacing:0.5px;display:block;margin-bottom:6px;">Today's Schedule</label>
           <div class="drawer-strip-wrap" id="drawer-periods-strip">
-            <!-- Rendered by JS -->
+            
           </div>
         </div>
 
-        <!-- 7-Day Attendance Trend -->
+        
         <div class="drawer-trend-box" id="drawer-trend-box">
           <div class="drawer-trend-hd">
             <span style="font-size:11.5px;font-weight:700;text-transform:uppercase;color:#64748b;letter-spacing:0.5px;">7-Day Attendance Trend</span>
             <span id="drawer-trend-avg" style="font-size:12px;font-weight:700;color:#0f172a;">—% avg</span>
           </div>
           <div class="drawer-trend-bars" id="drawer-trend-bars">
-            <!-- Rendered by JS -->
+            
           </div>
         </div>
 
-        <!-- Attendance Roster -->
+        
         <div class="drawer-roster-box">
           <div class="drawer-roster-hd">
             <span>Student Attendance Status</span>
@@ -2518,7 +2494,7 @@
     </div>
   </div>
 
-  <!-- MODAL: ACADEMIC PARTICIPATION DETAIL (m-part-detail) -->
+  
   <div class="modal-backdrop" id="m-part-detail" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,0.6);z-index:9999;align-items:center;justify-content:center;padding:16px;">
     <div class="modal-box" style="background:#fff;border-radius:16px;max-width:720px;width:100%;max-height:90vh;overflow-y:auto;box-shadow:0 20px 25px -5px rgba(0,0,0,0.1);padding:24px;">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:1px solid #e2e8f0;padding-bottom:12px;margin-bottom:16px;">
@@ -2530,7 +2506,7 @@
       </div>
 
       <div id="part-detail-body" style="display:flex;flex-direction:column;gap:16px;">
-        <!-- Loaded dynamically by controller.page.js -->
+        
       </div>
 
       <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:20px;border-top:1px solid #e2e8f0;padding-top:14px;" id="part-detail-actions">
@@ -2539,7 +2515,7 @@
     </div>
   </div>
 
-  <!-- MODAL: REJECT APPROVED OD (m-part-reject-od) -->
+  
   <div class="modal-backdrop" id="m-part-reject-od" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,0.6);z-index:9999;align-items:center;justify-content:center;padding:16px;">
     <div class="modal-box" style="background:#fff;border-radius:16px;max-width:540px;width:100%;box-shadow:0 20px 25px -5px rgba(0,0,0,0.1);padding:24px;">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:1px solid #e2e8f0;padding-bottom:12px;margin-bottom:16px;">
@@ -2554,7 +2530,7 @@
         <div>
           <label style="font-size:12px;font-weight:700;color:#334155;display:block;margin-bottom:4px;">Select Dates to Revoke:</label>
           <div id="part-reject-dates-wrap" style="display:flex;flex-wrap:wrap;gap:8px;padding:8px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;">
-            <!-- Rendered by JS -->
+            
           </div>
         </div>
 
@@ -2564,7 +2540,7 @@
         </div>
 
         <div id="part-reject-preview-box" style="display:none;background:#fef2f2;border:1px solid #fecaca;padding:10px 14px;border-radius:8px;font-size:12px;color:#991b1b;">
-          <!-- Preview result -->
+          
         </div>
       </div>
 
@@ -2576,7 +2552,7 @@
     </div>
   </div>
 
-  <!-- MODAL: FACULTY LEAVE REVIEW (m-fl-review) -->
+  
   <div class="modal-backdrop" id="m-fl-review" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,0.6);z-index:9999;align-items:center;justify-content:center;padding:16px;">
     <div class="modal-box" style="background:#fff;border-radius:16px;max-width:760px;width:100%;max-height:90vh;overflow-y:auto;box-shadow:0 20px 25px -5px rgba(0,0,0,0.1);padding:24px;">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:1px solid #e2e8f0;padding-bottom:12px;margin-bottom:16px;">
@@ -2588,7 +2564,7 @@
       </div>
 
       <div id="fl-rev-body" style="display:flex;flex-direction:column;gap:16px;">
-        <!-- Rendered dynamically -->
+        
       </div>
 
       <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:20px;border-top:1px solid #e2e8f0;padding-top:14px;" id="fl-rev-actions">
@@ -2597,7 +2573,7 @@
     </div>
   </div>
 
-  <!-- MODAL: DIRECT ASSIGN SUBSTITUTE (m-fl-assign-sub) -->
+  
   <div class="modal-backdrop" id="m-fl-assign-sub" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,0.6);z-index:10000;align-items:center;justify-content:center;padding:16px;">
     <div class="modal-box" style="background:#fff;border-radius:16px;max-width:580px;width:100%;max-height:85vh;overflow-y:auto;box-shadow:0 20px 25px -5px rgba(0,0,0,0.1);padding:24px;">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:1px solid #e2e8f0;padding-bottom:12px;margin-bottom:16px;">
@@ -2629,7 +2605,7 @@
     </div>
   </div>
 
-  <!-- MODAL: DEPARTMENT LEAVE POLICY (m-fl-policy-edit) -->
+  
   <div class="modal-backdrop" id="m-fl-policy-edit" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,0.6);z-index:9999;align-items:center;justify-content:center;padding:16px;">
     <div class="modal-box" style="background:#fff;border-radius:16px;max-width:540px;width:100%;box-shadow:0 20px 25px -5px rgba(0,0,0,0.1);padding:24px;">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:1px solid #e2e8f0;padding-bottom:12px;margin-bottom:16px;">
@@ -2683,7 +2659,7 @@
     </div>
   </div>
 
-  <!-- MODAL: DECLARE HOLIDAY / HALF-DAY (m-declare-holiday) (C7 §14) -->
+  
   <div class="modal-backdrop" id="m-declare-holiday" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,0.6);z-index:9999;align-items:center;justify-content:center;padding:16px;">
     <div class="modal-box" style="background:#fff;border-radius:16px;max-width:500px;width:100%;box-shadow:0 20px 25px -5px rgba(0,0,0,0.1);padding:24px;">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:1px solid #e2e8f0;padding-bottom:12px;margin-bottom:16px;">
@@ -2718,7 +2694,7 @@
     </div>
   </div>
 
-  <!-- MODAL: EXTEND ATTENDANCE LOCK (m-extend-lock) (C7 §14) -->
+  
   <div class="modal-backdrop" id="m-extend-lock" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,0.6);z-index:9999;align-items:center;justify-content:center;padding:16px;">
     <div class="modal-box" style="background:#fff;border-radius:16px;max-width:480px;width:100%;box-shadow:0 20px 25px -5px rgba(0,0,0,0.1);padding:24px;">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:1px solid #e2e8f0;padding-bottom:12px;margin-bottom:16px;">
@@ -2750,7 +2726,7 @@
     </div>
   </div>
 
-  <!-- Scripts -->
+  
   <script src="js/core/session.js"></script>
   <script src="js/core/api.js"></script>
   <script src="js/core/toast.js"></script>
@@ -2761,7 +2737,7 @@
   <script src="js/shared/workload.shared.js"></script>
   <script src="js/pages/controller.page.js"></script>
 
-  <!-- GLOBAL SEARCH MODAL (Ctrl+K) -->
+  
   <div id="m-global-search" class="modal-backdrop" onclick="if(event.target===this)closeGlobalSearch()">
     <div class="modal-box ctrl-search-modal-box" role="dialog" aria-modal="true" aria-labelledby="global-search-title">
       <div class="ctrl-search-header">

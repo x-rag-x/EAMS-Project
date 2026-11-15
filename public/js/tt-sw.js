@@ -1,6 +1,6 @@
 /**
  * public/tt-sw.js
- * EAMS Timetable v3 — Service Worker App Shell & Offline Asset Cache (Phase 7, Section 2.1 & 2.2)
+ * EAMS Timetable v3 — Service Worker App Shell & Offline Asset Cache
  *
  * Implements:
  * 1. Precaching of essential application shell assets (HTML, CSS, core JS modules)

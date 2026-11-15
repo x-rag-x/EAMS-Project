@@ -23,7 +23,7 @@ function isTtcOrAdmin(req) {
   return false;
 }
 
-// ── 1. Readiness Check ──
+// ── Readiness Check ──
 // GET /api/autogen/readiness?deptId=&batch=&classId=&saturdayMode=
 router.get('/readiness', authMiddleware, async (req, res) => {
   try {
@@ -62,7 +62,7 @@ router.get('/readiness', authMiddleware, async (req, res) => {
   }
 });
 
-// ── 2. Staff Allocation (Phase 3) ──
+// ── Staff Allocation ──
 
 // GET /api/autogen/allocation?batch=&deptId=
 router.get('/allocation', authMiddleware, async (req, res) => {
@@ -263,7 +263,7 @@ router.delete('/drafts/:id', authMiddleware, async (req, res) => {
   }
 });
 
-// ── 4. Run Execution (Non-blocking async runner) ──
+// ── Run Execution (Non-blocking async runner) ──
 
 // POST /api/autogen/run/start
 router.post('/run/start', authMiddleware, async (req, res) => {
@@ -430,7 +430,7 @@ router.get('/run/:runId/versions', authMiddleware, async (req, res) => {
   }
 });
 
-// ── 5. Keep & Apply Version ──
+// ── Keep & Apply Version ──
 
 // POST /api/autogen/keep — Keep selected candidate version into development workspace
 router.post('/keep', authMiddleware, async (req, res) => {
@@ -581,7 +581,7 @@ router.post('/submit-approval', authMiddleware, async (req, res) => {
   }
 });
 
-// ── 6. Version Diff against Production (Phase 3.6) ──
+// ── Version Diff against Production ──
 
 // GET /api/autogen/run/:runId/diff?versionIndex=0&classId=
 router.get('/run/:runId/diff', authMiddleware, async (req, res) => {
@@ -666,7 +666,7 @@ router.get('/run/:runId/diff', authMiddleware, async (req, res) => {
   }
 });
 
-// ── 7. Conflict Cards (Accept/Deny) ──
+// ── Conflict Cards (Accept/Deny) ──
 
 // In-memory or run-attached store for cards
 const _activeCardsMap = new Map();
@@ -715,7 +715,7 @@ router.post('/run/:runId/undo', authMiddleware, async (req, res) => {
 });
 
 
-// ── 8. Hours Coverage Report (Phase 4.3) ──
+// ── Hours Coverage Report ──
 
 // GET /api/autogen/coverage?classId=&batch=&semester=&deptId=
 router.get('/coverage', authMiddleware, async (req, res) => {

@@ -1,16 +1,13 @@
 /**
  * EAMS Security Block Service
- *
  * Multi-dimensional login abuse prevention.
  * Tracks failed login attempts across four scopes and creates
  * time-limited blocks when configurable thresholds are exceeded.
- *
  * Block scopes:
  *   account_device  →  strict (3 failures)
  *   account         →  strict/moderate (5 failures)
  *   device          →  moderate (10 failures)
  *   ip              →  lenient (50 failures)
- *
  * Thresholds are read from EAMS Settings (key: 'security') so admins
  * can tune them without code changes.
  */
@@ -77,7 +74,6 @@ function buildIdentifier(blockType, { username, deviceId, ip }) {
 
 /**
  * Check if any active security block applies to the given login attempt.
- *
  * @param {string} username
  * @param {string} deviceId
  * @param {string} ip
@@ -124,7 +120,6 @@ async function checkBlock(username, deviceId, ip) {
 
 /**
  * Record a failed login attempt and create security blocks if thresholds are exceeded.
- *
  * @param {string} username
  * @param {string} deviceId
  * @param {string} ip
@@ -223,7 +218,6 @@ async function recordFailedAttempt(username, deviceId, ip) {
 
 /**
  * Clear security blocks (admin-initiated unblock).
- *
  * @param {string} blockType - 'account' | 'device' | 'ip' | 'account_device' | 'all'
  * @param {string} identifier - The identifier to unblock
  */
@@ -243,7 +237,6 @@ async function clearBlock(blockType, identifier) {
 
 /**
  * Clear all blocks for a specific username (e.g. after successful login or admin unlock).
- *
  * @param {string} username
  */
 async function clearBlocksForUser(username) {

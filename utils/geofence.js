@@ -7,7 +7,6 @@ const EARTH_RADIUS_METERS = 6371000;
 
 /**
  * Calculate Haversine distance between two GPS coordinates in meters.
- *
  * @param {number} lat1
  * @param {number} lng1
  * @param {number} lat2
@@ -30,7 +29,6 @@ function haversineDistanceMeters(lat1, lng1, lat2, lng2) {
 
 /**
  * Verify whether a coordinate falls inside the campus geofence.
- *
  * @param {Object} params
  * @param {number|null} params.lat
  * @param {number|null} params.lng

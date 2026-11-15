@@ -1,12 +1,11 @@
 /**
  * public/js/modules/compare.module.js
- * EAMS Timetable v3 — Visual Compare, Matrix Diff & Workload Dumbbells (Phase 6)
- *
+ * EAMS Timetable v3 — Visual Compare, Matrix Diff & Workload Dumbbells
  * Implements:
- * 1. Side-by-side / Highlighted weekly matrix diff (Green: Added, Amber: Modified, Rose: Removed)
- * 2. Faculty Workload Dumbbells summary strip (production hrs -> draft hrs)
- * 3. Room Utilization shifts and occupancy deltas inspector
- * 4. Interactive modal and inline view integration
+ * Side-by-side / Highlighted weekly matrix diff (Green: Added, Amber: Modified, Rose: Removed)
+ * Faculty Workload Dumbbells summary strip (production hrs -> draft hrs)
+ * Room Utilization shifts and occupancy deltas inspector
+ * Interactive modal and inline view integration
  */
 
 (function (window) {

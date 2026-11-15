@@ -14,11 +14,11 @@
 </head>
 <body>
 
-  <!-- APP SHELL -->
+  
   <div class="bulk-app" id="app-shell">
     <div class="sb-overlay" id="sb-overlay" onclick="toggleBulkSidebar()"></div>
 
-    <!-- ── SIDEBAR ───────────────────────────────────────────── -->
+    
     <nav class="chat-sidebar">
       <div class="chat-sb-header">
         <div class="chat-sb-brand">
@@ -49,12 +49,12 @@
         <button type="button" class="filter-pill" data-status="committed">Done</button>
       </div>
 
-      <!-- Chat items list -->
+      
       <div class="chat-sb-list" id="chat-sb-list">
         <div style="text-align:center;padding:30px 10px;color:var(--tmu);font-size:12px;">Loading chat sessions…</div>
       </div>
 
-      <!-- Sidebar footer -->
+      
       <div class="chat-sb-footer">
         <div class="chat-sb-user">
           <div class="chat-sb-avatar" id="chat-sb-avatar">A</div>
@@ -77,9 +77,9 @@
       </div>
     </nav>
 
-    <!-- ── MAIN CHAT AREA ────────────────────────────────────── -->
+    
     <main class="chat-main" id="chat-main-container">
-      <!-- Top header bar -->
+      
       <header class="chat-header">
         <div class="chat-header-title-box">
           <button class="sb-toggle-btn-mobile" onclick="toggleBulkSidebar()" title="Toggle Menu" style="display:none;background:none;border:none;cursor:pointer;padding:4px;color:var(--td);">
@@ -98,12 +98,12 @@
         </div>
       </header>
 
-      <!-- Message Transcript -->
+      
       <div class="chat-transcript" id="chat-transcript">
-        <!-- Rendered by bulk.transcript.js -->
+        
       </div>
 
-      <!-- Bottom Chat Dock -->
+      
       <div class="chat-dock" id="chat-dock">
         <input type="text" class="chat-dock-input" id="chat-dock-input" placeholder="Type notes or commentary for this import batch…">
         <button type="button" class="btn-chat-send" id="chat-dock-send">
@@ -113,7 +113,7 @@
       </div>
     </main>
 
-    <!-- ── SYSTEM RESTORE MAINTENANCE TAB ────────────────────── -->
+    
     <div id="restore-main-container" style="display:none;flex:1;overflow-y:auto;padding:24px 32px;background:#fbfdfb;">
       <div style="max-width:860px;margin:0 auto;">
         <button type="button" class="btn-out" data-action="open-tab-chat" style="margin-bottom:16px;padding:6px 14px;font-size:12px;">
@@ -132,7 +132,7 @@
                 </div>
               </div>
 
-              <!-- Dropzone for zip -->
+              
               <div class="uz" id="uz-restore"
                 onclick="document.getElementById('uf-restore').click()"
                 ondragover="event.preventDefault();this.classList.add('dg');"
@@ -145,7 +145,7 @@
                 <div class="uz-hint"><re-icon icon="lock" size="12"></re-icon> Protected with AES-256-GCM. Verified only by EAMS.</div>
               </div>
 
-              <!-- Optional password input -->
+              
               <div style="margin-top:16px;display:flex;flex-wrap:wrap;align-items:center;gap:12px;">
                 <div style="flex:1;min-width:240px;">
                   <label style="display:block;font-size:11.5px;font-weight:700;color:var(--tmu);margin-bottom:4px;">
@@ -159,7 +159,7 @@
                 </button>
               </div>
 
-              <!-- Live progress during inspection -->
+              
               <div id="restore-inspect-progress" style="display:none;margin-top:16px;">
                 <div style="font-size:12px;color:var(--tmu);margin-bottom:6px;" id="restore-inspect-label">Decrypting &amp; analyzing archive…</div>
                 <div style="background:#f1f5f9;border-radius:8px;height:8px;overflow:hidden;">
@@ -170,7 +170,7 @@
             </div>
           </div>
 
-          <!-- CONFLICT RESOLVER INTERFACE -->
+          
           <div id="restore-resolver-card" class="card fixed-card" style="display:none;margin-top:20px;">
             <div class="card-body">
               <div style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;padding:14px 18px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;margin-bottom:20px;">
@@ -195,7 +195,7 @@
                 </div>
               </div>
 
-              <!-- STRATEGY SELECTOR -->
+              
               <div style="margin-bottom:20px;">
                 <div style="font-size:13.5px;font-weight:700;color:var(--td);margin-bottom:10px;">
                   Select Conflict Resolution Strategy:
@@ -236,7 +236,7 @@
                 </div>
               </div>
 
-              <!-- COLLECTIONS LIST -->
+              
               <div style="margin-bottom:20px;">
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
                   <div style="font-size:13.5px;font-weight:700;color:var(--td);">
@@ -250,7 +250,7 @@
                 <div id="restore-collections-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px;"></div>
               </div>
 
-              <!-- DIFF PREVIEW -->
+              
               <div id="restore-diff-section" style="margin-bottom:24px;display:none;">
                 <div style="font-size:13px;font-weight:700;color:var(--td);margin-bottom:8px;display:flex;align-items:center;gap:6px;">
                   <re-icon icon="bolt" size="14"></re-icon> Sample Differences Preview
@@ -258,7 +258,7 @@
                 <div id="restore-diff-accordion" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:12px;max-height:220px;overflow-y:auto;font-size:12px;"></div>
               </div>
 
-              <!-- ACTIONS -->
+              
               <div style="border-top:1px solid var(--br,#e2e8f0);padding-top:18px;display:flex;flex-wrap:wrap;gap:12px;justify-content:space-between;align-items:center;">
                 <button class="btn btn-out" onclick="resetRestoreView()">
                   &larr; Cancel / Choose Another File
@@ -278,7 +278,7 @@
             </div>
           </div>
 
-          <!-- RESTORE SUMMARY CARD -->
+          
           <div id="restore-summary-card" class="card fixed-card" style="display:none;margin-top:20px;">
             <div class="card-body" style="text-align:center;padding:36px 24px;">
               <div style="font-size:48px;color:#15803d;margin-bottom:12px;">
@@ -307,7 +307,7 @@
     </div>
   </div>
 
-  <!-- ── VERIFICATION PANEL POPUP MODAL WINDOW ──────────────── -->
+  
   <div class="modal-bg modal-verification-bg" id="chat-drawer" onclick="if(event.target===this&&window.Bulk&&window.Bulk.closeDrawer)Bulk.closeDrawer()">
     <div class="modal modal-xl modal-verification-panel">
       <div class="modal-hd">
@@ -323,12 +323,12 @@
         </button>
       </div>
       <div class="drawer-body modal-verification-body">
-        <!-- Rendered by bulk.drawer.js -->
+        
       </div>
     </div>
   </div>
 
-  <!-- ── ROW VERIFICATION EDIT MODAL ────────────────────────── -->
+  
   <div class="modal-bg" id="bulk-verify-edit-modal" onclick="if(event.target===this)closeVerifyEditModal()">
     <div class="modal modal-lg">
       <div class="modal-hd">
@@ -341,7 +341,7 @@
 
       <input type="hidden" id="vedit-row-number" value="">
 
-      <!-- 1. STUDENT VERIFICATION FORM -->
+      
       <div id="vedit-student-section" style="display:none;">
         <div class="form-grid" style="grid-template-columns: 1.4fr 0.8fr 0.8fr;">
           <div class="fg">
@@ -449,7 +449,7 @@
         </div>
       </div>
 
-      <!-- 2. TEACHER VERIFICATION FORM -->
+      
       <div id="vedit-teacher-section" style="display:none;">
         <div class="form-grid" style="grid-template-columns: 1.4fr 0.8fr 0.8fr;">
           <div class="fg">
@@ -525,12 +525,12 @@
         </div>
       </div>
 
-      <!-- 3. GENERIC FALLBACK SECTION -->
+      
       <div id="vedit-generic-section" style="display:none;">
         <div class="form-grid form-grid-2" id="vedit-generic-fields"></div>
       </div>
 
-      <!-- Credential Email Notice -->
+      
       <div class="stg-mail-notice" id="vedit-mail-notice" style="margin-top:16px;">
         <re-icon icon="mail"></re-icon>
         <div>
@@ -538,7 +538,7 @@
         </div>
       </div>
 
-      <!-- Form Actions -->
+      
       <div class="form-actions" style="margin-top:20px;">
         <button type="button" class="btn-form-ghost" onclick="closeVerifyEditModal()">Cancel</button>
         <button type="button" class="btn-form-pri" id="btn-submit-verify" onclick="submitVerifyEntry()">
@@ -550,7 +550,7 @@
 
   <div class="toast" id="toast"></div>
 
-  <!-- Core Scripts -->
+  
   <script src="js/core/session.js"></script>
   <script src="js/core/api.js"></script>
   <script src="js/core/toast.js"></script>
@@ -558,7 +558,7 @@
   <script src="js/core/popup.js"></script>
   <script src="js/core/guard.js"></script>
 
-  <!-- Modular Bulk Chat Scripts -->
+  
   <script src="js/pages/bulk/bulk.util.js?v=20261021"></script>
   <script src="js/pages/bulk/bulk.config.js?v=20261021"></script>
   <script src="js/pages/bulk/bulk.api.js?v=20261021"></script>

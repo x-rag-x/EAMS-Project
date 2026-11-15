@@ -148,7 +148,7 @@ const StudentSchema = new mongoose.Schema({
   mustChangePassword:   { type: Boolean, default: true },
   passwordHistory:      { type: [{ hash: { type: String, required: true }, changedAt: { type: Date, default: Date.now } }], select: false, default: [] },
 
-  // Trust Score cache of ledger (§4, §8, T4.1)
+  // Trust Score cache of ledger
   trust: {
     score:       { type: Number, default: 100, min: 0, max: 100 },
     band:        { type: String, enum: ['normal', 'monitor', 'verify', 'disabled'], default: 'normal' },

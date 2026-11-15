@@ -1,7 +1,6 @@
 /**
  * public/js/pages/admin.trust.js
- * 
- * Trust & Devices Admin Module (§11, §14, §15, §16, Phase T5)
+ * Trust & Devices Admin Module
  * Manages Student Device Registry, Trust Score Ledger, Two-Person Rules,
  * Registration Windows, and Approval Queues.
  */
@@ -93,9 +92,9 @@
     return '#dc2626';
   }
 
-  // ─────────────────────────────────────────────────────────
+  // ─
   //  INIT MODULE
-  // ─────────────────────────────────────────────────────────
+  // ─
   function initTrustDevicesModule() {
     populateDeptAndClassFilters();
     loadTrustStats();
@@ -260,9 +259,9 @@
     loadTrustStudents();
   }
 
-  // ─────────────────────────────────────────────────────────
+  // ─
   //  SUBTAB SWITCHING
-  // ─────────────────────────────────────────────────────────
+  // ─
   function switchTrustSubTab(tabName) {
     _trustState.currentSubTab = tabName;
 
@@ -405,9 +404,9 @@
       });
   }
 
-  // ─────────────────────────────────────────────────────────
+  // ─
   //  STATS KPI CARDS
-  // ─────────────────────────────────────────────────────────
+  // ─
   function loadTrustStats() {
     apiCall('GET', '/trust/students?limit=200').then(function (data) {
       if (!data || !data.students) return;
@@ -448,9 +447,9 @@
     }).catch(function () {});
   }
 
-  // ─────────────────────────────────────────────────────────
-  //  1. STUDENTS TAB & TABLE
-  // ─────────────────────────────────────────────────────────
+  // ─
+  //  STUDENTS TAB & TABLE
+  // ─
   function debounceTrustStudentSearch() {
     clearTimeout(_trustState.searchDebounceTimer);
     _trustState.searchDebounceTimer = setTimeout(function () {
@@ -579,9 +578,9 @@
     tbody.innerHTML = html;
   }
 
-  // ─────────────────────────────────────────────────────────
-  //  2. STUDENT DRAWER & LEDGER
-  // ─────────────────────────────────────────────────────────
+  // ─
+  //  STUDENT DRAWER & LEDGER
+  // ─
   function openTrustStudentDrawer(studentId) {
     if (typeof openModal_ === 'function') {
       openModal_('m-trust-drawer');
@@ -642,7 +641,7 @@
         }
       }
 
-      // Consent Box (§8)
+      // Consent Box
       if (consentBox) {
         if (s.advisorConsent && s.advisorConsent.consented) {
           consentBox.style.display = 'block';
@@ -658,7 +657,7 @@
           consentBox.style.background = '#f8fafc';
           consentBox.style.border = '1px solid #e2e8f0';
           consentBox.style.color = '#475569';
-          consentBox.innerHTML = '<strong>ℹ️ Two-Person Rule (§8):</strong> Super Admin requires advisor consent before unlocking attendance or resetting score to 100. (Sudo Admin retains institution override privilege).';
+          consentBox.innerHTML = '<strong>ℹ️ Two-Person Rule:</strong> Super Admin requires advisor consent before unlocking attendance or resetting score to 100. (Sudo Admin retains institution override privilege).';
         }
       }
 
@@ -747,9 +746,9 @@
     tbody.innerHTML = html;
   }
 
-  // ─────────────────────────────────────────────────────────
-  //  3. ADMIN ACTIONS: ADJUST, RESET, UNLOCK, REVOKE
-  // ─────────────────────────────────────────────────────────
+  // ─
+  //  ADMIN ACTIONS: ADJUST, RESET, UNLOCK, REVOKE
+  // ─
   function onAdjustDeltaInput(inputEl) {
     if (!inputEl) inputEl = document.getElementById('adjust-delta');
     if (!inputEl) return;
@@ -879,7 +878,7 @@
       })
       .catch(function (err) {
         if (err.message && err.message.includes('Advisor consent is required')) {
-          showPopup(err.message + '\n\nPlease ask the Class Advisor to log in and give consent under Device Verification.', 'Two-Person Rule (§8)', 'warn');
+          showPopup(err.message + '\n\nPlease ask the Class Advisor to log in and give consent under Device Verification.', 'Two-Person Rule', 'warn');
         } else {
           showPopup('Error resetting score: ' + err.message, 'Reset Failed', 'error');
         }
@@ -903,7 +902,7 @@
       })
       .catch(function (err) {
         if (err.message && err.message.includes('Advisor consent is required')) {
-          showPopup(err.message + '\n\nPlease ask the Class Advisor to give consent first.', 'Two-Person Rule (§8)', 'warn');
+          showPopup(err.message + '\n\nPlease ask the Class Advisor to give consent first.', 'Two-Person Rule', 'warn');
         } else {
           showPopup('Error unlocking attendance: ' + err.message, 'Unlock Failed', 'error');
         }
@@ -948,9 +947,9 @@
       });
   }
 
-  // ─────────────────────────────────────────────────────────
-  //  4. REGISTRATION WINDOWS
-  // ─────────────────────────────────────────────────────────
+  // ─
+  //  REGISTRATION WINDOWS
+  // ─
   function loadRegistrationWindows() {
     var tbody = document.getElementById('trust-windows-tbody');
     if (tbody) tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:24px;color:var(--tmu);">Loading registration windows…</td></tr>';
@@ -1098,9 +1097,9 @@
       });
   }
 
-  // ─────────────────────────────────────────────────────────
-  //  5. QUEUES & REQUESTS
-  // ─────────────────────────────────────────────────────────
+  // ─
+  //  QUEUES & REQUESTS
+  // ─
   function loadTrustQueues() {
     var statusSel = document.getElementById('trust-queue-filter-status');
     var status = statusSel ? statusSel.value : '';
@@ -1203,9 +1202,9 @@
       });
   }
 
-  // ─────────────────────────────────────────────────────────
-  //  6. REGISTRATION HISTORY
-  // ─────────────────────────────────────────────────────────
+  // ─
+  //  REGISTRATION HISTORY
+  // ─
   function loadTrustHistory() {
     var stageSel = document.getElementById('trust-history-filter-stage');
     var stage = stageSel ? stageSel.value : '';
@@ -1256,9 +1255,9 @@
     tbody.innerHTML = html;
   }
 
-  // ─────────────────────────────────────────────────────────
-  //  7. ADMIN DISPUTES QUEUE & DECISION (§12, T6.3)
-  // ─────────────────────────────────────────────────────────
+  // ─
+  //  ADMIN DISPUTES QUEUE & DECISION
+  // ─
   function loadAdminDisputes() {
     var statusSel = document.getElementById('trust-disp-filter-status');
     var status = statusSel ? statusSel.value : '';
@@ -1341,7 +1340,7 @@
 
     // Frozen Evidence Card
     html += '<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:12px;padding:16px;margin-bottom:16px;font-size:12.5px;color:#1e40af;">'
-      + '<div style="font-weight:800;font-size:13.5px;margin-bottom:8px;display:flex;align-items:center;gap:6px;"><re-icon icon="camera" size="14"></re-icon> Frozen Evidence Snapshot (§12)</div>'
+      + '<div style="font-weight:800;font-size:13.5px;margin-bottom:8px;display:flex;align-items:center;gap:6px;"><re-icon icon="camera" size="14"></re-icon> Frozen Evidence Snapshot</div>'
       + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">'
       + '<div>• Session: <b>' + escapeHtml(snap.attendanceSession?.sessionTrackId || snap.attendanceSession?.date || 'Live Session') + '</b></div>'
       + '<div>• Verification Result: <b>' + escapeHtml(snap.teacherVerification?.result || 'N/A') + '</b></div>'
@@ -1435,9 +1434,9 @@
       });
   }
 
-  // ─────────────────────────────────────────────────────────
-  //  8. DEVICE SHARING & FRIEND-MARKING CASES (§13, T7)
-  // ─────────────────────────────────────────────────────────
+  // ─
+  //  DEVICE SHARING & FRIEND-MARKING CASES
+  // ─
   function loadDeviceShareCases() {
     var statusSel = document.getElementById('trust-cases-filter-status');
     var status = statusSel ? statusSel.value : '';
@@ -1558,7 +1557,7 @@
 
     // Collision Signals & Device Hardware Card
     html += '<div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:12px;padding:16px;margin-bottom:16px;font-size:12.5px;color:#9a3412;">'
-      + '<div style="font-weight:800;font-size:13px;margin-bottom:8px;display:flex;align-items:center;gap:6px;"><re-icon icon="shield-alert" size="14"></re-icon> Collision Signals &amp; Device Identity (§13)</div>'
+      + '<div style="font-weight:800;font-size:13px;margin-bottom:8px;display:flex;align-items:center;gap:6px;"><re-icon icon="shield-alert" size="14"></re-icon> Collision Signals &amp; Device Identity</div>'
       + '<div style="margin-bottom:8px;">Signals: ' + (c.signals || []).map(function (s) { return '<span style="background:#ffedd5;color:#c2410c;padding:2px 6px;border-radius:4px;font-weight:700;font-size:11px;margin-right:4px;">' + escapeHtml(s) + '</span>'; }).join('') + '</div>'
       + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:11.5px;color:#7c2d12;">'
       + '<div>• IP Address: <b>' + escapeHtml(devInfo.ip || '—') + '</b></div>'
@@ -1590,17 +1589,17 @@
     } else {
       // OPEN status: Decision form
       html += '<div class="card" style="padding:16px;border:1.5px dashed var(--bdr);margin-bottom:8px;">'
-        + '<div style="font-size:13px;font-weight:800;color:var(--td);margin-bottom:12px;">Execute Administrative Decision (§13)</div>'
+        + '<div style="font-size:13px;font-weight:800;color:var(--td);margin-bottom:12px;">Execute Administrative Decision</div>'
         + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">'
         + '<div class="fg">'
         + '<label class="fl">Days to Convert to Absent (Past N Days)</label>'
         + '<input type="number" class="fc" id="admin-case-absent-days" value="7" min="1" max="60">'
-        + '<small style="color:var(--tmu);font-size:11px;">Default 7 days per §13 policy</small>'
+        + '<small style="color:var(--tmu);font-size:11px;">Default 7 days policy</small>'
         + '</div>'
         + '<div class="fg">'
         + '<label class="fl">Self-Attendance Lock Duration (Days)</label>'
         + '<input type="number" class="fc" id="admin-case-lock-days" value="15" min="1" max="90">'
-        + '<small style="color:var(--tmu);font-size:11px;">Default 15 days per §13 policy</small>'
+        + '<small style="color:var(--tmu);font-size:11px;">Default 15 days policy</small>'
         + '</div>'
         + '</div>'
         + '<div class="fg">'
@@ -1654,7 +1653,7 @@
       var lockDays = parseInt(document.getElementById('admin-case-lock-days')?.value || '15', 10);
 
       var confirmMsg = '⚠️ CONFIRM FRIEND-MARKING & EXECUTE PENALTIES?\n\n'
-        + 'This will apply the following penalties to BOTH students (§13):\n'
+        + 'This will apply the following penalties to BOTH students:\n'
         + '1. Turn all self-marked attendance in the past ' + absentDays + ' days to ABSENT.\n'
         + '2. Lock self-attendance for ' + lockDays + ' days (cannot scan QR / Quick Pass).\n'
         + '3. Apply -5% attendance adjustment to semester attendance total.\n'
@@ -1688,9 +1687,9 @@
     }
   }
 
-  // ─────────────────────────────────────────────────────────
+  // ─
   //  WINDOW EXPORTS
-  // ─────────────────────────────────────────────────────────
+  // ─
   window.initTrustDevicesModule = initTrustDevicesModule;
   window.refreshTrustModule = refreshTrustModule;
   window.switchTrustSubTab = switchTrustSubTab;

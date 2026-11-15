@@ -1196,7 +1196,7 @@ body {
 }
 
 /* ══════════════════════════════════════════════════════════════════
-   LIVE BOARD & REAL-TIME OPERATIONS STYLES (PHASE C3)
+   LIVE BOARD & REAL-TIME OPERATIONS STYLES
    ══════════════════════════════════════════════════════════════════ */
 
 /* Live Stream Status Pill */
@@ -1777,7 +1777,7 @@ body {
 }
 
 /* ══════════════════════════════════════════════════════════════════
-   CLASS LIVE VIEW DRAWER (PHASE C3 §5)
+   CLASS LIVE VIEW DRAWER
    ══════════════════════════════════════════════════════════════════ */
 .drawer-backdrop {
   position: fixed;
@@ -2298,7 +2298,7 @@ body {
   }
 }
 
-/* ── ACADEMIC PARTICIPATION COMMAND CENTRE (C8) ── */
+/* ── ACADEMIC PARTICIPATION COMMAND CENTRE ── */
 .part-kpi-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -2613,10 +2613,6 @@ body {
 .ver-matrix-tab.active re-icon {
   color: var(--gD, #1b5e20);
 }
-
-
-
-
 
 /* ── Disabled Button & Action States ── */
 .btn:disabled,

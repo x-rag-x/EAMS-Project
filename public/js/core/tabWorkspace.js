@@ -1,11 +1,9 @@
 /**
  * EAMS TabWorkspace Core Module
- * 
  * Provides persistent in-app tab management with zero-lag DOM-retained switching,
  * per-tab state isolation (mode, scroll, undo/redo stacks), full W3C ARIA accessibility,
  * dirty-draft guard rails, database user state restoration with server revalidation,
  * and a Dual-Mode Split Screen engine with width-aware sidebar auto-hiding.
- * 
  * Invariants:
  * - Plain vanilla ES6+, zero external libraries.
  * - Steady-state hidden tabs use display: none / hidden attribute (0 paint/composite cost).
@@ -108,7 +106,7 @@
 
       // Split Screen State
       this.isSplit = false;
-      this.splitMode = 'vertical'; // 'vertical' (side-by-side) or 'horizontal' (top-and-bottom)
+      this.splitMode = 'vertical'; // 'vertical' (side-by-side) or 'horizontal'
       this.secondaryTabId = null;
       this.splitRatio = 0.5; // 50:50 default
       this.splitContainerEl = null;
@@ -288,7 +286,7 @@
         return null;
       }
 
-      // 1. Deduplication: activate existing tab
+      // Deduplication: activate existing tab
       if (this.tabs.has(id)) {
         const existing = this.tabs.get(id);
         const resolvedTitle = resolveFriendlyTabTitle({ ...config, title: config.title || existing.title, id, viewType, viewParams });
@@ -300,7 +298,7 @@
         return existing;
       }
 
-      // 2. Tab Hard Cap Guard (Limit = 12) with Quick Action
+      // Tab Hard Cap Guard (Limit = 12) with Quick Action
       if (this.tabs.size >= this.tabCapHard) {
         const canAutoClose = Array.from(this.tabs.values()).some(t => !t.isPinned && !t.isDirty && t.id !== this.activeTabId);
         if (canAutoClose && typeof (window.showConfirm || showConfirm) === 'function') {
@@ -322,14 +320,14 @@
         }
       }
 
-      // 3. Tab Soft Warning (Limit = 8)
+      // Tab Soft Warning (Limit = 8)
       if (this.tabs.size === this.tabCapSoft) {
         if (typeof showToast === 'function') {
           showToast(`8 tabs open in workspace. Consider closing unused tabs for optimal performance.`, 'info');
         }
       }
 
-      // 4. Create Tab State Object
+      // Create Tab State Object
       const tab = {
         id,
         title,
@@ -350,21 +348,21 @@
 
       this.tabs.set(id, tab);
 
-      // 5. Mount Chip & Pane DOM Nodes
+      // Mount Chip & Pane DOM Nodes
       this._mountTabChip(tab);
       this._mountTabPane(tab);
 
-      // 6. Invoke page renderer to populate pane content
+      // Invoke page renderer to populate pane content
       try {
         this.renderTab(tab, tab.paneEl);
       } catch (err) {
         console.error(`[TabWorkspace] Error rendering tab "${id}":`, err);
       }
 
-      // 7. Update tabstrip overflow button state
+      // Update tabstrip overflow button state
       this._updateOverflowButtonState();
 
-      // 8. Activate if requested
+      // Activate if requested
       if (activate) {
         this.activateTab(id);
       } else {
@@ -481,7 +479,7 @@
       const toTab = this.tabs.get(toTabId);
       if (!fromTab || !toTab) return;
 
-      // 1. Reorder DOM chips in tabstrip
+      // Reorder DOM chips in tabstrip
       if (fromTab.chipEl && toTab.chipEl && this.tabstripEl) {
         if (position === 'before') {
           this.tabstripEl.insertBefore(fromTab.chipEl, toTab.chipEl);
@@ -490,7 +488,7 @@
         }
       }
 
-      // 2. Reorder internal Map
+      // Reorder internal Map
       const entries = Array.from(this.tabs.entries());
       const fromIdx = entries.findIndex(([k]) => k === fromTabId);
       if (fromIdx === -1) return;
@@ -504,7 +502,7 @@
       entries.splice(toIdx, 0, movedEntry);
       this.tabs = new Map(entries);
 
-      // 3. Persist new tab order
+      // Persist new tab order
       this._saveSession();
     }
 
@@ -598,7 +596,7 @@
         return true;
       }
 
-      // 1. Deactivate current primary tab
+      // Deactivate current primary tab
       if (this.activeTabId && this.tabs.has(this.activeTabId) && this.activeTabId !== tabId) {
         const prevTab = this.tabs.get(this.activeTabId);
         if (prevTab.paneEl && prevTab.id !== this.secondaryTabId) {
@@ -615,7 +613,7 @@
         }
       }
 
-      // 2. Activate target tab
+      // Activate target tab
       this.activeTabId = tabId;
       this.activationHistory.push(tabId);
       if (this.activationHistory.length > 30) this.activationHistory.shift();
@@ -817,7 +815,7 @@
     }
 
     // =========================================================================
-    // DUAL-MODE SPLIT SCREEN & SIDEBAR AUTO-HIDE (Milestone 2)
+    // DUAL-MODE SPLIT SCREEN & SIDEBAR AUTO-HIDE
     // =========================================================================
 
     /**
@@ -1184,7 +1182,7 @@
       this._mountSplitViewport();
     }
 
-    // ── Cross-Pane Hover-Linking (Step 2.3) ──
+    // ── Cross-Pane Hover-Linking ──
     _initCrossPaneHoverLinking() {
       if (!this.splitContainerEl) return;
 
@@ -1319,7 +1317,7 @@
       }
     }
 
-    // ── Database User State Persistence (Z7 / Phase 2) ──
+    // ── Database User State Persistence ──
     _saveSession() {
       try {
         if (typeof window.syncUserStateToDb === 'function') {
@@ -1351,7 +1349,7 @@
 
     /**
      * Restores tabs from database TimetableUserState (Z7).
-     * Takes an optional asynchronous revalidateDraftFn(tab) to check if server draft still exists.
+     * Takes an optional asynchronous revalidateDraftFn to check if server draft still exists.
      */
     async restoreSession(revalidateDraftFn) {
       try {

@@ -38,7 +38,7 @@ async function get24HourVerificationCount() {
   return (result[0] && result[0].total) ? result[0].total : 0;
 }
 
-// ── 1. LIST BATCHES (SIDEBAR / HISTORY) ──
+// ── LIST BATCHES (SIDEBAR / HISTORY) ──
 router.get('/batches', authMiddleware, requirePage('bulk', 'view'), async (req, res) => {
   try {
     const filter = listFilter(req.user);
@@ -153,7 +153,7 @@ router.get('/batches', authMiddleware, requirePage('bulk', 'view'), async (req, 
   }
 });
 
-// ── 2. CREATE DRAFT BATCH ──
+// ── CREATE DRAFT BATCH ──
 router.post('/batches', authMiddleware, requirePage('bulk', 'create'), async (req, res) => {
   try {
     const { type, parentBatchId } = req.body;
@@ -238,7 +238,7 @@ router.post('/batches', authMiddleware, requirePage('bulk', 'create'), async (re
   }
 });
 
-// ── 3. GET ACTIVE RESUME BANNER (LEGACY COMPATIBILITY) ──
+// ── GET ACTIVE RESUME BANNER (LEGACY COMPATIBILITY) ──
 router.get('/batches/active', authMiddleware, requirePage('bulk', 'view'), async (req, res) => {
   try {
     const query = {
@@ -262,7 +262,7 @@ router.get('/batches/active', authMiddleware, requirePage('bulk', 'view'), async
   }
 });
 
-// ── 4. GET SINGLE BATCH DETAILS ──
+// ── GET SINGLE BATCH DETAILS ──
 router.get('/batches/:id', authMiddleware, requirePage('bulk', 'view'), loadBatch('view'), async (req, res) => {
   try {
     const limit24h = await get24HourVerificationCount();
@@ -279,7 +279,7 @@ router.get('/batches/:id', authMiddleware, requirePage('bulk', 'view'), loadBatc
   }
 });
 
-// ── 5. GET BATCH MESSAGES (TRANSCRIPT) ──
+// ── GET BATCH MESSAGES ──
 router.get('/batches/:id/messages', authMiddleware, requirePage('bulk', 'view'), loadBatch('view'), async (req, res) => {
   try {
     const afterSeq = Number(req.query.afterSeq !== undefined ? req.query.afterSeq : req.query.since) || 0;
@@ -307,7 +307,7 @@ router.get('/batches/:id/messages', authMiddleware, requirePage('bulk', 'view'),
   }
 });
 
-// ── 6. RENAME BATCH TITLE ──
+// ── RENAME BATCH TITLE ──
 router.patch('/batches/:id', authMiddleware, requirePage('bulk', 'create'), loadBatch('ownerOrSudo'), async (req, res) => {
   try {
     const title = String(req.body.title || '').trim().slice(0, 80);
@@ -322,7 +322,7 @@ router.patch('/batches/:id', authMiddleware, requirePage('bulk', 'create'), load
   }
 });
 
-// ── 7. ARCHIVE / UNARCHIVE BATCH (PER-USER HIDE) ──
+// ── ARCHIVE / UNARCHIVE BATCH (PER-USER HIDE) ──
 router.post('/batches/:id/archive', authMiddleware, requirePage('bulk', 'view'), loadBatch('view'), async (req, res) => {
   try {
     const shouldArchive = req.body.archived !== false;
@@ -343,7 +343,7 @@ router.post('/batches/:id/archive', authMiddleware, requirePage('bulk', 'view'),
   }
 });
 
-// ── 8. POST COMMENT TO CHAT ──
+// ── POST COMMENT TO CHAT ──
 router.post('/batches/:id/comments', authMiddleware, requirePage('bulk', 'create'), loadBatch('ownerOrSudo'), async (req, res) => {
   try {
     const text = String(req.body.text || '').trim();
@@ -368,7 +368,7 @@ router.post('/batches/:id/comments', authMiddleware, requirePage('bulk', 'create
   }
 });
 
-// ── 9. MARK MESSAGES SEEN (UNREAD TRACKING) ──
+// ── MARK MESSAGES SEEN (UNREAD TRACKING) ──
 router.post('/batches/:id/seen', authMiddleware, requirePage('bulk', 'view'), loadBatch('view'), async (req, res) => {
   try {
     const seq = Number(req.body.seq) || req.batch.messageSeq || 0;
@@ -390,7 +390,7 @@ router.post('/batches/:id/seen', authMiddleware, requirePage('bulk', 'view'), lo
   }
 });
 
-// ── 10. CLONE BATCH (AFTER REJECTION) ──
+// ── CLONE BATCH (AFTER REJECTION) ──
 router.post('/batches/:id/clone', authMiddleware, requirePage('bulk', 'create'), loadBatch('ownerOrSudo'), async (req, res) => {
   try {
     const type = req.batch.type;
@@ -462,7 +462,7 @@ router.post('/batches/:id/clone', authMiddleware, requirePage('bulk', 'create'),
   }
 });
 
-// ── 11. GET PAGINATED ROWS ──
+// ── GET PAGINATED ROWS ──
 router.get('/batches/:id/rows', authMiddleware, requirePage('bulk', 'view'), loadBatch('view'), async (req, res) => {
   try {
     const page = Math.max(1, parseInt(req.query.page, 10) || 1);
@@ -531,7 +531,7 @@ router.get('/batches/:id/rows', authMiddleware, requirePage('bulk', 'view'), loa
   }
 });
 
-// ── 12. GET SINGLE ROW WITH PASSWORD (FOR VERIFY MODAL EDIT ONLY) ──
+// ── GET SINGLE ROW WITH PASSWORD (FOR VERIFY MODAL EDIT ONLY) ──
 router.get('/batches/:id/rows/:rowNumber', authMiddleware, requirePage('bulk', 'view'), loadBatch('ownerOrSudo'), async (req, res) => {
   try {
     const rowNum = Number(req.params.rowNumber);

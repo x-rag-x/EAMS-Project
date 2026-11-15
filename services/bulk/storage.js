@@ -18,7 +18,6 @@ function getBucket() {
 
 /**
  * Stores a file buffer in MongoDB GridFS bucket 'bulkFiles'
- * 
  * @param {Buffer} buffer
  * @param {string} filename
  * @param {Object} [metadata]
@@ -52,7 +51,6 @@ async function put(buffer, filename, metadata = {}) {
 
 /**
  * Retrieves a file from GridFS by its ObjectId
- * 
  * @param {string|mongoose.Types.ObjectId} gridFsId
  * @returns {Promise<Buffer>}
  */

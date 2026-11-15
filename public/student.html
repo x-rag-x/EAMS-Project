@@ -15,15 +15,15 @@
 </head>
 <body>
 
-<!-- SIDEBAR OVERLAY (mobile) -->
+
 <div class="sb-overlay" id="sb-overlay" data-action="close-sidebar"></div>
 
 <div class="app-shell">
 
-<!-- ══ SIDEBAR ══ -->
+
 <aside class="sb" id="sidebar">
 
-  <!-- Brand -->
+  
   <div class="sb-brand">
     <div class="sb-logo">S</div>
     <div>
@@ -32,7 +32,7 @@
     </div>
   </div>
 
-  <!-- Student chip -->
+  
   <div class="sb-student-chip" data-action="show-view" data-view="profile" style="cursor:pointer;" title="My Profile">
     <div class="sb-uav" id="sb-av">S</div>
     <div style="overflow:hidden;">
@@ -41,7 +41,7 @@
     </div>
   </div>
 
-  <!-- Navigation -->
+  
   <nav class="sb-nav">
     <div class="sb-section-label">Main Menu</div>
     <button class="sb-item active" id="nav-dashboard" data-action="show-view" data-view="dashboard">
@@ -69,7 +69,7 @@
     </button>
   </nav>
 
-  <!-- Footer: animated logout -->
+  
   <div class="sb-bottom">
     <button class="sb-logout-btn" data-action="logout" title="Logout">
       <div class="logout-sign">
@@ -80,10 +80,10 @@
   </div>
 </aside>
 
-<!-- ══ CONTENT SHELL ══ -->
+
 <div class="mc">
 
-  <!-- TOPBAR -->
+  
   <div class="topbar">
     <div class="tb-brand">
       <div class="tb-hamburger" id="hamburger" data-action="toggle-sidebar"><re-icon icon="menu"></re-icon></div>
@@ -98,7 +98,7 @@
         <div class="tb-icon" id="st-notif-btn" data-action="toggle-notifs" title="Notifications" style="cursor:pointer;position:relative;">
           <re-icon icon="bell"></re-icon><span id="st-nbadge" style="display:none;position:absolute;top:-4px;right:-4px;background:#ef4444;color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:10px;line-height:1.2;">0</span>
         </div>
-        <!-- Student Notifications Dropdown -->
+        
         <div id="st-ndrop" style="display:none;position:absolute;right:0;top:42px;width:330px;background:#fff;border-radius:14px;box-shadow:0 12px 36px rgba(0,0,0,0.16);border:1px solid var(--br);z-index:999;overflow:hidden;">
           <div style="padding:12px 16px;border-bottom:1px solid var(--brl);display:flex;align-items:center;justify-content:space-between;background:var(--gLt);">
             <strong style="font-size:13px;color:var(--td);display:flex;align-items:center;gap:6px;"><re-icon icon="bell"></re-icon> Notifications</strong>
@@ -119,9 +119,9 @@
     </div>
   </div>
 
-  <!-- ── DASHBOARD VIEW ── -->
+  
   <div class="pg act" id="view-dashboard">
-    <!-- Trust Lock / Low Score Warning Banner (§10) -->
+    
     <div id="st-trust-lock-banner" style="display:none;margin:18px 24px 0 24px;background:#fef2f2;border:1.5px solid #fecaca;border-radius:14px;padding:14px 18px;align-items:center;gap:12px;box-shadow:0 4px 14px rgba(239,68,68,0.12);">
       <span style="font-size:24px;color:#dc2626;"><re-icon icon="shield-lock"></re-icon></span>
       <div style="flex:1;">
@@ -131,7 +131,7 @@
         </div>
       </div>
     </div>
-    <!-- Active Quick Pass / Live Attendance Alert Banner -->
+    
     <div id="st-active-session-banner" style="display:none;margin:18px 24px 0 24px;background:linear-gradient(135deg, #fef3c7 0%, #fffbeb 100%);border:1.5px solid #fde68a;border-radius:14px;padding:14px 18px;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;box-shadow:0 4px 14px rgba(245,158,11,0.12);">
       <div style="display:flex;align-items:center;gap:12px;">
         <span style="font-size:24px;"><re-icon icon="hashtag"></re-icon></span>
@@ -143,7 +143,7 @@
       <button class="btn-pri" data-action="navigate" data-url="attendance.html" style="background:#d97706;padding:8px 18px;font-size:12.5px;"><re-icon icon="bolt" size="14"></re-icon> Mark Attendance <re-icon icon="arrow-right"></re-icon></button>
     </div>
 
-    <!-- Live Current Slot & Schedule Banner -->
+    
     <div id="st-current-slot-banner" style="margin:18px 24px 0 24px;"></div>
 
     <div class="main" id="main-content">
@@ -154,7 +154,7 @@
     </div>
   </div>
 
-  <!-- ── PROFILE VIEW ── -->
+  
   <div class="pg" id="view-profile">
     <div class="profile-page" id="profile-content">
       <div class="loading-screen">
@@ -164,7 +164,7 @@
     </div>
   </div>
 
-  <!-- ── ATTENDANCE VIEW ── -->
+  
   <div class="pg" id="view-attendance">
     <div class="attendance-page" id="attendance-content">
       <div class="loading-screen">
@@ -174,11 +174,11 @@
     </div>
   </div>
 
-  <!-- ── APPLY LEAVE VIEW ── -->
+  
   <div class="pg" id="view-leave">
     <div class="leave-page" id="leave-content" style="max-width:1100px;margin:0 auto;padding:24px 20px;">
       
-      <!-- Top Advisor Banner & Stats -->
+      
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px;margin-bottom:22px;">
         <div style="background:linear-gradient(135deg,rgba(46,125,50,0.08),rgba(46,125,50,0.02));border:1.5px solid rgba(46,125,50,0.2);border-radius:14px;padding:16px;display:flex;align-items:center;gap:12px;">
           <div style="width:42px;height:42px;border-radius:10px;background:var(--gLt);color:var(--gD);display:flex;align-items:center;justify-content:center;font-size:20px;"><re-icon icon="sparkles"></re-icon></div>
@@ -206,14 +206,14 @@
 
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
         
-        <!-- Left: Apply Form Card -->
+        
         <div style="background:#fff;border:1.5px solid var(--br);border-radius:16px;padding:22px;box-shadow:0 4px 18px rgba(0,0,0,0.04);">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
             <strong style="font-size:16px;color:var(--td);display:flex;align-items:center;gap:8px;"><re-icon icon="file-text"></re-icon> Apply Leave / Permission</strong>
             <span style="font-size:11px;font-weight:700;background:var(--gLt);color:var(--gD);padding:3px 8px;border-radius:6px;">L2 Engine</span>
           </div>
 
-          <!-- Coverage Selector Tabs -->
+          
           <div style="display:flex;background:var(--gP);border-radius:10px;padding:4px;margin-bottom:18px;gap:4px;">
             <button type="button" id="tab-leave-full" class="btn-tab act" data-action="set-leave-coverage" data-coverage="full_day" style="flex:1;padding:8px;font-size:12px;font-weight:700;border:none;border-radius:8px;cursor:pointer;background:var(--gD);color:#fff;transition:all .2s;"><re-icon icon="tree" size="14"></re-icon> Full Day</button>
             <button type="button" id="tab-leave-fn" class="btn-tab" data-action="set-leave-coverage" data-coverage="fn" style="flex:1;padding:8px;font-size:12px;font-weight:700;border:none;border-radius:8px;cursor:pointer;background:transparent;color:var(--td);transition:all .2s;"><re-icon icon="history" size="14"></re-icon> Morning (FN)</button>
@@ -234,7 +234,7 @@
               </select>
             </div>
 
-            <!-- Date Controls -->
+            
             <div id="group-leave-dates" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;">
               <div>
                 <label class="fl">From Date</label>
@@ -246,7 +246,7 @@
               </div>
             </div>
 
-            <!-- Custom Period Checkboxes (if coverage == 'periods') -->
+            
             <div id="group-period-select" style="display:none;margin-bottom:14px;background:#f8fafc;border:1px solid var(--br);border-radius:10px;padding:12px;">
               <label class="fl" style="margin-bottom:6px;">Select Applicable Periods:</label>
               <div style="display:flex;gap:8px;flex-wrap:wrap;">
@@ -266,7 +266,7 @@
               <span id="leave-days-calc" style="font-size:13px;font-weight:800;color:var(--gD);">1 Day</span>
             </div>
 
-            <!-- Medical / Certificate Group -->
+            
             <div id="group-cert-section" style="display:none;margin-bottom:14px;background:#f8fafc;border:1px solid var(--br);border-radius:10px;padding:12px;">
               <label class="fl" style="font-size:12px;font-weight:700;color:var(--td);">Medical Certificate</label>
               <div style="margin-bottom:8px;">
@@ -291,7 +291,7 @@
           </form>
         </div>
 
-        <!-- Right: Pending Requests Card -->
+        
         <div style="display:flex;flex-direction:column;gap:20px;">
           <div style="background:#fff;border:1.5px solid var(--br);border-radius:16px;padding:22px;box-shadow:0 4px 18px rgba(0,0,0,0.04);flex:1;">
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
@@ -306,7 +306,7 @@
 
       </div>
 
-      <!-- Bottom: Application History Card -->
+      
       <div style="background:#fff;border:1.5px solid var(--br);border-radius:16px;padding:22px;margin-top:22px;box-shadow:0 4px 18px rgba(0,0,0,0.04);">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
           <strong style="font-size:15px;color:var(--td);display:flex;align-items:center;gap:6px;"><re-icon icon="clipboard-list"></re-icon> Leave History &amp; Records</strong>
@@ -338,11 +338,11 @@
     </div>
   </div>
 
-  <!-- ── ON-DUTY (OD) VIEW ── -->
+  
   <div class="pg" id="view-od">
     <div class="od-page" id="od-content" style="max-width:1100px;margin:0 auto;padding:24px 20px;">
       
-      <!-- Top Banner: Academic Participation Record -->
+      
       <div style="background:#fff;border:1.5px solid var(--br);border-radius:14px;padding:16px 20px;margin-bottom:16px;box-shadow:0 2px 8px rgba(0,0,0,0.03);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:14px;">
         <div>
           <div style="font-size:11px;font-weight:800;letter-spacing:0.5px;color:var(--gD);text-transform:uppercase;">ACADEMIC PARTICIPATION</div>
@@ -362,7 +362,7 @@
         </div>
       </div>
 
-      <!-- Stats Cards -->
+      
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px;margin-bottom:22px;">
         <div style="background:linear-gradient(135deg,rgba(2,132,199,0.08),rgba(2,132,199,0.02));border:1.5px solid rgba(2,132,199,0.2);border-radius:14px;padding:16px;display:flex;align-items:center;gap:12px;">
           <div style="width:42px;height:42px;border-radius:10px;background:#e0f2fe;color:#0284c7;display:flex;align-items:center;justify-content:center;font-size:20px;"><re-icon icon="trophy"></re-icon></div>
@@ -397,7 +397,7 @@
 
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
         
-        <!-- Left: Apply OD Card -->
+        
         <div style="background:#fff;border:1.5px solid var(--br);border-radius:16px;padding:22px;box-shadow:0 4px 18px rgba(0,0,0,0.04);">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
             <strong style="font-size:16px;color:var(--td);display:flex;align-items:center;gap:8px;"><re-icon icon="trophy"></re-icon> Apply for On-Duty (OD)</strong>
@@ -453,7 +453,7 @@
               </div>
             </div>
 
-            <!-- Custom Event Details (shown if no registered event picked) -->
+            
             <div id="group-custom-event" style="background:#f8fafc;border:1px solid var(--br);border-radius:10px;padding:12px;margin-bottom:14px;">
               <div style="margin-bottom:10px;">
                 <label class="fl">Event Title</label>
@@ -473,7 +473,7 @@
               </div>
             </div>
 
-            <!-- Coverage Selector Tabs -->
+            
             <div style="margin-bottom:12px;">
               <label class="fl">Coverage</label>
               <div style="display:flex;background:var(--gP);border-radius:10px;padding:4px;gap:4px;">
@@ -488,7 +488,7 @@
               </div>
             </div>
 
-            <!-- Dates -->
+            
             <div id="group-od-dates" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;">
               <div>
                 <label class="fl">From Date</label>
@@ -500,7 +500,7 @@
               </div>
             </div>
 
-            <!-- OD Period Checkboxes (if coverage == 'periods') -->
+            
             <div id="group-od-period-select" style="display:none;margin-bottom:14px;background:#f8fafc;border:1px solid var(--br);border-radius:10px;padding:12px;">
               <label class="fl" style="margin-bottom:6px;">Select Applicable Periods:</label>
               <div style="display:flex;gap:8px;flex-wrap:wrap;">
@@ -520,7 +520,7 @@
               <span id="od-days-calc" style="font-size:13px;font-weight:800;color:var(--gD);">1 Day</span>
             </div>
 
-            <!-- Faculty Mentor Selection -->
+            
             <div style="margin-bottom:14px;">
               <label class="fl">Faculty Mentor (Internal EAMS Teacher)</label>
               <select class="fc2" id="input-od-mentor">
@@ -528,13 +528,13 @@
               </select>
             </div>
 
-            <!-- Evidence / Invitation File ID or Link -->
+            
             <div style="margin-bottom:14px;">
               <label class="fl">Evidence / Invitation Letter Link</label>
               <input type="text" class="fc2" id="input-od-evidence-link" placeholder="Drive file ID, web link, or registration email copy">
             </div>
 
-            <!-- Purpose / Description -->
+            
             <div style="margin-bottom:16px;">
               <label class="fl">Purpose / Participation Role</label>
               <textarea class="fc2" id="input-od-reason" rows="2" placeholder="Describe your participation, presentation title, or team role..." required style="resize:vertical;"></textarea>
@@ -546,7 +546,7 @@
           </form>
         </div>
 
-        <!-- Right: Active OD Approvals & Stage Progression -->
+        
         <div style="display:flex;flex-direction:column;gap:20px;">
           <div style="background:#fff;border:1.5px solid var(--br);border-radius:16px;padding:22px;box-shadow:0 4px 18px rgba(0,0,0,0.04);flex:1;">
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
@@ -561,7 +561,7 @@
 
       </div>
 
-      <!-- Bottom: OD History & Outcome Submission Card -->
+      
       <div style="background:#fff;border:1.5px solid var(--br);border-radius:16px;padding:22px;margin-top:22px;box-shadow:0 4px 18px rgba(0,0,0,0.04);">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
           <strong style="font-size:15px;color:var(--td);display:flex;align-items:center;gap:6px;"><re-icon icon="clipboard-list"></re-icon> My On-Duty (OD) Records</strong>
@@ -591,11 +591,11 @@
     </div>
   </div>
 
-  <!-- ── CLASS REP ATTENDANCE VIEW ── -->
+  
   <div class="pg" id="view-rep-att">
     <div class="rep-page" id="rep-content" style="max-width:1100px;margin:0 auto;padding:24px 20px;">
       
-      <!-- Top Banner -->
+      
       <div style="background:linear-gradient(135deg, rgba(46,125,50,0.08), rgba(27,94,32,0.03));border:1.5px solid rgba(46,125,50,0.22);border-radius:16px;padding:20px 24px;margin-bottom:22px;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;">
         <div style="display:flex;align-items:center;gap:14px;">
           <div style="width:48px;height:48px;border-radius:12px;background:var(--gD);color:#fff;display:flex;align-items:center;justify-content:center;font-size:24px;box-shadow:0 4px 12px rgba(46,125,50,0.25);">
@@ -611,7 +611,7 @@
         </button>
       </div>
 
-      <!-- No Pending Session State -->
+      
       <div id="rep-empty-state" style="text-align:center;padding:60px 20px;background:#fff;border:1.5px dashed var(--br);border-radius:16px;">
         <div style="font-size:48px;margin-bottom:12px;"><re-icon icon="tree"></re-icon></div>
         <h3 style="font-size:16px;font-weight:700;color:var(--td);margin-bottom:6px;">No Pending Delegations</h3>
@@ -621,9 +621,9 @@
         <button class="btn-pri" data-action="load-rep-pending" style="font-size:12.5px;padding:8px 18px;">Check for Delegations</button>
       </div>
 
-      <!-- Active Delegated Session Area (hidden by default) -->
+      
       <div id="rep-session-area" style="display:none;">
-        <!-- Session Info Card -->
+        
         <div style="background:#fff;border:1.5px solid var(--br);border-radius:14px;padding:18px 22px;margin-bottom:18px;box-shadow:0 2px 8px rgba(0,0,0,0.03);">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
             <span style="font-size:11.5px;font-weight:800;background:var(--gLt);color:var(--gD);padding:4px 10px;border-radius:20px;text-transform:uppercase;" id="rep-session-badge">Active Delegation</span>
@@ -652,7 +652,7 @@
           </div>
         </div>
 
-        <!-- Toolbar & Stats -->
+        
         <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px;flex-wrap:wrap;">
           <div style="display:flex;gap:8px;">
             <button class="btn-pri" data-action="mark-all-rep" data-status="Present" style="font-size:12px;padding:6px 14px;background:#16a34a;"><re-icon icon="check" size="14"></re-icon> All Present</button>
@@ -665,7 +665,7 @@
           </div>
         </div>
 
-        <!-- Student Attendance Table -->
+        
         <div style="background:#fff;border:1.5px solid var(--br);border-radius:14px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.03);margin-bottom:24px;">
           <div style="overflow-x:auto;">
             <table class="tbl" style="margin:0;">
@@ -679,13 +679,13 @@
                 </tr>
               </thead>
               <tbody id="rep-student-tbody">
-                <!-- Populated via JS -->
+                
               </tbody>
             </table>
           </div>
         </div>
 
-        <!-- Bottom Action Card -->
+        
         <div style="position:sticky;bottom:16px;background:#fff;border:1.5px solid var(--br);border-radius:14px;padding:16px 20px;box-shadow:0 6px 24px rgba(0,0,0,0.1);display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;z-index:90;">
           <div>
             <div style="font-size:11px;font-weight:700;color:var(--tdi);text-transform:uppercase;">Attendance Summary</div>
@@ -700,8 +700,6 @@
     </div>
   </div>
 
-
-  <!-- ── TIMETABLE VIEW ── -->
   <div class="pg" id="view-timetable">
     <div class="main" id="timetable-main-content">
       <div class="loading-screen">
@@ -711,10 +709,10 @@
     </div>
   </div>
 
-</div><!-- end content-shell -->
-</div><!-- end app-shell -->
+</div>
+</div>
 
-<!-- ══ CHANGE PASSWORD MODAL ══ -->
+
 <div class="modal-bg" id="m-chpw">
   <div class="modal">
     <div class="modal-hd">
@@ -749,7 +747,7 @@
   </div>
 </div>
 
-<!-- ══ LOGIN ACTIVITY MODAL ══ -->
+
 <div class="modal-bg" id="m-activity">
   <div class="modal modal-lg">
     <div class="modal-hd">
@@ -768,7 +766,7 @@
             <th>Status</th>
           </tr></thead>
           <tbody id="activity-tbody">
-            <!-- populated by JS -->
+            
           </tbody>
         </table>
       </div>
@@ -780,7 +778,7 @@
   </div>
 </div>
 
-<!-- ══ UNKNOWN LOGIN MODAL ══ -->
+
 <div class="modal-bg" id="m-unknown">
   <div class="modal" style="max-width:420px;">
     <div class="modal-hd">
@@ -806,7 +804,7 @@
   </div>
 </div>
 
-<!-- ══ REP ANTI-FRAUD HEADCOUNT VERIFICATION MODAL ══ -->
+
 <div class="modal-bg" id="modal-rep-confirm">
   <div class="modal" style="max-width:460px;padding:26px;">
     <div style="text-align:center;margin-bottom:18px;">
@@ -819,7 +817,7 @@
       </div>
     </div>
 
-    <!-- Alert / Notice Box -->
+    
     <div style="background:#fffbeb;border:1.5px solid #fde68a;border-radius:12px;padding:14px 16px;margin-bottom:18px;">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
         <span style="font-size:12.5px;font-weight:700;color:#92400e;">Marked Present Count:</span>
@@ -850,7 +848,7 @@
   </div>
 </div>
 
-<!-- ══ OD OUTCOME SUBMISSION MODAL (L4) ══ -->
+
 <div class="modal-bg" id="modal-od-outcome">
   <div class="modal" style="max-width:480px;padding:24px;">
     <div class="modal-hd" style="margin-bottom:14px;">
@@ -891,7 +889,7 @@
   </div>
 </div>
 
-<!-- ══ TRUST / ATTENDANCE DISPUTE MODAL (§12, T6) ══ -->
+
 <div class="modal-bg" id="modal-dispute-event">
   <div class="modal" style="max-width:520px;padding:24px;">
     <div class="modal-hd" style="margin-bottom:14px;">
@@ -931,7 +929,7 @@
   </div>
 </div>
 
-<!-- ══ DEVICE REPLACEMENT REQUEST MODAL (§14) ══ -->
+
 <div class="modal-bg" id="modal-replacement-request" style="display:none;" data-action="close-modal-backdrop" data-modal="modal-replacement-request">
   <div class="modal" style="max-width:480px;padding:24px;">
     <div class="modal-hd" style="margin-bottom:14px;">
@@ -942,7 +940,7 @@
     </div>
 
     <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:12px;margin-bottom:16px;font-size:12px;color:#1e40af;line-height:1.45;">
-      <re-icon icon="info-circle"></re-icon> <b>Device Replacement Policy (§14):</b><br>
+      <re-icon icon="info-circle"></re-icon> <b>Device Replacement Policy:</b><br>
       Submit a request if your phone was lost, factory-reset, repaired, or replaced with a new phone. Your Class Advisor or Department Admin will review and generate a new registration credential for your new phone.
     </div>
 
@@ -971,7 +969,7 @@
   </div>
 </div>
 
-<!-- MODAL: SELF PERIOD ABSENT -->
+
 <div class="modal-bg" id="m-self-absent" style="display:none;" data-action="close-modal-backdrop" data-modal="m-self-absent">
   <div class="modal" style="max-width:540px;width:94%;">
     <div class="modal-hd" style="display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--brl);padding-bottom:14px;margin-bottom:14px;">
@@ -985,13 +983,13 @@
       <button class="modal-close" data-action="close-modal" data-modal="m-self-absent" aria-label="Close modal" style="background:none;border:none;cursor:pointer;color:var(--tmu);"><re-icon icon="x" size="18"></re-icon></button>
     </div>
     <div class="modal-body" style="padding:4px 0 16px;">
-      <!-- Date input -->
+      
       <div class="fg" style="margin-bottom:14px;">
         <label class="fl">Date *</label>
         <input type="date" id="sa-date" class="fc2" style="font-family:Poppins,sans-serif;" data-change="change-sa-date">
       </div>
 
-      <!-- Periods selection -->
+      
       <div class="fg" style="margin-bottom:14px;">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
           <label class="fl" style="margin:0;">Select Period(s) to Mark Absent *</label>
@@ -1005,7 +1003,7 @@
         </div>
       </div>
 
-      <!-- Reason input -->
+      
       <div class="fg" style="margin-bottom:14px;">
         <label class="fl">Reason / Cause *</label>
         <select id="sa-reason-preset" class="fc2" style="margin-bottom:8px;font-family:Poppins,sans-serif;" data-change="change-sa-preset">
@@ -1019,7 +1017,7 @@
         <textarea id="sa-reason" class="fc2" rows="2" placeholder="Specific reason (visible to subject teachers)" style="font-family:Poppins,sans-serif;"></textarea>
       </div>
 
-      <!-- Notice banner -->
+      
       <div style="background:#fef2f2;border:1.5px solid #fecaca;border-radius:10px;padding:10px 14px;display:flex;align-items:flex-start;gap:10px;">
         <span style="color:#dc2626;font-size:16px;line-height:1;"><re-icon icon="alert-triangle"></re-icon></span>
         <div style="font-size:11.5px;color:#991b1b;line-height:1.4;">
@@ -1027,7 +1025,7 @@
         </div>
       </div>
 
-      <!-- Active Self-Absence list for this date -->
+      
       <div id="sa-active-list" style="display:none;margin-top:14px;"></div>
     </div>
     <div style="display:flex;justify-content:flex-end;gap:10px;padding-top:14px;border-top:1px solid var(--brl);">

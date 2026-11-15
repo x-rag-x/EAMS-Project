@@ -62,7 +62,6 @@ function getRequestUnits(req) {
 /**
  * Calculate Faculty Leave Balance
  * Available = allowance + carried forward − used − pending
- * 
  * @param {Object} params
  * @param {string} params.teacherTrackId
  * @param {string} [params.deptCode]
@@ -74,7 +73,7 @@ async function calculateFacultyLeaveBalance({ teacherTrackId, deptCode = '', yea
   const currentMonth = getCurrentISTMonth();
   const yearPrefix = String(currentYear);
 
-  // 1. Fetch policy for department or use default
+  // Fetch policy for department or use default
   let cleanDeptCode = String(deptCode || '').toUpperCase().trim();
   if (!cleanDeptCode && teacherTrackId) {
     const teacher = await M.Teacher.findOne({ trackId: teacherTrackId }).lean();
@@ -108,7 +107,7 @@ async function calculateFacultyLeaveBalance({ teacherTrackId, deptCode = '', yea
   const carryForwardEarned = policy?.carryForwardEarned ?? true;
   const medicalDocThresholdDays = policy?.medicalDocThresholdDays ?? 3;
 
-  // 2. Fetch all leave requests for this teacher in the current calendar year
+  // Fetch all leave requests for this teacher in the current calendar year
   const allRequests = await M.TeacherLeaveRequest.find({
     teacherTrackId,
     $or: [
@@ -156,7 +155,7 @@ async function calculateFacultyLeaveBalance({ teacherTrackId, deptCode = '', yea
     }
   }
 
-  // 3. Compute balances
+  // Compute balances
   const clAvailable = Math.max(0, allowances.casualLeave - used['Casual Leave'] - pending['Casual Leave']);
   const mlAvailable = Math.max(0, allowances.medicalLeave - used['Medical Leave'] - pending['Medical Leave']);
   const elAvailable = Math.max(0, allowances.earnedLeave - used['Earned Leave'] - pending['Earned Leave']);
@@ -209,7 +208,6 @@ async function calculateFacultyLeaveBalance({ teacherTrackId, deptCode = '', yea
 /**
  * Calculate LOP Split
  * Extra days automatically become Loss of Pay (LOP) per LD6
- *
  * @param {Object} params
  * @param {string} params.leaveType
  * @param {number} params.requestedDays

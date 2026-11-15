@@ -2,7 +2,7 @@
  * scripts/migrateAdminsToTeachers.js
  *
  * EAMS Admin Unification Data Migration Script
- * Conforming to dev/curr/2.4/schema changes (§7 & §12)
+ * Conforming to dev/curr/2.4/schema changes
  *
  * Usage:
  *   node scripts/migrateAdminsToTeachers.js            # Dry run (default, audits and reports plan)

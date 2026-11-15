@@ -40,7 +40,6 @@ function normalizeIp(rawIp) {
 /**
  * Cap and strip potentially unsafe characters (HTML tags, angle brackets, quotes, control chars)
  * from audit log fields (e.g. deviceName, deviceId, identifier, userName).
- *
  * @param {*} val - Value to sanitize
  * @param {number} [maxLen=100] - Maximum length cap
  * @returns {string} Sanitized string

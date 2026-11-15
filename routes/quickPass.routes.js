@@ -23,7 +23,7 @@ function generate12CharCode() {
 
 const isValidObjId = (id) => typeof id === 'string' && mongoose.Types.ObjectId.isValid(id) && id.length === 24;
 
-// 1. Start Quick Pass session (Teacher)
+// Start Quick Pass session
 router.post('/start', authMiddleware, checkLiveSessionGuard, async (req, res) => {
   if (req.user.role !== 'teacher' && req.user.role !== 'admin') {
     return res.status(403).json({ error: 'Only teachers can start Quick Pass sessions' });
@@ -151,7 +151,7 @@ router.post('/start', authMiddleware, checkLiveSessionGuard, async (req, res) =>
   }
 });
 
-// 2. Poll Quick Pass status (Teacher)
+// Poll Quick Pass status
 router.get('/status/:sessionId', authMiddleware, async (req, res) => {
   if (req.user.role !== 'teacher' && req.user.role !== 'admin') {
     return res.status(403).json({ error: 'Only teachers and admins can view Quick Pass session status' });
@@ -230,7 +230,7 @@ router.get('/status/:sessionId', authMiddleware, async (req, res) => {
   }
 });
 
-// 3. Rotate code manually / triggered (Teacher)
+// Rotate code manually / triggered
 router.post('/rotate/:sessionId', authMiddleware, async (req, res) => {
   if (req.user.role !== 'teacher' && req.user.role !== 'admin') {
     return res.status(403).json({ error: 'Only teachers and admins can rotate Quick Pass codes' });
@@ -283,7 +283,7 @@ router.post('/rotate/:sessionId', authMiddleware, async (req, res) => {
   }
 });
 
-// 4. Mark attendance with Quick Pass code (Student)
+// Mark attendance with Quick Pass code (Student)
 router.post('/mark', authMiddleware, liveSessionMarkIpLimiter, liveSessionMarkLimiter, checkLiveSessionGuard, async (req, res) => {
   if (req.user.role !== 'student') return res.status(403).json({ error: 'Students only' });
 
@@ -310,7 +310,7 @@ router.post('/mark', authMiddleware, liveSessionMarkIpLimiter, liveSessionMarkLi
     if (!student && req.user._id) student = await M.Student.findById(req.user._id);
     if (!student) return res.status(404).json({ error: 'Student profile not found' });
 
-    // College Wi-Fi / IP check (A8)
+    // College Wi-Fi / IP check
     const ipSettings = await M.Settings.findOne({ key: 'college_ips' }).lean();
     const allowedIps = ipSettings ? ipSettings.value : [];
     if (!isCampusIpAllowed(req.ip, allowedIps)) {
@@ -372,7 +372,7 @@ router.post('/mark', authMiddleware, liveSessionMarkIpLimiter, liveSessionMarkLi
       }
     }
 
-    // Evaluate Device Trust & Risk Gate (§7, §9, T2.1-T2.5)
+    // Evaluate Device Trust & Risk Gate
     const attSettings = await getSetting('attendance').catch(() => ({}));
     const enforceGeofence = attSettings.enforceAttendanceGeofence !== false;
     const maxAccuracyM = Number(attSettings.attendanceMaxAccuracyM) || 100;
@@ -450,7 +450,7 @@ router.post('/mark', authMiddleware, liveSessionMarkIpLimiter, liveSessionMarkLi
   }
 });
 
-// 5. Check active session for student (Student portal check)
+// Check active session for student (Student portal check)
 router.get('/active', authMiddleware, async (req, res) => {
   try {
     let student = null;
@@ -488,7 +488,7 @@ router.get('/active', authMiddleware, async (req, res) => {
   }
 });
 
-// 6. End Quick Pass session manually (Teacher)
+// End Quick Pass session manually
 router.post('/end/:sessionId', authMiddleware, async (req, res) => {
   if (req.user.role !== 'teacher' && req.user.role !== 'admin') {
     return res.status(403).json({ error: 'Only teachers and admins can end Quick Pass sessions' });
@@ -516,7 +516,7 @@ router.post('/end/:sessionId', authMiddleware, async (req, res) => {
   }
 });
 
-// 7. Save Draft / Finalize
+// Save Draft / Finalize
 router.post('/save-draft/:sessionId', authMiddleware, async (req, res) => {
   if (req.user.role !== 'teacher' && req.user.role !== 'admin') {
     return res.status(403).json({ error: 'Only teachers and admins can save drafts' });

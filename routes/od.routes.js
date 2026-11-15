@@ -48,7 +48,7 @@ function getDatesInRange(startStr, endStr) {
   return dates;
 }
 
-// ── 1. GET /api/od/events — List Academic Events Registry ──
+// ── GET /api/od/events — List Academic Events Registry ──
 router.get('/events', async (req, res) => {
   try {
     const q = sanitizeToString(req.query.q).trim();
@@ -68,7 +68,7 @@ router.get('/events', async (req, res) => {
   }
 });
 
-// ── 2. POST /api/od/events — Create Event in Registry ──
+// ── POST /api/od/events — Create Event in Registry ──
 router.post('/events', odEventCreateLimiter, async (req, res) => {
   try {
     // Audit S10: Restrict event creation in shared registry to staff
@@ -133,7 +133,7 @@ router.post('/events', odEventCreateLimiter, async (req, res) => {
   }
 });
 
-// ── 3. GET /api/od/me — List Student's Own OD Requests ──
+// ── GET /api/od/me — List Student's Own OD Requests ──
 router.get('/me', async (req, res) => {
   try {
     const studentTrackId = req.user.trackId;
@@ -151,7 +151,7 @@ router.get('/me', async (req, res) => {
   }
 });
 
-// ── 4. GET /api/od/mentors — List Faculty Mentors for Student Selection ──
+// ── GET /api/od/mentors — List Faculty Mentors for Student Selection ──
 router.get('/mentors', async (req, res) => {
   try {
     const filter = { active: { $ne: false } };
@@ -195,7 +195,7 @@ router.get('/mentors', async (req, res) => {
   }
 });
 
-// ── 5. POST /api/od — Student Submits OD Request (Phase L3) ──
+// ── POST /api/od — Student Submits OD Request ──
 router.post('/', odCreateLimiter, async (req, res) => {
   try {
     if (req.user.role !== 'student') {
@@ -394,7 +394,7 @@ router.post('/', odCreateLimiter, async (req, res) => {
   }
 });
 
-// ── 6. POST /api/od/:id/cancel — Student Cancels Pending OD Request ──
+// ── POST /api/od/:id/cancel — Student Cancels Pending OD Request ──
 router.post('/:id/cancel', async (req, res) => {
   try {
     const query = mongoose.isValidObjectId(req.params.id)
@@ -437,7 +437,7 @@ router.post('/:id/cancel', async (req, res) => {
   }
 });
 
-// ── 6. GET /api/od/pending — Approver's Queue (Pending, Verify, History, All) ──
+// ── GET /api/od/pending — Approver's Queue (Pending, Verify, History, All) ──
 router.get('/pending', async (req, res) => {
   try {
     const userTrackId = req.user.trackId;
@@ -612,7 +612,7 @@ router.get('/students-search', studentSearchLimiter, async (req, res) => {
   }
 });
 
-// Helper to determine if a user has review/view permissions for an OD request (§5 S2)
+// Helper to determine if a user has review/view permissions for an OD request
 function canReviewOd(user, request) {
   if (!user) return false;
   if (user.role === 'student') return false;
@@ -657,7 +657,7 @@ function canReviewOd(user, request) {
   return false;
 }
 
-// ── 6b. GET /api/od/:id — Request Detail with Timeline & Verification Score ──
+// ── GET /api/od/:id — Request Detail with Timeline & Verification Score ──
 router.get('/:id', async (req, res) => {
   try {
     const idParam = String(req.params.id || '').trim();
@@ -674,7 +674,7 @@ router.get('/:id', async (req, res) => {
       return res.status(404).json({ error: 'OD request not found' });
     }
 
-    // Security check (§5 S2): Only request owner or reviewer in scope may view OD details
+    // Security check: Only request owner or reviewer in scope may view OD details
     const isOwner = (request.studentTrackId && req.user.trackId && request.studentTrackId === req.user.trackId) ||
                     (request.studentId && req.user._id && String(request.studentId) === String(req.user._id));
 
@@ -712,7 +712,7 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// ── 7. POST /api/od/:id/approve — Advance Stage & Automatic Stage Merge ──
+// ── POST /api/od/:id/approve — Advance Stage & Automatic Stage Merge ──
 router.post('/:id/approve', async (req, res) => {
   try {
     const query = mongoose.isValidObjectId(req.params.id)
@@ -814,7 +814,7 @@ router.post('/:id/approve', async (req, res) => {
         actorRole
       });
 
-      // Phase T4: Reverses uninformed absence penalties for backdated approved OD (§8)
+
       handleLeaveApprovalReversal(od.studentId, od.dates).catch(err => {
         console.warn('[Trust OD Reversal Warn]:', err.message);
       });
@@ -840,7 +840,7 @@ router.post('/:id/approve', async (req, res) => {
   }
 });
 
-// ── 8. POST /api/od/:id/reject — Reject Current Stage ──
+// ── POST /api/od/:id/reject — Reject Current Stage ──
 router.post('/:id/reject', async (req, res) => {
   try {
     const query = mongoose.isValidObjectId(req.params.id)
@@ -887,7 +887,7 @@ router.post('/:id/reject', async (req, res) => {
   }
 });
 
-// ── 9. POST /api/od/:id/return — Return for Correction ──
+// ── POST /api/od/:id/return — Return for Correction ──
 router.post('/:id/return', async (req, res) => {
   try {
     const query = mongoose.isValidObjectId(req.params.id)
@@ -921,7 +921,7 @@ router.post('/:id/return', async (req, res) => {
   }
 });
 
-// ── 10. POST /api/od/:id/request-principal — Flag for Principal Escalation ──
+// ── POST /api/od/:id/request-principal — Flag for Principal Escalation ──
 router.post('/:id/request-principal', async (req, res) => {
   try {
     const query = mongoose.isValidObjectId(req.params.id)
@@ -950,7 +950,7 @@ router.post('/:id/request-principal', async (req, res) => {
   }
 });
 
-// ── 11. POST /api/od/group — Faculty Creates Group OD (Phase L3 LD18) ──
+// ── POST /api/od/group — Faculty Creates Group OD ──
 router.post('/group', odCreateLimiter, async (req, res) => {
   try {
     const isFaculty = ['teacher', 'admin', 'hod', 'principal'].includes(req.user.role) || req.user.isPrincipal;
@@ -1100,8 +1100,6 @@ router.post('/group', odCreateLimiter, async (req, res) => {
     return sendError(res, err, 500, 'Failed to create group OD');
   }
 });
-
-
 
 // ── POST /api/od/group-invite — Faculty Sends Invite to Student Team Head ──
 router.post('/group-invite', async (req, res) => {
@@ -1501,7 +1499,7 @@ router.post('/upload-evidence', fileUploadLimiter, upload.single('file'), async 
   }
 });
 
-// ── 12. POST /api/od/:id/outcome — Student Submits Outcome & Evidence (Phase L4 §5.8) ──
+// ── POST /api/od/:id/outcome — Student Submits Outcome & Evidence ──
 router.post('/:id/outcome', upload.single('file'), async (req, res) => {
   try {
     const query = mongoose.isValidObjectId(req.params.id)
@@ -1570,7 +1568,7 @@ router.post('/:id/outcome', upload.single('file'), async (req, res) => {
   }
 });
 
-// ── 13. POST /api/od/:id/verify — Advisor / Mentor Verifies Evidence (Phase L4 §5.9) ──
+// ── POST /api/od/:id/verify — Advisor / Mentor Verifies Evidence ──
 router.post('/:id/verify', async (req, res) => {
   try {
     const query = mongoose.isValidObjectId(req.params.id)
@@ -1634,7 +1632,7 @@ router.post('/:id/verify', async (req, res) => {
   }
 });
 
-// ── 14. POST /api/od/:id/reject-approved — Reject already approved OD (Phase L4 §5.6) ──
+// ── POST /api/od/:id/reject-approved — Reject already approved OD ──
 router.post('/:id/reject-approved', async (req, res) => {
   try {
     const isAuthorized = ['teacher', 'admin', 'hod', 'principal'].includes(req.user.role) || req.user.isPrincipal;

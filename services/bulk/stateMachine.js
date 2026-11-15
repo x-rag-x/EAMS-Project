@@ -32,7 +32,6 @@ class StateConflictError extends Error {
 
 /**
  * Validates and executes an atomic Compare-And-Set status transition.
- * 
  * @param {string|Object} batchOrId - Batch document or ObjectId string
  * @param {string} toStatus - Destination state
  * @param {Object} [opts] - Options: from (array of allowed current states), extraSet (fields to merge), user (audit)

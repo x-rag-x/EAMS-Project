@@ -1,6 +1,5 @@
 /**
  * public/js/pages/timetable/deploy.module.js
- *
  * Deployment Progress & Stage Retry Module (P1 / Section 11.3)
  */
 (function (global) {

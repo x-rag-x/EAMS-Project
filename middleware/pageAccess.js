@@ -1,7 +1,6 @@
 /**
  * middleware/pageAccess.js
- * 
- * Core Server Enforcement Middleware for EAMS Role Access System (§5.2, R2.2).
+ * Core Server Enforcement Middleware for EAMS Role Access System.
  * Implements requirePage, scopeFilter, assertInScope, and rate-limited denied-access logging.
  */
 
@@ -25,10 +24,8 @@ setInterval(() => {
 
 /**
  * requirePage(page, action, opts)
- * 
  * Enforces that the authenticated user possesses rights for the target page,
- * action, and optional tab override (§5.2).
- * 
+ * action, and optional tab override.
  * On success:
  *   Attaches `req.scope = { type: 'institution' } | { type: 'department', deptId }`.
  * On failure:
@@ -44,7 +41,7 @@ function requirePage(page, action = 'view', opts = {}) {
       return res.status(401).json({ error: 'Unauthorized: Authentication required.' });
     }
 
-    // 1. Sudo Admin has unconditional institution-wide authority
+    // Sudo Admin has unconditional institution-wide authority
     if (isSudo(req)) {
       req.scope = { type: 'institution', deptId: null };
       return next();
@@ -61,7 +58,7 @@ function requirePage(page, action = 'view', opts = {}) {
       isAllowed = false;
       deniedReason = `No grant for page '${targetPage}'`;
     } else {
-      // 2. Check tab allowance if tab is specified
+      // Check tab allowance if tab is specified
       let tabAllowed = true;
       if (targetTab) {
         if (Array.isArray(grant.allowedTabs) && !grant.allowedTabs.includes('*') && !grant.allowedTabs.includes(targetTab)) {
@@ -75,7 +72,7 @@ function requirePage(page, action = 'view', opts = {}) {
         isAllowed = false;
         deniedReason = `Tab '${targetTab}' on page '${targetPage}' is not accessible under module '${grant.module}'`;
       } else {
-        // 3. Check action allowance (with tabActions priority)
+        // Check action allowance (with tabActions priority)
         let actionAllowed = false;
         if (targetTab && grant.tabActions && Array.isArray(grant.tabActions[targetTab])) {
           actionAllowed = grant.tabActions[targetTab].includes(targetAction);
@@ -93,7 +90,7 @@ function requirePage(page, action = 'view', opts = {}) {
     }
 
     if (!isAllowed) {
-      // 4. Rate-limited audit log (1 / min / user / page)
+      // Rate-limited audit log (1 / min / user / page)
       const userTrackId = req.user.trackId || req.user.username || String(req.user._id || 'ANON');
       const rateKey = `${userTrackId}_${targetPage}_${targetAction}`;
       const lastLogged = deniedLogMap.get(rateKey) || 0;
@@ -134,7 +131,7 @@ function requirePage(page, action = 'view', opts = {}) {
       });
     }
 
-    // 5. Establish scope on request
+    // Establish scope on request
     const scopeType = grant.scope || 'department';
     if (scopeType === 'institution') {
       req.scope = { type: 'institution', deptId: null, deptName: null };
@@ -155,8 +152,7 @@ function requirePage(page, action = 'view', opts = {}) {
 
 /**
  * scopeFilter(req, fieldName = 'deptId')
- * 
- * Generates database query filter for list queries (§5.2).
+ * Generates database query filter for list queries.
  *  - Institution scope: `{}` (no department constraint)
  *  - Department scope: `{ [fieldName]: deptId }`
  */
@@ -172,8 +168,7 @@ function scopeFilter(req, fieldName = 'deptId') {
 
 /**
  * assertInScope(req, targetDeptId)
- * 
- * Verifies that a target department is within the caller's allowed scope (§5.2).
+ * Verifies that a target department is within the caller's allowed scope.
  *  - Institution scope: returns true
  *  - Department scope: returns true if targetDeptId matches req.scope.deptId or req.scope.deptName, false otherwise.
  */

@@ -56,7 +56,7 @@ const LiveSessionsAttSchema = new mongoose.Schema({
     failReason: { type: String, default: '' }
   },
 
-  // Security & Trust Score snapshot (§4, §7) - frozen at mark time
+  // Security & Trust Score snapshot - frozen at mark time
   security: {
     deviceTrackId: { type: String, default: '' },
     deviceProofOk: { type: Boolean, default: false },

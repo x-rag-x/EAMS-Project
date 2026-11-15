@@ -15,7 +15,7 @@ const {
   deviceVerifyLimiter
 } = require('../utils/rateLimiters');
 
-// Lookalike-free uppercase charset (§5: ABCDEFGHJKLMNPQRSTUVWXYZ23456789)
+// Lookalike-free uppercase charset (ABCDEFGHJKLMNPQRSTUVWXYZ23456789)
 const CREDENTIAL_CHARSET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
 function generate12CharCredential() {
@@ -99,9 +99,9 @@ async function isRegistrationWindowOpen(deptId, classId) {
   return !!windowDoc;
 }
 
-// ─────────────────────────────────────────────────────────
-//  1. ADVISOR CLASSES LIST
-// ─────────────────────────────────────────────────────────
+// ─
+//  ADVISOR CLASSES LIST
+// ─
 router.get('/advisor-classes', authMiddleware, async (req, res) => {
   try {
     let classes = [];
@@ -174,9 +174,9 @@ router.get('/advisor-classes', authMiddleware, async (req, res) => {
   }
 });
 
-// ─────────────────────────────────────────────────────────
-//  2. CLASS STUDENTS WITH DEVICE REGISTRATION STATUS
-// ─────────────────────────────────────────────────────────
+// ─
+//  CLASS STUDENTS WITH DEVICE REGISTRATION STATUS
+// ─
 router.get('/classes/:classId/students', authMiddleware, async (req, res) => {
   try {
     const classDoc = await M.Class.findById(req.params.classId).lean();
@@ -275,9 +275,9 @@ router.get('/classes/:classId/students', authMiddleware, async (req, res) => {
   }
 });
 
-// ─────────────────────────────────────────────────────────
-//  3. ISSUE REGISTRATION TICKET (§5, T1.1)
-// ─────────────────────────────────────────────────────────
+// ─
+//  ISSUE REGISTRATION TICKET
+// ─
 router.post('/tickets', authMiddleware, deviceTicketGenerateLimiter, async (req, res) => {
   try {
     const { studentId, kind = 'new' } = req.body;
@@ -300,7 +300,7 @@ router.post('/tickets', authMiddleware, deviceTicketGenerateLimiter, async (req,
       return res.status(403).json({ error: 'Access denied: You are not authorized to issue tickets for this student.' });
     }
 
-    // Window check: Advisor requires open window; Super Admin / Sudo can issue any time (§5)
+    // Window check: Advisor requires open window; Super Admin / Sudo can issue any time
     const windowOpen = await isRegistrationWindowOpen(student.deptId, student.classId);
     if (authCheck.role === 'advisor' && !windowOpen) {
       return res.status(403).json({
@@ -398,9 +398,9 @@ router.post('/tickets', authMiddleware, deviceTicketGenerateLimiter, async (req,
   }
 });
 
-// ─────────────────────────────────────────────────────────
-//  4. CANCEL REGISTRATION TICKET
-// ─────────────────────────────────────────────────────────
+// ─
+//  CANCEL REGISTRATION TICKET
+// ─
 router.post('/tickets/:id/cancel', authMiddleware, async (req, res) => {
   try {
     const ticket = await M.DeviceRegistrationTicket.findOne({
@@ -444,9 +444,9 @@ router.post('/tickets/:id/cancel', authMiddleware, async (req, res) => {
   }
 });
 
-// ─────────────────────────────────────────────────────────
-//  5. SUBMIT PUBLIC KEY & INFO (Phone with regToken §5, T1.1)
-// ─────────────────────────────────────────────────────────
+// ─
+//  SUBMIT PUBLIC KEY & INFO (Phone with regToken, T1.1)
+// ─
 router.post('/register/key', deviceClaimIpLimiter, async (req, res) => {
   try {
     const authHeader = req.headers.authorization || '';
@@ -496,7 +496,7 @@ router.post('/register/key', deviceClaimIpLimiter, async (req, res) => {
       y: publicKeyJwk.y
     }));
 
-    // ── Check Sharing Signals (§13 Friend-Marking Detection) ──
+    // ── Check Sharing Signals ──
     // Signal 1: Does installId match another student's TRUSTED device?
     const installConflict = await M.StudentDevice.findOne({
       installId: installId.trim(),
@@ -514,13 +514,13 @@ router.post('/register/key', deviceClaimIpLimiter, async (req, res) => {
       : null;
 
     if (installConflict || keyConflict) {
-      // Shared device detected! Block registration (§13)
+      // Shared device detected! Block registration
       ticket.stage = 'CANCELLED';
       await ticket.save();
 
       const conflictingDevice = installConflict || keyConflict;
 
-      // Open DeviceShareCase (§13, T7.1, T7.2)
+      // Open DeviceShareCase
       try {
         const studentA = await M.Student.findById(ticket.studentId).lean();
         const studentB = await M.Student.findById(conflictingDevice.studentId).lean();
@@ -594,7 +594,7 @@ router.post('/register/key', deviceClaimIpLimiter, async (req, res) => {
     // Generate 6-digit numeric verification code
     const verifyCode = Math.floor(100000 + Math.random() * 900000).toString();
     const verifyCodeHash = sha256(verifyCode);
-    const verifyExpiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 min
+    const verifyExpiresAt = new Date(Date.now() + 5 * 60 * 1000); // min
 
     // Create or update pending device
     let deviceTrackId = ticket.deviceTrackId;
@@ -668,9 +668,9 @@ router.post('/register/key', deviceClaimIpLimiter, async (req, res) => {
   }
 });
 
-// ─────────────────────────────────────────────────────────
-//  6. POLL REGISTRATION STATUS (Phone polling §5)
-// ─────────────────────────────────────────────────────────
+// ─
+//  POLL REGISTRATION STATUS (Phone polling)
+// ─
 router.get('/register/status', async (req, res) => {
   try {
     const authHeader = req.headers.authorization || '';
@@ -721,9 +721,9 @@ router.get('/register/status', async (req, res) => {
   }
 });
 
-// ─────────────────────────────────────────────────────────
-//  7. ADVISOR VERIFIES 6-DIGIT CODE (§5, T1.1)
-// ─────────────────────────────────────────────────────────
+// ─
+//  ADVISOR VERIFIES 6-DIGIT CODE
+// ─
 router.post('/tickets/:id/verify', authMiddleware, deviceVerifyLimiter, async (req, res) => {
   try {
     const { code } = req.body;
@@ -797,7 +797,7 @@ router.post('/tickets/:id/verify', authMiddleware, deviceVerifyLimiter, async (r
       return res.status(500).json({ error: 'Pending device record not found' });
     }
 
-    // If replacement ticket, mark old trusted device as REPLACED and revoke sessions (§6, §14, T3.4)
+    // If replacement ticket, mark old trusted device as REPLACED and revoke sessions
     if (ticket.kind === 'replacement') {
       const oldDevs = await M.StudentDevice.find({
         studentId: ticket.studentId,
@@ -872,9 +872,9 @@ router.post('/tickets/:id/verify', authMiddleware, deviceVerifyLimiter, async (r
   }
 });
 
-// ─────────────────────────────────────────────────────────
-//  8. QUEUE REQUEST OUTSIDE WINDOW (Send to Super Admin §5)
-// ─────────────────────────────────────────────────────────
+// ─
+//  QUEUE REQUEST OUTSIDE WINDOW (Send to Super Adm)
+// ─
 router.post('/queue-request', authMiddleware, async (req, res) => {
   try {
     const { studentId, reason = 'Outside registration window' } = req.body;
@@ -938,9 +938,9 @@ router.post('/queue-request', authMiddleware, async (req, res) => {
   }
 });
 
-// ─────────────────────────────────────────────────────────
-//  9. REGISTRATION WINDOWS CRUD (§11, T1.5)
-// ─────────────────────────────────────────────────────────
+// ─
+//  REGISTRATION WINDOWS CRUD
+// ─
 router.get('/windows', authMiddleware, async (req, res) => {
   try {
     const filter = { active: true };
@@ -1036,9 +1036,9 @@ router.delete('/windows/:id', authMiddleware, async (req, res) => {
   }
 });
 
-// ─────────────────────────────────────────────────────────
-//  10. REVOKE DEVICE (§14, §16, T3.4)
-// ─────────────────────────────────────────────────────────
+// ─
+//  REVOKE DEVICE
+// ─
 router.post('/:id/revoke', authMiddleware, async (req, res) => {
   try {
     const isSudoUser = isSudo(req);
@@ -1102,9 +1102,9 @@ router.post('/:id/revoke', authMiddleware, async (req, res) => {
   }
 });
 
-// ─────────────────────────────────────────────────────────
-//  11. LIST REGISTERED DEVICES REGISTRY (§11, §16)
-// ─────────────────────────────────────────────────────────
+// ─
+//  LIST REGISTERED DEVICES REGISTRY
+// ─
 router.get('/', authMiddleware, async (req, res) => {
   try {
     const isSudoUser = isSudo(req);
@@ -1169,9 +1169,9 @@ router.get('/', authMiddleware, async (req, res) => {
   }
 });
 
-// ─────────────────────────────────────────────────────────
-//  12. REGISTRATION TICKETS HISTORY (§11, §16)
-// ─────────────────────────────────────────────────────────
+// ─
+//  REGISTRATION TICKETS HISTORY
+// ─
 router.get('/history', authMiddleware, async (req, res) => {
   try {
     const isSudoUser = isSudo(req);
@@ -1254,9 +1254,9 @@ router.get('/history', authMiddleware, async (req, res) => {
   }
 });
 
-// ─────────────────────────────────────────────────────────
-//  13. REPLACEMENT & QUEUED REQUESTS CRUD (§14, §16, T5.3)
-// ─────────────────────────────────────────────────────────
+// ─
+//  REPLACEMENT & QUEUED REQUESTS CRUD
+// ─
 router.post('/replacement-requests', authMiddleware, async (req, res) => {
   try {
     if (req.user.role !== 'student') {
@@ -1428,7 +1428,7 @@ router.post('/replacement-requests/:id/issue', authMiddleware, async (req, res) 
       return res.status(404).json({ error: 'Request not found' });
     }
 
-    // Advisor requires open window; Super Admin / Sudo can issue any time (§14)
+    // Advisor requires open window; Super Admin / Sudo can issue any time
     if (isAdvisor && !isSuper && !isSudoUser) {
       const windowOpen = await isRegistrationWindowOpen(reqDoc.deptId, reqDoc.classId);
       if (!windowOpen) {

@@ -1,13 +1,12 @@
 /**
  * public/js/pages/deviceVerification.teacher.js
- *
- * Student Device Verification & Registration Advisor Module (§5, T1.4).
+ * Student Device Verification & Registration Advisor Module.
  * Handles the advisor side of the 2-step phone binding protocol:
- * 1. Checks registration window status for advisor's assigned classes.
- * 2. Displays student device status (TRUSTED, PENDING, NO DEVICE, REPLACED).
- * 3. Issues 12-char credentials with 10-min countdown.
- * 4. Verifies 6-digit code shown on student phone to activate TRUSTED status.
- * 5. Handles outside-window queuing for Department Super Admin.
+ * Checks registration window status for advisor's assigned classes.
+ * Displays student device status (TRUSTED, PENDING, NO DEVICE, REPLACED).
+ * Issues 12-char credentials with 10-min countdown.
+ * Verifies 6-digit code shown on student phone to activate TRUSTED status.
+ * Handles outside-window queuing for Department Super Admin.
  */
 
 (function () {
@@ -63,9 +62,9 @@
     closeDisputeModal();
   }
 
-  // ─────────────────────────────────────────────────────────
+  // ─
   //  INITIALIZATION
-  // ─────────────────────────────────────────────────────────
+  // ─
   async function init() {
     try {
       var res = await api('/api/devices/advisor-classes?_t=' + Date.now(), { headers: authHeaders() });
@@ -149,9 +148,9 @@
     }
   }
 
-  // ─────────────────────────────────────────────────────────
+  // ─
   //  LOAD STUDENTS & RENDER TABLE
-  // ─────────────────────────────────────────────────────────
+  // ─
   async function loadStudents(classId) {
     var tbody = document.getElementById('dv-students-tbody');
     if (tbody) {
@@ -251,9 +250,9 @@
     }).join('');
   }
 
-  // ─────────────────────────────────────────────────────────
-  //  ISSUE 12-CHAR CREDENTIAL MODAL (§5)
-  // ─────────────────────────────────────────────────────────
+  // ─
+  //  ISSUE 12-CHAR CREDENTIAL MODAL
+  // ─
   async function openRegisterModal(studentId, studentName, registerNo, username, kind) {
     var targetClass = currentClasses.find(function (c) { return String(c._id) === String(selectedClassId); });
     var windowOpen = targetClass ? targetClass.windowOpen : false;
@@ -402,9 +401,9 @@
     }, 1000);
   }
 
-  // ─────────────────────────────────────────────────────────
-  //  VERIFY 6-DIGIT CODE (§5, T1.1)
-  // ─────────────────────────────────────────────────────────
+  // ─
+  //  VERIFY 6-DIGIT CODE
+  // ─
   async function submitVerify(ticketId) {
     var codeInput = document.getElementById('dv-verify-code-input');
     var code = codeInput ? codeInput.value.trim() : '';
@@ -476,9 +475,9 @@
     if (modal) modal.style.display = 'none';
   }
 
-  // ─────────────────────────────────────────────────────────
-  //  DISPUTES QUEUE WORKFLOW (§12, T6.2)
-  // ─────────────────────────────────────────────────────────
+  // ─
+  //  DISPUTES QUEUE WORKFLOW
+  // ─
   var currentDisputes = [];
 
   function switchSubtab(subtab) {

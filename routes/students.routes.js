@@ -635,7 +635,7 @@ router.get('/:id', authMiddleware, async (req, res) => {
         overall: ovPct
       };
 
-      // 2. Academic Participation (OD Requests)
+      // Academic Participation (OD Requests)
       const odDocs = await M.ODRequest.find({
         $or: [
           { studentId: student._id },
@@ -658,7 +658,7 @@ router.get('/:id', authMiddleware, async (req, res) => {
         description: od.eventDetails?.description || 'Approved academic on-duty participation'
       }));
 
-      // 3. Leaves & Absences (LeaveRequest & HostelLeave)
+      // Leaves & Absences (LeaveRequest & HostelLeave)
       const [leaveDocs, hostelLeaves] = await Promise.all([
         M.LeaveRequest.find({
           $or: [
@@ -697,7 +697,7 @@ router.get('/:id', authMiddleware, async (req, res) => {
         }))
       ];
 
-      // 4. Trust & Devices
+      // Trust & Devices
       const [devDocs, ledgerDocs] = await Promise.all([
         M.StudentDevice.find({
           $or: [

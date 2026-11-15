@@ -7,11 +7,10 @@ const { todayInInstitutionTzSync, todayIST } = require('../utils/institutionTime
 
 /**
  * services/trustDailyService.js
- *
- * Daily Trust Score Evaluation & Backdated Leave Reversal (§8, T4.2):
- * 1. Evaluates uninformed full-day absences (-4) for dates past the auto-lock window.
- * 2. Evaluates monthly frequent uninformed absence threshold (>6 -> -2 once per month).
- * 3. Handles automatic reversal of penalties upon approved backdated leave or OD requests.
+ * Daily Trust Score Evaluation & Backdated Leave Reversal:
+ * Evaluates uninformed full-day absences (-4) for dates past the auto-lock window.
+ * Evaluates monthly frequent uninformed absence threshold (>6 -> -2 once per month).
+ * Handles automatic reversal of penalties upon approved backdated leave or OD requests.
  */
 
 let _dailySchedulerInterval = null;
@@ -29,8 +28,7 @@ function getYesterdayDateStr() {
 }
 
 /**
- * Evaluates uninformed absences and monthly frequent absence penalties for a specific target date (§8).
- *
+ * Evaluates uninformed absences and monthly frequent absence penalties for a specific target date.
  * @param {string} [targetDateStr] - Date to evaluate in 'YYYY-MM-DD' format (defaults to yesterday)
  * @returns {Promise<object>} Execution statistics
  */
@@ -51,7 +49,7 @@ async function runDailyTrustJob(targetDateStr) {
     return { ok: true, skipped: true, reason: 'Trust engine is disabled in settings' };
   }
 
-  // 1. Fetch ClassAttendance documents for target date
+  // Fetch ClassAttendance documents for target date
   const classAttDocs = await M.ClassAttendance.find({
     date: { $gte: startOfDay, $lte: endOfDay }
   }).lean();
@@ -60,7 +58,7 @@ async function runDailyTrustJob(targetDateStr) {
     return { ok: true, targetDate: dateStr, processedStudents: 0, uninformedAbsences: 0, frequentPenalties: 0 };
   }
 
-  // 2. Aggregate periods held and periods absent per student
+  // Aggregate periods held and periods absent per student
   const studentDayMap = new Map();
 
   for (const ca of classAttDocs) {
@@ -87,7 +85,7 @@ async function runDailyTrustJob(targetDateStr) {
   let frequentCount = 0;
   const monthKey = dateStr.substring(0, 7); // 'YYYY-MM'
 
-  // 3. Evaluate each student with full-day absence (R-D3: full day only, partial day does not count)
+  // Evaluate each student with full-day absence (R-D3: full day only, partial day does not count)
   for (const [studentTrackId, dayData] of studentDayMap.entries()) {
     if (dayData.totalPeriods === 0 || dayData.periodsAbsent !== dayData.totalPeriods) {
       continue; // Not absent for all held periods
@@ -113,7 +111,7 @@ async function runDailyTrustJob(targetDateStr) {
       continue; // Student had informed leave or OD
     }
 
-    // Uninformed full-day absence confirmed! (§8: -4)
+    // Uninformed full-day absence confirmed! (-4)
     const penalty = trustSettings.uninformedAbsencePenalty || 4;
     const refKey = `UNINFORMED_ABSENCE:${dateStr}`;
 
@@ -132,7 +130,7 @@ async function runDailyTrustJob(targetDateStr) {
       uninformedCount++;
     }
 
-    // 4. Frequent uninformed absences in calendar month (R-D4: -2, once per month if > threshold)
+    // Frequent uninformed absences in calendar month (R-D4: -2, once per month if > threshold)
     const threshold = trustSettings.frequentAbsenceThreshold || 6;
     const monthlyUninformedCount = await M.TrustEvent.countDocuments({
       studentId: student._id,
@@ -171,8 +169,7 @@ async function runDailyTrustJob(targetDateStr) {
 }
 
 /**
- * Handles automatic reversal of uninformed absence penalties when a leave or OD request is approved (§8).
- *
+ * Handles automatic reversal of uninformed absence penalties when a leave or OD request is approved.
  * @param {string|mongoose.Types.ObjectId} studentId
  * @param {string[]} dates - Array of 'YYYY-MM-DD' dates approved
  * @returns {Promise<object>} Outcome summary
@@ -211,7 +208,7 @@ async function handleLeaveApprovalReversal(studentId, dates = []) {
 
     if (alreadyReversed) continue;
 
-    // Apply reversal of exact points (§8)
+    // Apply reversal of exact points
     const revRes = await applyTrustEvent({
       studentId,
       studentTrackId: existingPenalty.studentTrackId,

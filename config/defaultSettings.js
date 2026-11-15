@@ -276,7 +276,7 @@ const DEFAULT_SETTINGS_MAP = {
     }
   },
 
-  // Student device trust & registration settings (§15)
+  // Student device trust & registration settings
   device: {
     card: 'Trust & Devices',
     value: {
@@ -290,7 +290,7 @@ const DEFAULT_SETTINGS_MAP = {
     }
   },
 
-  // Student trust score engine & rules (§15)
+  // Student trust score engine & rules
   trust: {
     card: 'Trust & Devices',
     value: {

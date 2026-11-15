@@ -64,7 +64,6 @@ function getGoogleDriveClient() {
 
 /**
  * Upload a file buffer to Google Drive Shared Drive or local fallback.
- *
  * @param {Object} params
  * @param {Buffer} params.buffer - File buffer
  * @param {string} params.originalName - Name of the file
@@ -181,7 +180,6 @@ async function uploadEvidenceFile({
 
 /**
  * Handle a pasted Google Drive link by verifying and storing metadata.
- *
  * @param {Object} params
  * @param {string} params.driveLink - URL pasted by user
  * @param {string} params.uploadedBy - Track ID
@@ -240,7 +238,6 @@ async function importFromDriveLink({ driveLink, uploadedBy, requestId = null, re
 
 /**
  * Retrieve file stream and metadata for permission-checked download
- *
  * @param {string} driveFileId
  * @returns {Promise<{ stream: ReadableStream, originalName: string, mimeType: string, size: number }>}
  */

@@ -317,10 +317,10 @@
         `;
       }
 
-      // 1. Selector Card
+      // Selector Card
       const selectorCardHtml = WorkloadShared.renderFacultySelectorCard(selectedTeacher, teachers, statPillsHtml);
 
-      // 2. Sub Nav
+      // Sub Nav
       const isWorkloadTab = currentTab === 'faculty';
       const isScheduleTab = currentTab === 'schedule';
       const isSubjectTab = currentTab === 'subject';
@@ -339,7 +339,7 @@
         </div>
       `;
 
-      // 3. Tab Content
+      // Tab Content
       let contentHtml = '';
       if (isSubjectTab) {
         contentHtml = WorkloadShared.renderSubjectDistribution(entries);

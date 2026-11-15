@@ -8,7 +8,7 @@ const DAYS_5 = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
 
 /**
  * Timetable Auto-Generation Constraint Solver
- * Supports Single-Class (Phase 2) and Whole-Batch (Phase 3) modes.
+ * Supports Single-Class and Whole-Batch modes.
  */
 class AutoGenEngine {
   constructor(options = {}) {
@@ -33,11 +33,11 @@ class AutoGenEngine {
   async solve() {
     const isDbConnected = (mongoose.connection && mongoose.connection.readyState === 1);
 
-    // 1. Resolve timing set & lab windows
+    // Resolve timing set & lab windows
     const timingSet = await getTimingSetForClass(this.classId, this.year);
     const labWindowDefs = await getLabWindows(this.classId, this.year);
 
-    // 2. Resolve subjects from SemesterSubjectSet
+    // Resolve subjects from SemesterSubjectSet
     let subjects = [];
     if (isDbConnected) {
       let setQuery = { batch: this.batch };
@@ -260,7 +260,7 @@ class AutoGenEngine {
     const labSubjects = subjects.filter(s => s.component === 'lab' || (s.isBlend && s.blendLabSlots > 0));
     const theorySubjects = subjects.filter(s => s.component === 'theory' || s.component === 'both' || (s.isBlend && s.blendTheorySlots > 0));
 
-    // 1. Place Combined Sessions First across ALL member classes (R18)
+    // Place Combined Sessions First across ALL member classes (R18)
     for (const grp of this.combinedGroups) {
       const hall = halls[0] || { hallNo: 'HALL-1', _id: new mongoose.Types.ObjectId() };
       const teacher = teachers[0] || { name: 'Combined Faculty', _id: new mongoose.Types.ObjectId() };
@@ -293,7 +293,7 @@ class AutoGenEngine {
       });
     }
 
-    // 2. Place Each Class sequentially checking ledger availability
+    // Place Each Class sequentially checking ledger availability
     let totalHardBreaches = 0;
     const availableLabWindows = [...(labWindowDefs.clean || []), ...(labWindowDefs.shortBreak || [])];
 
@@ -533,7 +533,7 @@ class AutoGenEngine {
     const labSubjects = subjects.filter(s => s.component === 'lab' || (s.isBlend && s.blendLabSlots > 0));
     const theorySubjects = subjects.filter(s => s.component === 'theory' || s.component === 'both' || (s.isBlend && s.blendTheorySlots > 0));
 
-    // 1. Place Combined Sessions First (R18)
+    // Place Combined Sessions First (R18)
     for (const grp of this.combinedGroups) {
       const day = activeDays[(attemptIndex + 1) % activeDays.length];
       const period = 2;
@@ -553,7 +553,7 @@ class AutoGenEngine {
       }
     }
 
-    // 2. Place Lab Blocks
+    // Place Lab Blocks
     const availableLabWindows = [...(labWindowDefs.clean || []), ...(labWindowDefs.shortBreak || [])];
     const shuffledDays = this._shuffle([...activeDays], attemptIndex);
     let dayIdx = 0;
@@ -593,7 +593,7 @@ class AutoGenEngine {
       }
     }
 
-    // 3. Place Theory Doubles
+    // Place Theory Doubles
     const validDoublePairs = timingSet.code === 'SET_2'
       ? [[1, 2], [2, 3], [4, 5], [5, 6], [7, 8], [8, 9]]
       : [[1, 2], [2, 3], [3, 4], [4, 5], [6, 7], [7, 8], [8, 9]];
@@ -636,7 +636,7 @@ class AutoGenEngine {
       }
     }
 
-    // 4. Place Remaining Theory Slots
+    // Place Remaining Theory Slots
     let subPointer = 0;
     for (const day of activeDays) {
       for (let p = 1; p <= periodsCount; p++) {
@@ -659,7 +659,7 @@ class AutoGenEngine {
       }
     }
 
-    // 5. Saturday Copy Mode
+    // Saturday Copy Mode
     if (!isSeparate) {
       const sourceDay = this.pinnedWeekday || 'Monday';
       for (let p = 1; p <= periodsCount; p++) {

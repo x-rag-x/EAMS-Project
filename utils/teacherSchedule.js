@@ -1,7 +1,6 @@
 /**
  * utils/teacherSchedule.js
- *
- * Core timetable resolver service for Teacher Portal (Phase 2):
+ * Core timetable resolver service for Teacher Portal:
  * - Aggregates SectionTimetable production slots into canonical teacher weekly schedules
  * - Overlays CalendarDay (holidays, half-days per class year)
  * - Overlays TeacherLeaveRequest (approved leaves, FN/AN half-days)
@@ -120,14 +119,14 @@ function normalizeYear(yr) {
 function timingForClass(cls, sets = [], section = null, rawSlot = null) {
   if (!sets || !sets.length) return null;
 
-  // 1. Explicit timingSetCode on slot, section, or class
+  // Explicit timingSetCode on slot, section, or class
   const explicitCode = rawSlot?.timingSetCode || section?.timingSetCode || cls?.timingSetCode;
   if (explicitCode) {
     const direct = sets.find(ts => ts.code === explicitCode);
     if (direct) return direct;
   }
 
-  // 2. Class year field
+  // Class year field
   const yrCandidate = cls?.year || '';
   if (yrCandidate) {
     const yrStr = String(yrCandidate).trim();
@@ -140,7 +139,7 @@ function timingForClass(cls, sets = [], section = null, rawSlot = null) {
     if (match) return match;
   }
 
-  // 3. Class name / Section name heuristics
+  // Class name / Section name heuristics
   const nameCandidate = String(section?.className || cls?.name || '').toUpperCase();
   if (/\b(II|III|2ND|3RD|Y2|Y3|YEAR\s*[23]|SEM\s*[3456]|25-29|24-28)\b/i.test(nameCandidate)) {
     const s2 = sets.find(ts => ts.code === 'SET_2');
@@ -542,7 +541,7 @@ async function resolveTeacherRange(idn, fromISO, toISO) {
 
     const daySlots = [];
 
-    // 1. Process weekly template slots for this day
+    // Process weekly template slots for this day
     const templateSlotsForDay = weeklyTemplate.slots.filter(s => s.dayFull === dayName);
 
     for (const baseSlot of templateSlotsForDay) {
@@ -675,7 +674,7 @@ async function resolveTeacherRange(idn, fromISO, toISO) {
       daySlots.push(slot);
     }
 
-    // 2. Process Substitute-In Overrides (where this teacher is substituting for another class, confirmed only per LD9)
+    // Process Substitute-In Overrides (where this teacher is substituting for another class, confirmed only per LD9)
     const subInOverrides = dayOverrides.filter(ov =>
       ov.type === 'substitute' &&
       (!ov.status || ov.status === 'confirmed') &&

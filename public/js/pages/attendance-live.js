@@ -956,14 +956,14 @@ var currentMode = 'quick-pass';
 
 // ── Delegated & Direct Event Listeners (Invariant S7: Zero Inline Handlers) ──
 document.addEventListener('DOMContentLoaded', function () {
-  // 1. Prevent paste on OTP inputs
+  // Prevent paste on OTP inputs
   document.querySelectorAll('.otp-input').forEach(function (inp) {
     inp.addEventListener('paste', function (e) {
       e.preventDefault();
     });
   });
 
-  // 2. Mode buttons
+  // Mode buttons
   var qpBtn = document.getElementById('btn-mode-qp');
   if (qpBtn) {
     qpBtn.addEventListener('click', function () { switchAttMode('quick-pass'); });
@@ -973,19 +973,19 @@ document.addEventListener('DOMContentLoaded', function () {
     qrBtn.addEventListener('click', function () { switchAttMode('qr'); });
   }
 
-  // 3. Submit Quick Pass button
+  // Submit Quick Pass button
   var submitQpBtn = document.getElementById('btn-submit-qp');
   if (submitQpBtn) {
     submitQpBtn.addEventListener('click', function () { submitQuickPassCode(); });
   }
 
-  // 4. Student login form
+  // Student login form
   var loginForm = document.getElementById('login-form');
   if (loginForm) {
     loginForm.addEventListener('submit', function (e) { handleStudentLogin(e); });
   }
 
-  // 5. Delegated clicks for actions
+  // Delegated clicks for actions
   document.addEventListener('click', function (e) {
     var target = e.target.closest('[data-action]');
     if (!target) return;

@@ -14,14 +14,14 @@
 </head>
 <body>
 
-  <!-- APP SHELL (Matching admin.html) -->
+  
   <div id="app-shell" class="vis">
     <div class="sb-overlay" id="sb-overlay" onclick="toggleExportSidebar()"></div>
 
-    <!-- SIDEBAR TOGGLE BUTTON (as in admin.html) -->
+    
     <button class="sb-toggle-btn" id="sbtoggle" onclick="toggleExportSidebar()" title="Toggle menu"><re-icon icon="x" size="16"></re-icon></button>
 
-    <!-- SIDEBAR (Matching admin.html, clean main menu only) -->
+    
     <nav class="sb">
       <div class="sb-logo">
         <div class="sb-brand">EAMS Export</div>
@@ -71,7 +71,7 @@
         </button>
       </div>
 
-      <!-- SIDEBAR BOTTOM (User Profile, Back Button, Animated Logout Button as in admin.html) -->
+      
       <div class="sb-bottom">
         <div class="sb-user">
           <div class="sb-uav" id="sb-av">A</div>
@@ -92,13 +92,13 @@
       </div>
     </nav>
 
-    <!-- MAIN CONTENT (mc as in admin.html) -->
+    
     <div class="mc">
 
-      <!-- TOPBAR (as in admin.html) -->
+      
       <div class="topbar">
         <div class="topbar-left">
-          <div style="width:32px;"></div><!-- spacer for toggle btn -->
+          <div style="width:32px;"></div>
           <div style="font-size:11px;color:var(--tmu);background:var(--gLt);padding:4px 12px;border-radius:12px;border:1px solid var(--br);font-weight:500;white-space:nowrap;" id="tdt-label"></div>
         </div>
         <div class="topbar-right">
@@ -112,12 +112,9 @@
         </div>
       </div>
 
-      <!-- MAIN PAGE CONTENT (Tabbed .pg structure matching admin.html) -->
+      
       <main class="main-content">
 
-        <!-- ═══════════════════════════════════════════════════════════════ -->
-        <!-- 1. DASHBOARD PAGE (REDUCED & COMPACT)                           -->
-        <!-- ═══════════════════════════════════════════════════════════════ -->
         <div class="pg act" id="pg-dash">
           <div class="page-hd">
             <div>
@@ -130,7 +127,7 @@
             </div>
           </div>
 
-          <!-- Compact Stats Row -->
+          
           <div class="ec-stats-row" style="margin-bottom:24px;">
             <div class="ec-stat-card" onclick="nav('history')" style="cursor:pointer;">
               <div class="stat-icon-wrap" style="background:#e8f5e9;color:#2e7d32;"><re-icon icon="folder"></re-icon></div>
@@ -162,7 +159,7 @@
             </div>
           </div>
 
-          <!-- Quick Navigation Cards to Key Modules -->
+          
           <div class="section-hd">
             <div>
               <h3 class="section-title"><re-icon icon="bolt"></re-icon> Quick Report Shortcuts</h3>
@@ -219,7 +216,7 @@
             </div>
           </div>
 
-          <!-- Search & Filter Bar (Compact on dashboard) -->
+          
           <div class="ec-search-section" style="margin-bottom:24px;">
             <div class="search-panel">
               <div class="ec-search-wrap">
@@ -246,7 +243,7 @@
             </div>
           </div>
 
-          <!-- Live Search Results (Shown dynamically when searching) -->
+          
           <div id="dashboard-search-results" style="display:none;margin-bottom:28px;">
             <div class="section-hd">
               <div>
@@ -257,7 +254,7 @@
             <div class="ec-report-grid" id="search-results-grid"></div>
           </div>
 
-          <!-- Recent Downloads -->
+          
           <div class="ec-recent-section" id="section-recent-exports">
             <div class="section-hd">
               <div>
@@ -271,9 +268,6 @@
           </div>
         </div>
 
-        <!-- ═══════════════════════════════════════════════════════════════ -->
-        <!-- 2. STUDENT REPORTS PAGE                                         -->
-        <!-- ═══════════════════════════════════════════════════════════════ -->
         <div class="pg" id="pg-student">
           <div class="page-hd">
             <div>
@@ -333,9 +327,6 @@
           </div>
         </div>
 
-        <!-- ═══════════════════════════════════════════════════════════════ -->
-        <!-- 3. CLASS REPORTS PAGE                                           -->
-        <!-- ═══════════════════════════════════════════════════════════════ -->
         <div class="pg" id="pg-class">
           <div class="page-hd">
             <div>
@@ -407,9 +398,6 @@
           </div>
         </div>
 
-        <!-- ═══════════════════════════════════════════════════════════════ -->
-        <!-- 4. SUBJECT REPORTS PAGE                                         -->
-        <!-- ═══════════════════════════════════════════════════════════════ -->
         <div class="pg" id="pg-subject">
           <div class="page-hd">
             <div>
@@ -457,9 +445,6 @@
           </div>
         </div>
 
-        <!-- ═══════════════════════════════════════════════════════════════ -->
-        <!-- 5. TEACHER REPORTS PAGE                                         -->
-        <!-- ═══════════════════════════════════════════════════════════════ -->
         <div class="pg" id="pg-teacher">
           <div class="page-hd">
             <div>
@@ -507,9 +492,6 @@
           </div>
         </div>
 
-        <!-- ═══════════════════════════════════════════════════════════════ -->
-        <!-- 6. DEPARTMENT REPORTS PAGE                                      -->
-        <!-- ═══════════════════════════════════════════════════════════════ -->
         <div class="pg" id="pg-dept">
           <div class="page-hd">
             <div>
@@ -557,9 +539,6 @@
           </div>
         </div>
 
-        <!-- ═══════════════════════════════════════════════════════════════ -->
-        <!-- 7. BULK EXPORT PAGE                                             -->
-        <!-- ═══════════════════════════════════════════════════════════════ -->
         <div class="pg" id="pg-bulk">
           <div class="page-hd">
             <div>
@@ -607,9 +586,6 @@
           </div>
         </div>
 
-        <!-- ═══════════════════════════════════════════════════════════════ -->
-        <!-- 7B. TIME TABLE EXPORTS (INSTITUTIONAL EXPORT CENTER)            -->
-        <!-- ═══════════════════════════════════════════════════════════════ -->
         <div class="pg" id="pg-tt">
           <div class="page-hd">
             <div>
@@ -623,7 +599,7 @@
           </div>
 
           <div class="tt-export-grid">
-            <!-- CARD 1: Section Timetable Export -->
+            
             <div class="tt-export-card">
               <div class="tt-export-card-head">
                 <div class="tt-export-card-icon">▦</div>
@@ -645,7 +621,7 @@
               </div>
             </div>
 
-            <!-- CARD 2: Department Master Schedule -->
+            
             <div class="tt-export-card">
               <div class="tt-export-card-head">
                 <div class="tt-export-card-icon"><re-icon icon="folder"></re-icon></div>
@@ -663,7 +639,7 @@
               </div>
             </div>
 
-            <!-- CARD 3: Faculty Schedule & Workload -->
+            
             <div class="tt-export-card">
               <div class="tt-export-card-head">
                 <div class="tt-export-card-icon"><re-icon icon="teacher"></re-icon></div>
@@ -681,7 +657,7 @@
               </div>
             </div>
 
-            <!-- CARD 4: Room Booking Matrix -->
+            
             <div class="tt-export-card">
               <div class="tt-export-card-head">
                 <div class="tt-export-card-icon"><re-icon icon="arrow-door-in"></re-icon></div>
@@ -699,7 +675,7 @@
               </div>
             </div>
 
-            <!-- CARD 5: Subject Distribution & Ratio Report -->
+            
             <div class="tt-export-card">
               <div class="tt-export-card-head">
                 <div class="tt-export-card-icon" style="background:#fce7f3;color:#be185d;border-color:#fbcfe8;"><re-icon icon="book-open"></re-icon></div>
@@ -716,7 +692,7 @@
               </div>
             </div>
 
-            <!-- CARD 6: Room Utilization & Facility Audit Report -->
+            
             <div class="tt-export-card">
               <div class="tt-export-card-head">
                 <div class="tt-export-card-icon" style="background:#fef3c7;color:#b45309;border-color:#fde68a;"><re-icon icon="building"></re-icon></div>
@@ -736,9 +712,6 @@
           </div>
         </div>
 
-        <!-- ═══════════════════════════════════════════════════════════════ -->
-        <!-- 8. SCHEDULED REPORTS PAGE                                       -->
-        <!-- ═══════════════════════════════════════════════════════════════ -->
         <div class="pg" id="pg-scheduled">
           <div class="page-hd">
             <div>
@@ -786,9 +759,6 @@
           </div>
         </div>
 
-        <!-- ═══════════════════════════════════════════════════════════════ -->
-        <!-- 9. SAVED TEMPLATES PAGE                                         -->
-        <!-- ═══════════════════════════════════════════════════════════════ -->
         <div class="pg" id="pg-templates">
           <div class="page-hd">
             <div>
@@ -806,9 +776,6 @@
           </div>
         </div>
 
-        <!-- ═══════════════════════════════════════════════════════════════ -->
-        <!-- 10. EXPORT HISTORY PAGE                                         -->
-        <!-- ═══════════════════════════════════════════════════════════════ -->
         <div class="pg" id="pg-history">
           <div class="page-hd">
             <div>
@@ -854,7 +821,7 @@
     </div>
   </div>
 
-  <!-- Report Configuration Modal -->
+  
   <div class="modal-bg" id="modal-report-config">
     <div class="modal modal-md">
       <div class="modal-header">
@@ -868,7 +835,7 @@
         <form id="form-report-config" onsubmit="handleConfigFormSubmit(event)">
           <input type="hidden" id="config-report-type" value="">
 
-          <!-- Student Selection (for student-specific reports) -->
+          
           <div class="form-group" id="group-student-select" style="display: none;">
             <label for="config-student">Target Student <span class="req-star">*</span></label>
             <select id="config-student" class="form-control">
@@ -876,7 +843,7 @@
             </select>
           </div>
 
-          <!-- Date Range Selection -->
+          
           <div class="form-group">
             <label>Date Range Period</label>
             <div class="daterange-buttons" id="daterange-buttons">
@@ -900,7 +867,7 @@
             </div>
           </div>
 
-          <!-- Academic Scope Filters -->
+          
           <div class="form-group">
             <label for="config-department">Department Scope</label>
             <select id="config-department" class="form-control">
@@ -930,7 +897,7 @@
             </select>
           </div>
 
-          <!-- Threshold (for defaulters report) -->
+          
           <div class="form-group" id="group-threshold" style="display: none;">
             <label for="config-threshold">Attendance Shortage Threshold (%)</label>
             <div style="display:flex;align-items:center;gap:12px;">
@@ -939,7 +906,7 @@
             </div>
           </div>
 
-          <!-- Format Selection -->
+          
           <div class="form-group">
             <label>Output File Format</label>
             <div class="format-buttons">
@@ -970,13 +937,13 @@
             </div>
           </div>
 
-          <!-- Save as Template Option -->
+          
           <div class="form-group">
             <label for="config-template-name">Save configuration as reusable template (optional)</label>
             <input type="text" id="config-template-name" class="form-control" placeholder="e.g. Monthly CSE 3rd Year Defaulters">
           </div>
 
-          <!-- Actions -->
+          
           <div class="modal-actions">
             <button type="button" class="btn-modal-ghost" onclick="closeModal('modal-report-config')">Cancel</button>
             <button type="button" class="btn-modal-secondary" id="btn-preview" onclick="handlePreviewClick()"><re-icon icon="grid" size="14"></re-icon> ️ Preview Count</button>
@@ -987,7 +954,7 @@
     </div>
   </div>
 
-  <!-- Preview Counts Modal -->
+  
   <div class="modal-bg" id="modal-preview-counts">
     <div class="modal modal-sm">
       <div class="modal-header">
@@ -1026,7 +993,7 @@
     </div>
   </div>
 
-  <!-- Delete Template Confirmation Modal -->
+  
   <div class="modal-bg" id="modal-delete-template">
     <div class="modal modal-sm" style="max-width:440px;">
       <div class="modal-header" style="border-bottom:none;padding-bottom:4px;">
@@ -1055,11 +1022,11 @@
     </div>
   </div>
 
-  <!-- Toast Containers (Matching core/toast.js) -->
+  
   <div id="toast" class="toast"></div>
   <div id="db-toast"></div>
 
-  <!-- Scripts -->
+  
   <script src="js/core/session.js"></script>
   <script src="js/core/api.js"></script>
   <script src="js/core/toast.js"></script>

@@ -1,13 +1,12 @@
 /**
  * public/js/modules/net.module.js
- * EAMS Timetable v3 — Network Quality Monitor & Lite Mode Engine (Phase 7, Section 2 & 4)
- *
+ * EAMS Timetable v3 — Network Quality Monitor & Lite Mode Engine
  * Implements:
- * 1. Online / Offline status tracking and connectivity heartbeat probe
- * 2. EWMA (Exponentially Weighted Moving Average) latency tracking
- * 3. Lite Mode detection (Save-Data, 2G/3G, high latency > 800ms)
- * 4. html[data-tt-lite] attribute controller
- * 5. Event dispatching for offline module and UI adapters
+ * Online / Offline status tracking and connectivity heartbeat probe
+ * EWMA (Exponentially Weighted Moving Average) latency tracking
+ * Lite Mode detection (Save-Data, 2G/3G, high latency > 800ms)
+ * html[data-tt-lite] attribute controller
+ * Event dispatching for offline module and UI adapters
  */
 
 (function (window) {

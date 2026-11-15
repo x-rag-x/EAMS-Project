@@ -8,7 +8,7 @@ function escapeHtml(str) {
     .replace(/'/g, '&#39;');
 }
 
-// ─── DEPARTMENT ICON HELPER ──────────────────────────────────────────────────
+// ─── DEPARTMENT ICON HELPER ──
 // Maps a department icon value to a <re-icon> element string.
 // Accepts: icon key strings (e.g. 'laptop'), legacy emoji characters,
 // or empty/null — all resolve to a <re-icon> element.
@@ -92,7 +92,7 @@ function getCurrentUserDeptInfo() {
 
 var _memStore = {};
 
-// ─── DATABASE HELPER ────────────────────────────────────────────────────────
+// ─── DATABASE HELPER
 const DB = {
   get: function (collection) {
     try { return _memStore['ss3_' + collection] || []; }
@@ -133,7 +133,7 @@ const DB = {
   }
 };
 
-// ─── COURSE CATALOG ─────────────────────────────────────────────────────────
+// ─── COURSE CATALOG ─
 const COURSES = {
   UG: {
     'B.E': ['Civil Engineering', 'Mechanical Engineering', 'Electrical Engineering',
@@ -148,12 +148,12 @@ const COURSES = {
   }
 };
 
-// ─── SEED / INITIAL DATA ────────────────────────────────────────────────────
+// ─── SEED / INITIAL DATA
 function initDB() {
   // No default data seeded
 }
 
-// ─── DATE UTILITIES ──────────────────────────────────────────────────────────
+// ─── DATE UTILITIES ──
 function getWeekDates(offset) {
   var _tParts = todayIST().split('-').map(Number);
   var today = new Date(_tParts[0], _tParts[1] - 1, _tParts[2]);
@@ -191,7 +191,7 @@ function timeAgo(isoDate) {
   return Math.floor(days / 365) + 'y ago';
 }
 
-// ─── AUTHENTICATION ──────────────────────────────────────────────────────────
+// ─── AUTHENTICATION ──
 var currentUser = null;
 var YEAR_CONFIG = { current: '', batches: [], all: [], yearsData: [] };
 
@@ -258,7 +258,7 @@ window.getBatchYearLevel = getBatchYearLevel;
 
 // Session inactivity and auto-logout are managed centrally by js/core/session.js
 
-// ─── SIDEBAR TOGGLE ──────────────────────────────────────────────────────────
+// ─── SIDEBAR TOGGLE ──
 function toggleAdminSidebar() {
   var sidebar = document.querySelector('#app-shell .sb');
   var mainContent = document.querySelector('.mc');
@@ -297,7 +297,7 @@ function bootApp() {
   initAdminSearchableDropdowns();
   populateAdminDropdowns();
 
-  // ── Loader message sequence ────────────────────────
+  // ── Loader message sequence
   var LOADER_STEPS = [
     { t: 0, msg: 'Initializing EAMS…' },
     { t: 150, msg: 'Connecting to Database…' },
@@ -443,7 +443,7 @@ function bootApp() {
   }, onSyncProgress);
 }
 
-// ─── URL Param Obfuscation / Encryption ──────────────────────────────────────
+// ─── URL Param Obfuscation / Encryption ──
 var _URL_CIPHER_KEY = 'EAMS@2026#SEC!CIPHER';
 
 function encryptUrlParam(raw) {
@@ -543,7 +543,7 @@ window.encryptUrlParam = encryptUrlParam;
 window.decryptUrlParam = decryptUrlParam;
 window.updateStructureUrlParams = updateStructureUrlParams;
 
-// ─── NAVIGATION ──────────────────────────────────────────────────────────────
+// ─── NAVIGATION ──
 var PAGE_NAMES = ['dash', 'depts', 'struct', 'students', 'teachers', 'roles', 'reports', 'logs', 'trust', 'grievance'];
 
 function nav(pageName) {
@@ -852,7 +852,7 @@ function refreshAll() {
   });
 }
 
-// ─── ACTIVITY LOGS ───────────────────────────────────────────────────────────
+// ─── ACTIVITY LOGS ───
 var _logRoleFilter = '';
 var _logData = [];
 var _logCursor = null;
@@ -1123,7 +1123,7 @@ function exportLogs() {
 var elogs = exportLogs;
 var rl = renderLogs;
 
-// ─── ANALYTICS & REPORTS ──────────────────────────────────────────────────────
+// ─── ANALYTICS & REPORTS ──
 function initAdminReports() {
   // Set default date range to last 30 days
   var todayStr = todayIST();
@@ -1496,7 +1496,7 @@ function expAdminRpt(type, format) {
   }
 }
 
-// ─── DASHBOARD ───────────────────────────────────────────────────────────────
+// ─── DASHBOARD ───
 function initDash() {
   // FAST PATH — runs immediately from cached data
   dbToast('Fetching Data, please wait', 'saving');
@@ -1539,7 +1539,7 @@ function syncBadgesFromAPI() {
   syncCountsFromAPI();
 }
 
-// ─── DEFERRED DASHBOARD HELPERS ──────────────────────────────────────────────
+// ─── DEFERRED DASHBOARD HELPERS ──
 function fetchWithTimeout(url, timeoutMs, headers) {
   var controller = new AbortController();
   var timer = setTimeout(function () { controller.abort(); }, timeoutMs);
@@ -1668,7 +1668,7 @@ function renderDeferredDashboard() {
   return Promise.all(pending);
 }
 
-// ─── BAR CHART ───────────────────────────────────────────────────────────────
+// ─── BAR CHART ───
 var reportType = 'overall';
 
 function setReportType(type) {
@@ -1780,12 +1780,12 @@ function renderBars(items) {
   }).join('');
 }
 
-// ─── GAUGE ───────────────────────────────────────────────────────────────────
+// ─── GAUGE ───
 function updateGauge() {
   // Gauge now populated via deferred API data
 }
 
-// ─── NOTIFICATIONS ───────────────────────────────────────────────────────────
+// ─── NOTIFICATIONS ───
 function getNotificationStatusBadge(n) {
   var isRead = Boolean(n.read || n.status === 'Read');
   var isGrievance = (n.message && n.message.startsWith('[Grievance]')) || Boolean(n.grievanceId);
@@ -2091,7 +2091,7 @@ document.addEventListener('click', function (e) {
 
 
 
-// ─── UNMARKED TEACHERS ───────────────────────────────────────────────────────
+// ─── UNMARKED TEACHERS ───
 function getUnmarked() {
   var assignments = DB.get('assignments');
   var attendance = DB.get('attendance');
@@ -2157,7 +2157,7 @@ function sendNotification() {
   notifyTarget = null;
 }
 
-// ─── ACTIVITY FEED ───────────────────────────────────────────────────────────
+// ─── ACTIVITY FEED ───
 var AVATAR_COLORS = ['#388e3c', '#3b82f6', '#8b5cf6', '#f59e0b', '#0891b2', '#ef4444'];
 
 function renderActivityFeed() {
@@ -2193,7 +2193,7 @@ function renderActivityFeed() {
 }
 var renderActivity = renderActivityFeed; // alias
 
-// ─── DEFAULTERS ──────────────────────────────────────────────────────────────
+// ─── DEFAULTERS ──
 function renderDefaulters(showFull) {
   // Replaced by deferred API path
 }
@@ -2210,7 +2210,7 @@ function downloadDefaulters() {
   showToast('<re-icon icon="download"></re-icon> Downloaded!');
 }
 
-// ─── SYSTEM HEALTH CARD ──────────────────────────────────────────────────────
+// ─── SYSTEM HEALTH CARD ──
 function renderSystemHealth() {
   var studentCount = _counts.students || DB.get('students').length;
   var teacherCount = _counts.teachers || DB.get('users').filter(function (u) { return u.role === 'teacher'; }).length;
@@ -2236,7 +2236,7 @@ function renderSystemHealth() {
   }).join('');
 }
 
-// ─── CHART FILTER POPULATION ────────────────────────────────────────────────
+// ─── CHART FILTER POPULATION
 function populateChartFilters() {
   var depts = DB.get('depts') || [];
   var subjects = DB.get('subjects') || [];
@@ -2328,7 +2328,7 @@ function onAcadYearChange() {
 }
 window.onAcadYearChange = onAcadYearChange;
 
-// ─── DEPARTMENTS PAGE ────────────────────────────────────────────────────────
+// ─── DEPARTMENTS PAGE
 var _deptCategoryFilter = 'all'; // 'all' | 'programme' | 'supporting'
 
 function setDeptFilter(cat) {
@@ -2411,7 +2411,7 @@ function _getDeptStudyingClasses(dept) {
     entry.subjects.set(sKey, sLabel);
   }
 
-  // 1. Check assignments (DB.get('assignments'))
+  // Check assignments (DB.get('assignments'))
   var allAsgns = DB.get('assignments') || [];
   allAsgns.forEach(function (a) {
     var matched = null;
@@ -2440,7 +2440,7 @@ function _getDeptStudyingClasses(dept) {
     }
   });
 
-  // 2. Check classes.subjects array
+  // Check classes.subjects array
   allClasses.forEach(function (c) {
     if (Array.isArray(c.subjects)) {
       c.subjects.forEach(function (sid) {
@@ -2453,7 +2453,7 @@ function _getDeptStudyingClasses(dept) {
     }
   });
 
-  // 3. Check timetable templates
+  // Check timetable templates
   var templates = DB.get('templates') || [];
   templates.forEach(function (t) {
     if (!t || !t.classId) return;
@@ -2480,7 +2480,7 @@ function _getDeptStudyingClasses(dept) {
     });
   });
 
-  // 4. Check section timetables
+  // Check section timetables
   var sectionTimetables = DB.get('sectionTimetables') || [];
   sectionTimetables.forEach(function (st) {
     if (!st || !st.classId) return;
@@ -2700,15 +2700,15 @@ renderDepartments = function () { _origRenderDepts(); };
 function openDeptAssignHod(deptId) {
   if (!deptId) return;
 
-  // 1. Navigate to Executive Roles & Access tab
+  // Navigate to Executive Roles & Access tab
   nav('roles');
 
-  // 2. Ensure executive tab is on 'departments'
+  // Ensure executive tab is on 'departments'
   if (typeof switchExecutiveTab === 'function') {
     switchExecutiveTab('departments');
   }
 
-  // 3. Open that department's popup (Manage Privileges drawer)
+  // Open that department's popup (Manage Privileges drawer)
   var attempts = 0;
   function triggerDeptPopup() {
     attempts++;
@@ -3315,17 +3315,17 @@ function openDeptModal(deptId, initialTab) {
     updateStructureUrlParams({ depts: deptId });
   }
 
-  // 1. Header
+  // Header
   _updateDeptUnifiedModalHeader(dept);
 
-  // 2. Tab contents
+  // Tab contents
   _renderDeptUnifiedOverview(dept);
   _renderDeptClassesTab(dept);
   _renderDeptSubjectsTab(dept);
   _renderDeptFacultyTab(dept);
   _populateEditDeptForm(dept);
 
-  // 3. Switch to target tab (default: overview)
+  // Switch to target tab (default: overview)
   switchDeptTab(initialTab || 'overview');
 
   openModal_('m-edit-dept');
@@ -3420,7 +3420,7 @@ function dDeptConfirmed(deptId, dept) {
   openModal_('m-dc-confirm');
 }
 
-// ─── STRUCTURE PAGE (CLASSES & SUBJECTS) ────────────────────────────────────
+// ─── STRUCTURE PAGE (CLASSES & SUBJECTS)
 var structureContext = { deptId: null, deptName: '', deptCode: '', sem: null, category: 'programme' };
 var currentClassId = null;
 var currentTeacherId = null;
@@ -3624,21 +3624,21 @@ var rsdv = renderDepartmentSelector;
 function _applyDeptCategoryUI() {
   var isSupporting = structureContext && structureContext.category === 'supporting';
 
-  // 1. Classes / Subjects toggle tabs
+  // Classes / Subjects toggle tabs
   var classTab = document.getElementById('cs-tab-classes');
   var subjTab = document.getElementById('cs-tab-subjects');
   if (classTab) {
     classTab.style.display = isSupporting ? 'none' : '';
   }
 
-  // 2. Action buttons in page header
+  // Action buttons in page header
   var addClassBtn = document.getElementById('hdr-add-class');
   var addSubjBtn = document.getElementById('hdr-add-subj');
   if (addClassBtn) {
     addClassBtn.style.display = isSupporting ? 'none' : '';
   }
 
-  // 3. Select active tab
+  // Select active tab
   if (isSupporting) {
     if (addSubjBtn) addSubjBtn.className = 'btn-pri';
     switchStructureTab('subjects');
@@ -5605,10 +5605,10 @@ function openClassModal(classId, initialTab) {
     }
   }
 
-  // 1. Header
+  // Header
   _updateClassUnifiedModalHeader(cls);
 
-  // 2. Fetch fresh teachers if not cached
+  // Fetch fresh teachers if not cached
   var allTeachers = _getAllTeachersList();
   if (!allTeachers.length) {
     apiCall('GET', '/teachers').then(function (list) {
@@ -5623,13 +5623,13 @@ function openClassModal(classId, initialTab) {
     });
   }
 
-  // 3. Tab contents
+  // Tab contents
   _renderClassUnifiedOverview(cls);
   _renderClassSubjectsTab(cls);
   _renderClassStudentsTab(cls, null);
   _populateEditClassForm(cls);
 
-  // 4. Switch to target tab
+  // Switch to target tab
   switchClassTab(initialTab || 'overview');
 
   openModal_('m-cls-detail');
@@ -6986,13 +6986,13 @@ function openSubjectModal(subjectId, initialTab) {
     return;
   }
 
-  // 1. Header
+  // Header
   _updateUnifiedModalHeader(subj);
 
-  // 2. Tab selection (default: overview, moved first per requirement)
+  // Tab selection (default: overview, moved first per requirement)
   switchSubjectTab(initialTab || 'overview');
 
-  // 3. Edit Subject Form population
+  // Edit Subject Form population
   document.getElementById('es-nm').value = subj.name || '';
   var courseCode = (subj.courseCode || subj.code || '').trim();
   var shortForm = (subj.shortForm || subj.shortName || subj.shortCode || '').trim();
@@ -7059,10 +7059,10 @@ function openSubjectModal(subjectId, initialTab) {
   var esWarn = document.getElementById('es-warn');
   if (esWarn) esWarn.style.display = 'none';
 
-  // 4. Overview & Stats
+  // Overview & Stats
   _renderUnifiedOverview(subj);
 
-  // 5. Assign Staff & Hall loading
+  // Assign Staff & Hall loading
   var tbody = document.getElementById('sa-rows');
   tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:18px;color:var(--tmu);font-size:13px;">⌛ Loading classes &amp; teachers from database…</td></tr>';
   document.getElementById('sa-warn').style.display = 'none';
@@ -7156,7 +7156,7 @@ function onEsDeptChange() {
 }
 window.onEsDeptChange = onEsDeptChange;
 
-// ── Blend & Slot Helpers for Admin Portal ─────────────────────────
+// ── Blend & Slot Helpers for Admin Portal ─
 function toggleNsBlend(isChecked) {
   var wrap = document.getElementById('ns-blend-wrap');
   if (wrap) wrap.style.display = isChecked ? 'block' : 'none';
@@ -7968,7 +7968,7 @@ function nsScAuto() {
   updateNsSubjPreview();
 }
 
-// ── Auto Subject Code (Edit: courseCode + '-' + shortForm) ────────────────
+// ── Auto Subject Code (Edit: courseCode + '-' + shortForm)
 function esScAuto() {
   var courseCode = (getFieldValue('es-cd') || '').trim().toUpperCase();
   var shortForm = (getFieldValue('es-ssc') || '').trim().toUpperCase();
@@ -8343,7 +8343,7 @@ function apiBulkSaveAssignments(subjectId, assignments) {
 }
 
 
-// ─── STUDENTS PAGE — GLOBAL STATE ─────────────────────────────────────────
+// ─── STUDENTS PAGE — GLOBAL STATE ─
 var _studentPage = 1;
 var _studentData = [];
 var _studentTotal = 0;
@@ -8351,7 +8351,7 @@ var _studentSortBy = 'regNo';
 var _studentSortDir = 'asc';
 var _studentFilterSnapshot = {};
 
-// ─── STUDENTS PAGE — NEW FUNCTIONS ──────────────────────────────────────
+// ─── STUDENTS PAGE — NEW FUNCTIONS ──
 function populateStudentFilterDropdowns() {
   var yearEl = document.getElementById('sf-ay');
   var batchEl = document.getElementById('sf-batch');
@@ -8966,7 +8966,7 @@ function updateBranch() {
 }
 window.updateBranch = updateBranch;
 
-// ─── HOD TRACKID LOOKUP ──────────────────────────────────────────────────────
+// ─── HOD TRACKID LOOKUP ──
 // Debounced 600 ms + 3 s minimum spinner. Checks isHod before accepting.
 // API endpoint expected: GET /api/teachers/trackid/:id
 //   Response: { fullName: "...", isHod: true|false }  OR  { error: "..." }
@@ -9329,7 +9329,7 @@ function _renderStudentDetailModal(s) {
   var leavesList = Array.isArray(s.leaves) ? s.leaves : [];
   var trustDev = s.trustAndDevices || { trustScore: 100, trustBand: 'Tier 1 (High Trust)', isLocked: false, devices: [], ledger: [] };
 
-  // 1. Header Population
+  // Header Population
   var initialLetter = fullName.trim().charAt(0).toUpperCase() || 'S';
   var avEl = document.getElementById('sd-avatar');
   if (avEl) {
@@ -9873,7 +9873,7 @@ function _renderStudentDetailModal(s) {
     + '</div>'
     + '</div>';
 
-  // 3. Assemble Body with 6 Pane Containers
+  // Assemble Body with 6 Pane Containers
   var bodyEl = document.getElementById('sd-body');
   if (!bodyEl) return;
 
@@ -10387,12 +10387,12 @@ function onCourseTypeChange() {
 
 function onBranchChange() { /* no-op — branch is set automatically from dept */ }
 
-// ─── ADD-STUDENT AUTO-FILL HANDLERS ─────────────────────────────────────────
+// ─── ADD-STUDENT AUTO-FILL HANDLERS ─
 
 /** When dept changes <re-icon icon="arrow-right"></re-icon> fill courseType + branch from DB, filter class list */
-// ─── STUDENT AUTO-FILL HELPERS ───────────────────────────────────────────────
+// ─── STUDENT AUTO-FILL HELPERS ───
 // Register No format: 7140 | YY | DDD | RRR
-//  7140 = institute, YY = year (25<re-icon icon="arrow-right"></re-icon>2025-26), DDD = 3-digit dept.number, RRR = roll
+//  = institute, YY = year (25<re-icon icon="arrow-right"></re-icon>2025-26), DDD = 3-digit dept.number, RRR = roll
 
 /** Build full email: "Arun M","25","cs" <re-icon icon="arrow-right"></re-icon> "arunm25cs@srishakthi.ac.in" */
 function buildStuEmail(name, yearCode, twoCode) {
@@ -10554,7 +10554,7 @@ function getDeptByNumber(deptCode) {
   return DB.get('depts').find(function (d) { return d.number === deptCode; }) || null;
 }
 
-// ── email confirm state ───────────────────────────────────────────────────────
+// ── email confirm state ───
 var _stuEmailVerified = true;  // default: yes, auto
 var _stuEmailBeforeNo = '';   // snapshot taken when user clicks "No"
 
@@ -10644,7 +10644,7 @@ function onTchEmailInput() {
 }
 window.onTchEmailInput = onTchEmailInput;
 
-// ── EDIT-STUDENT EMAIL HANDLERS ───────────────────────────────────────────────
+// ── EDIT-STUDENT EMAIL HANDLERS ───
 var _editEmailVerified = true;  // default: yes, auto
 var _editEmailBeforeNo = '';
 
@@ -10848,20 +10848,20 @@ function syncAddStudentModalFromFilters() {
     }
   }
 
-  // 1. Department
+  // Department
   var stuDept = document.getElementById('stu-dept');
   if (stuDept && deptVal && !stuDept.disabled) {
     stuDept.value = deptVal;
     onStuDeptChange();
   }
 
-  // 2. Batch
+  // Batch
   var stuBatch = document.getElementById('stu-batch');
   if (stuBatch && batchVal) {
     stuBatch.value = batchVal;
   }
 
-  // 3. Academic Year (stu-year) from batch or current year
+  // Academic Year (stu-year) from batch or current year
   if (batchVal) {
     var batchStart = parseInt(batchVal.split('-')[0], 10);
     if (!isNaN(batchStart)) {
@@ -10879,16 +10879,16 @@ function syncAddStudentModalFromFilters() {
     }
   }
 
-  // 4. Course type (if specified and not filled)
+  // Course type (if specified and not filled)
   var ctEl = document.getElementById('stu-courseType');
   if (ctVal && ctEl && (!ctEl.value || ctEl.value === 'None')) {
     ctEl.value = ctVal;
   }
 
-  // 5. Update Class dropdown and pre-select the class if available
+  // Update Class dropdown and pre-select the class if available
   updateStuClassList(clsVal);
 
-  // 6. Register number prefix helper (e.g. 7140 + 25 + 104 = 714025104)
+  // Register number prefix helper (e.g. 7140 + 25 + 104 = 714025104)
   var rnEl = document.getElementById('stu-regNo');
   if (rnEl && (rnEl.value === '7140' || !rnEl.value)) {
     var currentDeptId = stuDept ? stuDept.value : deptVal;
@@ -10905,13 +10905,13 @@ function syncAddStudentModalFromFilters() {
     }
   }
 
-  // 7. Sync SearchableDropdown
+  // Sync SearchableDropdown
   if (typeof SearchableDropdown !== 'undefined') {
     SearchableDropdown.sync('stu-dept');
     SearchableDropdown.sync('stu-class');
   }
 
-  // 8. Residency from filter
+  // Residency from filter
   var sfRes = document.getElementById('sf-residency');
   var resVal = sfRes ? sfRes.value : '';
   if (resVal) {
@@ -10919,7 +10919,7 @@ function syncAddStudentModalFromFilters() {
     if (stuRes) stuRes.value = (resVal === 'hostel' || resVal === 'hosteller') ? 'hostel' : 'dayscholar';
   }
 
-  // 9. Admission Type from filter
+  // Admission Type from filter
   var sfAdm = document.getElementById('sf-admission-type');
   var admVal = sfAdm ? sfAdm.value : '';
   if (admVal) {
@@ -11108,7 +11108,7 @@ function getInitials(name) {
 }
 window.getInitials = getInitials;
 
-// ─── SEGMENTED SWITCHER ANIMATION ENGINE ─────────────────────────────────
+// ─── SEGMENTED SWITCHER ANIMATION ENGINE ─
 function triggerSegRipple(btn, e) {
   if (!btn) return;
   var rect = btn.getBoundingClientRect();
@@ -11446,23 +11446,23 @@ function updateAddStudentLivePreview() {
   var depts = Array.isArray(DB.get('depts')) ? DB.get('depts') : [];
   var dept = depts.find(function (d) { return String(d._id) === String(deptId); });
 
-  // 1. Avatar initials
+  // Avatar initials
   var avEl = document.getElementById('stu-preview-avatar');
   if (avEl) avEl.textContent = getInitials(name) || 'ST';
 
-  // 2. Preview Name
+  // Preview Name
   var nmEl = document.getElementById('stu-preview-name');
   if (nmEl) nmEl.textContent = name || 'Student Name';
 
-  // 3. Preview Reg No
+  // Preview Reg No
   var regEl = document.getElementById('stu-preview-reg');
   if (regEl) regEl.textContent = 'Register no. ' + (regNo || '—');
 
-  // 4. Preview Batch
+  // Preview Batch
   var btEl = document.getElementById('stu-preview-batch');
   if (btEl) btEl.textContent = 'Batch ' + (batch || '2025-2029');
 
-  // 5. First name / Last name split
+  // First name / Last name split
   var split = splitFirstLastName(sanitizeFullName(name));
   var fnEl = document.getElementById('stu-firstName');
   var lnEl = document.getElementById('stu-lastName');
@@ -11491,7 +11491,7 @@ function updateAddStudentLivePreview() {
     }
   }
 
-  // 6. Track ID
+  // Track ID
   var trackId = getFieldValue('stu-trackId') || regNo;
   var dispTid = document.getElementById('stu-disp-tid');
   if (dispTid) {
@@ -11504,7 +11504,7 @@ function updateAddStudentLivePreview() {
     }
   }
 
-  // 7. Course type
+  // Course type
   var ctVal = (dept ? (dept.courseType || '') : '') || getFieldValue('stu-courseType');
   var dispCt = document.getElementById('stu-disp-ct');
   if (dispCt) {
@@ -11517,7 +11517,7 @@ function updateAddStudentLivePreview() {
     }
   }
 
-  // 8. Branch
+  // Branch
   var brVal = (dept ? (dept.branch || dept.name || '') : '') || getFieldValue('stu-branch');
   var dispBr = document.getElementById('stu-disp-br');
   if (dispBr) {
@@ -11530,7 +11530,7 @@ function updateAddStudentLivePreview() {
     }
   }
 
-  // 9. Username
+  // Username
   var unVal = email ? email.split('@')[0] : getFieldValue('stu-username');
   var dispUn = document.getElementById('stu-disp-un');
   if (dispUn) {
@@ -11543,7 +11543,7 @@ function updateAddStudentLivePreview() {
     }
   }
 
-  // 10. Required fields check
+  // Required fields check
   var missing = [];
   if (!name) missing.push('Full Name');
   if (!regNo) missing.push('Register Number');
@@ -11605,23 +11605,23 @@ function updateEditStudentLivePreview() {
   var depts = Array.isArray(DB.get('depts')) ? DB.get('depts') : [];
   var dept = depts.find(function (d) { return String(d._id) === String(deptId); });
 
-  // 1. Avatar
+  // Avatar
   var avEl = document.getElementById('edit-preview-avatar');
   if (avEl) avEl.textContent = getInitials(name) || 'ST';
 
-  // 2. Name
+  // Name
   var nmEl = document.getElementById('edit-preview-name');
   if (nmEl) nmEl.textContent = name || 'Student Name';
 
-  // 3. Reg No
+  // Reg No
   var regEl = document.getElementById('edit-preview-reg');
   if (regEl) regEl.textContent = 'Register no. ' + (regNo || '—');
 
-  // 4. Batch
+  // Batch
   var btEl = document.getElementById('edit-preview-batch');
   if (btEl) btEl.textContent = 'Batch ' + (batch || '—');
 
-  // 5. First / Last name
+  // First / Last name
   var split = splitFirstLastName(sanitizeFullName(name));
   var fnEl = document.getElementById('edit-firstName');
   var lnEl = document.getElementById('edit-lastName');
@@ -11652,7 +11652,7 @@ function updateEditStudentLivePreview() {
     }
   }
 
-  // 6. Track ID
+  // Track ID
   var trackId = getFieldValue('edit-trackId') || regNo;
   var dispTid = document.getElementById('edit-disp-tid');
   if (dispTid) {
@@ -11665,7 +11665,7 @@ function updateEditStudentLivePreview() {
     }
   }
 
-  // 7. Course type
+  // Course type
   var ctVal = (dept ? (dept.courseType || '') : '') || getFieldValue('edit-courseType');
   var dispCt = document.getElementById('edit-disp-ct');
   if (dispCt) {
@@ -11678,7 +11678,7 @@ function updateEditStudentLivePreview() {
     }
   }
 
-  // 8. Branch
+  // Branch
   var brVal = (dept ? (dept.branch || dept.name || '') : '') || getFieldValue('edit-branch');
   var dispBr = document.getElementById('edit-disp-br');
   if (dispBr) {
@@ -11691,7 +11691,7 @@ function updateEditStudentLivePreview() {
     }
   }
 
-  // 9. Username
+  // Username
   var unVal = email ? email.split('@')[0] : getFieldValue('edit-username');
   var dispUn = document.getElementById('edit-disp-un');
   if (dispUn) {
@@ -11704,7 +11704,7 @@ function updateEditStudentLivePreview() {
     }
   }
 
-  // 10. Required fields check
+  // Required fields check
   var missing = [];
   if (!name) missing.push('Full Name');
   if (!regNo) missing.push('Register Number');
@@ -11768,23 +11768,23 @@ function updateAddTeacherLivePreview() {
   var desig = dgSel ? (dgSel.options && dgSel.selectedIndex >= 0 ? dgSel.options[dgSel.selectedIndex].text : dgSel.value) : '';
   var email = (getFieldValue('t-em') || '').trim();
 
-  // 1. Avatar initials
+  // Avatar initials
   var avEl = document.getElementById('tch-preview-avatar');
   if (avEl) avEl.textContent = getInitials(name) || 'TC';
 
-  // 2. Preview Name
+  // Preview Name
   var nmEl = document.getElementById('tch-preview-name');
   if (nmEl) nmEl.textContent = name || 'Teacher Name';
 
-  // 3. Preview Employee ID
+  // Preview Employee ID
   var empEl = document.getElementById('tch-preview-empid');
   if (empEl) empEl.textContent = 'Employee ID ' + (empId || '—');
 
-  // 4. Preview Designation Chip
+  // Preview Designation Chip
   var desigChip = document.getElementById('tch-preview-desig');
   if (desigChip) desigChip.textContent = desig || 'Assistant Professor';
 
-  // 5. First name / Last name split
+  // First name / Last name split
   var clean = sanitizeFullName(name);
   var split = splitFirstLastName(clean);
   var fnEl = document.getElementById('t-fn');
@@ -11818,7 +11818,7 @@ function updateAddTeacherLivePreview() {
     }
   }
 
-  // 6. Track ID
+  // Track ID
   var trackId = getFieldValue('t-ti') || (empId ? ('TR-' + empId.replace(/^TR-?/i, '')) : '');
   var dispTid = document.getElementById('tch-disp-tid');
   if (dispTid) {
@@ -11833,7 +11833,7 @@ function updateAddTeacherLivePreview() {
     }
   }
 
-  // 7. Username
+  // Username
   var unVal = email ? email.split('@')[0].replace(/\s+/g, '').toLowerCase() : getFieldValue('t-us');
   var unInput = document.getElementById('t-us');
   if (unInput && unVal) unInput.value = unVal;
@@ -11851,7 +11851,7 @@ function updateAddTeacherLivePreview() {
     }
   }
 
-  // 8. Required fields check and status hint
+  // Required fields check and status hint
   var missing = [];
   if (!name) missing.push('Full name');
   if (!empId || empId === 'EMP-') missing.push('Employee ID');
@@ -11916,7 +11916,7 @@ window.onTchNameInput = onTchNameInput;
 
 var STUDENT_PASSWORD = 'teacher123';
 
-// ─── ADD DEPARTMENT MODAL LIVE SYNCHRONIZATION ──────────────────────────────
+// ─── ADD DEPARTMENT MODAL LIVE SYNCHRONIZATION ──
 function onDeptNameInput() {
   var nameEl = document.getElementById('dept-name');
   var val = (nameEl ? nameEl.value : '').trim();
@@ -11980,7 +11980,7 @@ function updateAddDeptLivePreview() {
   var brEl = document.getElementById('branch');
   var branch = brEl ? brEl.value : '';
 
-  // 1. Preview Avatar
+  // Preview Avatar
   var avEl = document.getElementById('dept-preview-avatar');
   if (avEl) {
     if (twoCode) {
@@ -11997,19 +11997,19 @@ function updateAddDeptLivePreview() {
     }
   }
 
-  // 2. Preview Name
+  // Preview Name
   var nmEl = document.getElementById('dept-preview-name');
   if (nmEl) nmEl.textContent = name || 'Department Name';
 
-  // 3. Preview Category
+  // Preview Category
   var catP = document.getElementById('dept-preview-category');
   if (catP) catP.textContent = categoryLabel;
 
-  // 4. Preview Code Chip
+  // Preview Code Chip
   var chpEl = document.getElementById('dept-preview-code');
   if (chpEl) chpEl.textContent = threeCode || 'CODE';
 
-  // 5. Auto-filled rows
+  // Auto-filled rows
   var d2El = document.getElementById('dept-disp-2code');
   if (d2El) {
     if (twoCode) {
@@ -12068,7 +12068,7 @@ function updateAddDeptLivePreview() {
     }
   }
 
-  // 6. Branch dropdown disabled styling & auto-population
+  // Branch dropdown disabled styling & auto-population
   if (brEl) {
     if (!courseType) {
       brEl.disabled = true;
@@ -12087,7 +12087,7 @@ function updateAddDeptLivePreview() {
     }
   }
 
-  // 7. Required fields validation and status hint
+  // Required fields validation and status hint
   var missing = [];
   if (!name) missing.push('Department name');
   if (!twoCode) missing.push('2-letter code');
@@ -12120,7 +12120,7 @@ function updateAddDeptLivePreview() {
 }
 window.updateAddDeptLivePreview = updateAddDeptLivePreview;
 
-// ─── RESET / CLEAR HELPERS ───────────────────────────────────────────────────
+// ─── RESET / CLEAR HELPERS ───
 function resetDeptForm() {
   clearInputs(['dept-name', 'dept-2code', 'dept-code', 'dept-number']);
   var c2 = document.getElementById('dept-2code'); if (c2) delete c2.dataset.autoDerived;
@@ -12226,7 +12226,7 @@ function resetStudentForm() {
   updateAddStudentLivePreview();
 }
 
-// ─── TEACHERS PAGE — GLOBAL STATE ────────────────────────────────────────
+// ─── TEACHERS PAGE — GLOBAL STATE
 var _teacherData = [];
 var _teacherSearchQuery = '';
 var _teacherDesigFilter = '';
@@ -12235,7 +12235,7 @@ var _teacherViewMode = 'grid';  // 'grid' | 'table'
 var _teacherSortBy = '';        // '' | 'name' | 'empId'
 var _teacherSortDir = 'asc';
 
-// ─── TEACHERS PAGE — NEW FUNCTIONS ──────────────────────────────────────
+// ─── TEACHERS PAGE — NEW FUNCTIONS ──
 function populateTeacherDeptDropdown() {
   var deptFilter = document.getElementById('tf-dept');
   if (!deptFilter) return;
@@ -12307,7 +12307,7 @@ function _teacherRoleBadges(teacher) {
   if (!teacher) return '';
   var badges = '';
 
-  // 1. Executive academic / administrative roles
+  // Executive academic / administrative roles
   if (teacher.isPrincipal) {
     badges += '<span class="t-role-badge principal" title="Principal"><re-icon icon="award" size="10"></re-icon> Principal</span>';
   }
@@ -12322,7 +12322,7 @@ function _teacherRoleBadges(teacher) {
     badges += '<span class="t-role-badge ttcoord" title="Timetable Coordinator"><re-icon icon="calendar" size="10"></re-icon> TT Coord</span>';
   }
 
-  // 2. 3-Tier Administration: Sudo Admin, Super Admin, Sub-Admin
+  // 3-Tier Administration: Sudo Admin, Super Admin, Sub-Admin
   var isSudo = !!teacher.isSudoAdmin || teacher.adminTier === 'sudo' || teacher.role === 'sudo'
     || (teacher.pageRights && teacher.pageRights.accessRole === 'sudoAdmin')
     || (Array.isArray(teacher.pageRights) && teacher.pageRights.some(function (p) { return p && p.enabled !== false && p.accessRole === 'sudoAdmin'; }));
@@ -13094,15 +13094,15 @@ function openTeacherModal(teacherId, initialTab) {
     return String(a.teacherId) === String(tid) || (teacher.trackId && a.teacherTrackId === teacher.trackId);
   });
 
-  // 1. Header
+  // Header
   _updateTeacherUnifiedModalHeader(teacher);
 
-  // 2. Tab contents
+  // Tab contents
   _renderTeacherUnifiedOverview(teacher, teacherAssignments);
   _renderTeacherAllocationsTab(teacher, teacherAssignments);
   _populateEditTeacherForm(teacher);
 
-  // 3. Switch to target tab (default: overview)
+  // Switch to target tab (default: overview)
   switchTeacherTab(initialTab || 'overview');
 
   openModal_('m-tch-detail');
@@ -13497,7 +13497,7 @@ window.saveTeacherAssignments = saveTeacherAssignments;
 var savTA = saveTeacherAssignments; // legacy alias
 window.savTA = savTA;
 
-// ─── DROPDOWN POPULATION ────────────────────────────────────────────────────
+// ─── DROPDOWN POPULATION
 function populateAdminDropdowns() {
   var depts = DB.get('depts');
   var classes = DB.get('classes');
@@ -13669,7 +13669,7 @@ function populateAdminDropdowns() {
 }
 var padm = populateAdminDropdowns;
 
-// ── Facility Room Dropdowns for Class Assignment ─────────────────────────
+// ── Facility Room Dropdowns for Class Assignment ─
 var _facilityRooms = [];
 
 function _loadFacilityRooms() {
@@ -13725,7 +13725,7 @@ function _populateFacilityRoomDropdowns() {
   }
 }
 
-// ─── MODAL HELPERS ───────────────────────────────────────────────────────────
+// ─── MODAL HELPERS ───
 function openModal_(id) {
   if (id === 'm-subj-assign' || id === 'm-edit-subj' || id === 'm-subj-detail') {
     var tab = id === 'm-edit-subj' ? 'edit' : (id === 'm-subj-detail' ? 'overview' : 'assign');
@@ -13885,7 +13885,7 @@ document.addEventListener('keydown', function (e) {
   }
 });
 
-// ─── UTILITY FUNCTIONS ───────────────────────────────────────────────────────
+// ─── UTILITY FUNCTIONS ───
 function getFieldValue(id) {
   var el = document.getElementById(id);
   return el ? el.value.trim() : '';
@@ -13918,7 +13918,7 @@ function downloadCSV(rows, filename) {
 }
 var dlcsv = downloadCSV; // alias
 
-// ─── BOOT ────────────────────────────────────────────────────────────────────
+// ─── BOOT
 initDB();
 
 (function checkAuthAndBoot() {
@@ -14034,9 +14034,9 @@ function togglePwField(inputId, btn) {
 // Security
 // ═══════════════════════════════════════════════════════
 
-// document.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+// document.addEventListener('contextmenu', function (e) { e.preventDefault; });
 // document.addEventListener('keydown', function (e) {
-//  if (e.key === 'F12' || (e.ctrlKey && e.shiftKey && ['I', 'J', 'C', 'K'].includes(e.key)) || (e.ctrlKey && e.key === 'U')) { e.preventDefault(); return false; }
+//  if (e.key === 'F12' || (e.ctrlKey && e.shiftKey && ['I', 'J', 'C', 'K'].includes(e.key)) || (e.ctrlKey && e.key === 'U')) { e.preventDefault; return false; }
 // });
 
 // ═══════════════════════════════════════════════════════
@@ -14337,7 +14337,7 @@ function syncAllFromDB(cb, onProgress) {
   });
 }
 
-// ── DEPT OPERATIONS ──────────────────────────────────
+// ── DEPT OPERATIONS ──
 function apiAddDept(name, code, number, twoLetterCode, courseType, branch, category, hodId, hodName) {
   var payload = { name: name, code: code, number: number, twoLetterCode: twoLetterCode, courseType: courseType, branch: branch, category: category || 'programme' };
   if (hodName) payload.hodName = hodName;
@@ -14378,7 +14378,7 @@ function apiDeleteDept(id, name) {
     .catch(function (err) { dbToast('Failed: ' + (err.message || 'error'), 'error'); throw err; });
 }
 
-// ── CLASS OPERATIONS ─────────────────────────────────
+// ── CLASS OPERATIONS ─
 function apiAddClass(data) {
   dbToast('Adding class…', 'saving', data.name);
   return apiCall('POST', '/classes', data)
@@ -14417,7 +14417,7 @@ function apiUpdateClass(id, data) {
     .catch(function (err) { dbToast('Failed: ' + (err.message || 'error'), 'error'); return null; });
 }
 
-// ── SUBJECT OPERATIONS ───────────────────────────────
+// ── SUBJECT OPERATIONS ───
 function apiAddSubject(data) {
   dbToast('Adding subject…', 'saving', data.name);
   return apiCall('POST', '/subjects', data)
@@ -14456,7 +14456,7 @@ function apiDeleteSubject(id, name) {
     .catch(function (err) { dbToast('Failed: ' + (err.message || 'error'), 'error'); throw err; });
 }
 
-// ── TEACHER OPERATIONS ──────────────────────────────
+// ── TEACHER OPERATIONS ──
 function _refreshTeacherList() {
   var dept = document.getElementById('tf-dept') ? document.getElementById('tf-dept').value : '';
   var params = dept ? '?deptId=' + encodeURIComponent(dept) : '';
@@ -14515,7 +14515,7 @@ function apiUpdateTeacher(id, data, name) {
     .catch(function (err) { dbToast('Failed: ' + (err.message || 'error'), 'error'); return null; });
 }
 
-// ── STUDENT OPERATIONS ──────────────────────────────
+// ── STUDENT OPERATIONS ──
 function apiAddStudent(data) {
   dbToast('Adding student…', 'saving', data.name);
   return apiCall('POST', '/students', data)
@@ -14680,7 +14680,7 @@ function confirmClearStorage() {
 
 }
 
-// ── Teacher card click delegation ─────────────────────────────────────────
+// ── Teacher card click delegation ─
 (function () {
   var tgr = document.getElementById('tgr');
   if (!tgr) return;
@@ -14745,7 +14745,7 @@ window.addEventListener('load', function () {
     }
   } catch (err) { }
 
-  // Check initial bootstrap pending state (§9, R3.2)
+  // Check initial bootstrap pending state
   if (sessionStorage.getItem('eams_bootstrapPending') === '1') {
     initBootstrapWizard();
   }
@@ -14803,7 +14803,7 @@ window.addEventListener('load', function () {
 });
 
 // ══════════════════════════════════════════════════════════════════════════════
-//  SUDO ADMIN BOOTSTRAP WIZARD (Phase R3 / §9)
+//  SUDO ADMIN BOOTSTRAP WIZARD
 // ══════════════════════════════════════════════════════════════════════════════
 var _bootstrapState = {
   step: 1,
@@ -14986,11 +14986,11 @@ function finishBootstrapAndLogout() {
   }
 }
 
-// ─── SEARCHABLE DROPDOWNS INITIALIZATION ─────────────────────────────────────
+// ─── SEARCHABLE DROPDOWNS INITIALIZATION ─
 function initAdminSearchableDropdowns() {
   if (typeof SearchableDropdown === 'undefined') return;
 
-  // 1. Assigned Room / Hall in Add Class & Edit Class Modals
+  // Assigned Room / Hall in Add Class & Edit Class Modals
   SearchableDropdown.attach('nc-room', {
     kind: 'room',
     placeholder: '— Select Room / Hall —',
@@ -15002,7 +15002,7 @@ function initAdminSearchableDropdowns() {
     searchPlaceholder: 'Search room, hall, building…'
   });
 
-  // 2. Student Management page filters (Department & Class with search; Batch, Course Type, Section without search)
+  // Student Management page filters (Department & Class with search; Batch, Course Type, Section without search)
   SearchableDropdown.attach('sf-batch', {
     kind: 'batch',
     search: false,
@@ -15024,7 +15024,7 @@ function initAdminSearchableDropdowns() {
     searchPlaceholder: 'Search class, section, batch…'
   });
 
-  // 3. Department & Class in Add Student Modal
+  // Department & Class in Add Student Modal
   SearchableDropdown.attach('stu-dept', {
     kind: 'dept',
     placeholder: 'Select department',
@@ -15038,7 +15038,7 @@ function initAdminSearchableDropdowns() {
     searchPlaceholder: 'Search class, section, batch…'
   });
 
-  // 4. Department & Class in Edit Student Modal
+  // Department & Class in Edit Student Modal
   SearchableDropdown.attach('edit-dept', {
     kind: 'dept',
     placeholder: 'Select department',
@@ -15052,7 +15052,7 @@ function initAdminSearchableDropdowns() {
     searchPlaceholder: 'Search class, section, batch…'
   });
 
-  // 5. Class Advisor in Class Detail Modal
+  // Class Advisor in Class Detail Modal
   SearchableDropdown.attach('cd-advisor-select', {
     kind: 'advisor',
     compact: true,
@@ -15063,7 +15063,7 @@ function initAdminSearchableDropdowns() {
     searchPlaceholder: 'Search faculty name, ID…'
   });
 
-  // 5b. Class Advisor in Assign Class Advisor Modal Popup
+  // Class Advisor in Assign Class Advisor Modal Popup
   if (document.getElementById('adv-modal-select')) {
     SearchableDropdown.attach('adv-modal-select', {
       kind: 'advisor',
@@ -15075,7 +15075,7 @@ function initAdminSearchableDropdowns() {
     });
   }
 
-  // 5c. Class Representatives in Assign Class Representatives Modal Popup
+  // Class Representatives in Assign Class Representatives Modal Popup
   if (document.getElementById('rep-modal-select-1')) {
     SearchableDropdown.attach('rep-modal-select-1', {
       kind: 'student',
@@ -15097,7 +15097,7 @@ function initAdminSearchableDropdowns() {
     });
   }
 
-  // 6. Assign Subject to Class Modal (Subject and Teacher fallback)
+  // Assign Subject to Class Modal (Subject and Teacher fallback)
   if (document.getElementById('as-subj')) {
     SearchableDropdown.attach('as-subj', {
       kind: 'subject',
@@ -15113,7 +15113,7 @@ function initAdminSearchableDropdowns() {
     });
   }
 
-  // 7. Teacher Management page filters (Department & Designation with live search)
+  // Teacher Management page filters (Department & Designation with live search)
   SearchableDropdown.attach('tf-dept', {
     kind: 'dept',
     placeholder: 'All Departments',
@@ -15127,7 +15127,7 @@ function initAdminSearchableDropdowns() {
     search: true
   });
 
-  // 8. Department & Designation in Add Teacher Modal
+  // Department & Designation in Add Teacher Modal
   if (document.getElementById('t-dp')) {
     SearchableDropdown.attach('t-dp', {
       kind: 'dept',
@@ -15155,7 +15155,7 @@ if (document.readyState === 'loading') {
   initAdminSearchableDropdowns();
 }
 
-// ─── ADMIN GRIEVANCES MODULE (SUDO / SUPER) ──────────────────────────────
+// ─── ADMIN GRIEVANCES MODULE (SUDO / SUPER) ──
 var _adminGrievances = [];
 var _adminGrievActive = null;
 

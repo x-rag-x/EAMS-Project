@@ -1,6 +1,5 @@
 /**
  * utils/googleDrive.js
- *
  * Integrates with Google Drive CLI / API to upload encrypted EAMS backup archives,
  * student OD evidence files, and generate shareable web access links.
  */
@@ -148,7 +147,6 @@ async function uploadViaDriveApi(localFilePath, folderId) {
  * Uploads a local file to Google Drive under the designated backup folder.
  * Uses Direct Drive API v3 via OAuth2 tokens if configured in .env,
  * falling back gracefully to the gdrive CLI if needed.
- *
  * @param {string} localFilePath - Full path to the file to upload
  * @param {Object} [options]
  * @param {string} [options.parentFolderId] - Parent folder ID (default: backup folder)
@@ -157,13 +155,13 @@ async function uploadViaDriveApi(localFilePath, folderId) {
 async function uploadFileToDrive(localFilePath, options = {}) {
   const folderId = options.parentFolderId || BACKUP_FOLDER_ID;
 
-  // 1. Attempt direct upload via Google Drive REST API v3
+  // Attempt direct upload via Google Drive REST API v3
   const apiResult = await uploadViaDriveApi(localFilePath, folderId);
   if (apiResult && apiResult.success) {
     return apiResult;
   }
 
-  // 2. Fallback to gdrive CLI if API upload was unavailable or errored
+  // Fallback to gdrive CLI if API upload was unavailable or errored
   const gdrive = getGdriveCmd();
 
   return new Promise((resolve) => {
@@ -491,7 +489,7 @@ async function ensureDriveFolderPath(pathSegments, rootParentId = null) {
  * EAMS_PROJECT/STUDENTS/{dept}/{class}/{trackId}/OD_EvidenceFile_{odtrackid}.{ext}
  */
 async function uploadODEvidence({ buffer, originalName, mimeType, dept, className, studentTrackId, odTrackId }) {
-  // 1. Check security
+  // Check security
   const sec = validateEvidenceSecurity({ buffer, originalName, mimeType });
   if (!sec.valid) {
     return { success: false, error: sec.error };

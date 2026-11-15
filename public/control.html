@@ -17,7 +17,7 @@
 
 <body>
 
-  <!-- EAMS THREE-BODY PAGE LOADER -->
+  
   <div id="page-loader">
     <div class="loader-brand">🌿 EAMS Control Panel</div>
     <div class="three-body">
@@ -36,7 +36,7 @@
     </div>
   </div>
 
-  <!-- SIDEBAR -->
+  
   <nav class="sb">
     <div class="sb-logo">
       <div>
@@ -92,10 +92,10 @@
     </div>
   </nav>
 
-  <!-- MAIN -->
+  
   <div class="mc">
 
-    <!-- TOP BAR -->
+    
     <div class="topbar">
       <div class="topbar-title">
         <re-icon icon="settings"></re-icon> System Control Panel
@@ -107,14 +107,14 @@
       </div>
     </div>
 
-    <!-- OVERVIEW PAGE -->
+    
     <div class="pg act" id="pg-overview">
       <div class="page-hd">
         <div class="page-title">System Overview</div>
         <div class="page-sub">Live stats and system health at a glance</div>
       </div>
 
-      <!-- Live Health Strip -->
+      
       <div id="health-bar" style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:18px;">
         <div class="health-chip">
           <span class="health-dot" id="hc-db-dot">●</span>
@@ -156,7 +156,7 @@
           Refresh</button>
       </div>
 
-      <!-- Recent Errors Card -->
+      
       <div id="health-errors-card" class="card" style="margin-bottom:16px;display:none;">
         <div class="card-hd">
           <div class="card-icon red"><re-icon icon="alert-triangle"></re-icon></div>
@@ -188,7 +188,7 @@
         </div>
       </div>
 
-      <!-- DB Collection Breakdown -->
+      
       <div class="card" style="margin-bottom:16px;">
         <div class="card-hd">
           <div class="card-icon blue"><re-icon icon="archive"></re-icon></div>
@@ -219,7 +219,7 @@
       </div>
     </div>
 
-    <!-- USER GRID PAGE -->
+    
     <div class="pg" id="pg-usergrid">
       <div class="page-wrap">
         <div class="page-hd">
@@ -234,7 +234,7 @@
           </div>
         </div>
 
-        <!-- Summary Stats Strip (Redesigned with Icons & Content like Teacher Page) -->
+        
         <div class="ug-stats-strip" id="ug-stats-strip">
           <div class="ug-stat-card total-card">
             <div class="ug-stat-icon green" id="ugs-icon-total"><re-icon icon="graduation-cap"></re-icon></div>
@@ -266,11 +266,11 @@
           </div>
         </div>
 
-        <!-- Filter Toolbar Card (Redesigned Top GUI/UX with Dropdowns, Search & View Toggle) -->
+        
         <div class="card ug-toolbar-card">
-          <!-- Top Row: Role Navigation Pills + View Mode & Limit Controls -->
+          
           <div class="ug-toolbar-top">
-            <!-- Role Tabs / Pills -->
+            
             <div class="ug-role-pills" id="ug-role-pills">
               <button class="ug-tab act" id="ugt-student" onclick="ugSetRole('student',this)">
                 <re-icon icon="graduation-cap" size="14"></re-icon> Students
@@ -286,7 +286,7 @@
               </button>
             </div>
 
-            <!-- Page Limit Dropdown -->
+            
             <div class="ug-limit-wrap">
               <select id="ug-limit-select" class="ug-select-pill" onchange="ugOnLimitChange()" title="Items per page">
                 <option value="25">25 / page</option>
@@ -297,23 +297,23 @@
             </div>
           </div>
 
-          <!-- Bottom Row: Filters (Dept, Class, Status, Date) & Search -->
+          
           <div class="ug-toolbar-filters">
-            <!-- Department Dropdown (Searchable) -->
+            
             <div class="ug-filter-field" id="ug-dept-wrap">
               <select id="ug-dept-filter" class="ug-filter-select" onchange="ugOnFilterChange()">
                 <option value="">All Departments</option>
               </select>
             </div>
 
-            <!-- Class Filter (students / attendance, Searchable) -->
+            
             <div class="ug-filter-field" id="ug-class-wrap">
               <select id="ug-class-filter" class="ug-filter-select" onchange="ugOnFilterChange()">
                 <option value="">All Classes</option>
               </select>
             </div>
 
-            <!-- Status Filter (Searchable) -->
+            
             <div class="ug-filter-field" id="ug-status-wrap">
               <select id="ug-status-filter" class="ug-filter-select" onchange="ugOnFilterChange()">
                 <option value="">All Statuses</option>
@@ -323,13 +323,13 @@
               </select>
             </div>
 
-            <!-- Attendance Date Filter -->
+            
             <div class="ug-filter-field" id="ug-date-wrap" style="display:none;">
               <span class="ug-filter-icon"><re-icon icon="calendar" size="14"></re-icon></span>
               <input type="date" id="ug-date-filter" class="ug-filter-input" onchange="ugOnFilterChange()">
             </div>
 
-            <!-- Search input without autofill -->
+            
             <form autocomplete="off" onsubmit="return false;" style="margin:0;display:contents;">
               <input type="text" style="display:none;" name="fake_user_remembered" autocomplete="username">
               <input type="password" style="display:none;" name="fake_password_remembered" autocomplete="current-password">
@@ -343,7 +343,7 @@
             </form>
           </div>
 
-          <!-- Bulk Actions Bar (Revealed when items checked) -->
+          
           <div id="ug-bulk-bar" class="ug-bulk-bar" style="display:none;">
             <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
               <span class="ug-bulk-count" id="ug-bulk-count">0 selected</span>
@@ -356,7 +356,7 @@
           </div>
         </div>
 
-        <!-- Data Table Card -->
+        
         <div class="card" style="padding:0;overflow:hidden;border:1px solid var(--brl);margin-bottom:14px;">
           <div style="overflow-x:auto;">
             <table id="ug-table" class="ug-table">
@@ -365,7 +365,7 @@
             </table>
           </div>
 
-          <!-- Empty / Loading States -->
+          
           <div id="ug-loading" style="text-align:center;padding:50px;color:var(--tmu);display:none;">
             <div style="font-size:32px;margin-bottom:8px;animation:spin 1s linear infinite;display:inline-block;"><re-icon icon="hourglass"></re-icon>
             </div>
@@ -377,7 +377,7 @@
             <div style="font-size:12px;color:var(--tmu);margin-top:4px;">Try adjusting your filters or search keywords</div>
           </div>
 
-          <!-- Pagination Footer -->
+          
           <div id="ug-pagination" class="ug-pagination" style="display:none;">
             <div id="ug-page-info" style="font-size:12px;color:var(--tmu);font-weight:500;">Showing 0 of 0 records</div>
             <div style="display:flex;gap:6px;align-items:center;">
@@ -388,11 +388,11 @@
           </div>
         </div>
 
-        <!-- MODAL 1: EDIT USER PROFILE (MATCHING ADMIN ADD STUDENT POPUP STYLE) -->
+        
         <div class="modal-overlay" id="ug-edit-modal">
           <div class="modal-box"
             style="width:720px;max-width:96vw;max-height:92vh;display:flex;flex-direction:column;padding:0;overflow:hidden;border-radius:20px;box-shadow:0 28px 70px rgba(0,0,0,0.22);text-align:left;">
-            <!-- Modal Header -->
+            
             <div
               style="padding:18px 24px;border-bottom:1px solid var(--brl);display:flex;align-items:center;justify-content:space-between;background:var(--gLt);">
               <div style="display:flex;align-items:center;gap:12px;">
@@ -410,7 +410,7 @@
                 style="width:30px;height:30px;border-radius:50%;border:none;background:#fff;font-size:15px;cursor:pointer;color:var(--tmu);display:flex;align-items:center;justify-content:center;box-shadow:0 1px 4px rgba(0,0,0,0.06);transition:all .18s;" aria-label="Close modal"><re-icon icon="x" size="14"></re-icon></button>
             </div>
 
-            <!-- Modal Body Form -->
+            
             <div style="padding:20px 24px;overflow-y:auto;flex:1;max-height:calc(92vh - 130px);">
               <form id="ug-edit-form" autocomplete="off" onsubmit="event.preventDefault();ugSubmitEdit();">
                 <input type="hidden" id="ug-e-id">
@@ -419,7 +419,7 @@
                 <input type="hidden" id="ug-e-deptcode">
                 <input type="hidden" id="ug-e-classid">
 
-                <!-- Row 1: Full Name + Status -->
+                
                 <div class="form-grid form-grid-2">
                   <div class="fg">
                     <label class="fl">Full Name<span style="color:#dc2626;">*</span></label>
@@ -436,7 +436,7 @@
                   </div>
                 </div>
 
-                <!-- Row 2: First Name + Last Name (auto-split) -->
+                
                 <div class="form-grid form-grid-2">
                   <div class="fg">
                     <label class="fl">First Name <span class="auto-txt">(auto)</span></label>
@@ -448,7 +448,7 @@
                   </div>
                 </div>
 
-                <!-- Row 3: Username + Email -->
+                
                 <div class="form-grid form-grid-2">
                   <div class="fg">
                     <label class="fl">Username <span style="color:#dc2626;">*</span></label>
@@ -461,7 +461,7 @@
                   </div>
                 </div>
 
-                <!-- SECTION 2: STUDENT ACADEMIC FIELDS -->
+                
                 <div id="ug-fields-student"
                   style="display:none;margin-top:14px;padding-top:14px;border-top:1.5px solid var(--brl);">
                   <div
@@ -469,7 +469,7 @@
                     <span><re-icon icon="graduation-cap"></re-icon></span> Student Academic Profile
                   </div>
 
-                  <!-- Reg No & Track ID -->
+                  
                   <div class="form-grid form-grid-2">
                     <div class="fg">
                       <label class="fl">Register Number<span style="color:#dc2626;">*</span></label>
@@ -483,7 +483,7 @@
                     </div>
                   </div>
 
-                  <!-- Dept, Course Type, Branch -->
+                  
                   <div class="form-grid" style="grid-template-columns:1.5fr 1fr 1fr;">
                     <div class="fg">
                       <label class="fl">Department<span style="color:#dc2626;">*</span></label>
@@ -501,7 +501,7 @@
                     </div>
                   </div>
 
-                  <!-- Academic Year, Batch, Class, Section -->
+                  
                   <div class="form-grid" style="grid-template-columns:1fr 1fr 1.3fr 0.7fr;">
                     <div class="fg">
                       <label class="fl">Academic Year<span style="color:#dc2626;">*</span></label>
@@ -559,7 +559,7 @@
                   </div>
                 </div>
 
-                <!-- SECTION 3: TEACHER / FACULTY FIELDS -->
+                
                 <div id="ug-fields-teacher"
                   style="display:none;margin-top:14px;padding-top:14px;border-top:1.5px solid var(--brl);">
                   <div
@@ -603,7 +603,7 @@
                     </div>
                   </div>
 
-                  <!-- Sub-Admin Toggle & Privileges Matrix -->
+                  
                   <div
                     style="margin-top:12px;background:var(--gLt);border:1px solid var(--gLr);border-radius:12px;padding:14px 16px;">
                     <label class="chk-box" style="font-weight:700;color:var(--gD);margin-bottom:8px;">
@@ -627,7 +627,7 @@
                   </div>
                 </div>
 
-                <!-- SECTION 4: ADMIN FIELDS -->
+                
                 <div id="ug-fields-admin"
                   style="display:none;margin-top:14px;padding-top:14px;border-top:1.5px solid var(--brl);">
                   <div
@@ -656,7 +656,7 @@
                   </div>
                 </div>
 
-                <!-- Global PW toggle -->
+                
                 <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--brl);">
                   <label class="chk-box" style="font-size:12.5px;">
                     <input type="checkbox" id="ug-e-must-change-pw"> Require password change on next login
@@ -665,7 +665,7 @@
               </form>
             </div>
 
-            <!-- Modal Actions Footer -->
+            
             <div
               style="padding:14px 24px;border-top:1px solid var(--brl);display:flex;justify-content:space-between;align-items:center;background:var(--gLt);">
               <button class="btn-form-ghost" onclick="ugCloseEditModal()">Cancel</button>
@@ -674,7 +674,7 @@
           </div>
         </div>
 
-        <!-- MODAL 2: PASSWORD RESET MODAL -->
+        
         <div class="modal-overlay" id="ug-pw-modal">
           <div class="modal-box"
             style="width:450px;max-width:96vw;text-align:left;padding:0;overflow:hidden;border-radius:20px;box-shadow:0 24px 60px rgba(0,0,0,0.22);">
@@ -720,7 +720,7 @@
           </div>
         </div>
 
-        <!-- MODAL 3: ATTENDANCE EDIT MODAL -->
+        
         <div class="modal-overlay" id="ug-att-modal">
           <div class="modal-box"
             style="width:500px;max-width:96vw;text-align:left;padding:0;overflow:hidden;border-radius:20px;box-shadow:0 24px 60px rgba(0,0,0,0.22);">
@@ -770,7 +770,7 @@
           </div>
         </div>
 
-        <!-- MODAL 4: SMALL DELETE CONFIRMATION POPUP -->
+        
         <div class="modal-overlay" id="ug-del-modal">
           <div class="modal-box"
             style="width:390px;max-width:94vw;text-align:center;padding:26px 24px;border-radius:20px;box-shadow:0 24px 60px rgba(0,0,0,0.25);">
@@ -792,9 +792,7 @@
       </div>
     </div>
 
-    <!-- ══════════════════════════════════════════════════════════════════════════
-         PAGE: ATTENDANCE ROSTER (AttReg Part 1)
-    ══════════════════════════════════════════════════════════════════════════ -->
+    
     <div class="pg" id="pg-roster">
       <div class="page-hd">
         <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
@@ -809,7 +807,7 @@
         </div>
       </div>
 
-      <!-- Controls Bar -->
+      
       <div class="att-controls-bar">
         <div class="att-controls-left">
           <div class="att-select-group">
@@ -828,18 +826,16 @@
         <div class="att-controls-right">
           <div class="att-search-box">
             <re-icon icon="search" size="14" class="att-search-icon"></re-icon>
-            <input type="text" id="roster-search" class="att-search-input" placeholder="Search student (/)..." autocomplete="off">
+            <input type="text" id="roster-search" class="att-search-input" placeholder="Search student..." autocomplete="off">
           </div>
         </div>
       </div>
 
-      <!-- Content Area (KPI Strip + Period Strip + Table) -->
+      
       <div id="roster-content-area"></div>
     </div>
 
-    <!-- ══════════════════════════════════════════════════════════════════════════
-         PAGE: ATTENDANCE REGISTRY (AttReg Part 2)
-    ══════════════════════════════════════════════════════════════════════════ -->
+    
     <div class="pg" id="pg-registry">
       <div class="page-hd">
         <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
@@ -853,7 +849,7 @@
         </div>
       </div>
 
-      <!-- Controls Bar -->
+      
       <div class="att-controls-bar">
         <div class="att-controls-left">
           <div class="att-select-group">
@@ -888,16 +884,16 @@
         </div>
       </div>
 
-      <!-- Header Strip (Class title, Advisor, View Toggles & Exports) -->
+      
       <div id="reg-header-strip"></div>
 
-      <!-- Main Content Area (Grid + Legend) -->
+      
       <div id="reg-content-area">
         <div id="reg-grid-container"></div>
       </div>
-    </div>
-
-    <!-- DATA MANAGEMENT PAGE -->
+    </div>
+
+    
     <div class="pg" id="pg-data">
       <div class="page-hd">
         <div class="page-title"><re-icon icon="trash2"></re-icon> Data Management</div>
@@ -966,7 +962,7 @@
           Recycle Bin menu.</div>
       </div>
 
-      <!-- Export Data (expanded) -->
+      
       <div class="card">
         <div class="card-hd">
           <div class="card-icon blue"><re-icon icon="upload"></re-icon></div>
@@ -1008,8 +1004,6 @@
       </div>
     </div>
 
-
-    <!-- BACKUP PAGE -->
     <div class="pg" id="pg-backup">
       <div class="page-hd">
         <div class="page-title"><re-icon icon="archive"></re-icon> Backup</div>
@@ -1109,7 +1103,7 @@
       </div>
     </div>
 
-    <!-- RECYCLE BIN PAGE -->
+    
     <div class="pg" id="pg-recycle-bin">
       <div class="page-hd" style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px;">
         <div>
@@ -1123,7 +1117,7 @@
         </div>
       </div>
 
-      <!-- Quick Metrics Strip -->
+      
       <div class="recycle-metrics-grid" style="display:grid;grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));gap:12px;margin-bottom:18px;">
         <div class="metric-card" style="background:#fff;padding:14px 18px;border-radius:12px;border:1.5px solid var(--br);display:flex;align-items:center;gap:12px;">
           <div style="width:42px;height:42px;border-radius:10px;background:#eff6ff;color:#2563eb;display:flex;align-items:center;justify-content:center;font-size:20px;">
@@ -1163,9 +1157,9 @@
         </div>
       </div>
 
-      <!-- Main Card -->
+      
       <div class="card">
-        <!-- Search and Filter Bar -->
+        
         <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:16px;">
           <div style="position:relative;flex:1;min-width:240px;max-width:420px;">
             <input type="text" id="rb-search-input" oninput="onRecycleSearchInput(this.value)" placeholder="Search by name, label, deleted by..."
@@ -1187,7 +1181,7 @@
           </div>
         </div>
 
-        <!-- Category Filter Pills -->
+        
         <div id="rb-category-pills" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid #f1f5f9;">
           <button class="undo-filter-btn act" onclick="filterRecycleCategory('all', this)">All <span class="rb-pill-count" id="rb-cnt-all">0</span></button>
           <button class="undo-filter-btn" onclick="filterRecycleCategory('departments', this)">Departments <span class="rb-pill-count" id="rb-cnt-departments">0</span></button>
@@ -1203,7 +1197,7 @@
           <button class="undo-filter-btn" onclick="filterRecycleCategory('other', this)">Other <span class="rb-pill-count" id="rb-cnt-other">0</span></button>
         </div>
 
-        <!-- Bulk Selection Bar (Dynamic) -->
+        
         <div id="rb-bulk-bar" style="display:none;align-items:center;justify-content:space-between;padding:10px 14px;background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:10px;margin-bottom:12px;">
           <div style="display:flex;align-items:center;gap:10px;">
             <input type="checkbox" id="rb-select-all-cb" onchange="toggleRecycleSelectAll(this.checked)" style="cursor:pointer;width:16px;height:16px;">
@@ -1215,18 +1209,18 @@
           </div>
         </div>
 
-        <!-- List Container -->
+        
         <div id="recycle-bin-list" style="display:flex;flex-direction:column;gap:10px;">
           <div style="color:var(--tmu);font-size:13px;text-align:center;padding:30px 0;">Loading Recycle Bin…</div>
         </div>
-        <!-- Alias fallback for legacy references -->
+        
         <div id="undo-list" style="display:none;"></div>
       </div>
     </div>
-    <!-- Legacy pg-undo alias mirror -->
+    
     <div class="pg" id="pg-undo" style="display:none;"></div>
 
-    <!-- MAINTENANCE MODE PAGE -->
+    
     <div class="pg" id="pg-maintenance">
       <div class="page-hd" style="display:flex;align-items:flex-start;justify-content:space-between;">
         <div>
@@ -1237,7 +1231,7 @@
         <button class="btn btn-out btn-sm" onclick="loadMaintenance()" style="margin-top:4px;"><re-icon icon="refresh" size="14"></re-icon> Refresh</button>
       </div>
 
-      <!-- Status Banner -->
+      
       <div id="maint-status-banner"
         style="border-radius:16px;padding:20px 24px;margin-bottom:20px;display:flex;align-items:center;gap:16px;border:2px solid #d1d5db;background:#f9fafb;transition:all .3s;">
         <div style="font-size:36px;" id="maint-banner-icon"><re-icon icon="hourglass"></re-icon></div>
@@ -1253,7 +1247,7 @@
 
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px;">
 
-        <!-- LEFT: Configuration -->
+        
         <div class="card" style="margin-bottom:0;">
           <div class="card-hd">
             <div class="card-icon amber"><re-icon icon="settings"></re-icon></div>
@@ -1263,7 +1257,7 @@
             </div>
           </div>
 
-          <!-- Affected Roles -->
+          
           <div style="margin-bottom:18px;">
             <div class="form-label" style="margin-bottom:10px;">Blocked Roles (cannot login during maintenance)</div>
             <div style="display:flex;flex-direction:column;gap:8px;" id="maint-roles-wrap">
@@ -1301,7 +1295,7 @@
 
           <div class="divider" style="margin:14px 0;"></div>
 
-          <!-- End Time — REQUIRED -->
+          
           <div class="form-group" style="margin-bottom:14px;">
             <label class="form-label">End Date &amp; Time <span style="color:#dc2626;font-weight:700;">*
                 Required</span></label>
@@ -1310,7 +1304,7 @@
               maintenance page. <span style="color:#dc2626;font-weight:600;">Must be set before enabling.</span></div>
           </div>
 
-          <!-- Message -->
+          
           <div class="form-group" style="margin-bottom:18px;">
             <label class="form-label">Message shown to blocked users <span style="color:#dc2626;font-weight:700;">*
                 Required</span></label>
@@ -1327,10 +1321,10 @@
             is mandatory so users see a countdown.</div>
         </div>
 
-        <!-- RIGHT: Current State + Quick Actions -->
+        
         <div style="display:flex;flex-direction:column;gap:16px;">
 
-          <!-- Current State -->
+          
           <div class="card" style="margin-bottom:0;">
             <div class="card-hd">
               <div class="card-icon green"><re-icon icon="grid"></re-icon></div>
@@ -1369,7 +1363,7 @@
             </div>
           </div>
 
-          <!-- Role Access Summary -->
+          
           <div class="card" style="margin-bottom:0;">
             <div class="card-hd">
               <div class="card-icon gray"><re-icon icon="users"></re-icon></div>
@@ -1381,7 +1375,7 @@
             <div id="role-access-table" style="display:flex;flex-direction:column;gap:8px;"></div>
           </div>
 
-          <!-- Quick Actions — buttons sized to content -->
+          
           <div class="card" style="margin-bottom:0;">
             <div class="card-hd">
               <div class="card-icon blue"><re-icon icon="bolt"></re-icon></div>
@@ -1430,10 +1424,10 @@
         </div>
       </div>
 
-      <!-- Maintenance Activity Log + Server Logs -->
+      
       <div style="display:grid;grid-template-columns:0.5fr 1.5fr;gap:20px;">
 
-        <!-- Maintenance DB Logs -->
+        
         <div class="card">
           <div class="card-hd" style="justify-content:space-between;">
             <div style="display:flex;align-items:center;gap:12px;">
@@ -1451,7 +1445,7 @@
           </div>
         </div>
 
-        <!-- Server Logs (live) -->
+        
         <div class="card">
           <div class="card-hd" style="justify-content:space-between;">
             <div style="display:flex;align-items:center;gap:12px;">
@@ -1483,7 +1477,7 @@
 
     </div>
 
-    <!-- BROADCASTS DISPATCH CENTER -->
+    
     <div class="pg" id="pg-broadcasts">
       <div class="page-hd" style="display:flex;align-items:flex-start;justify-content:space-between;">
         <div>
@@ -1497,7 +1491,7 @@
         </div>
       </div>
 
-      <!-- Active Banner Notice -->
+      
       <div id="bc-active-banner"
         style="display:none;background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:14px;padding:16px 20px;margin-bottom:20px;align-items:center;justify-content:space-between;">
         <div style="display:flex;align-items:center;gap:12px;">
@@ -1514,7 +1508,7 @@
 
       <div style="display:grid;grid-template-columns:1.2fr 0.8fr;gap:20px;margin-bottom:24px;">
 
-        <!-- Broadcast Composer Card -->
+        
         <div class="card" style="margin-bottom:0;">
           <div class="card-hd">
             <div class="card-icon amber"><re-icon icon="bullhorn"></re-icon></div>
@@ -1524,7 +1518,7 @@
             </div>
           </div>
 
-          <!-- Target Roles -->
+          
           <div class="form-group" style="margin-bottom:16px;">
             <label class="form-label" style="font-size:12px;font-weight:700;color:var(--td);margin-bottom:8px;">TARGET
               AUDIENCE</label>
@@ -1550,7 +1544,7 @@
             </div>
           </div>
 
-          <!-- Severity Level & Popup Duration -->
+          
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px;">
             <div class="form-group">
               <label class="form-label">BROADCAST LEVEL</label>
@@ -1574,7 +1568,7 @@
             </div>
           </div>
 
-          <!-- Message Body -->
+          
           <div class="form-group" style="margin-bottom:18px;">
             <label class="form-label">ANNOUNCEMENT MESSAGE <span style="color:#dc2626;">*</span></label>
             <textarea class="form-input" id="bc-msg" rows="4" style="resize:vertical;"
@@ -1586,7 +1580,7 @@
             Now</button>
         </div>
 
-        <!-- Live Dispatch Summary & Diagnostics -->
+        
         <div style="display:flex;flex-direction:column;gap:16px;">
           <div class="card" style="margin-bottom:0;">
             <div class="card-hd">
@@ -1637,7 +1631,7 @@
 
       </div>
 
-      <!-- Broadcast History Table -->
+      
       <div class="card">
         <div class="card-hd" style="justify-content:space-between;">
           <div style="display:flex;align-items:center;gap:12px;">
@@ -1674,9 +1668,9 @@
 
     </div>
 
-  </div><!-- end .mc -->
+  </div>
 
-  <!-- CONFIRM MODAL -->
+  
   <div class="modal-overlay" id="confirm-modal">
     <div class="modal-box">
       <div class="modal-icon" id="m-icon"><re-icon icon="alert-triangle"></re-icon></div>
@@ -1702,7 +1696,7 @@
     </div>
   </div>
 
-  <!-- RECYCLE BIN INSPECT MODAL -->
+  
   <div class="modal-overlay" id="recycle-inspect-modal" style="display:none;align-items:center;justify-content:center;z-index:10002;">
     <div class="modal-box" style="max-width:680px;width:92%;padding:24px 26px;max-height:85vh;display:flex;flex-direction:column;">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
@@ -1728,7 +1722,7 @@
     </div>
   </div>
 
-  <!-- SPECIAL DELETE PASSWORD MODAL -->
+  
   <div class="modal-overlay" id="m-special-pw"
     style="display:none;align-items:center;justify-content:center;z-index:10001;">
     <div class="modal-box" style="width:400px;padding:32px 28px;text-align:center;">
@@ -1757,7 +1751,7 @@
     </div>
   </div>
 
-  <!-- MAINTENANCE EXPIRY DIALOG -->
+  
   <div class="modal-overlay" id="maint-expiry-modal" style="z-index:10000;">
     <div class="modal-box" style="max-width:480px;padding:32px 28px;">
       <div style="font-size:48px;margin-bottom:12px;"><re-icon icon="timer"></re-icon></div>
@@ -1768,7 +1762,7 @@
           style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:10px 14px;margin-top:12px;font-size:12px;color:#374151;text-align:left;white-space:pre-line;line-height:1.6;">
         </div>
       </div>
-      <!-- Extension options -->
+      
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">
         <button class="btn btn-warn" onclick="extendMaintenance(1)" style="justify-content:center;font-size:12px;"><re-icon icon="timer" size="14"></re-icon> Extend +1 Hour</button>
         <button class="btn btn-warn" onclick="extendMaintenance(2)" style="justify-content:center;font-size:12px;"><re-icon icon="timer" size="14"></re-icon> Extend +2 Hours</button>
@@ -1785,10 +1779,10 @@
     </div>
   </div>
 
-  <!-- TOAST -->
+  
   <div class="toast" id="toast"><span id="toast-msg"></span></div>
 
-  <!-- DB SYNC TOAST -->
+  
   <div id="db-sync-toast"
     style="position:fixed;bottom:80px;right:28px;background:#1a2e1a;color:#fff;padding:14px 20px;border-radius:14px;font-size:13px;font-weight:600;z-index:10000;display:flex;align-items:center;gap:12px;box-shadow:0 8px 30px rgba(0,0,0,.25);transform:translateY(100px);opacity:0;transition:all .4s cubic-bezier(.34,1.56,.64,1);">
     <span style="font-size:16px;"><re-icon icon="check-circle"></re-icon></span>
@@ -1799,8 +1793,6 @@
     </div>
   </div>
 
-
-  <!-- DELETE ALL ADDER MODAL -->
   <div class="modal-overlay" id="m-delete-adder" style="display:none;align-items:center;justify-content:center;">
     <div
       style="background:#fff;border-radius:20px;padding:28px 24px;width:480px;max-width:96vw;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.3);">
@@ -1864,7 +1856,7 @@
     </div>
   </div>
 
-  <!-- ATTENDANCE DATE RANGE MODAL -->
+  
   <div class="modal-overlay" id="m-attendance-date" style="display:none;align-items:center;justify-content:center;">
     <div
       style="background:#fff;border-radius:20px;padding:28px 24px;width:500px;max-width:96vw;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.3);">
@@ -1923,7 +1915,7 @@
     </div>
   </div>
 
-  <!-- CLEAR CACHE MODAL -->
+  
   <div class="modal-overlay" id="m-clear-storage" style="display:none;align-items:center;justify-content:center;">
     <div
       style="background:#fff;border-radius:20px;padding:28px 24px;width:500px;max-width:96vw;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.3);">
@@ -1937,7 +1929,7 @@
       <div style="font-size:12px;color:var(--tmu);margin-bottom:14px;">All academic data lives only in MongoDB and is
         always fetched fresh — there is nothing else to clear.</div>
 
-      <!-- sessionStorage section -->
+      
       <div
         style="text-align:left;background:var(--gLt);border:1px solid var(--br);border-radius:10px;padding:12px 16px;margin-bottom:16px;display:flex;flex-direction:column;gap:8px;">
         <div
@@ -1966,7 +1958,7 @@
   <script src="js/core/popup.js"></script>
   <script src="js/core/guard.js"></script>
   <script src="js/core/searchableDropdown.js"></script>
-  <!-- Roster Student Forensic Drawer -->
+  
   <div class="att-drawer-overlay" id="roster-drawer-overlay"></div>
   <div class="att-drawer" id="roster-drawer">
     <div class="att-drawer-hd">
@@ -1977,7 +1969,7 @@
       <button class="modal-x" onclick="closeStudentDrawer()">&times;</button>
     </div>
     <div class="att-drawer-bd" id="roster-drawer-content">
-      <!-- Injected by control.roster.js -->
+      
     </div>
   </div>
 

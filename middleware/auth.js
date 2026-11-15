@@ -91,7 +91,7 @@ async function authMiddleware(req, res, next) {
     if (!session.active) { return res.status(401).json({ error: 'Session expired' }); }
     if (session.logoutAt || session.current === 'Logged Out') { return res.status(401).json({ error: 'Logged out' }); }
 
-    // Enforce session timeout & inactivity rules (§3.9, F17)
+    // Enforce session timeout & inactivity rules
     const secSettings = (await getSettings(['security'])).security || {};
     const isStudentDevice = session.sessionClass === 'student-device';
     const isSessionTimeoutEnabled = secSettings.sessionTimeout !== false;
@@ -142,7 +142,7 @@ async function authMiddleware(req, res, next) {
       }
     }
 
-    // Device revocation hook (§6, T3.4): revoking the device kills the session at next call
+    // Device revocation hook: revoking the device kills the session at next call
     if (isStudentDevice && session.deviceTrackId) {
       const devDoc = await M.StudentDevice.findOne({ deviceTrackId: session.deviceTrackId }).select('status').lean();
       if (!devDoc || devDoc.status !== 'TRUSTED') {
@@ -249,7 +249,7 @@ async function authMiddleware(req, res, next) {
     };
     req.session = session;
 
-    // Check bootstrap pending gate (§9, R3.1)
+    // Check bootstrap pending gate
     if (req.user.bootstrapPending) {
       const origUrl = req.originalUrl || req.url || '';
       const isAllowedBootstrapEndpoint =
@@ -266,7 +266,7 @@ async function authMiddleware(req, res, next) {
       }
     }
 
-    // Check forced password change gate (§S6, §S8) - linked to security.forcePasswordChange setting
+    // Check forced password change gate - linked to security.forcePasswordChange setting
     const isForcePwEnabled = secSettings.forcePasswordChange !== false;
     if (isForcePwEnabled && req.user.mustChangePassword) {
       const origUrl = (req.originalUrl || req.url || '').split('?')[0].replace(/\/+$/, '');
@@ -299,7 +299,7 @@ async function authMiddleware(req, res, next) {
       const pages = settings.pages || {};
       const maint = settings.maintenance || {};
 
-      // Verify maintenance mode status (Sudo Admin + Super Admin are exempt per §3.6)
+      // Verify maintenance mode status (Sudo Admin + Super Admin are exempt)
       if (maint.active) {
         const affected = maint.affectedRoles?.length ? maint.affectedRoles : ['teacher', 'student'];
         if (affected.includes(decoded.role) && !access.exempt?.maintenance) {
@@ -327,7 +327,7 @@ async function authMiddleware(req, res, next) {
         }
       }
 
-      // Verify teacher portal access permissions: anyone holding admin grants is exempt (§3.6)
+      // Verify teacher portal access permissions: anyone holding admin grants is exempt
       const hasAdminGrants = access.isAdmin || access.flags?.isSudo || access.flags?.isSuper || access.flags?.isSub;
       if (decoded.role === 'teacher' && !hasAdminGrants) {
         const pageTeachers = pages.pageTeachers !== undefined ? pages.pageTeachers : 'enabled';

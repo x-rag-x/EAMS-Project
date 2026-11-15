@@ -2,7 +2,6 @@ const mongoose = require('mongoose');
 
 /**
  * Password Model (Unified Credential Store)
- *
  * Stores hashed credentials for all human identities (students, teachers, admins)
  * in a dedicated collection. Decouples credential authentication from domain models.
  */

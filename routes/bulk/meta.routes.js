@@ -44,7 +44,7 @@ router.get('/capabilities', authMiddleware, async (req, res) => {
 
     const types = {};
 
-    // 1. Departments: global scope only (sudo / super)
+    // Departments: global scope only (sudo / super)
     if (!canBulk || !tabOk('dept')) {
       types.dept = { enabled: false, reason: 'You do not have bulk upload access permission for departments' };
     } else if (!isSudo) {
@@ -53,7 +53,7 @@ router.get('/capabilities', authMiddleware, async (req, res) => {
       types.dept = { enabled: true, reason: '' };
     }
 
-    // 2. Teachers: >= 1 department in scope
+    // Teachers: >= 1 department in scope
     if (!canBulk || !tabOk('teacher')) {
       types.teacher = { enabled: false, reason: 'You do not have bulk upload access permission for teachers' };
     } else if (deptCount === 0) {
@@ -62,7 +62,7 @@ router.get('/capabilities', authMiddleware, async (req, res) => {
       types.teacher = { enabled: true, reason: '' };
     }
 
-    // 3. Classes: >= 1 department and active batches in current Academic Year
+    // Classes: >= 1 department and active batches in current Academic Year
     if (!canBulk || !tabOk('class')) {
       types.class = { enabled: false, reason: 'You do not have bulk upload access permission for classes' };
     } else if (deptCount === 0) {
@@ -73,7 +73,7 @@ router.get('/capabilities', authMiddleware, async (req, res) => {
       types.class = { enabled: true, reason: '' };
     }
 
-    // 4. Subjects: >= 1 department
+    // Subjects: >= 1 department
     if (!canBulk || !tabOk('subject')) {
       types.subject = { enabled: false, reason: 'You do not have bulk upload access permission for subjects' };
     } else if (deptCount === 0) {
@@ -82,7 +82,7 @@ router.get('/capabilities', authMiddleware, async (req, res) => {
       types.subject = { enabled: true, reason: '' };
     }
 
-    // 5. Students: >= 1 department, >= 1 class, active batch
+    // Students: >= 1 department, >= 1 class, active batch
     if (!canBulk || !tabOk('student')) {
       types.student = { enabled: false, reason: 'You do not have bulk upload access permission for students' };
     } else if (deptCount === 0) {

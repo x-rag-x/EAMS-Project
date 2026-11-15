@@ -11,7 +11,7 @@
   <script src="js/core/icons.js"></script>
   <link rel="stylesheet" href="css/base.css">
   <link rel="stylesheet" href="css/hostel.css">
-  <!-- QRCode Generator Script (SRI pinned) -->
+  
   <script src="https://unpkg.com/qrcode-generator@1.4.4/qrcode.js" integrity="sha256-GK45n4EYK8nekW6cd7GV3yDMWNby1VpisIWimfG/F4A=" crossorigin=""></script>
   <script>
     (function() {
@@ -69,7 +69,7 @@
 </head>
 <body>
 
-  <!-- EAMS PAGE LOADER -->
+  
   <div id="page-loader">
     <div class="loader-brand"><re-icon icon="building"></re-icon> EAMS Hostel Portal</div>
     <div class="loader-msg">Loading Night Roll-Call Roster…</div>
@@ -77,7 +77,7 @@
 
   <div class="hostel-container">
 
-    <!-- HEADER BANNER -->
+    
     <header class="hostel-header">
       <div class="hostel-title-wrap">
         <div class="hostel-badge">
@@ -99,7 +99,7 @@
       </div>
     </header>
 
-    <!-- SUMMARY STATS -->
+    
     <section class="hostel-stats-grid">
       <div class="hostel-stat-card">
         <span class="stat-label">Total Residents</span>
@@ -131,7 +131,7 @@
       </div>
     </section>
 
-    <!-- NAVIGATION TABS -->
+    
     <nav class="hostel-tabs">
       <button type="button" class="hostel-tab-btn active" data-tab="tonight">Tonight's Roll Call</button>
       <button type="button" class="hostel-tab-btn" data-tab="leaves">Passes & Outings (<span id="pending-leaves-badge">0</span>)</button>
@@ -139,7 +139,7 @@
       <button type="button" class="hostel-tab-btn" data-tab="history">Reports & History</button>
     </nav>
 
-    <!-- TAB 1: TONIGHT'S ROSTER -->
+    
     <main id="tab-tonight" class="hostel-tab-pane">
       <div class="roster-controls">
         <input type="text" class="roster-search-input" id="roster-search" placeholder="Search resident by name, room no, or register no…">
@@ -156,22 +156,22 @@
       </div>
 
       <div class="roster-grid" id="roster-cards-container">
-        <!-- Injected via JavaScript -->
+        
       </div>
     </main>
 
-    <!-- TAB 2: PASSES & OUTINGS -->
+    
     <section id="tab-leaves" class="hostel-tab-pane" style="display:none;">
       <div style="margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;">
         <h2 style="font-size:17px;font-weight:700;color:var(--hostel-text);">Pass & Outing Approval Queue</h2>
         <span style="font-size:12px;color:var(--hostel-muted);">Local outings within limit are auto-approved; home leaves require parent call.</span>
       </div>
       <div id="leaves-container">
-        <!-- Injected via JavaScript -->
+        
       </div>
     </section>
 
-    <!-- TAB 3: ROOMS & ALLOCATIONS -->
+    
     <section id="tab-rooms" class="hostel-tab-pane" style="display:none;">
       <div style="margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
         <div>
@@ -186,7 +186,7 @@
       <div id="rooms-grid-container" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px;"></div>
     </section>
 
-    <!-- TAB 4: REPORTS & HISTORY -->
+    
     <section id="tab-history" class="hostel-tab-pane" style="display:none;">
       <div style="margin-bottom:14px;display:flex;gap:12px;align-items:center;">
         <input type="date" id="history-date-picker" style="height:40px;padding:0 12px;border-radius:10px;border:1.5px solid var(--hostel-border);background:var(--hostel-card-bg);color:var(--hostel-text);font-weight:600;">
@@ -197,7 +197,7 @@
 
   </div>
 
-  <!-- ── MODAL 1: ROTATING LOBBY QR SCREEN ── -->
+  
   <div class="modal-bg" id="qr-modal" style="display:none;">
     <div class="modal" style="max-width:440px;text-align:center;">
       <div class="modal-hd">
@@ -229,7 +229,7 @@
     </div>
   </div>
 
-  <!-- ── MODAL 2: LOG PARENT CALL ── -->
+  
   <div class="modal-bg" id="parent-call-modal" style="display:none;">
     <div class="modal" style="max-width:460px;">
       <div class="modal-hd">
@@ -268,7 +268,7 @@
     </div>
   </div>
 
-  <!-- Shared EAMS core scripts -->
+  
   <script src="js/core/session.js"></script>
   <script src="js/core/api.js"></script>
   <script src="js/core/toast.js"></script>

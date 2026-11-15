@@ -73,10 +73,10 @@ router.post('/start', authMiddleware, checkLiveSessionGuard, async (req, res) =>
       active: true
     }, { active: false });
 
-    // 12-character alphanumeric passcode only generated for code mode (A6)
+    // 12-character alphanumeric passcode only generated for code mode
     const isCodeMode = attendanceMode !== 'qr';
     const passcode = isCodeMode ? generate12CharCode() : null;
-    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes from now
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // minutes from now
     const qrSecret = crypto.randomBytes(24).toString('hex');
 
     // Fetch dynamic rotation settings from system settings
@@ -211,12 +211,12 @@ router.post('/mark', authMiddleware, liveSessionMarkIpLimiter, liveSessionMarkLi
       return res.status(400).json({ error: 'Session is no longer active' });
     }
 
-    // Gate on attendanceMode: QR-mode sessions must not accept passcode submissions (A6)
+    // Gate on attendanceMode: QR-mode sessions must not accept passcode submissions
     if (session.attendanceMode !== 'code') {
       return res.status(400).json({ error: 'This session does not accept passcode submissions. Please scan the live QR code.' });
     }
 
-    // Device identification and proxy check (A5, §7.1)
+    // Device identification and proxy check
     const deviceAlreadyUsed = session.markedStudents.some(
       s => (s.deviceId === effectiveDeviceId || (deviceProof?.installId && s.security?.deviceTrackId === deviceProof.installId)) &&
       String(s.studentId) !== String(student._id) &&
@@ -226,7 +226,7 @@ router.post('/mark', authMiddleware, liveSessionMarkIpLimiter, liveSessionMarkLi
       return res.status(403).json({ error: 'This physical device was already used by another student for this session.' });
     }
 
-    // IP Check using shared CIDR-aware helper (A8)
+    // IP Check using shared CIDR-aware helper
     const settings = await M.Settings.findOne({ key: 'college_ips' }).lean();
     const allowedIps = settings ? settings.value : [];
     if (!isCampusIpAllowed(req.ip, allowedIps)) {
@@ -242,7 +242,7 @@ router.post('/mark', authMiddleware, liveSessionMarkIpLimiter, liveSessionMarkLi
     const alreadyMarked = session.markedStudents.some(s => String(s.studentId) === String(student._id));
     if (alreadyMarked) return res.json({ success: true, message: 'Already marked' });
 
-    // Evaluate Device Trust & Risk Gate (§7, §9, T2.1-T2.5)
+    // Evaluate Device Trust & Risk Gate
     const trustEval = await evaluateDeviceTrust({
       student,
       deviceProof,
@@ -319,7 +319,7 @@ router.get('/status/:id', authMiddleware, checkLiveSessionGuard, async (req, res
 
     res.json({
       active: session.active,
-      passcode: session.attendanceMode === 'code' ? session.passcode : null, // Omit passcode for QR mode (A6)
+      passcode: session.attendanceMode === 'code' ? session.passcode : null, // Omit passcode for QR mode
       attendanceMode: session.attendanceMode || 'code',
       qrIntervalSec: session.qrIntervalSec || 15,
       trackId: session.trackId,

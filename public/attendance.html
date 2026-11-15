@@ -24,8 +24,6 @@
 
 <body>
 
-
-
   <div class="att-container">
 
     <div class="brand-header">
@@ -38,10 +36,6 @@
 
     </div>
 
-
-
-    <!-- MODE SWITCHER -->
-
     <div class="mode-switcher" id="mode-switcher">
 
       <button class="mode-btn active" id="btn-mode-qp" data-action="switch-quick-pass"><re-icon icon="hashtag" size="14"></re-icon> Quick Pass</button>
@@ -49,10 +43,6 @@
       <button class="mode-btn" id="btn-mode-qr" data-action="switch-qr"><re-icon icon="camera" size="14"></re-icon> QR Scan</button>
 
     </div>
-
-
-
-    <!-- 1A. QUICK PASS VIEW -->
 
     <div id="view-quick-pass" class="view-panel active">
 
@@ -64,8 +54,6 @@
 
       </div>
 
-
-
       <div style="font-size:18px;font-weight:800;color:var(--text-main);margin-bottom:6px;">Enter Quick Pass Code</div>
 
       <div style="font-size:12px;color:var(--text-muted);margin-bottom:14px;line-height:1.4;">
@@ -74,11 +62,7 @@
 
       </div>
 
-
-
       <div id="qp-input-error" class="alert-box" style="display:none;margin-bottom:14px;"></div>
-
-
 
       <div class="otp-group-wrapper">
 
@@ -120,15 +104,11 @@
 
       </div>
 
-
-
       <button type="button" id="btn-submit-qp" class="btn-primary" >
 
         <span><re-icon icon="check-circle"></re-icon> Mark Attendance</span>
 
       </button>
-
-
 
       <div style="margin-top:14px;font-size:11px;color:var(--text-muted);">
 
@@ -137,10 +117,6 @@
       </div>
 
     </div>
-
-
-
-    <!-- 1B. QR SCAN PROMPT VIEW (When user clicks QR mode without scanned URL) -->
 
     <div id="view-qr-prompt" class="view-panel">
 
@@ -168,21 +144,13 @@
 
     </div>
 
-
-
-    <!-- 2. LOGIN VIEW (For unauthenticated students) -->
-
     <div id="view-login" class="view-panel">
 
       <div style="font-size:16px;font-weight:800;color:var(--text-main);margin-bottom:6px;">Student Sign In</div>
 
       <div style="font-size:12px;color:var(--text-muted);margin-bottom:14px;">Sign in with your student credentials to record attendance</div>
 
-
-
       <div id="login-error" class="alert-box" style="display:none;margin-bottom:12px;"></div>
-
-
 
       <form id="login-form" >
 
@@ -194,8 +162,6 @@
 
         </div>
 
-
-
         <div class="form-group">
 
           <label class="form-label" for="password">Password</label>
@@ -203,8 +169,6 @@
           <input type="password" id="password" class="form-input" placeholder="Enter your password" required autocomplete="current-password">
 
         </div>
-
-
 
         <button type="submit" id="btn-login" class="btn-primary">
 
@@ -216,10 +180,6 @@
 
     </div>
 
-
-
-    <!-- 3. VERIFYING VIEW -->
-
     <div id="view-verifying" class="view-panel">
 
       <div id="student-pill-verifying" class="user-pill" style="display:none;">
@@ -229,8 +189,6 @@
         <span id="student-name-verifying">Student</span>
 
       </div>
-
-
 
       <div class="status-icon-wrap verifying">
 
@@ -243,10 +201,6 @@
       <div class="status-desc">Please wait while the server secures your participation record...</div>
 
     </div>
-
-
-
-    <!-- 4. SUCCESS / COMPLETED VIEW -->
 
     <div id="view-completed" class="view-panel">
 
@@ -266,8 +220,6 @@
 
       </div>
 
-
-
       <div class="countdown-box">
 
         Closing in <span id="countdown-num" class="countdown-val">10</span> seconds...
@@ -281,10 +233,6 @@
       </div>
 
     </div>
-
-
-
-    <!-- 5. PENDING VIEW -->
 
     <div id="view-pending" class="view-panel">
 
@@ -324,10 +272,6 @@
 
     </div>
 
-
-
-    <!-- 6. ERROR VIEW -->
-
     <div id="view-error" class="view-panel">
 
       <div class="status-icon-wrap error">
@@ -349,8 +293,6 @@
     </div>
 
   </div>
-
-
 
   <script src="/js/core/toast.js"></script>
 

@@ -18,10 +18,10 @@ const {
   );
 }
 
-// 2. Add Phase 3 Endpoints if not present
+// 2. Add  Endpoints if not present
 if (!routes.includes("router.post(['/workspaces/:workspaceId/drafts/:draftId/ops'")) {
   const phase3Endpoints = `
-// ── Helper to resolve draft and workspace references (Phase 3) ──
+// ── Helper to resolve draft and workspace references ──
 async function resolveDraftRef(req) {
   const wsId = req.params.workspaceId || req.params.id;
   let draftId = req.params.draftId || req.query.draftId || req.body?.draftId;
@@ -58,7 +58,7 @@ async function resolveDraftRef(req) {
   };
 }
 
-// ── Phase 3: Cell-Level Operations, Time-Bucket Versions & Time-Travel Restore ──
+// ── Cell-Level Operations, Time-Bucket Versions & Time-Travel Restore ──
 
 router.post(['/workspaces/:workspaceId/drafts/:draftId/ops', '/workspaces/:id/ops'], authMiddleware, denySudoAndPrincipal, async (req, res) => {
   try {

@@ -32,7 +32,7 @@ function getDatesInRange(startStr, endStr) {
   return dates;
 }
 
-// ── 1. GET /api/student-leave/me — List logged-in student's own requests ──
+// ── GET /api/student-leave/me — List logged-in student's own requests ──
 router.get('/me', async (req, res) => {
   try {
     const studentTrackId = req.user.trackId;
@@ -77,7 +77,7 @@ async function executePermitLeave(request, req, remarks) {
     actorRole: 'advisor'
   });
 
-  // Phase T4: Reverses uninformed absence penalties for backdated approved leave (§8)
+
   handleLeaveApprovalReversal(request.studentId, request.dates).catch(err => {
     console.warn('[Trust Leave Reversal Warn]:', err.message);
   });
@@ -150,7 +150,7 @@ router.get('/history', async (req, res) => {
     const userTrackId = req.user.trackId;
     const todayIST = getTodayIST();
 
-    // 1. If student, return their own history
+    // If student, return their own history
     if (userRole === 'student') {
       const requests = await M.StudentLeaveRequest.find({ studentTrackId: userTrackId })
         .sort({ createdAt: -1 })
@@ -159,7 +159,7 @@ router.get('/history', async (req, res) => {
       return res.json({ ok: true, requests: withTracker, leaves: withTracker, data: withTracker });
     }
 
-    // 2. Build scope filter based on role
+    // Build scope filter based on role
     const isInstitutionStaff = ['admin', 'principal'].includes(userRole) || req.user.isPrincipal || req.user.isAdmin;
     let scopeQuery = {};
 
@@ -221,7 +221,7 @@ router.get('/history', async (req, res) => {
       scopeQuery.deptId = req.user.deptId;
     }
 
-    // 3. Apply optional filters
+    // Apply optional filters
     const finalQuery = Object.assign({}, scopeQuery);
     const statusParam = sanitizeToString(req.query.status);
     if (statusParam && statusParam.toLowerCase() !== 'all') {
@@ -319,7 +319,7 @@ router.get('/advisor/pending', async (req, res) => {
   }
 });
 
-// ── 2. GET /api/student-leave/:id — Request details ──
+// ── GET /api/student-leave/:id — Request details ──
 router.get('/:id', async (req, res) => {
   try {
     const query = mongoose.isValidObjectId(req.params.id)
@@ -340,7 +340,7 @@ router.get('/:id', async (req, res) => {
         return res.status(403).json({ error: 'Unauthorized to view this request' });
       }
 
-      // Check department or class scope (S14)
+      // Check department or class scope
       const userDeptId = req.user.deptId ? String(req.user.deptId) : null;
       const reqDeptId = request.deptId ? String(request.deptId) : null;
       const isSameDept = (userDeptId && reqDeptId && userDeptId === reqDeptId) ||
@@ -364,7 +364,7 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// ── 3. POST /api/student-leave — Student submits leave request ──
+// ── POST /api/student-leave — Student submits leave request ──
 router.post('/', checkModuleGuard('modelStudentLeave', 'Student Leave'), leaveApplyLimiter, async (req, res) => {
   try {
     if (req.user.role !== 'student') {
@@ -602,7 +602,7 @@ router.post('/', checkModuleGuard('modelStudentLeave', 'Student Leave'), leaveAp
   }
 });
 
-// ── 4. POST /api/student-leave/:id/cancel — Student cancels leave ──
+// ── POST /api/student-leave/:id/cancel — Student cancels leave ──
 router.post('/:id/cancel', async (req, res) => {
   try {
     const query = mongoose.isValidObjectId(req.params.id)
@@ -657,7 +657,7 @@ router.post('/:id/cancel', async (req, res) => {
   }
 });
 
-// ── 6. POST /api/student-leave/:id/permit — Advisor permits leave ──
+// ── POST /api/student-leave/:id/permit — Advisor permits leave ──
 router.post('/:id/permit', async (req, res) => {
   try {
     const query = mongoose.isValidObjectId(req.params.id)
@@ -683,7 +683,7 @@ router.post('/:id/permit', async (req, res) => {
   }
 });
 
-// ── 7. POST /api/student-leave/:id/reject — Advisor rejects leave ──
+// ── POST /api/student-leave/:id/reject — Advisor rejects leave ──
 router.post('/:id/reject', async (req, res) => {
   try {
     const query = mongoose.isValidObjectId(req.params.id)
@@ -708,7 +708,7 @@ router.post('/:id/reject', async (req, res) => {
   }
 });
 
-// ── 8. POST /api/student-leave/:id/return — Advisor returns for correction ──
+// ── POST /api/student-leave/:id/return — Advisor returns for correction ──
 router.post('/:id/return', async (req, res) => {
   try {
     const query = mongoose.isValidObjectId(req.params.id)
@@ -733,7 +733,7 @@ router.post('/:id/return', async (req, res) => {
   }
 });
 
-// ── 8B. POST /api/student-leave/:id/status — Unified status update for Approvals Inbox ──
+// ── POST /api/student-leave/:id/status — Unified status update for Approvals Inbox ──
 router.post('/:id/status', async (req, res) => {
   try {
     const query = mongoose.isValidObjectId(req.params.id)
@@ -772,7 +772,7 @@ router.post('/:id/status', async (req, res) => {
 });
 
 
-// ── 9. POST /api/student-leave/advisor/file-for-student — Advisor files leave (e.g. >3 days) ──
+// ── POST /api/student-leave/advisor/file-for-student — Advisor files leave (e.g. >3 days) ──
 router.post('/advisor/file-for-student', checkModuleGuard('modelStudentLeave', 'Student Leave'), leaveApplyLimiter, async (req, res) => {
   try {
     const studentInput = sanitizeToString(req.body.studentTrackId || req.body.registerNo || req.body.regNo);
@@ -863,7 +863,7 @@ router.post('/advisor/file-for-student', checkModuleGuard('modelStudentLeave', '
       actorRole: 'advisor'
     });
 
-    // Phase T4: Reverses uninformed absence penalties for backdated approved leave (§8)
+
     handleLeaveApprovalReversal(student._id, dates).catch(err => {
       console.warn('[Trust Leave Reversal Warn]:', err.message);
     });
@@ -890,7 +890,7 @@ router.post('/advisor/file-for-student', checkModuleGuard('modelStudentLeave', '
   }
 });
 
-// ── 10. POST /api/student-leave/:id/override-period — Advisor overrides leave-locked period ──
+// ── POST /api/student-leave/:id/override-period — Advisor overrides leave-locked period ──
 router.post('/:id/override-period', async (req, res) => {
   try {
     const query = mongoose.isValidObjectId(req.params.id)

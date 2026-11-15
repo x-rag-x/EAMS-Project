@@ -1,7 +1,6 @@
 /**
  * public/js/modules/roomPicker.module.js
- *
- * Hierarchical Smart Room Picker Component (Phase 4):
+ * Hierarchical Smart Room Picker Component:
  * - Search by hall number, building, floor, or minimum capacity.
  * - Category tabs: All | Lecture Halls | Computer Labs.
  * - Hierarchical Building & Floor Tree view.

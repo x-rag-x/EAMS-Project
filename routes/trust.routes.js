@@ -20,7 +20,7 @@ const { trustActionLimiter } = require('../utils/rateLimiters');
 
 router.use(authMiddleware);
 
-// Deny students on staff endpoints (§5 S1) and verify portal access
+// Deny students on staff endpoints and verify portal access
 const denyStudents = async (req, res, next) => {
   if (req.user?.role === 'student') {
     return res.status(403).json({ error: 'Staff only', code: 'ROLE_FORBIDDEN' });
@@ -30,7 +30,7 @@ const denyStudents = async (req, res, next) => {
 
 /**
  * GET /api/trust/me
- * Student endpoint: Returns student's own trust score, band, lock details, and ledger history (§10, §16)
+ * Student endpoint: Returns student's own trust score, band, lock details, and ledger history
  */
 router.get('/me', async (req, res) => {
   try {
@@ -98,7 +98,7 @@ router.get('/me', async (req, res) => {
 
 /**
  * POST /api/trust/verify
- * Teacher endpoint: Verify pending student attendance during live session (§7.3, §16, T4.4)
+ * Teacher endpoint: Verify pending student attendance during live session
  * Body: { sessionTrackId, studentId, result: 'present' | 'not_in_class' }
  */
 router.post('/verify', denyStudents, trustActionLimiter, async (req, res) => {
@@ -119,13 +119,13 @@ router.post('/verify', denyStudents, trustActionLimiter, async (req, res) => {
       });
     }
 
-    // 1. Fetch student
+    // Fetch student
     const student = await M.Student.findById(studentId);
     if (!student) {
       return res.status(404).json({ error: 'Student not found', code: 'STUDENT_NOT_FOUND' });
     }
 
-    // 2. Fetch pending participation record across LiveSessionsAtt or QuickPassSession
+    // Fetch pending participation record across LiveSessionsAtt or QuickPassSession
     let liveRecord = await M.LiveSessionsAtt.findOne({ sessionTrackId, studentId });
     let qpSession = null;
     let qpRecord = null;
@@ -144,7 +144,7 @@ router.post('/verify', denyStudents, trustActionLimiter, async (req, res) => {
       });
     }
 
-    // 3. Double-click misclick protection (§7.3)
+    // Double-click misclick protection
     const existingResult = liveRecord?.security?.teacherVerification?.result || qpRecord?.security?.teacherVerification?.result;
     if (existingResult === 'present' && result === 'not_in_class') {
       return res.status(400).json({
@@ -159,10 +159,10 @@ router.post('/verify', denyStudents, trustActionLimiter, async (req, res) => {
     const actorTrackId = req.user.trackId || req.user._id;
     const actorName = req.user.fullName || req.user.name || 'Teacher';
 
-    // 4. Handle Result Outcomes (§7.3)
+    // Handle Result Outcomes
     if (result === 'present') {
       if (trustScore >= 60) {
-        // Accepted mark (§7.3)
+        // Accepted mark
         if (liveRecord) {
           liveRecord.status = 'completed';
           liveRecord.verificationCompletedAt = new Date();
@@ -206,7 +206,7 @@ router.post('/verify', denyStudents, trustActionLimiter, async (req, res) => {
           message: 'Student verified present and attendance mark accepted.'
         });
       } else {
-        // Denied: Trust < 60 (§7.3, T-D2)
+        // Denied: Trust < 60
         if (liveRecord) {
           liveRecord.security.teacherVerification = {
             required: true,
@@ -233,7 +233,7 @@ router.post('/verify', denyStudents, trustActionLimiter, async (req, res) => {
         });
       }
     } else {
-      // Result is 'not_in_class' (§7.3: Very high risk: -40 trust, 2-day lock)
+      // Result is 'not_in_class' (Very high risk: -40 trust, 2-day lock)
       if (liveRecord) {
         liveRecord.security.teacherVerification = {
           required: true,
@@ -285,7 +285,7 @@ router.post('/verify', denyStudents, trustActionLimiter, async (req, res) => {
 
 /**
  * GET /api/trust/students
- * Staff endpoint: List students with trust status (§11, §16)
+ * Staff endpoint: List students with trust status
  * Scoped by department or class (Advisor sees own class, Super Admin sees own dept, Sudo sees all)
  */
 router.get('/students', denyStudents, async (req, res) => {
@@ -322,7 +322,7 @@ router.get('/students', denyStudents, async (req, res) => {
       .select('fullName registerNo username class section classId deptId trust trackId')
       .populate('deptId', 'name code')
       .populate('classId', 'name batch section')
-      .sort({ 'trust.score': 1 }) // lowest trust first per §11
+      .sort({ 'trust.score': 1 }) // lowest trust first
       .limit(200)
       .lean();
 
@@ -384,7 +384,7 @@ router.get('/students', denyStudents, async (req, res) => {
 
 /**
  * GET /api/trust/students/:id
- * Staff endpoint: Detailed view of a student's trust status and ledger (§11, §16)
+ * Staff endpoint: Detailed view of a student's trust status and ledger
  */
 router.get('/students/:id', denyStudents, async (req, res) => {
   try {
@@ -398,7 +398,7 @@ router.get('/students/:id', denyStudents, async (req, res) => {
       return res.status(404).json({ error: 'Student not found', code: 'STUDENT_NOT_FOUND' });
     }
 
-    // Super Admin department scope check (§11, §18)
+    // Super Admin department scope check
     const studDeptId = student.deptId?._id ? student.deptId._id.toString() : (student.deptId ? student.deptId.toString() : '');
     if (!isSudoUser && req.user.deptId && studDeptId && String(studDeptId) !== String(req.user.deptId)) {
       return res.status(403).json({ error: 'Access denied: student belongs to another department', code: 'DEPT_FORBIDDEN' });
@@ -441,7 +441,7 @@ router.get('/students/:id', denyStudents, async (req, res) => {
 
 /**
  * POST /api/trust/students/:id/consent
- * Advisor endpoint: Give consent to reset or unlock student (§8, §16)
+ * Advisor endpoint: Give consent to reset or unlock student
  * Body: { note: string }
  */
 router.post('/students/:id/consent', denyStudents, trustActionLimiter, async (req, res) => {
@@ -500,7 +500,7 @@ router.post('/students/:id/consent', denyStudents, trustActionLimiter, async (re
 
 /**
  * POST /api/trust/students/:id/unlock
- * Admin action: Unlock self-attendance (requires advisor consent per §8)
+ * Admin action: Unlock self-attendance (requires advisor consent)
  * Body: { reason: string }
  */
 router.post('/students/:id/unlock', denyStudents, trustActionLimiter, async (req, res) => {
@@ -522,10 +522,10 @@ router.post('/students/:id/unlock', denyStudents, trustActionLimiter, async (req
       return res.status(403).json({ error: 'Cannot unlock student belonging to another department', code: 'DEPT_FORBIDDEN' });
     }
 
-    // Two-person rule (§8): Super Admin requires advisor consent; Sudo can override
+    // Two-person rule: Super Admin requires advisor consent; Sudo can override
     if (!isSudoUser && !student.trust?.advisorConsent?.consented) {
       return res.status(403).json({
-        error: "Advisor consent is required before unlocking this student's self-attendance (§8).",
+        error: "Advisor consent is required before unlocking this student's self-attendance.",
         code: 'ADVISOR_CONSENT_REQUIRED'
       });
     }
@@ -563,7 +563,7 @@ router.post('/students/:id/unlock', denyStudents, trustActionLimiter, async (req
 
 /**
  * POST /api/trust/students/:id/adjust
- * Admin action: Manually adjust student trust score (§8, §16)
+ * Admin action: Manually adjust student trust score
  * Body: { delta: number, reason: string }
  */
 router.post('/students/:id/adjust', denyStudents, trustActionLimiter, async (req, res) => {
@@ -638,7 +638,7 @@ router.post('/students/:id/adjust', denyStudents, trustActionLimiter, async (req
 
 /**
  * POST /api/trust/students/:id/reset
- * Admin action: Reset trust score to 100 and clear lock (requires advisor consent per §8)
+ * Admin action: Reset trust score to 100 and clear lock (requires advisor consent)
  * Body: { reason: string }
  */
 router.post('/students/:id/reset', denyStudents, trustActionLimiter, async (req, res) => {
@@ -660,10 +660,10 @@ router.post('/students/:id/reset', denyStudents, trustActionLimiter, async (req,
       return res.status(403).json({ error: 'Cannot reset trust score for student belonging to another department', code: 'DEPT_FORBIDDEN' });
     }
 
-    // Two-person rule (§8): Super Admin requires advisor consent; Sudo can override
+    // Two-person rule: Super Admin requires advisor consent; Sudo can override
     if (!isSudoUser && !student.trust?.advisorConsent?.consented) {
       return res.status(403).json({
-        error: "Advisor consent is required before resetting this student's trust score (§8).",
+        error: "Advisor consent is required before resetting this student's trust score.",
         code: 'ADVISOR_CONSENT_REQUIRED'
       });
     }
@@ -700,9 +700,9 @@ router.post('/students/:id/reset', denyStudents, trustActionLimiter, async (req,
   }
 });
 
-// ─────────────────────────────────────────────────────────────
-// DISPUTES WORKFLOW (§12, §16, Phase T6)
-// ─────────────────────────────────────────────────────────────
+// ─
+// DISPUTES WORKFLOW
+// ─
 
 async function sendNotificationSafe(data) {
   try {
@@ -720,7 +720,7 @@ async function sendNotificationSafe(data) {
 
 /**
  * POST /api/trust/disputes
- * Student endpoint: Submit a dispute for a penalised trust event (§12)
+ * Student endpoint: Submit a dispute for a penalised trust event
  * Body: { eventId: string, reason: string }
  */
 router.post('/disputes', trustActionLimiter, async (req, res) => {
@@ -763,7 +763,7 @@ router.post('/disputes', trustActionLimiter, async (req, res) => {
       return res.status(403).json({ error: 'Cannot dispute an event that does not belong to your record', code: 'FORBIDDEN' });
     }
 
-    // Check dispute window (§12: default 7 days)
+    // Check dispute window (default 7 days)
     const trustSetting = await getSettings('trust');
     const windowDays = (trustSetting && trustSetting.disputeWindowDays) ? Number(trustSetting.disputeWindowDays) : 7;
     const cutoff = new Date(Date.now() - (windowDays * 24 * 60 * 60 * 1000));
@@ -804,7 +804,7 @@ router.post('/disputes', trustActionLimiter, async (req, res) => {
     const cls = student.classId ? await M.Class.findById(student.classId) : null;
     const dept = student.deptId ? await M.Department.findById(student.deptId) : (cls?.deptId ? await M.Department.findById(cls.deptId) : null);
 
-    // Freeze Evidence Snapshot (§12)
+    // Freeze Evidence Snapshot
     let sessionInfo = null;
     let teacherInfo = null;
     let deviceSnapshot = null;
@@ -972,7 +972,7 @@ router.post('/disputes', trustActionLimiter, async (req, res) => {
 
 /**
  * GET /api/trust/disputes
- * List disputes filtered by role and permissions (§12, §16)
+ * List disputes filtered by role and permissions
  */
 router.get('/disputes', async (req, res) => {
   try {
@@ -1128,7 +1128,7 @@ router.post('/disputes/:id/teacher-statement', denyStudents, trustActionLimiter,
 
 /**
  * POST /api/trust/disputes/:id/advisor
- * Class Advisor endpoint: Support (forward to Super Admin) or Reject (§12)
+ * Class Advisor endpoint: Support (forward to Super Admin) or Reject
  * Body: { action: 'SUPPORT' | 'REJECT', note: string }
  */
 router.post('/disputes/:id/advisor', denyStudents, trustActionLimiter, async (req, res) => {
@@ -1218,7 +1218,7 @@ router.post('/disputes/:id/advisor', denyStudents, trustActionLimiter, async (re
 
 /**
  * POST /api/trust/disputes/:id/decide
- * Department Super Admin / Sudo endpoint: Accept (execute correction transaction) or Reject (§12, T6.3)
+ * Department Super Admin / Sudo endpoint: Accept (execute correction transaction) or Reject
  * Body: { decision: 'ACCEPT' | 'REJECT', note: string, newTrustScore?: number }
  */
 router.post('/disputes/:id/decide', denyStudents, trustActionLimiter, async (req, res) => {
@@ -1253,7 +1253,7 @@ router.post('/disputes/:id/decide', denyStudents, trustActionLimiter, async (req
       return res.status(403).json({ error: 'Cannot decide dispute for another department', code: 'DEPT_FORBIDDEN' });
     }
 
-    // If not Sudo, dispute must be at PENDING_ADMIN stage (Sudo has institution override per §12)
+    // If not Sudo, dispute must be at PENDING_ADMIN stage (Sudo has institution override)
     if (!isSudoUser && dispute.status !== 'PENDING_ADMIN') {
       return res.status(400).json({
         error: `Dispute must be in PENDING_ADMIN stage before final decision (current status: ${dispute.status})`,
@@ -1300,12 +1300,12 @@ router.post('/disputes/:id/decide', denyStudents, trustActionLimiter, async (req
       return res.json({ ok: true, message: 'Dispute rejected by administration', data: dispute });
     }
 
-    // ─────────────────────────────────────────────────────────
-    // DECISION: ACCEPT → EXECUTE AUTOMATIC CORRECTION TRANSACTION (§12, T6.3)
-    // ─────────────────────────────────────────────────────────
+    // ─
+    // DECISION: ACCEPT → EXECUTE AUTOMATIC CORRECTION TRANSACTION
+    // ─
     dispute.resolution = dispute.resolution || {};
 
-    // 1. Correct Attendance (LiveSession, ScanLiveSession, QuickPassSession & ClassAttendance)
+    // Correct Attendance (LiveSession, ScanLiveSession, QuickPassSession & ClassAttendance)
     const sessionTrackId = dispute.evidenceSnapshot?.attendanceSession?.sessionTrackId;
     const eventDate = dispute.eventDate ? (typeof dispute.eventDate === 'string' ? dispute.eventDate.split('T')[0] : todayIST(dispute.eventDate)) : null;
 
@@ -1371,7 +1371,7 @@ router.post('/disputes/:id/decide', denyStudents, trustActionLimiter, async (req
     }
     dispute.resolution.attendanceCorrected = true;
 
-    // 2. Restore Exact Trust Points via reversal event (original untouched)
+    // Restore Exact Trust Points via reversal event (original untouched)
     const student = await M.Student.findById(dispute.studentId);
     if (!student) {
       return res.status(404).json({ error: 'Student not found', code: 'STUDENT_NOT_FOUND' });
@@ -1415,7 +1415,7 @@ router.post('/disputes/:id/decide', denyStudents, trustActionLimiter, async (req
       dispute.resolution.correctionEventId = corrEvent._id;
     }
 
-    // 3. Remove Related Lock if this event or current lock caused it
+    // Remove Related Lock if this event or current lock caused it
     if (student.trust && student.trust.locked) {
       student.trust.locked = false;
       student.trust.lockedUntil = null;
@@ -1440,7 +1440,7 @@ router.post('/disputes/:id/decide', denyStudents, trustActionLimiter, async (req
       dispute.resolution.lockRemoved = true;
     }
 
-    // 4. One-time +2 % Attendance Adjustment (AttendanceAdjustment, once per student per semester) (§12, T-D6)
+    // One-time +2 % Attendance Adjustment (AttendanceAdjustment, once per student per semester)
     const curSem = student.currentSemester || student.sem || 1;
     const existingBonus = await M.AttendanceAdjustment.findOne({
       studentId: student._id,
@@ -1468,7 +1468,7 @@ router.post('/disputes/:id/decide', denyStudents, trustActionLimiter, async (req
       dispute.resolution.adjustmentPct = bonusPct;
     }
 
-    // 5. Create Grievance Record in institution's register (T-D10)
+    // Create Grievance Record in institution's register
     try {
       const grievance = await M.Grievance.create({
         studentId: student._id,
@@ -1488,7 +1488,7 @@ router.post('/disputes/:id/decide', denyStudents, trustActionLimiter, async (req
       console.warn('[Dispute Grievance Warning]:', grievErr.message);
     }
 
-    // 6. Notify Student, Advisor & Teacher
+    // Notify Student, Advisor & Teacher
     await sendNotificationSafe({
       type: 'trust-dispute',
       from: req.user.fullName || req.user.name,
@@ -1511,7 +1511,7 @@ router.post('/disputes/:id/decide', denyStudents, trustActionLimiter, async (req
       });
     }
 
-    // 7. Update and Save Dispute
+    // Update and Save Dispute
     dispute.status = 'ACCEPTED';
     dispute.adminDecision = {
       decidedBy: req.user._id,
@@ -1525,7 +1525,7 @@ router.post('/disputes/:id/decide', denyStudents, trustActionLimiter, async (req
     dispute.resolution.resolvedAt = new Date();
     await dispute.save();
 
-    // 8. Encrypted Audit Log
+    // Encrypted Audit Log
     await logAction(
       req.user.trackId || req.user._id,
       req.user.fullName || req.user.name,
@@ -1604,13 +1604,13 @@ router.post('/disputes/:id/withdraw', trustActionLimiter, async (req, res) => {
   }
 });
 
-// ─────────────────────────────────────────────────────────────
-// DEVICE SHARING / FRIEND-MARKING CASES (§13, §16, Phase T7)
-// ─────────────────────────────────────────────────────────────
+// ─
+// DEVICE SHARING / FRIEND-MARKING CASES
+// ─
 
 /**
  * GET /api/trust/cases
- * Super Admin (own department) or Sudo Admin (all) list device share cases (§13, §16)
+ * Super Admin (own department) or Sudo Admin (all) list device share cases
  */
 router.get('/cases', denyStudents, async (req, res) => {
   try {
@@ -1682,7 +1682,7 @@ router.get('/cases/:id', denyStudents, async (req, res) => {
 
 /**
  * POST /api/trust/cases/:id/confirm
- * Super Admin (own department) or Sudo Admin confirms friend-marking (§13, T7.3)
+ * Super Admin (own department) or Sudo Admin confirms friend-marking
  * Applies: past marks to Absent, 15-day lock, -5% attendance adjustment, DEVICE_SHARED events
  * Body: { note: string, absentDays?: number, lockDays?: number, penaltyPct?: number }
  */
@@ -1726,12 +1726,12 @@ router.post('/cases/:id/confirm', denyStudents, trustActionLimiter, async (req, 
     const cutoffDate = new Date(Date.now() - numAbsentDays * 86400000);
     let totalMarksTurnedAbsent = 0;
 
-    // Apply penalties to both students in the case (§13)
+    // Apply penalties to both students in the case
     for (const stItem of caseDoc.students || []) {
       const student = await M.Student.findById(stItem.studentId);
       if (!student) continue;
 
-      // 1. Turn self-marks in the last N days to Absent
+      // Turn self-marks in the last N days to Absent
       const classAttDocs = await M.ClassAttendance.find({
         date: { $gte: cutoffDate },
         'periods.records.studentTrackId': student.trackId
@@ -1760,7 +1760,7 @@ router.post('/cases/:id/confirm', denyStudents, trustActionLimiter, async (req, 
         if (changed) await ca.save();
       }
 
-      // 2. Lock self-attendance for 15 days
+      // Lock self-attendance for 15 days
       student.trust = student.trust || {};
       student.trust.locked = true;
       student.trust.lockedUntil = new Date(Date.now() + numLockDays * 86400000);
@@ -1800,7 +1800,7 @@ router.post('/cases/:id/confirm', denyStudents, trustActionLimiter, async (req, 
         console.warn('[DeviceShareCase Event Warning]:', shareEvtErr.message);
       }
 
-      // 3. -5% Attendance Adjustment (AttendanceAdjustment)
+      // -5% Attendance Adjustment (AttendanceAdjustment)
       const sem = student.currentSemester || student.sem || 1;
       await M.AttendanceAdjustment.create({
         studentId: student._id,
@@ -1814,7 +1814,7 @@ router.post('/cases/:id/confirm', denyStudents, trustActionLimiter, async (req, 
         appliedBy: req.user.fullName || req.user.name || 'Admin'
       });
 
-      // 4. Notify Student
+      // Notify Student
       await sendNotificationSafe({
         type: 'trust-dispute',
         from: req.user.fullName || req.user.name,

@@ -1,11 +1,10 @@
 const mongoose = require('mongoose');
 
 /**
- * DeviceRegistrationTicket Schema (§4, T1.1)
- *
+ * DeviceRegistrationTicket Schema
  * Manages the 2-step verification protocol between Class Advisor and Student phone:
- * Step 1: Advisor issues 12-char credential (10 min expiry, 5 attempts).
- * Step 2: Student phone claims ticket, submits public key, displays 6-digit code (5 min expiry, 3 attempts).
+ * Advisor issues 12-char credential (10 min expiry, 5 attempts).
+ * Student phone claims ticket, submits public key, displays 6-digit code (5 min expiry, 3 attempts).
  * Advisor enters 6-digit code to verify and activate trust.
  * Retained for 90 days (TTL purge).
  */

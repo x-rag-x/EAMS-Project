@@ -4,7 +4,6 @@ const M = require('../models');
  * Reconcile attendance records when an OD Request is approved.
  * Converts absent periods to present with reason: 'od'.
  * If student was already marked present, retains present and adds reason: 'od'.
- *
  * @param {Object} params
  * @param {string} params.odRequestId
  * @param {string} params.studentTrackId
@@ -78,7 +77,6 @@ async function reconcileOnODApproved({
 /**
  * Reconcile attendance records when an approved OD is rejected (whole or dates).
  * Reverts only records created/locked by this OD back to Absent.
- *
  * @param {Object} params
  * @param {string} params.odRequestId
  * @param {string} params.studentTrackId
@@ -154,7 +152,6 @@ async function reconcileOnODRejected({
  * Marks absent records as reason: 'leave' and locked: true.
  * Invariant: Present records are NEVER converted to absent (preserves teacher's present mark),
  * but a flag is returned.
- *
  * @param {Object} params
  * @param {string} params.leaveRequestId
  * @param {string} params.studentTrackId
@@ -299,7 +296,6 @@ async function reconcileOnLeaveCancelled({
 
 /**
  * Previews the impact of rejecting an approved OD for specific dates/periods.
- *
  * @param {Object} params
  * @param {string} params.odRequestId
  * @param {string} params.studentTrackId
@@ -355,7 +351,6 @@ async function previewODRejection({
 /**
  * Reconcile a specific period attendance override by an advisor/staff.
  * Updates the period record for the student, sets locked: true, and records history.
- *
  * @param {Object} params
  * @param {string} params.classId
  * @param {string} params.dateStr - YYYY-MM-DD

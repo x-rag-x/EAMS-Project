@@ -72,7 +72,7 @@ function show503Banner(msg) {
 }
 
 /**
- * Universal api() wrapper supporting both fetch-style and apiCall-style invocations:
+ * Universal api wrapper supporting both fetch-style and apiCall-style invocations:
  *   api(url, options)
  *   api(method, path, body, options)
  */
@@ -183,7 +183,7 @@ function api(arg1, arg2, arg3, arg4) {
     }).then(function (r) {
       clearTimeout(timeoutId);
 
-      // 401 Unauthorized / Expired session
+      // Unauthorized / Expired session
       if (r.status === 401) {
         if (typeof doLogout === 'function') {
           doLogout('timeout');
@@ -225,7 +225,7 @@ function api(arg1, arg2, arg3, arg4) {
           throw new Error('Non-JSON response (' + r.status + ') from ' + cleanPath);
         }
 
-        // 403 Forbidden with specific codes
+        // Forbidden with specific codes
         if (r.status === 403 && data) {
           if (data.code === 'BOOTSTRAP_REQUIRED' || data.bootstrapPending) {
             try { sessionStorage.setItem('eams_bootstrapPending', '1'); } catch (e) {}
@@ -250,7 +250,7 @@ function api(arg1, arg2, arg3, arg4) {
           }
         }
 
-        // 429 Too Many Requests (Rate Limited)
+        // Too Many Requests (Rate Limited)
         if (r.status === 429) {
           var retryAfter = r.headers.get('Retry-After') || r.headers.get('retry-after');
           var retryMsg = (data && data.error) || ('Rate limit reached. Please retry in ' + (retryAfter ? retryAfter + 's' : 'a moment.'));
@@ -261,7 +261,7 @@ function api(arg1, arg2, arg3, arg4) {
           throw err429;
         }
 
-        // 503 Service Unavailable / Offline
+        // Service Unavailable / Offline
         if (r.status === 503) {
           if (data && data.maintenance) {
             try { sessionStorage.setItem('maint_data', JSON.stringify(data)); } catch (e) {}

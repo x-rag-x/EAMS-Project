@@ -13,7 +13,6 @@ const ticketMap = new Map();
 
 /**
  * Generate a one-time ticket for SSE authentication.
- *
  * @param {Object} payload - { trackId, role, deptCodes }
  * @returns {string} ticket
  */
@@ -28,7 +27,6 @@ function createStreamTicket(payload) {
 
 /**
  * Validate and consume a stream ticket.
- *
  * @param {string} ticket
  * @returns {Object|null} payload if valid
  */
@@ -64,7 +62,6 @@ function registerClient(res, clientInfo) {
 
 /**
  * Broadcast event to connected SSE clients matching scope.
- *
  * @param {string} eventName
  * @param {Object} data
  * @param {string|null} [deptCode=null]

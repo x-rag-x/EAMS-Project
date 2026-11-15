@@ -6,7 +6,7 @@ const { logAction } = require('../utils/logAction');
 const countService = require('../services/countService');
 
 /**
- * Middleware enforcing Sudo Admin and active bootstrapPending state (§9, R3.2)
+ * Middleware enforcing Sudo Admin and active bootstrapPending state
  */
 function requireBootstrapSudo(req, res, next) {
   if (!req.user || !req.user.isSudoAdmin) {
@@ -28,7 +28,7 @@ function requireBootstrapSudo(req, res, next) {
 
 /**
  * POST /api/bootstrap/department
- * Step 2 of Sudo Bootstrap: Create initial department and associate with Sudo Admin
+ * Create initial department and associate with Sudo Admin
  */
 router.post('/department', authMiddleware, requireBootstrapSudo, async (req, res) => {
   try {
@@ -116,7 +116,7 @@ router.post('/department', authMiddleware, requireBootstrapSudo, async (req, res
 
 /**
  * POST /api/bootstrap/profile
- * Step 3 of Sudo Bootstrap: Configure personal details and complete bootstrap
+ * Configure personal details and complete bootstrap
  */
 router.post('/profile', authMiddleware, requireBootstrapSudo, async (req, res) => {
   try {

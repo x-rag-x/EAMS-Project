@@ -1,7 +1,7 @@
 /**
  * scripts/patch_phase5_routes.js
  *
- * Implements Phase 5 routes & security hardening in routes/timetableWorkspace.routes.js:
+ * Implements  routes & security hardening in routes/timetableWorkspace.routes.js:
  * 1. Imports shareCrypto and timetable.socket
  * 2. Enhances requireWorkspaceAccess with user-level shares, class/draft scoping, and capability checks
  * 3. Adds scope enforcement on /workspaces/:id/classes/:classId
@@ -430,11 +430,11 @@ if (!code.includes("type: 'OP_BROADCAST'")) {
   console.log('Added OP_BROADCAST to draft socket on ops apply');
 }
 
-// 8. Append Phase 5 Route Implementations before exports
+// 8. Append  Route Implementations before exports
 if (!code.includes("router.get('/workspaces/by-code/:code'")) {
   const phase5Routes = `
 // =========================================================================
-// Phase 5: Multi-Role Sharing, Cryptographic Links, Comments & Lookups
+
 // =========================================================================
 
 // 1. GET /workspaces/by-code/:code (Public address resolution)

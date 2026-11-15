@@ -7,7 +7,6 @@ const { getCurrentTimeHM, timeToMinutes } = require('./alertRules');
 /**
  * Generate a complete Live Board snapshot for a given scope, date, and time.
  * Supports Time Machine via `atTime`.
- *
  * @param {Object} params
  * @param {string} params.asRole - 'principal' | 'hod'
  * @param {Array<string>} params.deptCodes - Department codes in scope
@@ -105,7 +104,6 @@ async function getLiveBoardSnapshot({ asRole, deptCodes, dateStr = null, atTime 
 
 /**
  * Generate a Day Matrix snapshot (sections × today's periods).
- *
  * @param {Object} params
  * @param {Array<string>} params.deptCodes
  * @param {string} [params.dateStr]

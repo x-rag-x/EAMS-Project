@@ -35,7 +35,7 @@ function setCredVerified(key) {
     const oldestKey = verifiedCredentialsCache.keys().next().value;
     verifiedCredentialsCache.delete(oldestKey);
   }
-  verifiedCredentialsCache.set(key, Date.now() + 60000); // 60s valid window
+  verifiedCredentialsCache.set(key, Date.now() + 60000); // valid window
 }
 
 function getClientDetails(req) {
@@ -74,12 +74,11 @@ function createServerTimer() {
 //  UNIFIED LOGIN ENDPOINT
 // ══════════════════════════════════════════════════════
 
-// Timing pad dummy hash created once at boot (Phase S3 / §3.5)
+// Timing pad dummy hash created once at boot
 const DUMMY_HASH = bcrypt.hashSync('eams_dummy_password_timing_pad_2026', cfg.BCRYPT_ROUNDS || 10);
 
 /**
  * Validates login location coordinates, freshness, and accuracy against system security settings.
- *
  * Rules:
  * - In development mode (NODE_ENV === 'development'), location is optional, accuracy restriction
  *   is removed completely, and stale location checks are bypassed.
@@ -88,7 +87,6 @@ const DUMMY_HASH = bcrypt.hashSync('eams_dummy_password_timing_pad_2026', cfg.BC
  *   * security.loginLocationAccuracyCheck (default true, can be toggled off)
  *   * security.loginLocationMaxAccuracyM (default 2000m, 0 disables limit)
  *   * security.loginLocationMaxAgeSec (default 300s)
- *
  * @param {object} location - { latitude, longitude, accuracy, ageMs }
  * @param {object} security - security settings map
  * @param {object} options - { required: boolean }
@@ -177,7 +175,6 @@ function validateLocation(location, security = {}, options = { required: true })
 
 /**
  * Shared helper to enforce 1-hour account lockout on location denial or prompt timeout
- * (§3.5, §3.7).
  */
 async function lockForLocation(shadowUser, settingsMap, req, res, reason) {
   const lockoutMins = 60;
@@ -223,18 +220,18 @@ router.post('/login', loginLimiter, loginUsernameLimiter, async (req, res) => {
   };
 
   try {
-    // ── 1. Accept both unified format and legacy format ──
+    // ── Accept both unified format and legacy format ──
     const rawIdentifier = (req.body.identifier || req.body.username || '').toLowerCase().trim();
     const identifier = sanitizeLogField(rawIdentifier, 100);
     const password = req.body.password || '';
     const legacyRole = sanitizeLogField(req.body.role || '', 50);
 
-    // Client device context (new unified format §3.6)
+    // Client device context (new unified format)
     const clientDevice = (req.body.device && typeof req.body.device === 'object') ? req.body.device : {};
     const clientLocation = req.body.location || null;
     const locationError = req.body.locationError || null;
     const deviceProof = req.body.deviceProof || null;
-    // Pre-initialize coords and initialLocationAddress to avoid temporal dead zone (TDZ) in early-exit logs
+    // Pre-initialize coords and initialLocationAddress to avoid temporal dead zone in early-exit logs
     let coords = (clientLocation && typeof clientLocation === 'object' && clientLocation.latitude !== undefined && clientLocation.longitude !== undefined)
       ? clientLocation
       : null;
@@ -244,7 +241,7 @@ router.post('/login', loginLimiter, loginUsernameLimiter, async (req, res) => {
     if (!identifier || !password)
       return res.status(400).json({ error: 'Username and password are required', code: 'BAD_REQUEST' });
 
-    // ── 2. Determine / normalize IP & device details ──
+    // ── Determine / normalize IP & device details ──
     const clientDetails = getClientDetails(req);
     const rawDeviceInstallId = clientDevice.installId || clientDevice.deviceInstallId || '';
     const rawDeviceId = clientDevice.deviceId || rawDeviceInstallId || '';
@@ -261,7 +258,7 @@ router.post('/login', loginLimiter, loginUsernameLimiter, async (req, res) => {
     if (clientDevice.deviceType) clientDevice.deviceType = sanitizeLogField(clientDevice.deviceType, 50);
 
     // ═══════════════════════════════════════════
-    //  SMART BOARD HARDWARE PATH (§3.5, §5)
+    //  SMART BOARD HARDWARE PATH
     // ═══════════════════════════════════════════
     if (identifier.startsWith('sb-') || identifier.startsWith('tr-')) {
       const boardDoc = await M.SmartBoard.findOne({
@@ -435,7 +432,7 @@ router.post('/login', loginLimiter, loginUsernameLimiter, async (req, res) => {
     //  HUMAN IDENTITY PATH (student/teacher/admin)
     // ═══════════════════════════════════════════
 
-    // ── 3. Parallel Batch 1: SecurityBlock, User, Roles, Password, Settings (S6.2: 1 Round Trip, no LoginHistory read) ──
+    // ── Parallel Batch 1: SecurityBlock, User, Roles, Password, Settings (S6.2: 1 Round Trip, no LoginHistory read) ──
     const initReadStart = process.hrtime.bigint();
     const [blockResult, shadowUser, teacherDoc, studentDoc, passwordDoc, settingsMap] = await Promise.all([
       isDev ? Promise.resolve({ blocked: false }) : checkBlock(identifier, deviceId, clientDetails.ip),
@@ -454,7 +451,7 @@ router.post('/login', loginLimiter, loginUsernameLimiter, async (req, res) => {
 
     const userDoc = shadowUser?.role === 'teacher' ? teacherDoc : shadowUser?.role === 'student' ? studentDoc : null;
 
-    // Unknown user → spend identical bcrypt time (F11), return identical 401
+    // Unknown user → spend identical bcrypt time, return identical 401
     if (!shadowUser || !userDoc) {
       const bcryptStart = process.hrtime.bigint();
       await bcrypt.compare(password, DUMMY_HASH);
@@ -552,7 +549,7 @@ router.post('/login', loginLimiter, loginUsernameLimiter, async (req, res) => {
       return res.status(401).json({ error: 'Invalid credentials', code: 'INVALID_CREDENTIALS' });
     }
 
-    // Maintenance check (§3.6: Sudo + Super exempt)
+    // Maintenance check (Sudo + Super exempt)
     if (!access.exempt.maintenance && maintenance.active) {
       const affected = maintenance.affectedRoles?.length ? maintenance.affectedRoles : ['teacher', 'student'];
       if (affected.includes(role)) {
@@ -567,7 +564,7 @@ router.post('/login', loginLimiter, loginUsernameLimiter, async (req, res) => {
         });
       }
     }
-    // ── 4. Verify password (bcrypt) ──
+    // ── Verify password (bcrypt) ──
     const passwordHash = passwordDoc?.hash || userDoc.password;
 
     let match = false;
@@ -587,7 +584,7 @@ router.post('/login', loginLimiter, loginUsernameLimiter, async (req, res) => {
     }
 
     if (!match) {
-      // ── T1.3 Device Registration Branch (§5) ──
+      // ── Device Registration Branch ──
       // If student enters their 12-char registration credential, claim ticket and enter registration mode
       if (role === 'student' && studentDoc) {
         const cleanCandidate = String(password || '').replace(/[\s-]/g, '').toUpperCase();
@@ -612,7 +609,7 @@ router.post('/login', loginLimiter, loginUsernameLimiter, async (req, res) => {
           }
 
           if (activeTicket.credentialHash === candidateHash) {
-            // Valid registration credential! Claim ticket (§5)
+            // Valid registration credential! Claim ticket
             activeTicket.stage = 'CLAIMED';
             activeTicket.claimedFrom = {
               ip: clientDetails.ip,
@@ -663,7 +660,7 @@ router.post('/login', loginLimiter, loginUsernameLimiter, async (req, res) => {
               }
             });
           } else {
-            // Live ticket exists, but credential was wrong: count attempt against TICKET, not password lockout (§5)
+            // Live ticket exists, but credential was wrong: count attempt against TICKET, not password lockout
             activeTicket.attempts = (activeTicket.attempts || 0) + 1;
             if (activeTicket.attempts >= activeTicket.maxAttempts) {
               activeTicket.stage = 'LOCKED';
@@ -781,7 +778,7 @@ router.post('/login', loginLimiter, loginUsernameLimiter, async (req, res) => {
       });
     }
 
-    // ── 4.1 Post-Password Student Access Guard ──
+    // ── Post-Password Student Access Guard ──
     if (role === 'student') {
       const pageStudents = pages.pageStudents !== undefined ? pages.pageStudents : 'enabled';
       const isStudentsDisabled = String(pageStudents).toLowerCase() === 'disabled' || String(pageStudents).toLowerCase() === 'hidden' || pageStudents === false;
@@ -818,7 +815,7 @@ router.post('/login', loginLimiter, loginUsernameLimiter, async (req, res) => {
       }
     }
 
-    // ── 4.2 Post-Password Teacher Access Guard ──
+    // ── Post-Password Teacher Access Guard ──
     const hasAdminGrants = Boolean(access.isAdmin || access.flags?.isSudo || access.flags?.isSuper || access.flags?.isSub);
     if (role === 'teacher' && !hasAdminGrants) {
       const pageTeachers = pages.pageTeachers !== undefined ? pages.pageTeachers : 'enabled';
@@ -856,7 +853,7 @@ router.post('/login', loginLimiter, loginUsernameLimiter, async (req, res) => {
       }
     }
 
-    // ── 4.3 First-run password guards for Sudo Admin bootstrap (§9, R3.3) ──
+    // ── First-run password guards for Sudo Admin bootstrap ──
     if (userDoc.bootstrapPending || shadowUser.bootstrapPending) {
       if (process.env.BOOTSTRAP_ALLOWED_IPS) {
         const allowedIps = process.env.BOOTSTRAP_ALLOWED_IPS.split(',').map(s => s.trim()).filter(Boolean);
@@ -880,7 +877,7 @@ router.post('/login', loginLimiter, loginUsernameLimiter, async (req, res) => {
       }
     }
 
-    // ── 4.4 Sudo Admin IP Whitelist & Security Policy (§9, R3.4) ──
+    // ── Sudo Admin IP Whitelist & Security Policy ──
     const isSudo = Boolean(access && (access.flags?.isSudo || access.isSudoAdmin || role === 'sudo'));
     if (isSudo && security.sudoAllowedIps && typeof security.sudoAllowedIps === 'string') {
       const sudoIps = security.sudoAllowedIps.split(',').map(s => s.trim()).filter(Boolean);
@@ -906,7 +903,7 @@ router.post('/login', loginLimiter, loginUsernameLimiter, async (req, res) => {
       }
     }
 
-    // ── 5. Location validation — AFTER password check (§3.5, §3.7) ──
+    // ── Location validation — AFTER password check ──
     const isLocRequired = !isDev && security.loginLocationRequired !== false && !access.exempt.location;
     const loc = validateLocation(clientLocation, security, { required: isLocRequired });
     if (!loc.ok) {
@@ -916,7 +913,7 @@ router.post('/login', loginLimiter, loginUsernameLimiter, async (req, res) => {
       return res.status(403).json({ error: loc.reason || 'Location is required to sign in', code: loc.code });
     }
 
-    // ── 6. Session and JWT generation ──
+    // ── Session and JWT generation ──
     let sessionClass = role === 'student' ? 'student' : 'staff';
     let durationMins = (security.sessionTimeout !== false)
       ? (isSudo && security.sudoSessionTimeoutMins !== undefined
@@ -937,12 +934,12 @@ router.post('/login', loginLimiter, loginUsernameLimiter, async (req, res) => {
 
       const candidateInstallId = (deviceInstallId || clientDevice?.installId || '').trim();
       if (trustedDeviceDoc && candidateInstallId && trustedDeviceDoc.installId === candidateInstallId) {
-        // Registered trusted phone (§6, T3.2): 15-day absolute session
+        // Registered trusted phone: 15-day absolute session
         sessionClass = 'student-device';
         const studentDays = settingsMap?.device?.studentSessionDays || 15;
         durationMins = studentDays * 24 * 60;
 
-        // Generate refresh cookie token and hash (§6, S7)
+        // Generate refresh cookie token and hash
         refreshToken = crypto.randomBytes(32).toString('hex');
         refreshHash = crypto.createHash('sha256').update(refreshToken).digest('hex');
 
@@ -1035,7 +1032,7 @@ router.post('/login', loginLimiter, loginUsernameLimiter, async (req, res) => {
 
     const isMultiAdmin = Boolean(access.exempt.multiSession && advanced.multiAdminSession !== false);
 
-    // ── 7. ONE parallel write batch (S7.2: includes standalone LoginSession) ──
+    // ── ONE parallel write batch (S7.2: includes standalone LoginSession) ──
     const dbWriteStart = process.hrtime.bigint();
     const terminatePriorPromise = isMultiAdmin ? Promise.resolve() : M.LoginHistory.updateOne(
       { trackId: shadowUser.trackId },
@@ -1117,7 +1114,7 @@ router.post('/login', loginLimiter, loginUsernameLimiter, async (req, res) => {
     ]);
     timer.mark('db_write', 'Session & User Write (1 Round Trip)', Number(process.hrtime.bigint() - dbWriteStart) / 1e6);
 
-    // ── 8. Respond ──
+    // ── Respond ──
     const userFirstLastName = (userDoc.firstName && userDoc.lastName)
       ? `${userDoc.firstName} ${userDoc.lastName}`.trim()
       : (userDoc.fullName || userDoc.username);
@@ -1206,7 +1203,7 @@ router.post('/login', loginLimiter, loginUsernameLimiter, async (req, res) => {
       }
     });
 
-    // ── 9. Non-blocking post-response background work ──
+    // ── Non-blocking post-response background work ──
     setImmediate(() => {
       const isSudo = Boolean(access && access.flags && access.flags.isSudo);
       const isAnyAdmin = Boolean(access.isAdmin || access.isSudoAdmin || access.isSuperAdmin || access.isSubAdmin || role === 'admin' || role === 'sudo');
@@ -1421,7 +1418,7 @@ router.get('/dev-users', async (req, res) => {
     };
 
     users.sort((a, b) => {
-      // @admin ALWAYS at the absolute top (topmost)
+      // @admin ALWAYS at the absolute top
       if (a.username === 'admin') return -1;
       if (b.username === 'admin') return 1;
 
@@ -1916,7 +1913,7 @@ router.post('/logout', authMiddleware, async (req, res) => {
   }
 });
 
-// ── 15-Day Student Device Session Refresh (§6, §16, T3.1) ──
+// ── 15-Day Student Device Session Refresh ──
 function getRefreshCookie(req) {
   if (req.cookies && req.cookies.eams_refresh) return req.cookies.eams_refresh;
   const rc = req.headers.cookie;
@@ -1967,7 +1964,7 @@ router.post('/refresh', async (req, res) => {
       return res.status(400).json({ error: 'Challenge nonce and device signature are required', code: 'DEVICE_PROOF_REQUIRED' });
     }
 
-    // 1. Verify challenge nonce format, HMAC signature, and freshness (< 120s)
+    // Verify challenge nonce format, HMAC signature, and freshness (< 120s)
     const parts = String(nonce).split('.');
     if (parts.length !== 3) {
       return res.status(401).json({ error: 'Invalid challenge nonce', code: 'NONCE_INVALID' });
@@ -1988,7 +1985,7 @@ router.post('/refresh', async (req, res) => {
     }
     usedChallengeNonces.set(nonce, ts);
 
-    // 2. Validate refresh cookie against active LoginSession
+    // Validate refresh cookie against active LoginSession
     const refreshHash = crypto.createHash('sha256').update(rawRefreshToken).digest('hex');
     const loginSession = await M.LoginSession.findOne({
       refreshHash,
@@ -2004,7 +2001,7 @@ router.post('/refresh', async (req, res) => {
       return res.status(401).json({ error: '15-day session limit reached. Please sign in again with your password.', code: 'SESSION_EXPIRED' });
     }
 
-    // 3. Resolve trusted device record
+    // Resolve trusted device record
     const targetDeviceTrackId = deviceTrackId || loginSession.deviceTrackId;
     const deviceQuery = { status: 'TRUSTED' };
     if (targetDeviceTrackId) {
@@ -2018,7 +2015,7 @@ router.post('/refresh', async (req, res) => {
       return res.status(401).json({ error: 'Registered trusted device not found or inactive', code: 'DEVICE_NOT_TRUSTED' });
     }
 
-    // 4. Verify cryptographic signature over nonce using stored public key
+    // Verify cryptographic signature over nonce using stored public key
     try {
       const pubKey = crypto.createPublicKey({ key: studentDevice.publicKeyJwk, format: 'jwk' });
       const verify = crypto.createVerify('SHA256');
@@ -2031,18 +2028,18 @@ router.post('/refresh', async (req, res) => {
       return res.status(401).json({ error: 'Error verifying cryptographic signature', code: 'INVALID_SIGNATURE' });
     }
 
-    // 5. Verify student & user status
+    // Verify student & user status
     const studentDoc = await M.Student.findById(studentDevice.studentId).lean();
     const userDoc = await M.User.findOne({ trackId: studentDoc?.trackId || studentDevice.studentTrackId }).lean();
     if (!studentDoc || !userDoc || userDoc.status === 'locked') {
       return res.status(401).json({ error: 'Account is locked or not found', code: 'ACCOUNT_LOCKED' });
     }
 
-    // 6. Refresh lastActivity on session
+    // Refresh lastActivity on session
     loginSession.lastActivity = new Date();
     await loginSession.save();
 
-    // 7. Issue fresh 24-hour access token
+    // Issue fresh 24-hour access token
     const token = jwt.sign(
       {
         _id: userDoc._id,
@@ -2085,7 +2082,7 @@ router.post('/refresh', async (req, res) => {
   }
 });
 
-// ── GET /api/auth/access — Active Access Authority (§5.1, R2.5, S4.1) ──
+// ── GET /api/auth/access — Active Access Authority ──
 router.get('/access', authMiddleware, async (req, res) => {
   try {
     const access = req.access || resolveAccess(req.user?.role || 'teacher', req.user, { env: cfg.NODE_ENV });
@@ -2107,7 +2104,7 @@ router.get('/access', authMiddleware, async (req, res) => {
       grants = access.pageRights.slice();
     }
 
-    // For Super Admin: if bulk grant is not explicitly present, ensure bulk grant entry exists with enabled: false (§4.4, §6.4, §8)
+    // For Super Admin: if bulk grant is not explicitly present, ensure bulk grant entry exists with enabled: false
     if (flags.isSuper && !grants.some(g => g && g.page === 'bulk')) {
       grants.push({
         page: 'bulk',
@@ -2341,7 +2338,7 @@ router.get('/check', authMiddleware, async (req, res) => {
       return res.status(401).json({ error: 'Session is inactive' });
     }
 
-    // Enforce absolute maximum session lifetime from settings (§3.9, F17)
+    // Enforce absolute maximum session lifetime from settings
     const secSettings = (await getSettings(['security'])).security || {};
     const isStudentDevice = session.sessionClass === 'student-device';
     const maxSessionHours = isStudentDevice ? (15 * 24) : (secSettings.maxSessionLifetimeHours !== undefined ? Number(secSettings.maxSessionLifetimeHours) : 1);

@@ -1,6 +1,5 @@
 /**
  * utils/backupCrypto.js
- *
  * Enterprise-grade authenticated encryption for EAMS backup archives.
  * Uses AES-256-GCM with PBKDF2 key derivation and random salts/IVs.
  * Only the EAMS website/server can decrypt and unpack these archives.
@@ -25,7 +24,6 @@ function getMasterKey() {
 
 /**
  * Encrypts arbitrary JSON-serializable data using AES-256-GCM.
- *
  * @param {Object} dataObj - The raw data payload to encrypt
  * @param {string} [backupPassword=''] - Optional supplementary password
  * @returns {{ salt: string, iv: string, authTag: string, ciphertext: Buffer }}
@@ -59,7 +57,6 @@ function encryptBackupPayload(dataObj, backupPassword = '') {
 
 /**
  * Decrypts and authenticates AES-256-GCM backup payload.
- *
  * @param {Object} encObj
  * @param {string} encObj.salt - Hex string
  * @param {string} encObj.iv - Hex string

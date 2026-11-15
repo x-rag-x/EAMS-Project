@@ -1,12 +1,11 @@
 /**
- * Resolves precedence when sources conflict in Hostel Attendance (§6.2 of hostel_plan.md).
- *
+ * Resolves precedence when sources conflict in Hostel Attendance.
  * Priority hierarchy:
- * 1. Auto (approved pass + checked out, medical, away on approved OD) -> Locked
- * 2. Warden marking / verification
- * 3. Student "I'm back" after curfew -> Late
- * 4. QR self check-in -> Present
- * 5. Unmarked at close -> Absent (unverified)
+ * Auto (approved pass + checked out, medical, away on approved OD) -> Locked
+ * Warden marking / verification
+ * Student "I'm back" after curfew -> Late
+ * QR self check-in -> Present
+ * Unmarked at close -> Absent (unverified)
  */
 
 const SOURCE_PRIORITY = {

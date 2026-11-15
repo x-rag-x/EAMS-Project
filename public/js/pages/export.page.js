@@ -1,6 +1,6 @@
 // ══ EXPORT CENTER PAGE ══════════════════════════════════════════════════
 
-// ─── STATE ───────────────────────────────────────────────────────────────
+// ─── STATE ───
 var currentUser = null;
 var currentFilters = {
   search: '',
@@ -20,7 +20,7 @@ var historyLimit = 15;
 var filterOptions = { departments: [], years: [], sections: [], subjects: [], students: [] };
 var activeConfig = null;
 
-// ─── INIT ────────────────────────────────────────────────────────────────
+// ─── INIT
 document.addEventListener('DOMContentLoaded', async function () {
   currentUser = getUser();
   if (!currentUser) return;
@@ -51,7 +51,7 @@ function applyTimetableExportLock() {
   document.title = 'EAMS – Timetable Export Center';
   window.isTimetableScoped = true;
 
-  // 1. Hide non-TT sidebar items
+  // Hide non-TT sidebar items
   var nonTTTabs = ['student', 'subject', 'dept', 'bulk'];
   document.querySelectorAll('.sb .sb-item').forEach(function (btn) {
     var page = btn.getAttribute('data-page');
@@ -60,7 +60,7 @@ function applyTimetableExportLock() {
     }
   });
 
-  // 2. Add restricted mode banner above main content
+  // Add restricted mode banner above main content
   var mainContent = document.querySelector('.main-content');
   if (mainContent && !document.getElementById('tt-export-restricted-banner')) {
     var banner = document.createElement('div');
@@ -70,11 +70,11 @@ function applyTimetableExportLock() {
     mainContent.insertBefore(banner, mainContent.firstChild);
   }
 
-  // 3. Set page to class reports
+  // Set page to class reports
   nav('class');
 }
 
-// ─── USER PROFILE (SIDEBAR & TOPBAR) ─────────────────────────────────────
+// ─── USER PROFILE (SIDEBAR & TOPBAR) ─
 function setupUserProfile() {
   if (!currentUser) return;
   var name = currentUser.fullName || currentUser.userName || currentUser.name || 'User';
@@ -98,7 +98,7 @@ function setupUserProfile() {
   if (topAv) topAv.textContent = avLetter;
 }
 
-// ─── SIDEBAR TOGGLE & TREE NAVIGATION ────────────────────────────────────
+// ─── SIDEBAR TOGGLE & TREE NAVIGATION
 function toggleExportSidebar() {
   var sidebar = document.querySelector('#app-shell .sb');
   var mainContent = document.querySelector('.mc');
@@ -122,7 +122,7 @@ function toggleExportSidebar() {
 window.toggleExportSidebar = toggleExportSidebar;
 window.toggleAdminSidebar = toggleExportSidebar;
 
-// ─── TAB NAVIGATION (Matching admin.html) ──────────────────────────────────
+// ─── TAB NAVIGATION (Matching admin.html) ──
 var PAGE_NAMES = ['dash', 'student', 'class', 'subject', 'teacher', 'dept', 'bulk', 'tt', 'scheduled', 'templates', 'history'];
 
 function nav(pageName) {
@@ -199,7 +199,7 @@ function updateTopDate() {
   el.textContent = now.toLocaleString('en-IN', opts);
 }
 
-// ─── NAVIGATION ──────────────────────────────────────────────────────────
+// ─── NAVIGATION ──
 function goHome() {
   var user = currentUser || (typeof getUser === 'function' ? getUser() : null);
   if (!user) { window.location.href = 'index.html'; return; }
@@ -221,7 +221,7 @@ function openUserProfile() {
 }
 window.openUserProfile = openUserProfile;
 
-// ─── EVENT LISTENERS ─────────────────────────────────────────────────────
+// ─── EVENT LISTENERS ─
 function attachEventListeners() {
   // Search input with instant card filtering
   var searchInput = document.getElementById('export-search');
@@ -323,11 +323,11 @@ function attachEventListeners() {
   }
 }
 
-// ─── FILTER REPORT CARDS ON PAGE ─────────────────────────────────────────
+// ─── FILTER REPORT CARDS ON PAGE ─
 function filterReportCards() {
   var searchTerm = (currentFilters.search || '').toLowerCase().trim();
 
-  // 1. If on dashboard and search term is provided, populate search-results-grid
+  // If on dashboard and search term is provided, populate search-results-grid
   var searchResultsSection = document.getElementById('dashboard-search-results');
   var searchResultsGrid = document.getElementById('search-results-grid');
   var searchCountEl = document.getElementById('search-results-count');
@@ -373,7 +373,7 @@ function filterReportCards() {
     }
   }
 
-  // 2. Also filter cards within all module pages
+  // Also filter cards within all module pages
   var cards = document.querySelectorAll('.ec-report-card[data-report]');
   cards.forEach(function (card) {
     var reportType = (card.getAttribute('data-report') || '').toLowerCase();
@@ -389,7 +389,7 @@ function filterReportCards() {
   });
 }
 
-// ─── DASHBOARD METRICS ───────────────────────────────────────────────────
+// ─── DASHBOARD METRICS ───
 async function loadDashboard() {
   try {
     var res = await apiCall('GET', '/export/dashboard');
@@ -443,7 +443,7 @@ function renderRecentExports(exports) {
   }).join('');
 }
 
-// ─── FILTER OPTIONS ──────────────────────────────────────────────────────
+// ─── FILTER OPTIONS ──
 async function buildFilterOptions() {
   try {
     var res = await apiCall('GET', '/export/filter-options');
@@ -489,7 +489,7 @@ function populateSelect(elementId, options, selectedValue, defaultLabel) {
   if (selectedValue) el.value = selectedValue;
 }
 
-// ─── DATE RANGE PRESET BUTTONS ───────────────────────────────────────────
+// ─── DATE RANGE PRESET BUTTONS ───
 function setupDateRangeButtons() {
   var buttons = document.querySelectorAll('.btn-daterange');
   buttons.forEach(function (btn) {
@@ -539,7 +539,7 @@ function applyDatePreset(range) {
   if (toInput && endStr) toInput.value = endStr;
 }
 
-// ─── REPORT CONFIG MODAL ─────────────────────────────────────────────────
+// ─── REPORT CONFIG MODAL ─
 function openReportConfig(reportType) {
   var modal = document.getElementById('modal-report-config');
   if (!modal) return;
@@ -617,7 +617,7 @@ function getActiveConfigFromModal() {
   };
 }
 
-// ─── PREVIEW FEATURE ─────────────────────────────────────────────────────
+// ─── PREVIEW FEATURE ─
 async function handlePreviewClick() {
   var config = getActiveConfigFromModal();
   if (!config.reportType) {
@@ -682,7 +682,7 @@ function executeGenerateFromModal() {
 }
 window.executeGenerateFromModal = executeGenerateFromModal;
 
-// ─── GENERATE & DOWNLOAD ─────────────────────────────────────────────────
+// ─── GENERATE & DOWNLOAD ─
 async function handleConfigFormSubmit(event) {
   if (event) event.preventDefault();
 
@@ -781,7 +781,7 @@ async function executeGenerate(config) {
   }
 }
 
-// ─── AUTHENTICATED FILE DOWNLOAD ─────────────────────────────────────────
+// ─── AUTHENTICATED FILE DOWNLOAD ─
 async function triggerAuthenticatedDownload(url, defaultFilename) {
   try {
     var token = typeof getToken === 'function' ? getToken() : sessionStorage.getItem('eams_token');
@@ -831,7 +831,7 @@ async function downloadExport(idOrTrackId) {
 }
 window.downloadExport = downloadExport;
 
-// ─── TEMPLATES ───────────────────────────────────────────────────────────
+// ─── TEMPLATES ───
 async function loadTemplates() {
   try {
     var res = await apiCall('GET', '/export/templates');
@@ -993,7 +993,7 @@ async function confirmDeleteTemplateAction() {
 }
 window.confirmDeleteTemplateAction = confirmDeleteTemplateAction;
 
-// ─── EXPORT HISTORY ──────────────────────────────────────────────────────
+// ─── EXPORT HISTORY ──
 async function loadHistory(page) {
   page = page || 1;
   historyPage = page;
@@ -1074,7 +1074,7 @@ function updateHistoryPagination(pagination) {
   if (nextBtn) nextBtn.disabled = historyPage >= totalPages;
 }
 
-// ─── CLEAR FILTERS ───────────────────────────────────────────────────────
+// ─── CLEAR FILTERS ───
 function clearFilters() {
   currentFilters = {
     search: '',
@@ -1109,7 +1109,7 @@ function clearFilters() {
   loadHistory(1);
 }
 
-// ─── UTILITY HELPERS ─────────────────────────────────────────────────────
+// ─── UTILITY HELPERS ─
 function formatReportName(code) {
   if (!code) return 'Report';
   return code

@@ -1,14 +1,13 @@
 /**
  * services/timetableMerge.js
- *
  * Three-Way Stale-Base Merge Engine for EAMS Timetable v3 (Section 10.3):
  * - Slot-unit three-way merge keyed by (day, rootPeriod).
  * - Span-aware: multi-period labs treated as single units; differing roots flagged as conflicts.
  * - Merge options:
- *     1. Auto-merge (clean three-way merge when no overlapping diffs exist).
- *     2. Resolve one-by-one (slot chooser providing 'mine' | 'theirs' | custom slot).
- *     3. Keep mine (override production changes; requires reason string).
- *     4. Take production (discard workspace draft for this class and re-fork).
+ *     Auto-merge (clean three-way merge when no overlapping diffs exist).
+ *     Resolve one-by-one (slot chooser providing 'mine' | 'theirs' | custom slot).
+ *     Keep mine (override production changes; requires reason string).
+ *     Take production (discard workspace draft for this class and re-fork).
  * - Automatically saves a 'pre-merge' checkpoint before mutating draft (1-click Undo).
  */
 
@@ -66,7 +65,6 @@ function buildSlotMap(grid) {
 
 /**
  * Three-Way Merge Algorithm (Table 10.3)
- *
  * @param {Array} baseGrid - Base version grid (draft.baseTrackId)
  * @param {Array} mineGrid - Workspace draft grid
  * @param {Array} theirsGrid - Current production Head grid

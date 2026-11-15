@@ -16,7 +16,7 @@ const isValidObjId = (id) => typeof id === 'string' && mongoose.Types.ObjectId.i
 // Rep Share server-side guards (Invariant 13 & S8)
 router.use(authMiddleware, checkAttendanceMarkGuard, checkRepShareGuard);
 
-// 1. Get Class Reps for a Class (Teacher)
+// Get Class Reps for a Class
 router.get('/reps/:classId', authMiddleware, async (req, res) => {
   if (req.user.role !== 'teacher' && req.user.role !== 'admin') {
     return res.status(403).json({ error: 'Only teachers and admins can view class reps' });
@@ -51,7 +51,7 @@ router.get('/reps/:classId', authMiddleware, async (req, res) => {
   }
 });
 
-// 2. Request Rep Share delegation (Teacher)
+// Request Rep Share delegation
 router.post('/request', attendanceMarkIpLimiter, repShareRequestLimiter, async (req, res) => {
   if (req.user.role !== 'teacher' && req.user.role !== 'admin') {
     return res.status(403).json({ error: 'Only teachers can delegate attendance to Class Reps' });
@@ -187,7 +187,7 @@ router.post('/request', attendanceMarkIpLimiter, repShareRequestLimiter, async (
   }
 });
 
-// 3. Get pending Rep Share session for logged in Student
+// Get pending Rep Share session for logged in Student
 router.get('/pending', authMiddleware, async (req, res) => {
   try {
     const studentTrackId = req.user.trackId;
@@ -228,7 +228,7 @@ router.get('/pending', authMiddleware, async (req, res) => {
   }
 });
 
-// 4. Get session details / status
+// Get session details / status
 router.get('/session/:sessionId', authMiddleware, async (req, res) => {
   try {
     const { sessionId } = req.params;
@@ -256,7 +256,7 @@ router.get('/session/:sessionId', authMiddleware, async (req, res) => {
   }
 });
 
-// 5. Submit attendance by Rep (Anti-fraud headcount check)
+// Submit attendance by Rep (Anti-fraud headcount check)
 router.post('/submit/:sessionId', attendanceMarkIpLimiter, repShareSubmitLimiter, async (req, res) => {
   try {
     const { sessionId } = req.params;
@@ -348,7 +348,7 @@ router.post('/submit/:sessionId', attendanceMarkIpLimiter, repShareSubmitLimiter
   }
 });
 
-// 6. Get draft records for Teacher review
+// Get draft records for Teacher review
 router.get('/draft/:sessionId', authMiddleware, async (req, res) => {
   try {
     const { sessionId } = req.params;
@@ -378,7 +378,7 @@ router.get('/draft/:sessionId', authMiddleware, async (req, res) => {
   }
 });
 
-// 7. Cancel / Reject session
+// Cancel / Reject session
 router.post('/cancel/:sessionId', authMiddleware, async (req, res) => {
   if (req.user.role !== 'teacher' && req.user.role !== 'admin') {
     return res.status(403).json({ error: 'Only teachers and admins can cancel sessions' });

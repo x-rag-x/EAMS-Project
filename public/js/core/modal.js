@@ -1,7 +1,7 @@
 /**
  * public/js/core/modal.js
  * Electronic Attendance Management System (EAMS)
- * Core Modal Subsystem - Accessible, Focus-Trapped, Scroll-Locked & Animated (C10)
+ * Core Modal Subsystem - Accessible, Focus-Trapped, Scroll-Locked & Animated
  */
 
 var _modalStack = [];
@@ -14,7 +14,7 @@ function openModal(id, openerEl) {
   var el = typeof id === 'string' ? document.getElementById(id) : id;
   if (!el) return;
 
-  // Save previous active element for focus restoration (C10)
+  // Save previous active element for focus restoration
   el._prevActiveElement = openerEl || document.activeElement;
 
   // Accessibility attributes
@@ -77,7 +77,7 @@ function closeModal(id, force) {
     document.body.style.overflow = '';
   }
 
-  // Restore focus to opener element (C10)
+  // Restore focus to opener element
   if (el._prevActiveElement && typeof el._prevActiveElement.focus === 'function') {
     try {
       el._prevActiveElement.focus();
@@ -112,7 +112,7 @@ function closeModalBg(id, force) { return closeModal(id, force); }
         closeModal(topModal);
       }
     } else if (e.key === 'Tab') {
-      // Focus Trap within top modal (C10)
+      // Focus Trap within top modal
       var focusables = Array.from(topModal.querySelectorAll(
         'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
       )).filter(function (node) {

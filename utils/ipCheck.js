@@ -1,6 +1,6 @@
 /**
  * Campus IP and Wi-Fi check utility.
- * Resolves Finding A8 by replacing insecure .includes() substring checks
+ * Resolves Finding A8 by replacing insecure .includes substring checks
  * with rigorous exact match, CIDR subnet matching, and loopback handling.
  */
 
@@ -37,7 +37,6 @@ function isIpInCidr(clientIp, cidr) {
 
 /**
  * Checks if clientIp is in the allowed campus IP list.
- * 
  * @param {string} rawClientIp - req.ip
  * @param {string[]} allowedIps - array of allowed IPs or CIDR notations from Settings
  * @returns {boolean}

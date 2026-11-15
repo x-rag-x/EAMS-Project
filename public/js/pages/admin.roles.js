@@ -1,7 +1,6 @@
 /**
  * public/js/pages/admin.roles.js
- * 
- * Executive Roles & Access Management Module (§7, Phase R4)
+ * Executive Roles & Access Management Module
  * Single Source of Truth for Institutional Leaders, Department Roles, Class Advisors, and Wardens.
  */
 
@@ -156,7 +155,7 @@
     });
   }
 
-  // ── 1. OVERVIEW & CARDS (§7.4) ──────────────────────────────────────────────
+  // ── OVERVIEW & CARDS ──
 
   function loadExecutiveRolesOverview() {
     updateExecutiveRolesTabVisibility();
@@ -445,7 +444,7 @@
     }
   }
 
-  // ── 2. MANAGE PRIVILEGES DRAWER (§7.5) ──────────────────────────────────────
+  // ── MANAGE PRIVILEGES DRAWER ──
 
   function openManagePrivilegesDrawer(deptId, autoOpenRole) {
     _rolesState.activeDeptId = deptId;
@@ -492,115 +491,187 @@
     var dept = data.department;
     var roles = data.roles || {};
     var isSudo = isCurrentUserSudo();
+    var privStaff = data.privilegedStaff || [];
 
+    // ── Header: title + subtitle
     var titleEl = document.getElementById('dpriv-title');
-    var metaEl = document.getElementById('dpriv-sub');
-    if (titleEl) titleEl.textContent = dept.name + ' · Privileges';
-    if (metaEl) metaEl.textContent = dept.code + (dept.number ? ' · ' + dept.number : '') + ' · Department Access & Delegated Authorities';
+    var metaEl  = document.getElementById('dpriv-sub');
+    if (titleEl) titleEl.textContent = dept.name + ' \u00b7 Privileges';
+    if (metaEl)  metaEl.textContent  = dept.code + (dept.number ? ' \u00b7 ' + dept.number : '') + ' \u00b7 Department access & delegated authorities';
 
-    // 1. Roles Section
-    function renderRoleItem(roleKey, roleLabel, holder, isLocked, isOptional) {
-      var nameHtml = holder
-        ? '<div style="font-weight:700;color:var(--td);font-size:13.5px;">' + escapeHtml(holder.teacherName) + '</div>' +
-          '<div style="font-size:11.5px;color:var(--tmu);">' + escapeHtml(holder.teacherTrackId) + '</div>'
-        : '<div style="color:var(--tmu);font-size:13px;font-style:italic;">' + (isOptional ? '— None (Optional) —' : '— Not Assigned —') + '</div>';
-
-      var btnHtml = '';
-      if (isLocked) {
-        btnHtml = '<span title="Only Sudo Admin can reassign this role" style="color:var(--tmu);font-size:12px;display:flex;align-items:center;gap:4px;"><re-icon icon="lock" size="14"></re-icon> Locked</span>';
+    // ── Sidebar: dept badge chip
+    var badgeEl = document.getElementById('dpriv-dept-badge');
+    if (badgeEl) {
+      if (dept.isSupporting) {
+        badgeEl.textContent = 'Supporting department';
+        badgeEl.style.display = '';
       } else {
-        var actionText = holder ? 'Change ▾' : 'Assign ▾';
-        var removeBtn = (holder && ['ttCoordinator', 'secondaryTtCoordinator', 'placementCoordinator', 'secondaryHod'].includes(roleKey))
-          ? '<button class="btn-sm btn-ghost text-danger" style="margin-left:4px;" onclick="removeDepartmentRole(' + "'" + roleKey + "'" + ')" title="Remove"><re-icon icon="x" size="13"></re-icon></button>'
-          : '';
-        btnHtml = '<div style="display:flex;align-items:center;">' +
-          '<button class="btn-sm btn-out" onclick="openStaffPickerForRole(' + "'" + roleKey + "'" + ', ' + "'" + (holder ? holder.teacherId : '') + "'" + ', ' + "'" + (holder ? escapeHtml(holder.teacherName) : '') + "'" + ')">' + actionText + '</button>' +
-          removeBtn +
+        badgeEl.style.display = 'none';
+      }
+    }
+
+    // ── Sidebar: avatar initials + name + meta
+    var avatarEl = document.getElementById('dpriv-avatar-initials');
+    var dNameEl  = document.getElementById('dpriv-dept-name');
+    var dMetaEl  = document.getElementById('dpriv-dept-meta');
+    var dChipEl  = document.getElementById('dpriv-dept-type-chip');
+    if (avatarEl) {
+      var initials = (dept.name || '').split(' ').slice(0, 2).map(function(w){ return w[0] || ''; }).join('').toUpperCase() || '\u2014';
+      avatarEl.textContent = initials;
+    }
+    if (dNameEl) dNameEl.textContent = dept.name || '\u2014';
+    if (dMetaEl) dMetaEl.textContent = [dept.code, dept.number].filter(Boolean).join(' \u00b7 ');
+    if (dChipEl) {
+      if (dept.isSupporting) { dChipEl.textContent = 'Supporting'; dChipEl.style.display = ''; }
+      else { dChipEl.style.display = 'none'; }
+    }
+
+    // ── Sidebar: role summary audit rows
+    function setSidebarAudit(id, holder, isOptional) {
+      var el = document.getElementById(id);
+      if (!el) return;
+      if (holder) { el.textContent = holder.teacherName; el.className = ''; }
+      else { el.textContent = isOptional ? 'None' : 'Unassigned'; el.className = 'dsa-pending'; }
+    }
+    setSidebarAudit('dsa-hod', roles.hod, false);
+    setSidebarAudit('dsa-sa',  roles.superAdmin, false);
+    setSidebarAudit('dsa-ttc', roles.ttCoordinator, false);
+    var subEl = document.getElementById('dsa-sub');
+    if (subEl) { subEl.textContent = privStaff.length; subEl.className = ''; }
+
+    // ── Roles Section: 3-column card grid
+    function renderRoleCard(roleKey, iconSvg, roleTitle, primaryHolder, primaryIsLocked, primaryIsRequired, secondaryHolder, secondaryKey, hasSecondary) {
+      // Primary slot
+      var primarySlotHtml;
+      if (primaryHolder) {
+        var changeBtn = primaryIsLocked
+          ? '<span style="color:var(--tmu,#64748b);font-size:11.5px;display:flex;align-items:center;gap:4px;"><re-icon icon="lock" size="13"></re-icon> Locked</span>'
+          : '<button class="dpriv-assign-btn" onclick="openStaffPickerForRole(\'' + roleKey + '\',\'' + primaryHolder.teacherId + '\',\'' + escapeHtml(primaryHolder.teacherName) + '\')">Change</button>';
+        primarySlotHtml =
+          '<div class="dpriv-slot">' +
+            '<div class="dpriv-slot-header"><span>Primary</span><span>' + (primaryIsRequired ? 'Required' : 'Optional') + '</span></div>' +
+            '<div class="dpriv-slot-row"><div><div class="dpriv-assigned-name">' + escapeHtml(primaryHolder.teacherName) + '</div>' +
+            '<div class="dpriv-assigned-meta">' + escapeHtml(primaryHolder.teacherTrackId || '') + '</div></div>' + changeBtn + '</div>' +
+          '</div>';
+      } else {
+        var assignBtn = primaryIsLocked
+          ? '<span style="color:var(--tmu,#64748b);font-size:11.5px;display:flex;align-items:center;gap:4px;"><re-icon icon="lock" size="13"></re-icon> Locked</span>'
+          : '<button class="dpriv-assign-btn" onclick="openStaffPickerForRole(\'' + roleKey + '\',\'\',\'\')">Assign</button>';
+        primarySlotHtml =
+          '<div class="dpriv-slot dpriv-slot-rq">' +
+            '<div class="dpriv-slot-header"><span>Primary</span><span>' + (primaryIsRequired ? 'Required' : 'Optional') + '</span></div>' +
+            '<div class="dpriv-slot-row">' +
+              '<span class="dpriv-warn-badge"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l10 18H2z"/><path d="M12 10v5M12 18h.01"/></svg> Not assigned</span>' +
+              assignBtn +
+            '</div>' +
           '</div>';
       }
 
-      return '' +
-        '<div class="priv-role-card">' +
-          '<div style="flex:1;">' +
-            '<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--tmu);margin-bottom:3px;">' + roleLabel + '</div>' +
-            nameHtml +
-          '</div>' +
-          btnHtml +
-        '</div>';
+      // Secondary slot (optional)
+      var secondarySlotHtml = '';
+      if (hasSecondary) {
+        if (secondaryHolder) {
+          var secRemoveBtn = '<button class="btn-sm btn-ghost text-danger" style="margin-left:4px;" onclick="removeDepartmentRole(\'' + secondaryKey + '\')" title="Remove"><re-icon icon="x" size="13"></re-icon></button>';
+          secondarySlotHtml =
+            '<div class="dpriv-slot">' +
+              '<div class="dpriv-slot-header"><span>Secondary</span><span>Optional</span></div>' +
+              '<div class="dpriv-slot-row">' +
+                '<div><div class="dpriv-assigned-name">' + escapeHtml(secondaryHolder.teacherName) + '</div>' +
+                '<div class="dpriv-assigned-meta">' + escapeHtml(secondaryHolder.teacherTrackId || '') + '</div></div>' +
+                '<button class="dpriv-assign-btn" onclick="openStaffPickerForRole(\'' + secondaryKey + '\',\'' + secondaryHolder.teacherId + '\',\'' + escapeHtml(secondaryHolder.teacherName) + '\')">Change</button>' +
+                secRemoveBtn +
+              '</div>' +
+            '</div>';
+        } else {
+          secondarySlotHtml =
+            '<div class="dpriv-slot">' +
+              '<div class="dpriv-slot-header"><span>Secondary</span><span>Optional</span></div>' +
+              '<div class="dpriv-slot-row">' +
+                '<span class="dpriv-optional-nt">None (optional)</span>' +
+                '<button class="dpriv-assign-btn" onclick="openStaffPickerForRole(\'' + secondaryKey + '\',\'\',\'\')">Assign</button>' +
+              '</div>' +
+            '</div>';
+        }
+      }
+
+      return '<div class="dpriv-role-gc">' +
+        '<div class="dpriv-role-gh"><i>' + iconSvg + '</i>' + roleTitle + '</div>' +
+        primarySlotHtml + secondarySlotHtml +
+      '</div>';
     }
+
+    var hodIcon = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8l4 4 5-7 5 7 4-4-2 11H5z"/></svg>';
+    var saIcon  = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/></svg>';
+    var ttcIcon = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/></svg>';
 
     var rolesContainer = document.getElementById('dpriv-roles-list');
     if (rolesContainer) {
       rolesContainer.innerHTML =
-        renderRoleItem('hod', 'Head of Department (HOD) [Primary]', roles.hod, !isSudo, false) +
-        renderRoleItem('secondaryHod', 'Secondary HOD (Optional)', roles.secondaryHod, !isSudo, true) +
-        renderRoleItem('superAdmin', 'Super Administrator', roles.superAdmin, !isSudo, false) +
-        renderRoleItem('ttCoordinator', 'Timetable Coordinator [Primary]', roles.ttCoordinator, false, false) +
-        renderRoleItem('secondaryTtCoordinator', 'Secondary Timetable Coordinator (Optional)', roles.secondaryTtCoordinator, false, true) +
-        renderRoleItem('placementCoordinator', 'Placement Coordinator', roles.placementCoordinator, false, false);
+        renderRoleCard('hod',           hodIcon,  'Head of Department',    roles.hod,            !isSudo, true,  roles.secondaryHod,           'secondaryHod',           true)  +
+        renderRoleCard('superAdmin',    saIcon,   'Super Administrator',   roles.superAdmin,      !isSudo, true,  null,                         null,                     false) +
+        renderRoleCard('ttCoordinator', ttcIcon,  'Timetable Coordinator', roles.ttCoordinator,   false,   true,  roles.secondaryTtCoordinator,  'secondaryTtCoordinator',  true);
     }
 
-    // 2. Privileged Staff Section
+    // ── Privileged Staff Section
     var staffListEl = document.getElementById('dpriv-staff-list');
-    var privStaff = data.privilegedStaff || [];
     if (staffListEl) {
       if (privStaff.length === 0) {
-        staffListEl.innerHTML = '<div style="padding:16px;text-align:center;color:var(--tmu);font-size:12.5px;background:var(--bg2,#f8fafc);border-radius:8px;">No delegated sub-admin staff in this department.</div>';
+        staffListEl.className = 'dpriv-empty-row';
+        staffListEl.innerHTML =
+          '<i class="dpriv-empty-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="4"/><path d="M2 21c0-4 3-6 7-6s7 2 7 6M17 11a4 4 0 0 0 0-7"/></svg></i>' +
+          'No delegated sub-admin staff in this department.';
       } else {
-        staffListEl.innerHTML = privStaff.map(function (ps) {
-          var grantsHtml = (ps.grants || []).map(function (g) {
+        staffListEl.className = '';
+        staffListEl.innerHTML = privStaff.map(function(ps) {
+          var grantsHtml = (ps.grants || []).map(function(g) {
             var actionsStr = (g.actions || []).join(', ');
             var toStr = g.validTo ? 'until ' + new Date(g.validTo).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : 'permanent';
-            return '<div style="font-size:11.5px;color:var(--td);margin-top:2px;">• <strong>' + escapeHtml(g.page) + '</strong> (' + escapeHtml(actionsStr) + ') · <span style="color:var(--tmu);">' + toStr + '</span> ' +
+            return '<div style="font-size:11.5px;color:var(--td,#1e293b);margin-top:2px;">\u2022 <strong>' + escapeHtml(g.page) + '</strong> (' + escapeHtml(actionsStr) + ') \u00b7 <span style="color:var(--tmu,#64748b);">' + toStr + '</span> ' +
               '<button class="btn-xs btn-ghost text-danger" onclick="revokeStaffGrant(\'' + ps._id + '\', \'' + g._id + '\')" title="Revoke"><re-icon icon="trash2" size="11"></re-icon></button></div>';
           }).join('');
-
-          return '' +
-            '<div class="priv-staff-item">' +
-              '<div style="display:flex;justify-content:space-between;align-items:flex-start;">' +
-                '<div>' +
-                  '<div style="font-weight:700;font-size:13px;color:var(--td);">' + escapeHtml(ps.fullName) + '</div>' +
-                  '<div style="font-size:11px;color:var(--tmu);">' + escapeHtml(ps.employeeNo || '') + ' · ' + escapeHtml(ps.designation || 'Faculty') + '</div>' +
-                '</div>' +
-              '</div>' +
-              '<div style="margin-top:6px;padding-left:4px;">' + grantsHtml + '</div>' +
-            '</div>';
+          return '<div class="priv-staff-item">' +
+            '<div style="display:flex;justify-content:space-between;align-items:flex-start;">' +
+              '<div><div style="font-weight:700;font-size:13px;color:var(--td,#1e293b);">' + escapeHtml(ps.fullName) + '</div>' +
+              '<div style="font-size:11px;color:var(--tmu,#64748b);">' + escapeHtml(ps.employeeNo || '') + ' \u00b7 ' + escapeHtml(ps.designation || 'Faculty') + '</div></div>' +
+            '</div>' +
+            '<div style="margin-top:6px;padding-left:4px;">' + grantsHtml + '</div>' +
+          '</div>';
         }).join('');
       }
     }
 
-    // 3. Super Admin Bulk Upload Settings (Sudo only per §6.4)
+    // ── Bulk Permissions (Sudo only)
     var bulkWrap = document.getElementById('dpriv-bulk-wrap');
-    var bulkChk = document.getElementById('dpriv-bulk-chk');
+    var bulkChk  = document.getElementById('dpriv-bulk-chk');
     if (bulkWrap) {
-      bulkWrap.style.display = isSudo ? 'block' : 'none';
+      bulkWrap.style.display = isSudo ? '' : 'none';
       if (bulkChk && roles.superAdmin) {
         bulkChk.checked = Boolean(data.superAdminSettings && data.superAdminSettings.bulkUploadsAllowed);
-        bulkChk.onchange = function () {
-          toggleSuperAdminBulk(roles.superAdmin.teacherId, bulkChk.checked);
-        };
+        bulkChk.onchange = function() { toggleSuperAdminBulk(roles.superAdmin.teacherId, bulkChk.checked); };
       }
     }
 
-    // 4. Department History
+    // ── History Section
     var histList = document.getElementById('dpriv-history-list');
-    var history = data.history || [];
+    var history  = data.history || [];
     if (histList) {
       if (history.length === 0) {
-        histList.innerHTML = '<div style="color:var(--tmu);font-size:12px;padding:8px 0;">No previous role changes recorded.</div>';
+        histList.className = 'dpriv-empty-row';
+        histList.innerHTML =
+          '<i class="dpriv-empty-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></i>' +
+          'No previous role changes recorded.';
       } else {
-        histList.innerHTML = history.slice(0, 10).map(function (h) {
+        histList.className = '';
+        histList.innerHTML = history.slice(0, 10).map(function(h) {
           var dateStr = new Date(h.to || h.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
-          return '<div style="font-size:11.5px;color:var(--tmu);padding:4px 0;border-bottom:1px solid #f1f5f9;">' +
-            '<strong>' + escapeHtml(h.role) + '</strong>: ' + escapeHtml(h.teacherName) + ' ended on ' + dateStr +
-            (h.endReason ? ' (' + escapeHtml(h.endReason) + ')' : '') +
-          '</div>';
+          return '<div class="dpriv-hist-row"><b>' + escapeHtml(h.role) + '</b>: ' + escapeHtml(h.teacherName) + ' ended on ' + dateStr +
+            (h.endReason ? ' (' + escapeHtml(h.endReason) + ')' : '') + '</div>';
         }).join('');
       }
     }
   }
 
-  // ── 3. MANAGE ADVISORS DRAWER (§7.6) ────────────────────────────────────────
+  // ── MANAGE ADVISORS DRAWER
 
   function openManageAdvisorsDrawer(deptId) {
     _rolesState.activeDeptId = deptId;
@@ -655,7 +726,7 @@
         statusBadge = '<span class="badge" style="background:rgba(239,68,68,0.12);color:#ef4444;font-weight:600;padding:2px 8px;border-radius:6px;font-size:11px;">⚠ Primary Missing</span>';
       }
 
-      // 1. Primary Advisor Row
+      // Primary Advisor Row
       var advisorInfo = hasAdvisor
         ? '<div style="font-weight:700;font-size:13px;color:var(--td);">' + escapeHtml(c.advisor.fullName) + '</div>' +
           '<div style="font-size:11px;color:var(--tmu);">' + escapeHtml(c.advisor.employeeNo || '') + ' · ' + escapeHtml(c.advisor.designation || '') + '</div>'
@@ -666,7 +737,7 @@
           '<button class="btn-xs btn-ghost text-danger" style="margin-left:4px;" onclick="removeClassAdvisor(\'' + c._id + '\')" title="Remove"><re-icon icon="x" size="13"></re-icon></button>'
         : '<button class="btn-xs btn-pri" onclick="openStaffPickerForClassAdvisor(\'' + c._id + '\', \'\', \'\')">Assign ▾</button>';
 
-      // 2. Secondary Advisor Row (Optional)
+      // Secondary Advisor Row (Optional)
       var secAdvisorInfo = hasSecAdvisor
         ? '<div style="font-weight:700;font-size:13px;color:var(--td);">' + escapeHtml(c.secondaryAdvisor.fullName) + '</div>' +
           '<div style="font-size:11px;color:var(--tmu);">' + escapeHtml(c.secondaryAdvisor.employeeNo || '') + ' · ' + escapeHtml(c.secondaryAdvisor.designation || '') + '</div>'
@@ -706,7 +777,7 @@
     }).join('');
   }
 
-  // ── 4. STAFF PICKER & CONFIRMATION DIALOG (§7.5, §7.8) ──────────────────────
+  // ── STAFF PICKER & CONFIRMATION DIALOG ──
 
   function openStaffPickerForRole(roleKey, currentTeacherId, currentTeacherName) {
     _rolesState.targetRole = roleKey;
@@ -902,7 +973,7 @@
       }
       loadExecutiveRolesOverview();
 
-      // ── LINK WITH DEPARTMENT CARDS (§EAMS INVARIANT) ──
+      // ── LINK WITH DEPARTMENT CARDS ──
       if (role === 'hod' || role === 'secondaryHod') {
         var localDepts = (typeof DB !== 'undefined' && DB.get('depts')) || [];
         var targetDept = localDepts.find(function (d) { return String(d._id) === String(scopeId); });
@@ -962,7 +1033,7 @@
       openManagePrivilegesDrawer(_rolesState.activeDeptId);
       loadExecutiveRolesOverview();
 
-      // ── LINK WITH DEPARTMENT CARDS (§EAMS INVARIANT) ──
+      // ── LINK WITH DEPARTMENT CARDS ──
       if (roleKey === 'hod' || roleKey === 'secondaryHod') {
         var localDepts = (typeof DB !== 'undefined' && DB.get('depts')) || [];
         var targetDept = localDepts.find(function (d) { return String(d._id) === String(_rolesState.activeDeptId); });
@@ -1073,7 +1144,7 @@
     });
   }
 
-  // ── 5. WARDENS MANAGEMENT (§7.7) ────────────────────────────────────────────
+  // ── WARDENS MANAGEMENT
 
   function loadWardensOverview() {
     var container = document.getElementById('roles-wardens-container');
@@ -1249,7 +1320,7 @@
     });
   }
 
-  // ── 6. INSTITUTION TAB (§7.3) ───────────────────────────────────────────────
+  // ── INSTITUTION TAB ───
 
   function loadInstitutionOverview() {
     apiCall('/api/roles/institution')
@@ -1350,7 +1421,7 @@
       });
   }
 
-  // ── 6. SUB-ADMIN ACCESS REQUESTS & DELEGATED GRANTS (§10, R7) ────────────────
+  // ── SUB-ADMIN ACCESS REQUESTS & DELEGATED GRANTS
   var _activeApproveRequestId = null;
 
   function isHodUser(deptId) {
@@ -1708,7 +1779,7 @@
       });
   }
 
-  // ── 7. DIRECT DELEGATION MODAL (§10, R7.2, R7.3) ────────────────────────────
+  // ── DIRECT DELEGATION MODAL
   function openGrantModal(targetTeacherId) {
     var isSudo = isSudoAdmin();
     var modal = document.getElementById('modal-delegate-grant');
@@ -1946,11 +2017,11 @@
   document.addEventListener('keydown', function (e) {
     if (e.key !== 'Escape') return;
 
-    // 1. If global alert/confirm popup is open, popup.js handles it
+    // If global alert/confirm popup is open, popup.js handles it
     var popupBg = document.getElementById('eams-popup-window-bg');
     if (popupBg && popupBg.classList.contains('open')) return;
 
-    // 2. If Faculty Staff Picker modal is open, dismiss it first
+    // If Faculty Staff Picker modal is open, dismiss it first
     var pickerModal = document.getElementById('modal-role-staff-picker');
     if (pickerModal && pickerModal.classList.contains('open')) {
       e.preventDefault();
@@ -1958,7 +2029,7 @@
       return;
     }
 
-    // 3. If Sub-Admin Delegate Grant modal is open, dismiss it
+    // If Sub-Admin Delegate Grant modal is open, dismiss it
     var grantModal = document.getElementById('modal-delegate-grant');
     if (grantModal && grantModal.classList.contains('open')) {
       e.preventDefault();
@@ -1966,7 +2037,7 @@
       return;
     }
 
-    // 4. If Approve with Changes modal is open, dismiss it
+    // If Approve with Changes modal is open, dismiss it
     var appModal = document.getElementById('modal-approve-with-changes');
     if (appModal && appModal.classList.contains('open')) {
       e.preventDefault();
@@ -1974,7 +2045,7 @@
       return;
     }
 
-    // 5. If Privileges window popup is open, dismiss it
+    // If Privileges window popup is open, dismiss it
     var privWindow = document.getElementById('drawer-manage-privileges');
     if (privWindow && privWindow.classList.contains('open')) {
       e.preventDefault();
@@ -1982,7 +2053,7 @@
       return;
     }
 
-    // 6. If Advisors drawer is open, dismiss it
+    // If Advisors drawer is open, dismiss it
     var advDrawer = document.getElementById('drawer-manage-advisors');
     if (advDrawer && advDrawer.classList.contains('open')) {
       e.preventDefault();

@@ -37,7 +37,7 @@ async function getTimingSetForClass(classDoc) {
     const sets = await M.TimingSet.find({}).lean();
     return sets.find(ts => ts.isDefault) || sets[0] || null;
   }
-  // 1. Check if class has an active template with timingSetId
+  // Check if class has an active template with timingSetId
   if (classDoc._id) {
     const template = await M.SemesterTemplate.findOne({
       classId: classDoc._id,
@@ -49,7 +49,7 @@ async function getTimingSetForClass(classDoc) {
     }
   }
 
-  // 2. Check by applicableYears matching classDoc.year
+  // Check by applicableYears matching classDoc.year
   const sets = await M.TimingSet.find({}).lean();
   if (!sets || !sets.length) return null;
   if (classDoc && classDoc.year) {
@@ -160,22 +160,22 @@ function slotMatchesRoom(g, roomId, hallNo, linkedClass, slotClassId = null) {
   const tHall = String(hallNo || '').trim();
   const effectiveClassId = slotClassId || (g.classId ? String(g.classId?._id || g.classId) : null);
 
-  // 1. Exact roomId match
+  // Exact roomId match
   if (sRoomId && tRoomId && sRoomId === tRoomId) return true;
 
-  // 2. Exact or case-insensitive hallNo match (e.g. 'LH-39' === 'lh-39')
+  // Exact or case-insensitive hallNo match (e.g. 'LH-39' === 'lh-39')
   if (sRoom && tHall && sRoom.toLowerCase() === tHall.toLowerCase()) return true;
 
-  // 3. Normalized alphanumeric match (e.g. 'LH 39' vs 'LH-39')
+  // Normalized alphanumeric match (e.g. 'LH 39' vs 'LH-39')
   const clean = str => String(str || '').replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
   if (sRoom && tHall && clean(sRoom) === clean(tHall)) return true;
 
-  // 4. Lab room shorthand (e.g. room '2' or 'LAB 2' for hallNo 'LAB 2')
+  // Lab room shorthand (e.g. room '2' or 'LAB 2' for hallNo 'LAB 2')
   if (sRoom && tHall) {
     if (clean(tHall) === 'lab' + clean(sRoom) || clean(sRoom) === 'lab' + clean(tHall)) return true;
   }
 
-  // 5. If this room has a linked class designated to it:
+  // If this room has a linked class designated to it:
   if (linkedClass) {
     const isLinkedClassSlot = (effectiveClassId && String(effectiveClassId) === String(linkedClass._id)) ||
                               (g.section && clean(g.section) === clean(linkedClass.section)) ||
@@ -473,7 +473,7 @@ async function resolveRoomDaySchedule(roomId, dateStr = null) {
   const classTimingSet = linkedClass ? await getTimingSetForClass(linkedClass) : null;
   const applicableTimingSet = classTimingSet || defaultTimingSet;
 
-  // 1. Check WeekInstance first (published week snapshot)
+  // Check WeekInstance first (published week snapshot)
   const weekInstance = await M.WeekInstance.findOne({
     weekStartDate: {
       $gte: new Date(dateObj.getTime() - 6 * 24 * 60 * 60 * 1000), // within the week
@@ -487,7 +487,7 @@ async function resolveRoomDaySchedule(roomId, dateStr = null) {
     weekTemplate = await M.SemesterTemplate.findById(weekInstance.semesterTemplateId).populate('classId').lean();
   }
 
-  // 2. SectionTimetable for linked class (production timetable Head)
+  // SectionTimetable for linked class (production timetable Head)
   let secTt = null;
   if (linkedClass && M.SectionTimetable && typeof M.SectionTimetable.findOne === 'function') {
     try {
@@ -497,7 +497,7 @@ async function resolveRoomDaySchedule(roomId, dateStr = null) {
     }
   }
 
-  // 3. Published SemesterTemplates mirror (for this room or linked class)
+  // Published SemesterTemplates mirror (for this room or linked class)
   const templateQuery = {
     status: 'published',
     $or: [
@@ -547,7 +547,7 @@ async function resolveRoomDaySchedule(roomId, dateStr = null) {
     let classDoc = linkedClass;
     let timingSet = applicableTimingSet;
 
-    // 1. First try WeekInstance
+    // First try WeekInstance
     if (weekInstance) {
       const modifiedSlot = weekInstance.modifiedSlots?.find(g =>
         g.day === dayNameFromDate && slotCoversPeriod(g, periodNum) && slotMatchesRoom(g, roomId, hallNo, linkedClass)
@@ -596,7 +596,7 @@ async function resolveRoomDaySchedule(roomId, dateStr = null) {
       }
     }
 
-    // 2. Try SectionTimetable Head (production timetable for linked class)
+    // Try SectionTimetable Head (production timetable for linked class)
     if (!baseSlot && secTt?.slots) {
       const secSlots = Object.values(secTt.slots).filter(s => s && s.day === dayNameFromDate);
       const slot = secSlots.find(s => slotCoversPeriod(s, periodNum) && slotMatchesRoom(s, roomId, hallNo, linkedClass, secTt.classId));
@@ -621,7 +621,7 @@ async function resolveRoomDaySchedule(roomId, dateStr = null) {
       }
     }
 
-    // 3. Fallback to published SemesterTemplates mirror
+    // Fallback to published SemesterTemplates mirror
     if (!baseSlot) {
       for (const template of templates) {
         const tClassId = template.classId?._id || template.classId;
@@ -651,7 +651,7 @@ async function resolveRoomDaySchedule(roomId, dateStr = null) {
       }
     }
 
-    // 4. Try incoming overrides (room_change TO this room)
+    // Try incoming overrides (room_change TO this room)
     if (!baseSlot) {
       const incomingOverride = overrides.find(ov =>
         ov.type === 'room_change' &&
@@ -887,10 +887,10 @@ async function resolveRoomCurrentContext(roomId, customTime = null) {
 /**
  * Resolves authoritative daily timetable schedule for a given class and date.
  * Priority:
- * 1. DayInstance (resolved authoritative per-date daily schedule)
- * 2. Published SemesterTemplate (with fallback to approved or draft)
- * 3. SectionTimetable (production section timetable slots)
- * 4. Timetable (core timetable slots)
+ * DayInstance (resolved authoritative per-date daily schedule)
+ * Published SemesterTemplate (with fallback to approved or draft)
+ * SectionTimetable (production section timetable slots)
+ * Timetable (core timetable slots)
  * Applies Overrides (cancellations, substitute teachers, room changes).
  */
 async function resolveClassDaySchedule(classId, dateStr = null, dateBounds = null, classDoc = null) {
@@ -922,7 +922,7 @@ async function resolveClassDaySchedule(classId, dateStr = null, dateBounds = nul
   if (cls && cls._id) {
     const cId = cls._id;
 
-    // 1. DayInstance
+    // DayInstance
     const dayDoc = await M.DayInstance.findOne({ classId: cId, date: targetDateStr }).lean();
     if (dayDoc && Array.isArray(dayDoc.slots) && dayDoc.slots.length > 0) {
       dayDoc.slots.forEach(s => {
@@ -957,7 +957,7 @@ async function resolveClassDaySchedule(classId, dateStr = null, dateBounds = nul
       });
     }
 
-    // 2. Published SemesterTemplate
+    // Published SemesterTemplate
     if (resolvedSlots.size === 0) {
       let template = await M.SemesterTemplate.findOne({
         classId: cId,
@@ -1008,7 +1008,7 @@ async function resolveClassDaySchedule(classId, dateStr = null, dateBounds = nul
       }
     }
 
-    // 3. SectionTimetable
+    // SectionTimetable
     if (resolvedSlots.size === 0) {
       const secDoc = await M.SectionTimetable.findOne({ classId: cId }).lean();
       if (secDoc && secDoc.slots && typeof secDoc.slots === 'object') {
@@ -1050,7 +1050,7 @@ async function resolveClassDaySchedule(classId, dateStr = null, dateBounds = nul
       }
     }
 
-    // 4. Timetable (core model)
+    // Timetable (core model)
     if (resolvedSlots.size === 0) {
       const rawTimetables = await M.Timetable.find({
         classId: cId,
@@ -1080,7 +1080,7 @@ async function resolveClassDaySchedule(classId, dateStr = null, dateBounds = nul
       }
     }
 
-    // 5. Overrides for this date
+    // Overrides for this date
     const bounds = dateBounds || await getUtcDayBounds(targetDateStr);
     const overrides = await M.Override.find({
       classId: cId,
@@ -1162,9 +1162,9 @@ async function resolveClassDaySchedule(classId, dateStr = null, dateBounds = nul
 /**
  * Resolves the HoD Teacher document for a given department ID.
  * Follows the 3-step resolution:
- * 1. Direct Teacher ID on dept.hodId
- * 2. Shadow User ID on dept.hodId -> match Teacher by username or trackId
- * 3. Fallback via deptId & isHod or department name & isHod
+ * Direct Teacher ID on dept.hodId
+ * Shadow User ID on dept.hodId -> match Teacher by username or trackId
+ * Fallback via deptId & isHod or department name & isHod
  */
 async function resolveHodTeacher(deptId) {
   if (!deptId) return null;
@@ -1172,11 +1172,11 @@ async function resolveHodTeacher(deptId) {
   if (!dept) return null;
 
   if (dept.hodId) {
-    // 1. Direct Teacher lookup
+    // Direct Teacher lookup
     const teacher = await M.Teacher.findById(dept.hodId).lean();
     if (teacher) return teacher;
 
-    // 2. Shadow User lookup
+    // Shadow User lookup
     const user = await M.User.findById(dept.hodId).lean();
     if (user) {
       const orClauses = [];
@@ -1189,7 +1189,7 @@ async function resolveHodTeacher(deptId) {
     }
   }
 
-  // 3. Fallback via deptId & isHod or department name & isHod
+  // Fallback via deptId & isHod or department name & isHod
   const fallbackQuery = {
     $or: [
       { deptId: dept._id, isHod: true },

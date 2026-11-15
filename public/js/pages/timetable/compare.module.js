@@ -1,12 +1,11 @@
 /**
  * public/js/pages/timetable/compare.module.js
- *
- * Compare & Delta Mode Module (Timetable v3 - Phase 3):
+ * Compare & Delta Mode Module (Timetable v3 - ):
  * - Comprehensive comparison: Per-Class diff, Teacher Workload deltas, Room Occupancy deltas, Free Slots deltas
  * - Split View & Overlay View for side-by-side comparison
  * - Visual diff indicators: Added (green), Modified (amber with before->after), Removed (red)
  * - "vs Production" Delta Mode for Workload, Free Slots, and Room Allocations
- * - Fully XSS-safe (esc()) and DB-only state compliant (no localStorage)
+ * - Fully XSS-safe (esc) and DB-only state compliant (no localStorage)
  */
 
 (function() {

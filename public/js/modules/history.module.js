@@ -3,7 +3,7 @@
  * EAMS Timetable v3 — Universal History View (Development Versions & Production Commits)
  * Follows the Single Lens:
  * - Development Lens: 15-Minute IST Time Bucket Versions, Author Badges, Stats & Time-Travel Restore.
- * - Production Lens: Immutable Commits (TR-TT-xxxx), Author Badges, Timestamps & Diff Inspector.
+ * - Production Lens: Immutable Commits, Author Badges, Timestamps & Diff Inspector.
  */
 
 (function (window) {

@@ -11,7 +11,7 @@
 (function () {
   'use strict';
 
-  // ── Global State & Credentials (§3.2, Fix F15) ──
+  // ── Global State & Credentials ──
   const params = new URLSearchParams(window.location.search);
   const queryDevice = params.get('device') || params.get('deviceId');
   const queryKey = params.get('key') || params.get('apiKey');

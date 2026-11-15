@@ -1,8 +1,7 @@
 const mongoose = require('mongoose');
 
 /**
- * DeviceReplacementRequest Schema (§14, §16, T5.3, T7.4)
- *
+ * DeviceReplacementRequest Schema
  * Tracks student requests for device replacement (lost, repaired, reset, new phone)
  * and advisor outside-window requests routed to Department Super Admin.
  */

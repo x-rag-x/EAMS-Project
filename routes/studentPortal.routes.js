@@ -178,7 +178,7 @@ router.get('/me', authMiddleware, checkMaintenance, async (req, res) => {
     const totalClasses = subjects.reduce((n, s) => n + s.total, 0);
     const rawOverall = totalClasses > 0 ? Math.round((totalPresent / totalClasses) * 100) : 0;
 
-    // ── Attendance adjustments (§12, §13, T-D6)
+    // ── Attendance adjustments
     const adjustments = await M.AttendanceAdjustment.find({
       $or: [
         { studentId: student._id },
@@ -222,7 +222,7 @@ router.get('/me', authMiddleware, checkMaintenance, async (req, res) => {
   }
 });
 
-// ── Consolidated Student Pulse (§6, B1) ─────────────────────────────────
+// ── Consolidated Student Pulse ─
 router.get('/pulse', authMiddleware, checkMaintenance, async (req, res) => {
   try {
     if (req.user.role !== 'student') return res.status(403).json({ error: 'Students only' });
@@ -252,7 +252,7 @@ router.get('/pulse', authMiddleware, checkMaintenance, async (req, res) => {
     const studentClassId = student.classId || student.class;
     const studentIdentifiers = [student.trackId, student.registerNo, String(student._id)].filter(Boolean);
 
-    // 1. Live session
+    // Live session
     let liveSessionData = { active: false };
     if (studentClassId) {
       const liveSession = await M.LiveSession.findOne({
@@ -275,7 +275,7 @@ router.get('/pulse', authMiddleware, checkMaintenance, async (req, res) => {
       }
     }
 
-    // 2. Quick Pass session
+    // Quick Pass session
     let quickPassData = { active: false };
     if (studentClassId) {
       const qpSession = await M.QuickPassSession.findOne({
@@ -311,7 +311,7 @@ router.get('/pulse', authMiddleware, checkMaintenance, async (req, res) => {
       }
     }
 
-    // 3. Rep Share (only check if student is flagged as rep)
+    // Rep Share (only check if student is flagged as rep)
     let repShareData = { hasPending: false };
     if (student.isRep) {
       const repSession = await M.RepShareSession.findOne({
@@ -334,7 +334,7 @@ router.get('/pulse', authMiddleware, checkMaintenance, async (req, res) => {
       }
     }
 
-    // 4. Unread notifications count
+    // Unread notifications count
     const unreadCount = await M.Notification.countDocuments({
       $or: [
         { toStudentTrackId: student.trackId },
@@ -360,7 +360,7 @@ router.get('/pulse', authMiddleware, checkMaintenance, async (req, res) => {
 });
 
 
-// ── 5. TIMETABLE & SELF-PERIOD ABSENCE ──────────────────────────────
+// ── TIMETABLE & SELF-PERIOD ABSENCE ──
 
 // GET /api/student/timetable — Latest production timetable for student's class
 router.get('/timetable', authMiddleware, checkMaintenance, async (req, res) => {

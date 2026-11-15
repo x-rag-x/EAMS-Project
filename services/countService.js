@@ -147,7 +147,7 @@ function formatCountPayload(raw, lastRecalculatedAt) {
 }
 
 /**
- * 1. getCounts()
+ * getCounts
  * Retrieves aggregated counts. Checks in-memory cache first (30s TTL).
  * Falls back to MongoDB singleton { key: 'global' }.
  * Automatically self-seeds via recountAll('system_init') if document does not exist.
@@ -184,7 +184,7 @@ async function getCounts() {
 }
 
 /**
- * 2. modifyCount(entity, delta)
+ * modifyCount(entity, delta)
  * Atomically increments or decrements an entity count.
  * Enforces non-negative floor (Math.max(0, val)) without replica set transactions.
  * Normalizes entity aliases ('depts' -> 'departments', 'attendance' -> 'attendanceRecords').
@@ -286,7 +286,7 @@ async function modifyCount(entity, delta = 1) {
 }
 
 /**
- * 3. setCount(entity, val)
+ * setCount(entity, val)
  * Directly sets an entity count to a specific non-negative value.
  * Used for collection clears (e.g. DELETE /api/attendance/all -> setCount('attendanceRecords', 0)).
  * Updates in-memory cache immediately.
@@ -378,8 +378,8 @@ function buildDiscrepancyMap(details) {
 }
 
 /**
- * 4. recountAll(triggeredBy, options)
- * Executes full countDocuments() reconciliation across the tracked collections.
+ * recountAll(triggeredBy, options)
+ * Executes full countDocuments reconciliation across the tracked collections.
  * Protected by an in-memory concurrency mutex (throws 409 if active).
  * Computes before/after discrepancies for audit logging.
  * Supports { dryRun: true } to preview discrepancies without writing.
@@ -598,8 +598,8 @@ async function recountAll(triggeredBy = 'system', options = {}) {
 }
 
 /**
- * 5. invalidateCountCache()
- * Clears the in-memory cache, forcing the next getCounts() to query MongoDB.
+ * invalidateCountCache
+ * Clears the in-memory cache, forcing the next getCounts to query MongoDB.
  */
 function invalidateCountCache() {
   countCache = null;
@@ -607,7 +607,7 @@ function invalidateCountCache() {
 }
 
 /**
- * 6. isRecounting()
+ * isRecounting
  * Checks if a recount is currently executing (mutex state).
  */
 function isRecounting() {

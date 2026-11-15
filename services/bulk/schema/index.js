@@ -35,7 +35,7 @@ function getSchema(type) {
 }
 
 /**
- * Resolves a sheet column header to a known schema column using EXACT match on normalized strings (A6).
+ * Resolves a sheet column header to a known schema column using EXACT match on normalized strings.
  * No substring/includes matching is used.
  */
 function findColumn(type, headerText) {

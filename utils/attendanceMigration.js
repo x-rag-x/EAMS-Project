@@ -1,6 +1,5 @@
 /**
  * utils/attendanceMigration.js
- *
  * Merges existing duplicate ClassAttendance documents having the same classId and date,
  * normalizes session dates to UTC midnight, drops legacy non-unique index { classId: 1, date: 1 },
  * and ensures the unique index { classId: 1, date: 1 } is applied on the collection.
@@ -12,7 +11,7 @@ async function mergeDuplicateClassAttendance() {
   try {
     if (!M.ClassAttendance || !M.ClassAttendance.collection) return;
 
-    // 1. Fetch all ClassAttendance documents sorted by createdAt asc
+    // Fetch all ClassAttendance documents sorted by createdAt asc
     const allDocs = await M.ClassAttendance.find().sort({ createdAt: 1, _id: 1 }).lean();
     if (!allDocs || allDocs.length === 0) {
       await ensureUniqueIndex();
@@ -102,7 +101,7 @@ async function mergeDuplicateClassAttendance() {
       console.log(`[Attendance Migration]: Successfully merged ${mergedCount} duplicate groups (deleted ${deletedCount} duplicate docs).`);
     }
 
-    // 2. Ensure unique index on { classId: 1, date: 1 }
+    // Ensure unique index on { classId: 1, date: 1 }
     await ensureUniqueIndex();
   } catch (err) {
     console.error('[Attendance Migration Error]:', err.message);

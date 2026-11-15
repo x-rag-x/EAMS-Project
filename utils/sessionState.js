@@ -1,7 +1,6 @@
 /**
  * Pure function to derive tile state for a class session.
  * Computes state, badge, label, and punctuality flags.
- *
  * @param {Object} session - ClassSession document or object
  * @param {string|Date} nowInput - Current time (HH:MM or Date)
  * @param {Object} [settings] - Controller settings
@@ -49,7 +48,7 @@ function deriveSessionState(session, nowInput = new Date(), settings = {}) {
     if (!flags.includes('location_denied')) flags.push('location_denied');
   }
 
-  // 1. Status Overrides (Cancelled / Holiday / Exam)
+  // Status Overrides (Cancelled / Holiday / Exam)
   if (session.status === 'cancelled') {
     return {
       state: 'cancelled',
@@ -90,7 +89,7 @@ function deriveSessionState(session, nowInput = new Date(), settings = {}) {
     };
   }
 
-  // 2. Non-teaching slot (Library, Sports, Placement Training, Seminar)
+  // Non-teaching slot (Library, Sports, Placement Training, Seminar)
   if (['library', 'sports', 'training', 'seminar'].includes(session.slotType)) {
     const title = session.slotType.charAt(0).toUpperCase() + session.slotType.slice(1);
     return {
@@ -106,7 +105,7 @@ function deriveSessionState(session, nowInput = new Date(), settings = {}) {
     };
   }
 
-  // 3. Marked states
+  // Marked states
   if (session.attendance?.savedAt) {
     let isLate = session.attendance.onTime === false;
     let minutesAfter = session.attendance.minutesAfterStart;
@@ -157,7 +156,7 @@ function deriveSessionState(session, nowInput = new Date(), settings = {}) {
     };
   }
 
-  // 4. Leave & Substitution States
+  // Leave & Substitution States
   if (session.leavePendingPrincipal) {
     return {
       state: 'leave_pending_principal',
@@ -230,7 +229,7 @@ function deriveSessionState(session, nowInput = new Date(), settings = {}) {
     };
   }
 
-  // 5. Time-based Session Progress
+  // Time-based Session Progress
   if (nowMinutes < startMinutes) {
     const minutesUntilStart = startMinutes - nowMinutes;
     if (minutesUntilStart <= 10) {

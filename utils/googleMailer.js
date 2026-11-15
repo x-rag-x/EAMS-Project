@@ -1,6 +1,5 @@
 /**
  * utils/googleMailer.js
- *
  * Dispatches high UI/UX institutional notifications via Google Mail API (OAuth2)
  * with graceful fallback to Nodemailer or simulated dispatch.
  */

@@ -12,7 +12,6 @@ const isValidObjId = (id) => typeof id === 'string' && mongoose.Types.ObjectId.i
  * Admins and Sub-admins bypass this verification.
  * If no assignments exist in the entire system, gracefully allows marking to prevent onboarding lockouts.
  * Also permits substitute teachers if an active Override exists for that date, period, and class.
- * 
  * @param {Object} user - The authenticated user object (from req.user)
  * @param {string|Object} classIdInput - Class ID, trackId, or Class document
  * @param {string|Object} subjectIdInput - Subject ID, trackId, code, or Subject document
@@ -398,7 +397,6 @@ async function verifyTeacherAssignment(user, classIdInput, subjectIdInput, conte
 
 /**
  * Verifies whether the authenticated user is the owner of an attendance session or an admin.
- *
  * @param {Object} session - LiveSession, QuickPassSession, ScanLiveSession, or RepShareSession doc
  * @param {Object} user - req.user object
  * @returns {boolean}

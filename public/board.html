@@ -14,7 +14,7 @@
 </head>
 <body>
 
-  <!-- AUTO FULLSCREEN PROMPT OVERLAY -->
+  
   <div class="fs-launch-overlay" id="fsLaunchOverlay" onclick="enterKioskFullscreen()">
     <div class="fs-launch-card">
       <div class="fs-launch-icon">🌿</div>
@@ -24,7 +24,7 @@
     </div>
   </div>
 
-  <!-- UNLINKED SMART BOARD PAIRING SCREEN -->
+  
   <div class="pairing-code-overlay" id="pairingCodeOverlay" style="display:none;">
     <div class="pairing-code-card">
       <div class="pairing-icon"><re-icon icon="tv"></re-icon></div>
@@ -52,10 +52,10 @@
     </div>
   </div>
 
-  <!-- KIOSK APPLICATION SHELL (SINGLE VIEWPORT 100VW x 100VH) -->
+  
   <main class="kiosk-shell" id="kioskShell">
 
-    <!-- TOPBAR -->
+    
     <header class="kiosk-topbar">
       <div class="topbar-left">
         <div class="brand-pill">
@@ -74,7 +74,7 @@
           </div>
         </div>
 
-        <!-- LINKED CLASS BADGE -->
+        
         <div class="class-badge" id="classBadge" style="display:none;">
           <span class="class-badge-icon"><re-icon icon="users"></re-icon></span>
           <div>
@@ -85,17 +85,17 @@
       </div>
 
       <div class="topbar-right">
-        <!-- Live Clock -->
+        
         <div class="kiosk-clock-box">
           <div class="clock-time" id="clockTime">--:--:--</div>
           <div class="clock-ampm" id="clockAmPm">--</div>
           <div class="clock-date" id="clockDate">Fetching Day &amp; Date…</div>
         </div>
 
-        <!-- Fullscreen Toggle Button -->
+        
         <button class="fs-toggle-btn" id="fsToggleBtn" onclick="toggleKioskFullscreen()" title="Toggle Fullscreen Mode"><re-icon icon="fullscreen" size="14"></re-icon> Fullscreen</button>
 
-        <!-- Network / WS Status Pill -->
+        
         <div class="net-pill" id="netPill" title="Press Ctrl+D for Diagnostics">
           <div class="net-dot" id="netDot"></div>
           <span id="netStatusText">Connecting…</span>
@@ -103,12 +103,12 @@
       </div>
     </header>
 
-    <!-- MAIN VIEW GRID -->
+    
     <section class="kiosk-main">
 
-      <!-- LEFT: CURRENT CLASS HERO CARD -->
+      
       <article class="hero-card" id="heroCard">
-        <!-- Slot Meta Row -->
+        
         <div class="hero-meta-row">
           <div class="period-tag">
             <span class="period-badge" id="periodBadge">Active Period</span>
@@ -117,14 +117,14 @@
           <div class="class-tag" id="classTag">Section --</div>
         </div>
 
-        <!-- Subject Headline -->
+        
         <div class="subject-box">
           <div class="subject-kicker" id="subjectKicker">Academic Timetable Slot</div>
           <h1 class="subject-title" id="subjectTitle">Synchronizing Timetable…</h1>
           <div class="subject-type-pill" id="subjectType">Course Details</div>
         </div>
 
-        <!-- Class Day Schedule Timeline Strip -->
+        
         <div class="schedule-timeline-wrap" id="scheduleTimelineWrap" style="display:none;">
           <div class="schedule-timeline-header">
             <span class="timeline-title"><re-icon icon="calendar"></re-icon> Class Day Schedule</span>
@@ -133,7 +133,7 @@
           <div class="schedule-timeline" id="scheduleTimeline"></div>
         </div>
 
-        <!-- Faculty Details Row -->
+        
         <div class="faculty-row" id="facultyRow">
           <div class="faculty-profile">
             <div class="faculty-avatar" id="facultyAvatar">--</div>
@@ -149,10 +149,10 @@
         </div>
       </article>
 
-      <!-- RIGHT: ATTENDANCE & UPCOMING SLOTS -->
+      
       <aside class="kiosk-side">
 
-        <!-- Attendance Readiness Card -->
+        
         <div class="attendance-card" id="attendanceCard">
           <div>
             <div class="card-header-label">Class Attendance Subsystem</div>
@@ -172,7 +172,7 @@
           </div>
         </div>
 
-        <!-- Upcoming Period Preview -->
+        
         <div class="upcoming-card" id="upcomingCard">
           <div class="card-header-label">Next Timetable Slot</div>
           <div class="upcoming-row">
@@ -190,7 +190,7 @@
 
   </main>
 
-  <!-- REMOTE IDENTIFY BANNER (TRIGGERED BY ADMIN DASHBOARD) -->
+  
   <div class="identify-overlay" id="identifyOverlay">
     <div class="identify-card">
       <div class="identify-icon"><re-icon icon="bell"></re-icon></div>
@@ -201,7 +201,7 @@
     </div>
   </div>
 
-  <!-- ON-SCREEN DIAGNOSTICS MODAL (CTRL+D) -->
+  
   <div class="modal-bg" id="diagModal">
     <div class="modal modal-lg kiosk-modal">
       <div class="modal-hd">
@@ -251,7 +251,7 @@
     </div>
   </div>
 
-  <!-- SMART BOARD HARDWARE SETUP & PAIRING MODAL -->
+  
   <div class="modal-bg" id="setupModal">
     <div class="modal modal-sm kiosk-modal">
       <div class="modal-hd">
@@ -285,11 +285,11 @@
     </div>
   </div>
 
-  <!-- MODAL & POPUP DIALOG ENGINE -->
+  
   <script src="js/core/modal.js"></script>
   <script src="js/core/popup.js"></script>
 
-  <!-- PAGE ENGINE -->
+  
   <script src="js/pages/board.page.js"></script>
 </body>
 </html>

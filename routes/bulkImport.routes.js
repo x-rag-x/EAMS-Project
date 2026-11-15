@@ -466,7 +466,7 @@ async function scanAndValidateWorkbook(type, buffer, req) {
   };
 }
 
-// ── 1. STAGE BULK FILE (WITH IMMEDIATE GOOGLE DRIVE UPLOAD & ROADMAP) ─────────
+// ── STAGE BULK FILE (WITH IMMEDIATE GOOGLE DRIVE UPLOAD & ROADMAP) ─
 router.post('/stage', authMiddleware, requirePage('bulk', 'create'), upload.single('file'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
@@ -479,8 +479,8 @@ router.post('/stage', authMiddleware, requirePage('bulk', 'create'), upload.sing
     const batchTrackId = generateBatchTrackId();
     const fileName = req.file.originalname || `upload_${type}.xlsx`;
 
-    // 1. Immediately create a new folder in Google Drive under bulk.html Uploads/ folder named (TR-BATCH-...)
-    // 2. Under that folder, upload the uploaded sheet
+    // Immediately create a new folder in Google Drive under bulk.html Uploads/ folder named
+    // Under that folder, upload the uploaded sheet
     let driveMeta = {
       folderId: '',
       folderName: batchTrackId,
@@ -524,7 +524,7 @@ router.post('/stage', authMiddleware, requirePage('bulk', 'create'), upload.sing
       driveMeta.error = gErr.message;
     }
 
-    // 3. Scan and validate the workbook
+    // Scan and validate the workbook
     const scanResult = await scanAndValidateWorkbook(type, req.file.buffer, req);
 
     const batchDoc = await M.BulkImportBatch.create({
@@ -620,7 +620,7 @@ router.post('/stage', authMiddleware, requirePage('bulk', 'create'), upload.sing
   }
 });
 
-// ── 1B. RESCAN BATCH AGAINST LIVE DATABASE ────────────────────────────────────
+// ── RESCAN BATCH AGAINST LIVE DATABASE
 router.post('/batches/:id/rescan', authMiddleware, requirePage('bulk', 'create'), async (req, res) => {
   try {
     const batch = await M.BulkImportBatch.findById(req.params.id);
@@ -768,7 +768,7 @@ router.post('/batches/:id/rescan', authMiddleware, requirePage('bulk', 'create')
   }
 });
 
-// ── 2. GET ACTIVE PENDING BATCH FOR RECOVERY ─────────────────────────────────
+// ── GET ACTIVE PENDING BATCH FOR RECOVERY ─
 router.get('/batches/active', authMiddleware, async (req, res) => {
   try {
     const isSudo = isSudoAdmin(req.user) || ['sudo', 'admin'].includes(req.user.role);
@@ -788,7 +788,7 @@ router.get('/batches/active', authMiddleware, async (req, res) => {
   }
 });
 
-// ── 3. GET SPECIFIC BATCH ────────────────────────────────────────────────────
+// ── GET SPECIFIC BATCH
 router.get('/batches/:id', authMiddleware, async (req, res) => {
   try {
     const batch = await M.BulkImportBatch.findById(req.params.id).lean();
@@ -800,7 +800,7 @@ router.get('/batches/:id', authMiddleware, async (req, res) => {
   }
 });
 
-// ── 4. RESOLVE SKIPPED ROWS WITH DONE ────────────────────────────────────────
+// ── RESOLVE SKIPPED ROWS WITH DONE
 router.post('/batches/:id/resolve-skipped', authMiddleware, async (req, res) => {
   try {
     const batch = await M.BulkImportBatch.findById(req.params.id);
@@ -838,7 +838,7 @@ router.post('/batches/:id/resolve-skipped', authMiddleware, async (req, res) => 
   }
 });
 
-// ── 5. FORWARD TO SUDO ADMIN ──────────────────────────────────────────────────
+// ── FORWARD TO SUDO ADMIN ──
 router.post('/batches/:id/forward-sudo', authMiddleware, async (req, res) => {
   try {
     const batch = await M.BulkImportBatch.findById(req.params.id);
@@ -878,7 +878,7 @@ router.post('/batches/:id/forward-sudo', authMiddleware, async (req, res) => {
   }
 });
 
-// ── 6. SUDO ADMIN INITIAL APPROVAL ───────────────────────────────────────────
+// ── SUDO ADMIN INITIAL APPROVAL ───
 router.post('/batches/:id/approve-initial', authMiddleware, async (req, res) => {
   try {
     const isCallerSudo = isSudoAdmin(req.user) || req.user.role === 'sudo' || (req.user.role === 'admin' && req.user.adminFlag !== 'subadmin');
@@ -910,7 +910,7 @@ router.post('/batches/:id/approve-initial', authMiddleware, async (req, res) => 
   }
 });
 
-// ── 7. VERIFY INDIVIDUAL ENTRY (WITH 500/24h LIMIT & EMAIL) ──────────────────
+// ── VERIFY INDIVIDUAL ENTRY (WITH 500/24h LIMIT & EMAIL) ──
 router.post('/batches/:id/verify-entry', authMiddleware, async (req, res) => {
   try {
     const batch = await M.BulkImportBatch.findById(req.params.id);
@@ -1019,7 +1019,7 @@ router.post('/batches/:id/verify-entry', authMiddleware, async (req, res) => {
   }
 });
 
-// ── 7b. VERIFY ALL REMAINING ENTRIES (WITH 500/24h LIMIT & EMAIL DISPATCH) ────
+// ── VERIFY ALL REMAINING ENTRIES (WITH 500/24h LIMIT & EMAIL DISPATCH)
 router.post('/batches/:id/verify-all', authMiddleware, async (req, res) => {
   try {
     const batch = await M.BulkImportBatch.findById(req.params.id);
@@ -1136,7 +1136,7 @@ router.post('/batches/:id/verify-all', authMiddleware, async (req, res) => {
   }
 });
 
-// ── 7c. DEV BYPASS: VERIFY ALL WITHOUT CONFIRMING / NO EMAILS / NO RATE LIMIT ──
+// ── DEV BYPASS: VERIFY ALL WITHOUT CONFIRMING / NO EMAILS / NO RATE LIMIT ──
 router.post('/batches/:id/dev-bypass-verify', authMiddleware, async (req, res) => {
   try {
     const isDev = process.env.NODE_ENV === 'development' || cfg.NODE_ENV === 'development';
@@ -1197,7 +1197,7 @@ router.post('/batches/:id/dev-bypass-verify', authMiddleware, async (req, res) =
   }
 });
 
-// ── 8. SUBMIT FOR FINAL APPROVAL ──────────────────────────────────────────────
+// ── SUBMIT FOR FINAL APPROVAL ──
 router.post('/batches/:id/submit-final', authMiddleware, async (req, res) => {
   try {
     const batch = await M.BulkImportBatch.findById(req.params.id);
@@ -1225,7 +1225,7 @@ router.post('/batches/:id/submit-final', authMiddleware, async (req, res) => {
   }
 });
 
-// ── 9. FINAL APPROVAL, COMMIT TO DB, & GOOGLE DRIVE ZIP BACKUP ───────────────
+// ── FINAL APPROVAL, COMMIT TO DB, & GOOGLE DRIVE ZIP BACKUP ───
 router.post('/batches/:id/approve-final', authMiddleware, async (req, res) => {
   try {
     const isCallerSudo = isSudoAdmin(req.user) || req.user.role === 'sudo' || (req.user.role === 'admin' && req.user.adminFlag !== 'subadmin');
@@ -1244,7 +1244,7 @@ router.post('/batches/:id/approve-final', authMiddleware, async (req, res) => {
     const commitErrors = [];
     const allDepts = await M.Department.find({}).lean();
 
-    // 1. Commit to live MongoDB collections
+    // Commit to live MongoDB collections
     for (const entry of batch.eligibleRows) {
       if (!entry.isVerified && ['student', 'teacher'].includes(batch.type)) {
         continue; // Unverified items not committed
@@ -1382,7 +1382,7 @@ router.post('/batches/:id/approve-final', authMiddleware, async (req, res) => {
       notes: req.body.notes || 'Final approval and commit executed'
     };
 
-    // 2. Compile Complete ZIP Archive using JSZip
+    // Compile Complete ZIP Archive using JSZip
     const zip = new JSZip();
 
     // A. Original uploaded spreadsheet file
@@ -1456,7 +1456,7 @@ router.post('/batches/:id/approve-final', authMiddleware, async (req, res) => {
 
     const zipBuffer = await zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' });
 
-    // 3. Upload ZIP directly to Google Drive
+    // Upload ZIP directly to Google Drive
     const backupResult = await uploadBulkBackupZip({
       buffer: zipBuffer,
       zipFileName: `BULK_ARCHIVE_${batch.type.toUpperCase()}_${batch.batchTrackId}.zip`,
@@ -1484,7 +1484,7 @@ router.post('/batches/:id/approve-final', authMiddleware, async (req, res) => {
 
     await batch.save();
 
-    // 4. Log Action
+    // Log Action
     await logAction(
       req.user.trackId || req.user._id,
       req.user.name,

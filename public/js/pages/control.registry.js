@@ -1,6 +1,5 @@
 /**
  * public/js/pages/control.registry.js
- *
  * Attendance Registry Page Controller (AttReg Part 2)
  * Classic spreadsheet-style register with modern features:
  * - 2-level header: Merged date band over period numbers (1..periodsPerDay)
@@ -483,7 +482,7 @@
 
     html += '</tbody></table></div>';
 
-    // Legend Strip (§4.3)
+    // Legend Strip
     html += '<div style="display:flex;align-items:center;gap:18px;margin-top:12px;font-size:11.5px;color:var(--tmu);flex-wrap:wrap;">';
     html += '<span style="font-weight:700;color:var(--td);">Legend:</span>';
     html += '<span><strong style="color:#16a34a;">P</strong> Present</span>';

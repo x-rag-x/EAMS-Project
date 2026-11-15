@@ -9,7 +9,7 @@ const { sanitizeFullName, splitFirstLastName } = require('../../utils/nameFormat
 const { todayIST } = require('../../utils/institutionTime');
 
 /**
- * Robust cell value extraction handling strings, numbers, dates, richText, formulas, and hyperlinks (A7)
+ * Robust cell value extraction handling strings, numbers, dates, richText, formulas, and hyperlinks
  */
 function cellToText(cell) {
   if (cell === null || cell === undefined) return '';
@@ -31,7 +31,7 @@ function cellToText(cell) {
 }
 
 /**
- * Executes chunked $in queries to prevent N+1 query performance degradation (A9)
+ * Executes chunked $in queries to prevent N+1 query performance degradation
  */
 async function chunkedInLookup(model, field, values) {
   const uniqueVals = Array.from(new Set(values.filter(Boolean)));
@@ -57,7 +57,7 @@ async function chunkedInLookup(model, field, values) {
 async function scanAndValidateWorkbook(type, buffer, req, { onProgress } = {}) {
   const schema = getSchema(type);
 
-  // 1. Load Workbook (.xlsx via load or .csv via stream)
+  // Load Workbook (.xlsx via load or .csv via stream)
   const workbook = new ExcelJS.Workbook();
   const isXlsx = buffer && buffer.length >= 2 && buffer[0] === 0x50 && buffer[1] === 0x4B;
 
@@ -75,7 +75,7 @@ async function scanAndValidateWorkbook(type, buffer, req, { onProgress } = {}) {
   const worksheet = workbook.worksheets[0];
   if (!worksheet) throw new Error('Spreadsheet contains no sheets');
 
-  // 2. Exact Header Mapping (A6)
+  // Exact Header Mapping
   const headerRow = worksheet.getRow(1);
   const colIndexToKey = {};
   const unknownColumns = [];
@@ -101,7 +101,7 @@ async function scanAndValidateWorkbook(type, buffer, req, { onProgress } = {}) {
     throw new Error(`Spreadsheet is missing required column(s): ${missingNames}`);
   }
 
-  // 3. Extract data rows
+  // Extract data rows
   const parsedRows = [];
   worksheet.eachRow({ includeEmpty: false }, (row, rowNum) => {
     if (rowNum === 1) return; // skip header row
@@ -132,13 +132,13 @@ async function scanAndValidateWorkbook(type, buffer, req, { onProgress } = {}) {
     throw new Error(`Spreadsheet exceeds maximum limit of ${MAX_ROWS} rows (found ${parsedRows.length} rows). Please split into smaller batches.`);
   }
 
-  // Scope check for department creation (A20) — fail-fast before preloading reference context
+  // Scope check for department creation — fail-fast before preloading reference context
   const isSudo = isSudoCaller(req?.user);
   if (type === 'dept' && !isSudo) {
     throw new Error('Department creation requires global administrator privileges');
   }
 
-  // 4. Preload reference context & Chunked DB lookups (A9, A20)
+  // Preload reference context & Chunked DB lookups
   const [allDepts, allClasses, allSubjects, activeYearDoc] = await Promise.all([
     M.Department.find({}).lean(),
     M.Class.find({}).lean(),
@@ -169,7 +169,7 @@ async function scanAndValidateWorkbook(type, buffer, req, { onProgress } = {}) {
     ]);
   }
 
-  // 5. In-file duplicate tracking maps (A9)
+  // In-file duplicate tracking maps
   const seenUsernames = new Map();
   const seenRegNos = new Map();
   const seenEmpNos = new Map();
@@ -181,7 +181,7 @@ async function scanAndValidateWorkbook(type, buffer, req, { onProgress } = {}) {
   const eligibleRows = [];
   const skippedRows = [];
 
-  // 6. Validate rows with batch yielding
+  // Validate rows with batch yielding
   for (let i = 0; i < parsedRows.length; i++) {
     const { rowNumber, data: rawData } = parsedRows[i];
     const rowIssues = [];
@@ -245,7 +245,7 @@ async function scanAndValidateWorkbook(type, buffer, req, { onProgress } = {}) {
         rowIssues.push(`Department "${deptName}" is outside your administrative scope`);
       }
 
-      // Class verification & validation (A9)
+      // Class verification & validation
       const matchedClass = allClasses.find(c => c.name.toLowerCase() === className.toLowerCase());
       if (!matchedClass && className) {
         rowIssues.push(`Class "${className}" not found in database`);

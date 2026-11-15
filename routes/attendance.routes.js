@@ -1036,7 +1036,7 @@ router.post('/', authMiddleware, requireRole('teacher', 'admin'), attendanceMark
     const isBatch = Array.isArray(req.body.records);
     const rawRecords = isBatch ? req.body.records : [req.body];
 
-    // Session resolution (Phase 8, Section 10.4)
+    // Session resolution
     let sessionDoc = null;
     const sessionIdInput = req.body.sessionId || (rawRecords[0] && rawRecords[0].sessionId);
     if (sessionIdInput) {

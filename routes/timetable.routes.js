@@ -148,24 +148,24 @@ function isVerificationRequester(doc, u) {
   const userUsername = String(u.username || '').trim().toLowerCase();
   const userEmail = String(u.email || '').trim().toLowerCase();
 
-  // 1. Direct ID match (requestedByTeacherId or savedByTeacherId)
+  // Direct ID match (requestedByTeacherId or savedByTeacherId)
   if (userObjId) {
     if (vr.requestedByTeacherId && String(vr.requestedByTeacherId) === userObjId) return true;
     if (doc.savedByTeacherId && String(doc.savedByTeacherId) === userObjId) return true;
   }
 
-  // 2. Track ID match (requestedByTrackId or savedByTrackId)
+  // Track ID match (requestedByTrackId or savedByTrackId)
   if (userTrackId) {
     if (vr.requestedByTrackId && String(vr.requestedByTrackId).trim().toLowerCase() === userTrackId) return true;
     if (doc.savedByTrackId && String(doc.savedByTrackId).trim().toLowerCase() === userTrackId) return true;
   }
 
-  // 3. Email match
+  // Email match
   if (userEmail && vr.requestedByEmail && String(vr.requestedByEmail).trim().toLowerCase() === userEmail) {
     return true;
   }
 
-  // 4. Fallback string match for legacy records
+  // Fallback string match for legacy records
   const reqByStr = String(vr.requestedBy || doc.savedBy || '').trim().toLowerCase();
   if (reqByStr) {
     if (userName && (reqByStr === userName || reqByStr.includes(userName) || userName.includes(reqByStr))) return true;
@@ -1433,7 +1433,7 @@ async function mergeExternalCombinedSlots(classId, className, baseSlotsObj, env 
       ? ['draft', 'pending_approval', 'approved', 'published']
       : ['published'];
 
-    // 1. Check SemesterTemplates of other classes
+    // Check SemesterTemplates of other classes
     const otherTemplates = await M.SemesterTemplate.find({
       classId: { $ne: classId },
       status: { $in: targetStatuses },
@@ -1477,7 +1477,7 @@ async function mergeExternalCombinedSlots(classId, className, baseSlotsObj, env 
       });
     });
 
-    // 2. Check SectionTimetables of other classes
+    // Check SectionTimetables of other classes
     const otherSectionTTs = await M.SectionTimetable.find({
       classId: { $ne: classId }
     }).populate('classId', 'name').lean();
@@ -1724,7 +1724,7 @@ router.post('/check-conflicts', requireManager, requireDevAccess, async (req, re
 });
 
 // ══════════════════════════════════════════════════════
-//  AUTOGEN VERIFICATION GATE & TEACHER AVAILABILITY (Phase 4)
+//  AUTOGEN VERIFICATION GATE & TEACHER AVAILABILITY
 // ══════════════════════════════════════════════════════
 
 // POST /auto-gen/check — Inspect class curriculum subject set and validation warnings before gate confirmation
@@ -2019,7 +2019,7 @@ router.put('/teachers/:id/availability', requireManager, async (req, res) => {
 // POST /auto-gen — Gated Auto-Generation Engine (Algorithmic Hardening & No Dummy Fallbacks)
 router.post('/auto-gen', requireManager, async (req, res) => {
   try {
-    // 1. Resolve Target Class
+    // Resolve Target Class
     let classObj = null;
     if (req.body.classId && mongoose.isValidObjectId(req.body.classId)) {
       classObj = await M.Class.findById(req.body.classId).lean();
@@ -2031,7 +2031,7 @@ router.post('/auto-gen', requireManager, async (req, res) => {
     }
     const targetClassId = classObj ? classObj._id : req.body.classId;
 
-    // 2. Enforce Verification Gate clearance if classId / draftId provided
+    // Enforce Verification Gate clearance if classId / draftId provided
     if (targetClassId && req.body.draftId) {
       let setDoc = await M.ClassSubjectSet.findOne({ classId: targetClassId }).lean();
       let expectedHash = setDoc?.rowsHash;
@@ -2057,7 +2057,7 @@ router.post('/auto-gen', requireManager, async (req, res) => {
       }
     }
 
-    // 3. Check Academic Calendar
+    // Check Academic Calendar
     const calendarDays = await M.CalendarDay.find({
       date: { $gte: new Date(Date.now() - 30 * 86400000), $lte: new Date(Date.now() + 120 * 86400000) }
     }).lean();
@@ -2109,7 +2109,7 @@ router.post('/auto-gen', requireManager, async (req, res) => {
       }
     }
 
-    // 4. Strict Resource Verification (No Hallucinations / No Placeholders)
+    // Strict Resource Verification (No Hallucinations / No Placeholders)
     if (!assignments.length) {
       return res.status(400).json({
         error: 'INCOMPLETE_ASSIGNMENTS',
@@ -2137,7 +2137,7 @@ router.post('/auto-gen', requireManager, async (req, res) => {
       });
     }
 
-    // 5. Integrate TeacherAvailability Constraints
+    // Integrate TeacherAvailability Constraints
     const staffIds = assignments.map(a => a.staffId).filter(Boolean);
     const availDocs = staffIds.length ? await M.TeacherAvailability.find({ teacherId: { $in: staffIds } }).lean() : [];
     const teacherPrefs = { ...(req.body.constraints?.teacherPreferences || req.body.teacherPreferences || {}) };
@@ -2207,7 +2207,7 @@ router.get('/timing-sets', async (req, res) => {
 
 
 // ══════════════════════════════════════════════════════
-//  CAMPUS FACILITIES: BUILDINGS (Phases 1B & 1D)
+//  CAMPUS FACILITIES: BUILDINGS
 // ══════════════════════════════════════════════════════
 
 // GET /buildings — List all buildings with aggregated room, lab, and board metrics
@@ -2601,7 +2601,7 @@ router.delete('/buildings/:id/floors/:floorNum', requireManager, async (req, res
 });
 
 // ══════════════════════════════════════════════════════
-//  CAMPUS FACILITIES: ROOMS & CAPACITY (Phases 1C & 1D)
+//  CAMPUS FACILITIES: ROOMS & CAPACITY
 // ══════════════════════════════════════════════════════
 
 // Helper: Determine runtime occupied status from published semester templates
@@ -2634,7 +2634,7 @@ async function resolveOccupiedRooms() {
   }
 }
 
-// GET /rooms/eligible & GET /lookups/rooms — Registered Rooms & Eligibility Engine (Phase 4)
+// GET /rooms/eligible & GET /lookups/rooms — Registered Rooms & Eligibility Engine
 router.get('/rooms/eligible', async (req, res) => {
   try {
     const rooms = await getEligibleRooms(req.query);
@@ -3307,7 +3307,7 @@ router.get('/rooms/:id/timetable-slots', async (req, res) => {
 
 
 // ══════════════════════════════════════════════════════
-//  CAMPUS FACILITIES: ROOM STATUS & MAINTENANCE (Phase 1E)
+//  CAMPUS FACILITIES: ROOM STATUS & MAINTENANCE
 // ══════════════════════════════════════════════════════
 
 // GET /rooms/:id/affected-slots — Preview slots affected by status change
@@ -3565,7 +3565,7 @@ router.post('/rooms/:id/alternative', requireManager, async (req, res) => {
 
 
 // ══════════════════════════════════════════════════════
-//  CAMPUS FACILITIES: SMART BOARD REGISTRY (Phase 1G)
+//  CAMPUS FACILITIES: SMART BOARD REGISTRY
 // ══════════════════════════════════════════════════════
 
 // GET /boards — List registered smart boards with building and room populate
@@ -4141,7 +4141,7 @@ router.delete('/boards/:id', requireManager, async (req, res) => {
 
 
 // ══════════════════════════════════════════════════════
-//  CAMPUS FACILITIES: AUDIT LOG (Phase 1H & Tab 6)
+//  CAMPUS FACILITIES: AUDIT LOG
 // ══════════════════════════════════════════════════════
 
 // GET /facility-logs — Query decrypted facility-specific audit events
@@ -4733,7 +4733,7 @@ router.post('/semester-templates/:id/publish', requireManager, async (req, res) 
       const cls = await M.Class.findById(template.classId).select('name').lean();
       const className = cls ? cls.name : 'your class';
 
-      // 1. Teacher Fan-Out
+      // Teacher Fan-Out
       const teacherNotifs = [];
       for (const t of diffInfo.affectedTeachers) {
         let msg = `Official timetable updated for ${className} (v${published.version}): `;
@@ -4764,7 +4764,7 @@ router.post('/semester-templates/:id/publish', requireManager, async (req, res) 
         notifResult.teachersNotified = teacherNotifs.length;
       }
 
-      // 2. Student Fan-Out
+      // Student Fan-Out
       const students = await M.Student.find({ classId: template.classId })
         .select('_id trackId fullName registerNo')
         .lean();
@@ -6044,7 +6044,7 @@ router.get('/faculty-schedule', requireDevAccess, async (req, res) => {
   }
 });
 
-// ── Teacher Schedule & Timetable Endpoints (Phase 2 Resolver) ──
+// ── Teacher Schedule & Timetable Endpoints ──
 
 router.get('/my-timetable', async (req, res) => {
   try {
@@ -6335,7 +6335,7 @@ router.get('/free-teachers', async (req, res) => {
       ? parseInt(req.query.periodNumber, 10)
       : (req.query.period ? parseInt(req.query.period, 10) : null);
 
-    // 1. Holiday & Calendar check
+    // Holiday & Calendar check
     const startOfDay = new Date(dateStr + 'T00:00:00.000Z');
     const endOfDay = new Date(dateStr + 'T23:59:59.999Z');
     const calendarDay = await M.CalendarDay.findOne({
@@ -6356,7 +6356,7 @@ router.get('/free-teachers', async (req, res) => {
       holidayReason = holidayReason || 'Sunday (Non-working day)';
     }
 
-    // 2. Query Teachers
+    // Query Teachers
     const teacherFilter = { status: { $ne: 'Inactive' } };
     if (req.query.deptId && req.query.deptId !== 'all') {
       teacherFilter.deptId = sanitizeToObjectId(req.query.deptId);
@@ -6392,7 +6392,7 @@ router.get('/free-teachers', async (req, res) => {
 
     const teachers = await M.Teacher.find(teacherFilter).select('_id trackId fullName deptId employeeNo').sort({ fullName: 1 }).lean();
 
-    // 3. Query approved leaves covering dateStr
+    // Query approved leaves covering dateStr
     const leaves = await M.TeacherLeaveRequest.find({
       status: 'Approved',
       $or: [
@@ -6407,7 +6407,7 @@ router.get('/free-teachers', async (req, res) => {
       if (l.teacherId) leaveMap.set(String(l.teacherId), l);
     });
 
-    // 4. Query published timetable teaching slots for dayName from BOTH SemesterTemplate and SectionTimetable (T5)
+    // Query published timetable teaching slots for dayName from BOTH SemesterTemplate and SectionTimetable
     const [publishedTemplates, sectionTimetables, legacySlots] = await Promise.all([
       M.SemesterTemplate.find({ status: 'published' }).lean(),
       M.SectionTimetable.find().lean(),
@@ -6457,12 +6457,12 @@ router.get('/free-teachers', async (req, res) => {
       if (s.staffTrackId) teachingSlots.add(`track:${s.staffTrackId}:${p}`);
     });
 
-    // 5. Query Day Overrides for dateObj
+    // Query Day Overrides for dateObj
     const dayOverrides = await M.Override.find({
       date: { $gte: startOfDay, $lte: endOfDay }
     }).lean();
 
-    // 6. Build per-teacher results
+    // Build per-teacher results
     const resultTeachers = teachers.map(t => {
       const periodStatus = {};
       const teacherNameLower = (t.fullName || '').toLowerCase();
@@ -6579,7 +6579,7 @@ router.get('/substitutions-and-leaves', async (req, res) => {
       if (cls) targetClassId = cls._id;
     }
 
-    // 1. Fetch overrides with type: 'substitute'
+    // Fetch overrides with type: 'substitute'
     const overrideFilter = {
       type: 'substitute',
       date: { $gte: startOfDay, $lte: endOfDay }
@@ -6588,7 +6588,7 @@ router.get('/substitutions-and-leaves', async (req, res) => {
 
     const overrides = await M.Override.find(overrideFilter).populate('classId', 'name').lean();
 
-    // 2. Fetch approved teacher leaves covering targetDate
+    // Fetch approved teacher leaves covering targetDate
     const leaves = await M.TeacherLeaveRequest.find({
       status: 'Approved',
       $or: [
@@ -6597,7 +6597,7 @@ router.get('/substitutions-and-leaves', async (req, res) => {
       ]
     }).lean();
 
-    // 3. Extract substitutions from leave requests
+    // Extract substitutions from leave requests
     const leaveSubstitutions = [];
     leaves.forEach(l => {
       (l.substitutions || []).forEach(sub => {
@@ -6623,7 +6623,7 @@ router.get('/substitutions-and-leaves', async (req, res) => {
       });
     });
 
-    // 4. Combine overrides into normalized substitution records
+    // Combine overrides into normalized substitution records
     const normalizedOverrides = overrides.map(ov => {
       const orig = readOverrideSlot(ov.originalSlot);
       const sub = readOverrideSlot(ov.newSlot);
@@ -6653,7 +6653,7 @@ router.get('/substitutions-and-leaves', async (req, res) => {
       }
     });
 
-    // 5. Active leaves list
+    // Active leaves list
     const activeLeaves = leaves.map(l => ({
       teacherId: l.teacherId,
       teacherTrackId: l.teacherTrackId,
@@ -6922,14 +6922,14 @@ router.get('/resolve/:classId/:date', async (req, res) => {
     const daysOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     const dayName = daysOfWeek[dateObj.getUTCDay()];
 
-    // 1. Check cached DayInstance resolved recently
+    // Check cached DayInstance resolved recently
     let dayDoc = await M.DayInstance.findOne({ classId, date: dateStr });
     const oneHourAgo = new Date(Date.now() - 3600000);
     if (dayDoc && dayDoc.resolvedAt > oneHourAgo) {
       return res.json({ ok: true, data: dayDoc, cached: true });
     }
 
-    // 2. Calendar check
+    // Calendar check
     const startOfDay = new Date(dateStr + 'T00:00:00.000Z');
     const endOfDay = new Date(dateStr + 'T23:59:59.999Z');
     const [calendarDay] = await Promise.all([
@@ -6960,7 +6960,7 @@ router.get('/resolve/:classId/:date', async (req, res) => {
       holidayReason = holidayReason || 'Sunday';
     }
 
-    // 3. Published SemesterTemplate (with fallback to SectionTimetable)
+    // Published SemesterTemplate (with fallback to SectionTimetable)
     const template = await M.SemesterTemplate.findOne({ classId, status: 'published' }).lean();
     let baseSlots = (template?.grid || []).filter(s => s.day === dayName);
 
@@ -6987,7 +6987,7 @@ router.get('/resolve/:classId/:date', async (req, res) => {
       }
     }
 
-    // 4. Overrides for this date
+    // Overrides for this date
     const overrides = await M.Override.find({
       classId,
       date: { $gte: startOfDay, $lte: endOfDay }
@@ -7047,7 +7047,7 @@ router.get('/resolve/:classId/:date', async (req, res) => {
       }
     });
 
-    // 6. Save or update DayInstance document
+    // Save or update DayInstance document
     const dayData = {
       classId,
       date: dateStr,
@@ -7085,7 +7085,7 @@ router.get('/class-attendance-analytics', async (req, res) => {
     const toDate = new Date(Date.UTC(tY, tM - 1, tD, 23, 59, 59, 999));
     const fromDate = new Date(Date.UTC(tY, tM - 1, tD - rangeDays, 0, 0, 0, 0));
 
-    // 1. Resolve Class
+    // Resolve Class
     let targetClass = null;
     if (req.query.classId) {
       const cQuery = [{ classTrackId: req.query.classId }, { name: req.query.classId }];
@@ -7103,14 +7103,14 @@ router.get('/class-attendance-analytics', async (req, res) => {
 
     const classIdMatches = [String(targetClass._id), targetClass.classTrackId, targetClass.name].filter(Boolean);
 
-    // 2. Query Class Attendance Records
+    // Query Class Attendance Records
     const attFilter = {
       classId: { $in: classIdMatches },
       date: { $gte: fromDate, $lte: toDate }
     };
     const classAttDocs = await M.ClassAttendance.find(attFilter).sort({ date: 1 }).lean();
 
-    // 3. Query Roster Students
+    // Query Roster Students
     const studentQuery = [
       { classId: targetClass._id },
       { classId: String(targetClass._id) },
@@ -7142,7 +7142,7 @@ router.get('/class-attendance-analytics', async (req, res) => {
       }
     });
 
-    // 4. Session & Method aggregations
+    // Session & Method aggregations
     let totalMarks = 0;
     let presentMarks = 0;
     let absentMarks = 0;
@@ -7369,7 +7369,7 @@ router.get('/dashboard-cockpit', authMiddleware, requireDevAccess, async (req, r
     const currentM = String(now.getMinutes()).padStart(2, '0');
     const currentTimeStr = `${currentH}:${currentM}`;
 
-    // 1. Resolve Active Bell Timing & Current Period
+    // Resolve Active Bell Timing & Current Period
     const timingSet = await M.TimingSet.findOne({ isDefault: true }).lean() || TIMING_SEED[0];
     const periodsList = (timingSet.periods || TIMING_SEED[0].periods).filter(p => !p.isBreak && p.periodNumber > 0);
 
@@ -7430,7 +7430,7 @@ router.get('/dashboard-cockpit', authMiddleware, requireDevAccess, async (req, r
       }
     }
 
-    // 2. Query Classes, Published Templates & Slots (env-aware)
+    // Query Classes, Published Templates & Slots (env-aware)
     const classFilter = {};
     if (targetDeptId) classFilter.deptId = targetDeptId;
 
@@ -7457,7 +7457,7 @@ router.get('/dashboard-cockpit', authMiddleware, requireDevAccess, async (req, r
     const classNameMap = new Map();
     classes.forEach(c => classNameMap.set(String(c._id), c.name));
 
-    // 3. Query Today's Attendance Records
+    // Query Today's Attendance Records
     const startOfDay = new Date(targetDateStr + 'T00:00:00.000Z');
     const endOfDay = new Date(targetDateStr + 'T23:59:59.999Z');
 
@@ -7505,7 +7505,7 @@ router.get('/dashboard-cockpit', authMiddleware, requireDevAccess, async (req, r
       overrideMap.set(key, ov);
     });
 
-    // 4. Build Live Class Status Grid (Panel 2) from env-aware slot source
+    // Build Live Class Status Grid (Panel 2) from env-aware slot source
     const slotSourceByClass = new Map();
     slotSources.forEach(st => slotSourceByClass.set(String(st.classId), st));
 
@@ -7661,7 +7661,7 @@ router.get('/dashboard-cockpit', authMiddleware, requireDevAccess, async (req, r
       });
     });
 
-    // 5. Panel 1: Today's Disruptions & At-Risk Slots
+    // Panel 1: Today's Disruptions & At-Risk Slots
     const cancelledCount = overrides.filter(o => o.type === 'cancelled').length;
     const substitutedCount = substitutions.length + overrides.filter(o => o.type === 'substitute').length;
     const roomChangedCount = overrides.filter(o => o.type === 'room_change').length;
@@ -7696,7 +7696,7 @@ router.get('/dashboard-cockpit', authMiddleware, requireDevAccess, async (req, r
       }
     });
 
-    // 6. Panel 3: Absent-Teacher Coverage Board
+    // Panel 3: Absent-Teacher Coverage Board
     const absentCoverage = teacherLeaves.map(leave => {
       const tName = leave.teacherName;
       const tSlots = absentSlots.filter(s => (s.teacher || '').toLowerCase().trim() === tName.toLowerCase().trim());
@@ -7754,7 +7754,7 @@ router.get('/dashboard-cockpit', authMiddleware, requireDevAccess, async (req, r
       };
     });
 
-    // 7. Panel 4: Unmarked-Attendance Alerts
+    // Panel 4: Unmarked-Attendance Alerts
     const unmarkedAlerts = [];
     todaySlotsAll.forEach(s => {
       const pObj = periodsList.find(p => p.periodNumber === Number(s.period));
@@ -7793,7 +7793,7 @@ router.get('/dashboard-cockpit', authMiddleware, requireDevAccess, async (req, r
     // Sort unmarked alerts by most severely delayed first
     unmarkedAlerts.sort((a, b) => b.endedMinutesAgo - a.endedMinutesAgo);
 
-    // 8. Panel 5: Live Room Map & Smart Board Heartbeat
+    // Panel 5: Live Room Map & Smart Board Heartbeat
     const boardByRoom = new Map();
     smartBoards.forEach(b => {
       if (b.roomId) boardByRoom.set(String(b.roomId), b);
@@ -7867,7 +7867,7 @@ router.get('/dashboard-cockpit', authMiddleware, requireDevAccess, async (req, r
       }
     });
 
-    // 9. Panel 6: Live Smart Board Errors Stream
+    // Panel 6: Live Smart Board Errors Stream
     const smartBoardErrors = [];
     smartBoards.forEach(b => {
       const lastHb = b.lastHeartbeatAt ? new Date(b.lastHeartbeatAt).getTime() : 0;
@@ -7893,7 +7893,7 @@ router.get('/dashboard-cockpit', authMiddleware, requireDevAccess, async (req, r
       }
     });
 
-    // 10. Panel 7: Live Academic Event Ticker
+    // Panel 7: Live Academic Event Ticker
     const recentLogs = await M.Log.find({
       module: { $in: ['timetable', 'attendance', 'rooms'] }
     }).sort({ createdAt: -1 }).limit(15).lean();

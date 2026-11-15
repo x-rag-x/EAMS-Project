@@ -1,6 +1,5 @@
 /**
  * routes/timetableWorkspace.routes.js
- *
  * Workspace, Commits, Checkpoints, and Deployment routes for EAMS Timetable v3.
  * Mounted at /timetable in routes/index.js BEFORE legacy timetable.routes.js
  * so root /:id routes do not shadow new paths.
@@ -42,7 +41,7 @@ const {
   undoDraftOp
 } = require('../services/draftOps');
 
-// ── Lightweight Connectivity Heartbeat (Phase 7, Section 4.1) ──
+// ── Lightweight Connectivity Heartbeat ──
 router.all('/ping', (req, res) => {
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
   res.status(204).end();
@@ -79,12 +78,12 @@ function canAccessDev(req) {
  * Enforces workspace access rules (Section 9.2, Table 6.2):
  * - Production request (no workspaceId): requires general timetable manager rights.
  * - Workspace request (workspaceId or env=development):
- *   1. Resolves workspace by _id or trackId (404 if not found).
- *   2. Sudo Admin and Principal are strictly read-only in workspaces (D19).
+ *   Resolves workspace by _id or trackId (404 if not found).
+ *   Sudo Admin and Principal are strictly read-only in workspaces (D19).
  *      GET/HEAD allowed; write methods return 403.
- *   3. Regular user must belong to workspace's department, be a collaborator,
+ *   Regular user must belong to workspace's department, be a collaborator,
  *      or have an active WorkspaceShare for their department. Otherwise returns 403.
- *   4. Attaches req.workspace to request.
+ *   Attaches req.workspace to request.
  */
 async function requireWorkspaceAccess(req, res, next) {
   try {
@@ -148,7 +147,7 @@ async function requireWorkspaceAccess(req, res, next) {
       let activeShare = null;
       if (!isOwnerDept && !isCollaborator) {
         try {
-          // 1. Direct user share first
+          // Direct user share first
           if (M.WorkspaceShare && u._id) {
             const q = M.WorkspaceShare.findOne({
               workspaceId: ws._id,
@@ -157,7 +156,7 @@ async function requireWorkspaceAccess(req, res, next) {
             });
             activeShare = await (typeof q?.lean === 'function' ? q.lean() : q);
           }
-          // 2. Department share fallback
+          // Department share fallback
           if (!activeShare && caller.deptId && M.WorkspaceShare) {
             const q = M.WorkspaceShare.findOne({
               workspaceId: ws._id,
@@ -723,7 +722,7 @@ router.post('/deploys/:runId/retry', authMiddleware, requireManager, async (req,
   }
 });
 
-// ── Scheduled Go-Live Endpoint (Forward only, §10.4) ──
+// ── Scheduled Go-Live Endpoint (Forward only,) ──
 
 router.post('/commits/:trackId/schedule', authMiddleware, denySudoAndPrincipal, async (req, res) => {
   try {
@@ -1616,7 +1615,7 @@ router.post('/workspaces/:id/submit', authMiddleware, denySudoAndPrincipal, requ
       return res.status(400).json({ error: 'No classes to submit' });
     }
 
-    // Scheduled go-live validation (future only, §10.4, D16)
+    // Scheduled go-live validation (future only, D16)
     let scheduledGoLiveAt = null;
     if (req.body.goLiveAt) {
       scheduledGoLiveAt = new Date(req.body.goLiveAt);
@@ -1628,7 +1627,7 @@ router.post('/workspaces/:id/submit', authMiddleware, denySudoAndPrincipal, requ
       }
     }
 
-    // 1. Stale-base check: ensure none of the classes are stale
+    // Stale-base check: ensure none of the classes are stale
     const drafts = await M.WorkspaceClassDraft.find({ workspaceId: ws._id, classId: { $in: targetClassIds } }).lean();
     const secDocs = await M.SectionTimetable.find({ classId: { $in: targetClassIds } }).lean();
     const secMap = new Map(secDocs.map(s => [String(s.classId), s]));
@@ -1654,7 +1653,7 @@ router.post('/workspaces/:id/submit', authMiddleware, denySudoAndPrincipal, requ
       });
     }
 
-    // 2. Conflict engine v2 check: hard conflicts and unresolved IDs block submit
+    // Conflict engine v2 check: hard conflicts and unresolved IDs block submit
     const conflicts = await detectConflictsV2({
       workspaceId: ws._id,
       classIds: targetClassIds,
@@ -1670,12 +1669,12 @@ router.post('/workspaces/:id/submit', authMiddleware, denySudoAndPrincipal, requ
       });
     }
 
-    // 3. Determine Approver HoD
+    // Determine Approver HoD
     const hodTeacher = await resolveHodTeacher(ws.deptId);
     const isHodSelf = Boolean(caller.isHod && caller.deptId && String(caller.deptId) === String(ws.deptId));
     const status = isHodSelf ? 'approved' : 'pending_approval';
 
-    // 4. Create TimetableCommit
+    // Create TimetableCommit
     const trackId = await getNextRequestId('TT');
     const seq = (await M.TimetableCommit.countDocuments({})) + 1;
     const clsDocs = await M.Class.find({ _id: { $in: targetClassIds } }).lean();
@@ -1711,7 +1710,7 @@ router.post('/workspaces/:id/submit', authMiddleware, denySudoAndPrincipal, requ
       status
     });
 
-    // 5. Create TimetableCommitClass for each class
+    // Create TimetableCommitClass for each class
     for (const cId of targetClassIds) {
       const draft = drafts.find(d => String(d.classId) === String(cId));
       const cls = clsMap.get(String(cId));
@@ -1750,7 +1749,7 @@ router.post('/workspaces/:id/submit', authMiddleware, denySudoAndPrincipal, requ
       );
     }
 
-    // 6. Notify HoD if not self-approved
+    // Notify HoD if not self-approved
     if (!isHodSelf && hodTeacher) {
       await M.Notification.create({
         type: 'timetable-approval',
@@ -2509,7 +2508,7 @@ router.get('/workspaces/:id/staff-assignment', authMiddleware, requireWorkspaceA
       });
     });
 
-    // 1. Scan Production SectionTimetable slots
+    // Scan Production SectionTimetable slots
     let prodSections = [];
     if (M.SectionTimetable) {
       try {
@@ -2541,7 +2540,7 @@ router.get('/workspaces/:id/staff-assignment', authMiddleware, requireWorkspaceA
       }
     }
 
-    // 2. Scan Workspace Drafts (Current workspace and other open workspaces)
+    // Scan Workspace Drafts (Current workspace and other open workspaces)
     let openWorkspaces = [];
     if (M.TimetableWorkspace) {
       try {
@@ -2984,7 +2983,7 @@ router.post('/workspaces/:id/shares/:shareId/done', authMiddleware, denySudoAndP
 });
 
 
-// ── Helper to resolve draft and workspace references (Phase 3) ──
+// ── Helper to resolve draft and workspace references ──
 async function resolveDraftRef(req) {
   const wsId = req.params.workspaceId || req.params.id;
   let draftId = req.params.draftId || req.query.draftId || req.body?.draftId;
@@ -3021,7 +3020,7 @@ async function resolveDraftRef(req) {
   };
 }
 
-// ── Phase 3: Cell-Level Operations, Time-Bucket Versions & Time-Travel Restore ──
+// ── Cell-Level Operations, Time-Bucket Versions & Time-Travel Restore ──
 
 router.post(['/workspaces/:workspaceId/drafts/:draftId/ops', '/workspaces/:id/ops'], authMiddleware, denySudoAndPrincipal, async (req, res) => {
   try {
@@ -3358,7 +3357,7 @@ router.post('/workspaces/:id/checkpoints/:seq/restore', authMiddleware, denySudo
     const targetCp = await M.WorkspaceCheckpoint.findOne({ workspaceId: ws._id, seq: targetSeq }).lean();
     if (!targetCp) return res.status(404).json({ error: `Checkpoint #${targetSeq} not found` });
 
-    // 1. Create a 'restore' checkpoint of current state first (for 1-click Undo)
+    // Create a 'restore' checkpoint of current state first (for 1-click Undo)
     const lastCp = await M.WorkspaceCheckpoint.findOne({ workspaceId: ws._id }).sort({ seq: -1 }).select('seq').lean();
     const currentDrafts = await M.WorkspaceClassDraft.find({ workspaceId: ws._id }).lean();
 
@@ -3379,7 +3378,7 @@ router.post('/workspaces/:id/checkpoints/:seq/restore', authMiddleware, denySudo
     });
     await backupCp.save();
 
-    // 2. Restore class drafts from the target checkpoint
+    // Restore class drafts from the target checkpoint
     for (const c of targetCp.classes) {
       await M.WorkspaceClassDraft.findOneAndUpdate(
         { workspaceId: ws._id, classId: c.classId },
@@ -3420,7 +3419,7 @@ router.post('/workspaces/:id/checkpoints/:seq/restore', authMiddleware, denySudo
 });
 
 
-// ── Phase 3: Compare & Env-Aware Workspace Endpoints ──
+// ── Compare & Env-Aware Workspace Endpoints ──
 
 router.get('/compare', authMiddleware, requireWorkspaceAccess, async (req, res) => {
   try {
@@ -4261,10 +4260,10 @@ router.get('/exports/:type', authMiddleware, requireWorkspaceAccess, async (req,
 
 
 // =========================================================================
-// Phase 5: Multi-Role Sharing, Cryptographic Links, Comments & Lookups
+
 // =========================================================================
 
-// 1. GET /workspaces/by-code/:code (Public address resolution)
+// GET /workspaces/by-code/:code (Public address resolution)
 router.get('/workspaces/by-code/:code', authMiddleware, async (req, res) => {
   try {
     const code = String(req.params.code || '').trim().toLowerCase();
@@ -4407,7 +4406,7 @@ router.get('/workspaces/by-code/:code', authMiddleware, async (req, res) => {
   }
 });
 
-// 2. Link Management: GET, PUT, POST reset
+// Link Management: GET, PUT, POST reset
 router.get('/workspaces/:id/link', authMiddleware, requireWorkspaceAccess, async (req, res) => {
   try {
     const ws = req.workspace;
@@ -4514,7 +4513,7 @@ router.post('/workspaces/:id/link/reset', authMiddleware, denySudoAndPrincipal, 
   }
 });
 
-// 3. Access Requests: GET, POST decide
+// Access Requests: GET, POST decide
 router.get('/workspaces/:id/access-requests', authMiddleware, requireWorkspaceAccess, async (req, res) => {
   try {
     const requests = await M.WorkspaceAccessRequest.find({ workspaceId: req.params.id }).sort({ createdAt: -1 }).lean();
@@ -4575,7 +4574,7 @@ router.post('/workspaces/:id/access-requests/:reqId/decide', authMiddleware, den
   }
 });
 
-// 4. Threaded Comments: GET, POST, PATCH resolve
+// Threaded Comments: GET, POST, PATCH resolve
 router.get('/workspaces/:id/comments', authMiddleware, requireWorkspaceAccess, async (req, res) => {
   try {
     const { classId, slotKey, draftId, status } = req.query;
@@ -4712,7 +4711,7 @@ router.patch('/workspaces/:id/comments/:commentId/resolve', authMiddleware, requ
   }
 });
 
-// 5. Restricted Teacher Lookup (Section 5.4, Privacy Minimization)
+// Restricted Teacher Lookup (Section 5.4, Privacy Minimization)
 router.get(['/workspaces/:workspaceId/drafts/:draftId/lookups/teachers', '/workspaces/:id/lookups/teachers'], authMiddleware, requireWorkspaceAccess, async (req, res) => {
   try {
     const { day, period, slotKey, deptId } = req.query;
@@ -4766,7 +4765,7 @@ router.get(['/workspaces/:workspaceId/drafts/:draftId/lookups/teachers', '/works
 });
 
 
-// ── Phase 8: Section Attendance Overlay (Section 10.6, 4.2) ──
+// ── Section Attendance Overlay ──
 function isSessionOverdue(dateStr, endTime, todayDateStr, nowMinutes) {
   if (dateStr < todayDateStr) return true;
   if (dateStr > todayDateStr) return false;
@@ -4797,7 +4796,7 @@ router.get('/section/:classId/attendance-overlay', authMiddleware, async (req, r
     // Default to current week (Monday to Saturday) if omitted
     if (!fromStr || !toStr || !/^\d{4}-\d{2}-\d{2}$/.test(fromStr) || !/^\d{4}-\d{2}-\d{2}$/.test(toStr)) {
       const d = new Date(todayDateStr + 'T00:00:00.000Z');
-      const day = d.getUTCDay(); // 0 is Sun
+      const day = d.getUTCDay(); // is Sun
       const diffToMon = day === 0 ? -6 : 1 - day;
       const mon = new Date(d);
       mon.setUTCDate(d.getUTCDate() + diffToMon);
@@ -4890,7 +4889,7 @@ router.get('/section/:classId/attendance-overlay', authMiddleware, async (req, r
   }
 });
 
-// ── Phase 8: Pedagogical Attendance Insights (Section 10.7, 4.2) ──
+// ── Pedagogical Attendance Insights ──
 router.get('/analytics/pedagogical-insights', authMiddleware, async (req, res) => {
   try {
     const deptId = sanitizeToString(req.query.deptId || req.query.deptCode);

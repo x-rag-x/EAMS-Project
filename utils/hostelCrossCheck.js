@@ -1,23 +1,23 @@
 const M = require('../models');
 
 /**
- * Runs academic <-> hostel cross-checks (§11.1, Alert A11).
+ * Runs academic <-> hostel cross-checks.
  * Detects:
- * 1. Present in class while checked out on a hostel pass (possible proxy).
- * 2. Resident absent from all periods today with no academic leave or medical (may be unwell in room).
- * 3. On approved home leave but marked present in class (data conflict).
+ * Present in class while checked out on a hostel pass (possible proxy).
+ * Resident absent from all periods today with no academic leave or medical (may be unwell in room).
+ * On approved home leave but marked present in class (data conflict).
  */
 async function runHostelCrossChecks(date) {
   const alerts = [];
   try {
-    // 1. Get all hostel residents
+    // Get all hostel residents
     const hostelResidents = await M.Student.find({ residency: 'hostel' }).lean();
     if (!hostelResidents.length) return alerts;
 
     const residentTrackIds = hostelResidents.map(s => s.trackId);
     const residentMap = new Map(hostelResidents.map(s => [s.trackId, s]));
 
-    // 2. Get active checked-out hostel leaves covering date
+    // Get active checked-out hostel leaves covering date
     const checkDate = new Date(date);
     const activeLeaves = await M.HostelLeave.find({
       studentTrackId: { $in: residentTrackIds },
@@ -28,7 +28,7 @@ async function runHostelCrossChecks(date) {
 
     const leaveMap = new Map(activeLeaves.map(l => [l.studentTrackId, l]));
 
-    // 3. Get academic attendance records for today from ClassAttendance
+    // Get academic attendance records for today from ClassAttendance
     const startOfDay = new Date(`${date}T00:00:00.000Z`);
     const endOfDay = new Date(`${date}T23:59:59.999Z`);
     const residentSet = new Set(residentTrackIds);

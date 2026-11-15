@@ -5,9 +5,8 @@
 
 /**
  * Calculate attendance percentage rounded to 1 decimal place.
- * 
- * @param {number} present 
- * @param {number} total 
+ * @param {number} present
+ * @param {number} total
  * @returns {number} Percentage between 0 and 100
  */
 function calculateAttendancePct(present, total) {
@@ -21,7 +20,6 @@ function calculateAttendancePct(present, total) {
 /**
  * Determine defaulter band based on percentage and condonation boundaries.
  * Default condonation band: [65, 75]
- * 
  * @param {number} pct - Attendance percentage (0..100)
  * @param {[number, number]} [condonationBand=[65, 75]]
  * @returns {'good' | 'condonation' | 'critical'}
@@ -35,20 +33,17 @@ function calculateDefaulterBand(pct, condonationBand = [65, 75]) {
 
 /**
  * Calculate classes needed to achieve or maintain target attendance percentage.
- * 
  * Math:
  * If below target:
  *   (present + x) / (total + x) >= target
  *   present + x >= target * total + target * x
  *   x * (1 - target) >= target * total - present
  *   x = ceil((target * total - present) / (1 - target))
- * 
  * If above target:
  *   present / (total + y) >= target
  *   present >= target * total + target * y
  *   target * y <= present - target * total
  *   y = floor((present - target * total) / target)
- * 
  * @param {Object} params
  * @param {number} params.currentPresent
  * @param {number} params.currentTotal

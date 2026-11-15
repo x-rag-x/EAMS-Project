@@ -22,7 +22,7 @@ async function runCommitJob(batchId, user, reqMeta = {}) {
     const batch = await M.BulkImportBatch.findById(batchId);
     if (!batch) throw new Error('Batch not found');
 
-    // 1. Commit records to Live Collections
+    // Commit records to Live Collections
     await tracker.start('rows', 'Saving records to database');
 
     const eligibleRows = batch.eligibleRows || [];
@@ -231,7 +231,7 @@ async function runCommitJob(batchId, user, reqMeta = {}) {
       }
     }
 
-    // 2. Build ZIP Archive (Passwords redacted per A2)
+    // Build ZIP Archive (Passwords redacted per A2)
     await tracker.start('zip', 'Compiling archive and scrubbing credentials');
     const zip = new JSZip();
 
@@ -292,7 +292,7 @@ async function runCommitJob(batchId, user, reqMeta = {}) {
 
     await tracker.done('zip', `${(zipBuffer.length / 1024).toFixed(1)} KB backup package ready`);
 
-    // 3. Backup to Google Drive (Resilient fallback: Drive failure does not block DB commit - A4)
+    // Backup to Google Drive (Resilient fallback: Drive failure does not block DB commit - A4)
     await tracker.start('backup', 'Uploading backup archive to Google Drive');
     let backupMeta = {
       driveFileId: '',
@@ -338,7 +338,7 @@ async function runCommitJob(batchId, user, reqMeta = {}) {
       await tracker.warn('backup', `Google Drive backup failed (${bErr.message}) — Retry Backup available`);
     }
 
-    // 4. Purge plaintext passwords from MongoDB storage (A2, F-06)
+    // Purge plaintext passwords from MongoDB storage (A2, F-06)
     await M.BulkImportBatch.updateOne(
       { _id: batch._id },
       { $unset: { 'eligibleRows.$[].data.password': '', 'skippedRows.$[].data.password': '' } }
@@ -360,14 +360,14 @@ async function runCommitJob(batchId, user, reqMeta = {}) {
 
     await batch.save();
 
-    // 5. CAS Transition to committed
+    // CAS Transition to committed
     const committedBatch = await transition(batch, 'committed', {
       user,
       from: ['committing', 'pending_final_approval', 'verified_all']
     });
     batch.status = 'committed';
 
-    // 6. Post completion card to transcript
+    // Post completion card to transcript
     await postMessage(batch._id, {
       kind: 'card',
       card: 'complete',
@@ -379,7 +379,7 @@ async function runCommitJob(batchId, user, reqMeta = {}) {
       }
     });
 
-    // 7. Audit log
+    // Audit log
     logAction(
       user.trackId || user._id,
       user.name,

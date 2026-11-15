@@ -1,7 +1,6 @@
 /**
  * services/roomEligibility.js
- *
- * Registered Rooms & Eligibility Engine (Phase 4):
+ * Registered Rooms & Eligibility Engine:
  * - Replaces free-text room strings everywhere in timetable scheduling.
  * - Strict reference to registered Room documents by ObjectId.
  * - Enforces category and type eligibility matrix:
@@ -36,7 +35,6 @@ function normalizeSlotType(slotType, isLab) {
 
 /**
  * Checks eligibility of a room document for a specific slot type.
- *
  * @param {Object} room - The Room mongoose/lean document (with building populated or buildingType attached)
  * @param {String} slotType - 'Theory' | 'Lab' | 'Seminar' | 'Training'
  * @param {Object} options - { isLab: Boolean, enrolledCount: Number, minCapacity: Number }
@@ -52,7 +50,7 @@ function checkRoomEligibility(room, slotType = 'Theory', options = {}) {
     };
   }
 
-  // 1. Status Invariant: status must be 'Available'
+  // Status Invariant: status must be 'Available'
   const status = String(room.status || 'Available').trim();
   if (status.toLowerCase() !== 'available') {
     const latestHistory = Array.isArray(room.statusHistory) && room.statusHistory.length
@@ -67,7 +65,7 @@ function checkRoomEligibility(room, slotType = 'Theory', options = {}) {
     };
   }
 
-  // 2. Building Invariant: building.type must be 'Academic' or 'Laboratory'
+  // Building Invariant: building.type must be 'Academic' or 'Laboratory'
   let buildingType = null;
   if (room.buildingId && typeof room.buildingId === 'object' && room.buildingId.type) {
     buildingType = room.buildingId.type;
@@ -84,7 +82,7 @@ function checkRoomEligibility(room, slotType = 'Theory', options = {}) {
     };
   }
 
-  // 3. Category & Type Matrix
+  // Category & Type Matrix
   const targetType = normalizeSlotType(slotType, options.isLab);
   const cat = String(room.category || 'Room').trim();
   const roomType = String(room.type || 'Theory').trim();
@@ -148,7 +146,7 @@ function checkRoomEligibility(room, slotType = 'Theory', options = {}) {
       matchesCategory = true;
   }
 
-  // 4. Capacity & Workstations
+  // Capacity & Workstations
   const enrolledCount = Number(options.enrolledCount || options.minCapacity || 0);
   if (enrolledCount > 0 && room.capacity && room.capacity < enrolledCount) {
     return {
@@ -170,7 +168,6 @@ function checkRoomEligibility(room, slotType = 'Theory', options = {}) {
 /**
  * Validates a timetable slot's room assignment.
  * Rejects free-text strings without registered roomId.
- *
  * @param {Object} slot - { room, roomId, type, isLab }
  * @param {Object} context - { roomMap: Map<id, roomDoc>, enrolledCount: Number }
  * @returns {{ ok: Boolean, error?: String, code?: String, room?: Object }}
@@ -236,14 +233,13 @@ async function validateSlotRoom(slot, context = {}) {
 
 /**
  * Retrieves eligible rooms matching a given query, enriched with availability, home room flag, and building tree.
- *
  * @param {Object} query - { slotType, isLab, classId, deptId, minCapacity, search }
  * @returns {Promise<Array>}
  */
 async function getEligibleRooms(query = {}) {
   const { slotType = 'Theory', isLab, classId, deptId, minCapacity, search } = query;
 
-  // 1. Fetch Class if classId provided to identify Home Room and student count
+  // Fetch Class if classId provided to identify Home Room and student count
   let homeRoomId = null;
   let enrolledCount = 0;
   if (classId && mongoose.isValidObjectId(classId)) {
@@ -256,7 +252,7 @@ async function getEligibleRooms(query = {}) {
 
   const effectiveMinCapacity = minCapacity ? Number(minCapacity) : enrolledCount;
 
-  // 2. Fetch Buildings (filter for Academic and Laboratory)
+  // Fetch Buildings (filter for Academic and Laboratory)
   const buildings = await M.Building.find({
     status: { $ne: 'Inactive' },
     type: { $in: ['Academic', 'Laboratory'] }
@@ -265,7 +261,7 @@ async function getEligibleRooms(query = {}) {
   const buildingIds = buildings.map(b => b._id);
   const buildingMap = new Map(buildings.map(b => [String(b._id), b]));
 
-  // 3. Build Room query
+  // Build Room query
   const roomFilter = {
     buildingId: { $in: buildingIds }
   };
@@ -285,7 +281,7 @@ async function getEligibleRooms(query = {}) {
 
   const rawRooms = await M.Room.find(roomFilter).sort({ buildingName: 1, floor: 1, hallNo: 1 }).lean();
 
-  // 4. Enrich and check eligibility for each room
+  // Enrich and check eligibility for each room
   const enriched = rawRooms.map(r => {
     const bld = buildingMap.get(String(r.buildingId));
     const roomWithBuilding = {

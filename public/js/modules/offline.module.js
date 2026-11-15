@@ -1,15 +1,14 @@
 /**
  * public/js/modules/offline.module.js
- * EAMS Timetable v3 — Encrypted Offline Outbox & Sync Review Drawer (Phase 7, Section 2 & 6.1)
- *
+ * EAMS Timetable v3 — Encrypted Offline Outbox & Sync Review Drawer
  * Implements:
- * 1. Hardware/User-bound Web Crypto AES-GCM encrypted IndexedDB outbox ("tt_offline_db")
- * 2. Strict user isolation: keys bound to userId; cannot be read by another user
- * 3. Enforced capacity limit: max 2,000 queued operations or 5 MB
- * 4. Automatic FIFO synchronization upon network reconnection
- * 5. Floating header status pill (Offline, Syncing, Synced)
- * 6. Interactive Sync Review Drawer for 409 conflicts
- * 7. Clean wipe rules on logout or manual clearing
+ * Hardware/User-bound Web Crypto AES-GCM encrypted IndexedDB outbox ("tt_offline_db")
+ * Strict user isolation: keys bound to userId; cannot be read by another user
+ * Enforced capacity limit: max 2,000 queued operations or 5 MB
+ * Automatic FIFO synchronization upon network reconnection
+ * Floating header status pill (Offline, Syncing, Synced)
+ * Interactive Sync Review Drawer for 409 conflicts
+ * Clean wipe rules on logout or manual clearing
  */
 
 (function (window) {
@@ -20,7 +19,7 @@
   const OUTBOX_STORE = 'tt_outbox';
   const READ_CACHE_STORE = 'tt_read_cache';
   const MAX_OPS_LIMIT = 2000;
-  const MAX_BYTES_LIMIT = 5 * 1024 * 1024; // 5 MB
+  const MAX_BYTES_LIMIT = 5 * 1024 * 1024; // MB
 
   let _db = null;
   let _cryptoKey = null;

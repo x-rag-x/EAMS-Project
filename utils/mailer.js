@@ -24,7 +24,6 @@ function getTransporter() {
 
 /**
  * Send welcome email with login credentials and EAMS overview.
- *
  * @param {Object} params
  * @param {string} params.to - Recipient email
  * @param {string} params.fullName - Recipient name
@@ -160,7 +159,7 @@ Your Login Credentials:
 Please change your password upon first login.
   `.trim();
 
-  // 1. Google Mail API (OAuth2) - Primary Institutional Transport
+  // Google Mail API (OAuth2) - Primary Institutional Transport
   try {
     const { getGmailAccessToken } = require('./googleMailer');
     const accessToken = await getGmailAccessToken();
@@ -200,7 +199,7 @@ Please change your password upon first login.
     console.warn('[Mailer:GmailAPI] Error dispatching via Gmail API:', gmailErr.message);
   }
 
-  // 2. Nodemailer SMTP Transport
+  // Nodemailer SMTP Transport
   const transporter = getTransporter();
 
   if (transporter) {
@@ -220,14 +219,13 @@ Please change your password upon first login.
     }
   }
 
-  // 3. Simulated delivery when no email transport configured
+  // Simulated delivery when no email transport configured
   console.log(`[Mailer:Simulated] Credentials email simulated to ${to} for user @${username}`);
   return { sent: true, simulated: true, provider: 'simulated' };
 }
 
 /**
  * Send a generic institutional email notification with fallback.
- *
  * @param {Object} params
  * @param {string} params.to - Recipient email
  * @param {string} params.subject - Subject line
@@ -248,7 +246,7 @@ async function sendGenericMail({
   const htmlContent = html || `<div style="font-family:sans-serif;line-height:1.6;color:#333;">${(text || '').replace(/\n/g, '<br>')}</div>`;
   const textContent = text || (html ? html.replace(/<[^>]+>/g, '') : '');
 
-  // 1. Google Mail API (OAuth2) - Primary Institutional Transport
+  // Google Mail API (OAuth2) - Primary Institutional Transport
   try {
     const { getGmailAccessToken } = require('./googleMailer');
     const accessToken = await getGmailAccessToken();
@@ -288,7 +286,7 @@ async function sendGenericMail({
     console.warn('[Mailer:GmailAPI] Error dispatching via Gmail API:', gmailErr.message);
   }
 
-  // 2. Nodemailer SMTP Transport
+  // Nodemailer SMTP Transport
   const transporter = getTransporter();
   if (transporter) {
     try {
@@ -307,7 +305,7 @@ async function sendGenericMail({
     }
   }
 
-  // 3. Simulated delivery when no email transport configured
+  // Simulated delivery when no email transport configured
   console.log(`[Mailer:Simulated] Email simulated to ${to}: ${subject}`);
   return { sent: true, simulated: true, provider: 'simulated' };
 }

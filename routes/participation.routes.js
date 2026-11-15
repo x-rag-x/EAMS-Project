@@ -24,7 +24,7 @@ function escapeCsv(val) {
   return `"${str}"`;
 }
 
-// ── 1. POST /api/participation/log — Log Participation (No-OD Events, Phase L5 §5.10) ──
+// ── POST /api/participation/log — Log Participation (No-OD Events, ) ──
 router.post('/log', async (req, res) => {
   try {
     const isStudent = req.user.role === 'student';
@@ -153,7 +153,7 @@ router.post('/log', async (req, res) => {
   }
 });
 
-// ── 2. GET /api/participation/me — Student's Full Participation Profile (§5.13) ──
+// ── GET /api/participation/me — Student's Full Participation Profile ──
 router.get('/me', async (req, res) => {
   try {
     const studentTrackId = req.user.trackId;
@@ -200,14 +200,14 @@ router.get('/me', async (req, res) => {
   }
 });
 
-// ── 3. GET /api/participation/student/:trackId — View Any Student's Profile ──
+// ── GET /api/participation/student/:trackId — View Any Student's Profile ──
 router.get('/student/:trackId', async (req, res) => {
   try {
     const trackId = sanitizeToString(req.params.trackId);
     const student = await M.Student.findOne({ trackId }).lean();
     if (!student) return res.status(404).json({ error: 'Student not found' });
 
-    // Authorization (§5 S3): Owner or staff in scope only
+    // Authorization: Owner or staff in scope only
     const isOwner = (req.user.trackId && req.user.trackId === trackId) ||
                     (req.user._id && student._id && String(req.user._id) === String(student._id));
 
@@ -265,7 +265,7 @@ router.get('/student/:trackId', async (req, res) => {
       byLevel[l] = (byLevel[l] || 0) + 1;
     }
 
-    // Projection (§5 S3): Trimmed activity projection instead of leaking whole raw OD documents
+    // Projection: Trimmed activity projection instead of leaking whole raw OD documents
     const trimmedActivities = activities.map(a => ({
       _id: a._id,
       requestId: a.requestId || a.trackId,
@@ -327,7 +327,7 @@ router.get('/student/:trackId', async (req, res) => {
   }
 });
 
-// ── 4. GET /api/participation/events — Academic Event Registry with Stats ──
+// ── GET /api/participation/events — Academic Event Registry with Stats ──
 router.get('/events', async (req, res) => {
   try {
     const q = sanitizeToString(req.query.q);
@@ -355,7 +355,7 @@ router.get('/events', async (req, res) => {
   }
 });
 
-// ── 5. GET /api/participation/events/:id — Single Event Details with Participants ──
+// ── GET /api/participation/events/:id — Single Event Details with Participants ──
 router.get('/events/:id', async (req, res) => {
   try {
     const id = req.params.id;
@@ -373,7 +373,7 @@ router.get('/events/:id', async (req, res) => {
   }
 });
 
-// ── 6. GET /api/participation/tracker — Command Centre Data (C8 Tab for HOD/Principal) ──
+// ── GET /api/participation/tracker — Command Centre Data (C8 Tab for HOD/Principal) ──
 router.get('/tracker', async (req, res) => {
   try {
     const userRole = req.user.role;
@@ -534,7 +534,7 @@ router.get('/tracker', async (req, res) => {
   }
 });
 
-// ── 7. GET /api/participation/tracker/export.csv — Accreditation Export ──
+// ── GET /api/participation/tracker/export.csv — Accreditation Export ──
 router.get('/tracker/export.csv', async (req, res) => {
   try {
     const isPrincipal = req.user.isPrincipal || req.user.role === 'principal' || isSudoAdmin(req.user);
@@ -616,7 +616,7 @@ router.get('/tracker/export.csv', async (req, res) => {
   }
 });
 
-// ── 8. GET /api/participation/score — Live Score Computation ──
+// ── GET /api/participation/score — Live Score Computation ──
 router.get('/score', async (req, res) => {
   try {
     const studentTrackId = sanitizeToString(req.query.studentTrackId) || req.user.trackId;

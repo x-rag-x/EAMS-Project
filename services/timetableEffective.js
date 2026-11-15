@@ -4,7 +4,7 @@ const M = require('../models');
 // LRU / TTL cache for effective read model
 const effectiveCache = new Map();
 const CACHE_MAX = 200;
-const CACHE_TTL_MS = 60 * 1000; // 60 seconds TTL
+const CACHE_TTL_MS = 60 * 1000; // seconds TTL
 
 /**
  * Invalidates cache for a specific workspace or all effective views
@@ -134,7 +134,6 @@ function slotsToGrid(slots = {}) {
 
 /**
  * Canonical read model for timetables: answers what the timetable looks like.
- *
  * @param {Object} params
  * @param {'production'|'development'} [params.env='production']
  * @param {string|ObjectId} [params.workspaceId]
@@ -149,7 +148,7 @@ async function getEffective({ env = 'production', workspaceId = null, deptId = n
     : [];
   const filterDeptId = deptId ? String(deptId) : null;
 
-  // ── 1. Production Mode ──
+  // ── Production Mode ──
   if (normEnv === 'production' || !workspaceId) {
     const q = {};
     if (filterClassIds.length > 0) {
@@ -173,7 +172,7 @@ async function getEffective({ env = 'production', workspaceId = null, deptId = n
     }));
   }
 
-  // ── 2. Development Mode (Workspace) ──
+  // ── Development Mode (Workspace) ──
   let ws = null;
   if (mongoose.isValidObjectId(workspaceId)) {
     ws = await M.TimetableWorkspace.findById(workspaceId).lean();

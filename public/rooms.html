@@ -8,20 +8,20 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
 
-  <!-- Base & EAMS Core Admin Stylesheets -->
+  
   <script src="js/core/escape.js"></script>
   <script src="js/core/icons.js"></script>
   <link rel="stylesheet" href="css/base.css">
   <link rel="stylesheet" href="css/admin.css">
   <link rel="stylesheet" href="css/rooms.css">
 
-  <!-- Leaflet CDN for Geolocation & Geofencing Map Pickers (SRI pinned) -->
+  
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 </head>
 <body>
 
-  <!-- EAMS THREE-BODY PAGE LOADER -->
+  
   <div id="page-loader">
     <div class="loader-brand">🌿 EAMS Facilities</div>
     <div class="three-body">
@@ -40,14 +40,14 @@
     </div>
   </div>
 
-  <!-- APP SHELL -->
+  
   <div id="app-shell" class="vis">
     <div class="sb-overlay" id="sb-overlay" onclick="toggleAdminSidebar()"></div>
 
-    <!-- SIDEBAR TOGGLE BUTTON -->
+    
     <button class="sb-toggle-btn" id="sbtoggle" onclick="toggleAdminSidebar()" title="Toggle menu"><re-icon icon="x" size="16"></re-icon></button>
 
-    <!-- SIDEBAR -->
+    
     <nav class="sb" id="sidebar">
       <div class="sb-logo">
         <div class="sb-brand">🌿 EAMS Admin</div>
@@ -104,12 +104,12 @@
       </div>
     </nav>
 
-    <!-- MAIN CONTENT -->
+    
     <div class="mc" id="mc">
-      <!-- TOPBAR -->
+      
       <div class="topbar">
         <div class="topbar-left">
-          <div style="width:32px;"></div><!-- spacer for toggle btn -->
+          <div style="width:32px;"></div>
           <div style="font-size:11px;color:var(--tmu);background:var(--gLt);padding:4px 12px;border-radius:12px;border:1px solid var(--br);font-weight:600;white-space:nowrap;" id="topbar-tag">
             🌿 EAMS &bull; Facilities &amp; Smart Board Hub
           </div>
@@ -121,11 +121,11 @@
         </div>
       </div>
 
-      <!-- MAIN CONTAINER: ALL PAGES ARE LIKE ADMIN PAGE'S SUB PAGE -->
+      
       <div class="pg act" style="padding:22px 24px;">
         <div class="page-wrap">
 
-          <!-- PAGE HEADER (ADMIN SUBPAGE STYLE) -->
+          
           <div class="page-hd">
             <div>
               <div class="page-title">Campus Facilities &amp; Blocks</div>
@@ -138,9 +138,9 @@
             </div>
           </div>
 
-          <!-- 6-COLUMN KPI DASHBOARD MATRIX (2 ROWS × 3 COLUMNS) -->
+          
           <div class="stats-row facilities-kpi-row">
-            <!-- Row 1 -->
+            
             <div class="stat-card primary" onclick="setViewFilter('all')">
               <div class="sc-top">
                 <span class="sc-label">Total Blocks</span>
@@ -168,7 +168,7 @@
               <div class="sc-trend" id="kpi-total-labs-sub" style="color:var(--purple);background:rgba(139,92,246,0.1);">Computer &amp; science labs</div>
             </div>
 
-            <!-- Row 2 -->
+            
             <div class="stat-card" onclick="setViewFilter('Academic')">
               <div class="sc-top">
                 <span class="sc-label">Academic Blocks</span>
@@ -197,12 +197,9 @@
             </div>
           </div>
 
-          <!-- ══════════════════════════════════════════════════════ -->
-          <!-- MAIN TAB 1: FILE EXPLORER WORKSPACE                   -->
-          <!-- ══════════════════════════════════════════════════════ -->
           <div id="tab-view-explorer" class="facilities-main-tab act">
 
-            <!-- QUICK VIEW SELECTOR & ACTIONS -->
+            
             <div class="view-selector-bar">
               <div class="view-pills">
                 <span class="view-label">VIEW:</span>
@@ -216,7 +213,7 @@
               </div>
             </div>
 
-            <!-- SINGLE-LINE UNIFIED SEARCH & FILTER TOOLBAR -->
+            
             <div class="card slf-card" style="margin-bottom:16px;">
               <div class="single-line-filter-bar">
                 <div class="slf-search-box">
@@ -253,7 +250,7 @@
               </div>
             </div>
 
-            <!-- FILE EXPLORER BREADCRUMB NAVIGATION BAR -->
+            
             <div class="explorer-breadcrumb-bar" id="explorer-breadcrumbs">
               <button class="eb-back-btn" id="eb-back-btn" onclick="navExplorerBack()" title="Go back one level" style="display:none;"><re-icon icon="arrow-left"></re-icon></button>
               <div class="eb-crumb active" onclick="navExplorer(0)" title="Root Blocks Overview">
@@ -276,14 +273,14 @@
               </div>
             </div>
 
-            <!-- ── LEVEL 0: CAMPUS BLOCKS OVERVIEW GRID ── -->
+            
             <div id="exp-view-blocks" class="exp-viewport act">
               <div class="blocks-grid" id="blocks-container">
                 <div class="empty-state">Loading campus blocks…</div>
               </div>
             </div>
 
-            <!-- ── LEVEL 1: BLOCK VIEW (BLOCKS > BLOCK NAME) ── -->
+            
             <div id="exp-view-floors" class="exp-viewport" style="display:none;">
               <div class="exp-header-card">
                 <div class="ehc-left">
@@ -299,11 +296,11 @@
               </div>
 
               <div class="floors-grid" id="floors-container">
-                <!-- Dynamically rendered floor cards -->
+                
               </div>
             </div>
 
-            <!-- ── LEVEL 2: FLOOR VIEW (BLOCKS > BLOCK NAME > FLOOR NAME) ── -->
+            
             <div id="exp-view-units" class="exp-viewport" style="display:none;">
               <div class="exp-header-card">
                 <div class="ehc-left">
@@ -318,22 +315,19 @@
               </div>
 
               <div class="units-grid" id="units-container">
-                <!-- Dynamically rendered Room / Hall / Lab cards -->
+                
               </div>
             </div>
 
-            <!-- ── LEVEL 3: UNIT INSPECTION & TELEMETRY SHEET ── -->
+            
             <div id="exp-view-unit-detail" class="exp-viewport" style="display:none;">
               <div class="unit-inspection-sheet" id="unit-detail-card">
-                <!-- Dynamically rendered detailed inspection sheet -->
+                
               </div>
             </div>
 
           </div>
 
-          <!-- ══════════════════════════════════════════════════════ -->
-          <!-- MAIN TAB 2: MAINTENANCE BLOCKS                        -->
-          <!-- ══════════════════════════════════════════════════════ -->
           <div id="tab-view-maintenance" class="facilities-main-tab" style="display:none;">
             <div class="exp-header-card" style="margin-bottom:18px;">
               <div class="ehc-left">
@@ -365,9 +359,6 @@
             </div>
           </div>
 
-          <!-- ══════════════════════════════════════════════════════ -->
-          <!-- MAIN TAB 3: SMART BOARD CENTER                        -->
-          <!-- ══════════════════════════════════════════════════════ -->
           <div id="tab-view-boards" class="facilities-main-tab" style="display:none;">
             <div class="exp-header-card" style="margin-bottom:18px;">
               <div class="ehc-left">
@@ -400,9 +391,6 @@
             </div>
           </div>
 
-          <!-- ══════════════════════════════════════════════════════ -->
-          <!-- MAIN TAB 4: FACILITY AUDIT TRAIL                      -->
-          <!-- ══════════════════════════════════════════════════════ -->
           <div id="tab-view-audit" class="facilities-main-tab" style="display:none;">
             <div class="exp-header-card" style="margin-bottom:18px;">
               <div class="ehc-left">
@@ -433,16 +421,11 @@
             </div>
           </div>
 
-        </div><!-- /.page-wrap -->
-      </div><!-- /.pg -->
-    </div><!-- /.mc -->
-  </div><!-- /#app-shell -->
+        </div>
+      </div>
+    </div>
+  </div>
 
-  <!-- ══════════════════════════════════════════════════════ -->
-  <!-- MODAL POPUPS (ZERO-ALERT ENGINE)                       -->
-  <!-- ══════════════════════════════════════════════════════ -->
-
-  <!-- MODAL 1: ADD / EDIT BLOCK -->
   <div class="modal-bg" id="modal-block">
     <div class="modal modal-md">
       <div class="modal-hd">
@@ -507,7 +490,7 @@
           </select>
         </div>
 
-        <!-- Geolocation Section -->
+        
         <div class="fg" style="margin-top:10px;">
           <label class="fl">Latitude</label>
           <input type="number" class="fc2" id="block-input-latitude" placeholder="e.g. 12.9716" step="any" min="-90" max="90">
@@ -534,7 +517,7 @@
     </div>
   </div>
 
-  <!-- MODAL 2: ADD FLOOR -->
+  
   <div class="modal-bg" id="modal-floor">
     <div class="modal modal-sm">
       <div class="modal-hd">
@@ -562,7 +545,7 @@
     </div>
   </div>
 
-  <!-- MODAL 3: ADD / EDIT UNIT (ROOM, SPECIAL HALL, LAB) -->
+  
   <div class="modal-bg" id="modal-unit">
     <div class="modal modal-md">
       <div class="modal-hd">
@@ -607,7 +590,7 @@
           </div>
         </div>
 
-        <!-- Telemetry & Network Row -->
+        
         <div class="form-grid form-grid-3" style="margin-top:10px;">
           <div class="fg">
             <label class="fl">IP Address</label>
@@ -639,7 +622,7 @@
           </div>
         </div>
 
-        <!-- Geolocation & Geofence Section -->
+        
         <div class="fg" style="margin-top:12px;">
           <div style="font-weight:700;font-size:12px;color:var(--gD);margin-bottom:8px;"><re-icon icon="map-pin"></re-icon> Geolocation & Geofence Settings</div>
         </div>
@@ -672,7 +655,7 @@
           </div>
         </div>
 
-        <!-- Conditional: Special Hall Incharge -->
+        
         <div id="unit-field-hall-incharge" style="margin-top:12px;display:none;background:var(--gLt);padding:12px;border-radius:10px;border:1px solid var(--br);">
           <div style="font-weight:700;font-size:12px;color:var(--gD);margin-bottom:8px;"><re-icon icon="layout"></re-icon> Special Hall Incharge Details</div>
           <div class="form-grid form-grid-3">
@@ -691,7 +674,7 @@
           </div>
         </div>
 
-        <!-- Conditional: Lab Specs -->
+        
         <div id="unit-field-lab-specs" style="margin-top:12px;display:none;background:rgba(139,92,246,0.08);padding:12px;border-radius:10px;border:1px solid rgba(139,92,246,0.2);">
           <div style="font-weight:700;font-size:12px;color:var(--purple);margin-bottom:8px;"><re-icon icon="microscope"></re-icon> Laboratory Specifications</div>
           <div class="form-grid form-grid-2">
@@ -718,7 +701,7 @@
     </div>
   </div>
 
-  <!-- MODAL 4: LINK SMART BOARD POPUP WINDOW -->
+  
   <div class="modal-bg" id="modal-link-board">
     <div class="modal modal-md">
       <div class="modal-hd">
@@ -751,7 +734,7 @@
           </select>
         </div>
         <div id="link-board-preview" style="margin-top:14px;background:var(--gLt);padding:12px;border-radius:10px;display:none;">
-          <!-- Shows selected board details & live status -->
+          
         </div>
         <div class="fg" style="margin-top:12px;">
           <label class="fl">Installation / Assignment Note</label>
@@ -765,7 +748,7 @@
     </div>
   </div>
 
-<!-- MODAL 5: SMART BOARD LOGS & TELEMETRY POPUP -->
+
   <div class="modal-bg" id="modal-board-logs">
     <div class="modal modal-md">
       <div class="modal-hd">
@@ -777,10 +760,10 @@
       </div>
       <div class="mbody">
         <div class="diag-grid" id="board-logs-metrics">
-          <!-- Filled by JS -->
+          
         </div>
         <div id="board-logs-creds">
-          <!-- Filled by JS with Username & Password credentials -->
+          
         </div>
         <div style="font-size:11.5px;font-weight:700;color:var(--gD);margin:14px 0 6px;">TELEMETRY & IP HISTORY</div>
         <div class="board-logs-box" id="board-logs-content">
@@ -793,7 +776,7 @@
     </div>
   </div>
 
-  <!-- MODAL 5B: REGISTER / EDIT SMART BOARD -->
+  
   <div class="modal-bg" id="modal-register-board">
     <div class="modal modal-lg">
       <div class="modal-hd">
@@ -882,7 +865,7 @@
     </div>
   </div>
 
-  <!-- MODAL 5C: CHANGE SMART BOARD PASSWORD -->
+  
   <div class="modal-bg" id="modal-change-board-pwd">
     <div class="modal modal-sm">
       <div class="modal-hd">
@@ -940,7 +923,7 @@
     </div>
   </div>
 
-  <!-- MODAL 6: PRE-BOOK SPECIAL HALL -->
+  
   <div class="modal-bg" id="modal-prebook-hall">
     <div class="modal modal-md">
       <div class="modal-hd">
@@ -988,7 +971,7 @@
     </div>
   </div>
 
-  <!-- MODAL 7: CUSTOM EAMS CONFIRMATION POPUP (NO WINDOW.CONFIRM) -->
+  
   <div class="modal-bg" id="modal-confirm">
     <div class="modal modal-sm">
       <div class="modal-hd">
@@ -1008,7 +991,7 @@
     </div>
   </div>
 
-  <!-- MODAL 8: CUSTOM EAMS ALERT POPUP (NO WINDOW.ALERT) -->
+  
   <div class="modal-bg" id="modal-alert">
     <div class="modal modal-sm">
       <div class="modal-hd">
@@ -1026,11 +1009,11 @@
     </div>
   </div>
 
-  <!-- TOAST NOTIFICATIONS -->
+  
   <div id="toast" class="toast"></div>
   <div id="db-toast"></div>
 
-  <!-- CORE SCRIPTS -->
+  
   <script src="js/core/session.js"></script>
   <script src="js/core/api.js"></script>
   <script src="js/core/modal.js"></script>
@@ -1038,7 +1021,7 @@
   <script src="js/core/toast.js"></script>
   <script src="js/core/guard.js"></script>
 
-  <!-- PAGE LOGIC -->
+  
   <script src="js/pages/rooms.page.js"></script>
 </body>
 </html>

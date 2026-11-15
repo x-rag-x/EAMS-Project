@@ -2,8 +2,7 @@ const mongoose = require('mongoose');
 
 /**
  * models/trustEvent.model.js
- *
- * Immutable append-only ledger for Student Trust Score changes (§4, §8, T4.1)
+ * Immutable append-only ledger for Student Trust Score changes
  * Every score mutation writes a TrustEvent with a unique refKey for idempotency.
  * Schema pre-hooks strictly reject updates or deletions.
  */
@@ -94,7 +93,7 @@ const TrustEventSchema = new mongoose.Schema({
   timestamps: { createdAt: 'at', updatedAt: false }
 });
 
-// Idempotency compound unique index: one event per refKey per student (§8)
+// Idempotency compound unique index: one event per refKey per student
 TrustEventSchema.index({ studentId: 1, refKey: 1 }, { unique: true });
 TrustEventSchema.index({ studentTrackId: 1, at: -1 });
 TrustEventSchema.index({ type: 1, at: -1 });

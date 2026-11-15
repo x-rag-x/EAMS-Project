@@ -28,7 +28,7 @@ router.get('/batches/:id/events', authMiddleware, requirePage('bulk', 'view'), l
     }
   };
 
-  // 1. Initial snapshot of current batch state
+  // Initial snapshot of current batch state
   sendEvent({
     type: 'snapshot',
     data: {
@@ -38,11 +38,11 @@ router.get('/batches/:id/events', authMiddleware, requirePage('bulk', 'view'), l
     }
   });
 
-  // 2. Subscribe to event bus for this batch
+  // Subscribe to event bus for this batch
   const channel = `batch:${req.batch._id}`;
   bus.on(channel, sendEvent);
 
-  // 3. Keep-alive heartbeat every 15s to prevent proxy timeouts
+  // Keep-alive heartbeat every 15s to prevent proxy timeouts
   const heartbeatTimer = setInterval(() => {
     try {
       res.write(':hb\n\n');
@@ -50,7 +50,7 @@ router.get('/batches/:id/events', authMiddleware, requirePage('bulk', 'view'), l
     } catch (_) {}
   }, 15000);
 
-  // 4. Clean up listener on connection close
+  // Clean up listener on connection close
   req.on('close', () => {
     clearInterval(heartbeatTimer);
     bus.off(channel, sendEvent);

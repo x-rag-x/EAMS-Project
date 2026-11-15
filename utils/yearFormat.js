@@ -64,13 +64,12 @@ function toBatchTrackId(batchVal) {
 /**
  * Computes canonical student Track ID in format TR{YearCode}{TwoLetterDeptCode}{RollNo}.
  * Example:
- *   714025104208 with CSE department -> "TR25CS208"
- *
+ *   with CSE department -> "TR25CS208"
  * Register No decomposition (e.g. 714025104208):
- *   7140 = Institution code
- *   25   = Admission Year (2025 -> 25)
- *   104  = 3-digit Department number (e.g. 104 is CSE)
- *   208  = 3-digit Roll / Serial number
+ *   = Institution code
+ *   = Admission Year (2025 -> 25)
+ *   = 3-digit Department number (e.g. 104 is CSE)
+ *   = 3-digit Roll / Serial number
  */
 function buildStudentTrackId(regNo, deptDocOrName, batchVal, acadYearVal, allDepts = []) {
   const reg = String(regNo || '').replace(/\D/g, '');

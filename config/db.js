@@ -140,7 +140,7 @@ async function seedSettings() {
     // Seed default admin account in Teacher and User collections
     const adminExists = await M.Teacher.findOne({ username: 'admin' });
     if (adminExists) {
-      // Ensure shadow User record is normalized to role: 'teacher' and matches trackId (§4.8, R1.7, R3)
+      // Ensure shadow User record is normalized to role: 'teacher' and matches trackId
       const shadowUser = await M.User.findOne({ username: 'admin' });
       if (!shadowUser) {
         await M.User.create({ username: 'admin', role: 'teacher', trackId: adminExists.trackId || 'TR-ADMIN001', status: 'active', bootstrapPending: Boolean(adminExists.bootstrapPending) });

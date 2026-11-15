@@ -1,7 +1,6 @@
 /**
  * utils/resolveAccess.js
- *
- * Single source of truth for user access evaluation (§5.1, role_access_plan.md).
+ * Single source of truth for user access evaluation.
  * Pure function with zero database calls. Evaluates:
  * - specials (who you are: HOD, Principal, Class Advisor, coordinators, Warden)
  * - pageRights (what admin pages you may open: Sudo, Super, Sub-Admin, scopes, actions, expiry)
@@ -23,7 +22,7 @@ function hashEffective(pages) {
 }
 
 /**
- * Derives default landing page from resolved flags and environment (§3.3, signin_plan.md).
+ * Derives default landing page from resolved flags and environment.
  */
 function landingFor(flags, env = 'production') {
   if (flags.isSudo) {
@@ -39,7 +38,7 @@ function landingFor(flags, env = 'production') {
 }
 
 /**
- * Pure access resolution function (§5.1).
+ * Pure access resolution function.
  * Accepts either:
  *   resolveAccess(role, doc, options)
  *   resolveAccess(doc, options)
@@ -63,7 +62,7 @@ function resolveAccess(first, second, third) {
   const now = opts.now ? new Date(opts.now) : new Date();
   const acting = Array.isArray(opts.acting) ? opts.acting : [];
 
-  // 1. Student Identity
+  // Student Identity
   if (role === 'student' || doc.role === 'student') {
     const studentPages = buildPagesDictionary(doc, { kind: 'student' });
     return {
@@ -101,7 +100,7 @@ function resolveAccess(first, second, third) {
     };
   }
 
-  // 2. Smart Board Identity
+  // Smart Board Identity
   if (role === 'board' || doc.identityType === 'board') {
     const boardPages = buildPagesDictionary(doc, { kind: 'board' });
     return {
@@ -138,7 +137,7 @@ function resolveAccess(first, second, third) {
     };
   }
 
-  // 3. Staff / Administrator Identity
+  // Staff / Administrator Identity
   const specialsList = Array.isArray(doc.specials) ? doc.specials : [];
   const sp = new Set(specialsList.map(s => s && s.option).filter(Boolean));
   const pr = doc.pageRights || {};
@@ -165,7 +164,7 @@ function resolveAccess(first, second, third) {
     rawGrants = Array.isArray(pr.grants) ? pr.grants : [];
   }
 
-  // Determine tier: derived from pageRights.accessRole & admin special (§3, §5.1)
+  // Determine tier: derived from pageRights.accessRole & admin special
   const hasAdminSpecial = sp.has('isAdmin') || doc.isAdmin === true;
   let tier = 'none';
 
@@ -225,7 +224,7 @@ function resolveAccess(first, second, third) {
     multiSession: flags.isSudo
   };
 
-  // Backward-compatibility shims (§5.3)
+  // Backward-compatibility shims
   const isAdmin = flags.isSudo || flags.isSuper || flags.isSub;
   const adminFlag = flags.isSudo ? 'superadmin' : (flags.isSuper ? 'superadmin' : (flags.isSub ? 'subadmin' : (isPrincipal ? 'principal' : 'none')));
   const hasInstitutionReach = flags.isSudo || flags.isPrincipal || (flags.isSuper && liveGrants.some(g => g.scope === 'institution'));

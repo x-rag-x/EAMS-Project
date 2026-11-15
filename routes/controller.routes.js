@@ -18,7 +18,7 @@ const { decryptLog } = require('../utils/logCrypto');
 const { todayIST } = require('../utils/institutionTime');
 const escapeRegex = s => String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-// 0a. GET /api/controller/stream — Browser EventSource stream (authenticated via one-time ticket)
+// GET /api/controller/stream — Browser EventSource stream (authenticated via one-time ticket)
 router.get('/stream', async (req, res) => {
   const ticket = sanitizeToString(req.query.ticket);
   const clientInfo = consumeStreamTicket(ticket);
@@ -41,7 +41,7 @@ router.use(authMiddleware);
 router.use(scopeMiddleware);
 router.use(controllerAuth);
 
-// 0b. POST /api/controller/stream-ticket — Issue one-time ticket for EventSource connection
+// POST /api/controller/stream-ticket — Issue one-time ticket for EventSource connection
 router.post('/stream-ticket', async (req, res) => {
   try {
     const ticket = createStreamTicket({
@@ -55,7 +55,7 @@ router.post('/stream-ticket', async (req, res) => {
   }
 });
 
-// 0c. GET /api/controller/board — Live Board real-time snapshot with KPI counters & tile states
+// GET /api/controller/board — Live Board real-time snapshot with KPI counters & tile states
 router.get('/board', async (req, res) => {
   try {
     const dateStr = sanitizeToString(req.query.date) || null;
@@ -75,7 +75,7 @@ router.get('/board', async (req, res) => {
   }
 });
 
-// 0d. GET /api/controller/day-matrix — Day matrix view (sections × today's periods)
+// GET /api/controller/day-matrix — Day matrix view (sections × today's periods)
 router.get('/day-matrix', async (req, res) => {
   try {
     const dateStr = sanitizeToString(req.query.date) || null;
@@ -90,7 +90,7 @@ router.get('/day-matrix', async (req, res) => {
   }
 });
 
-// 0e. POST /api/controller/sessions/generate — Generate today's ClassSession records from timetables
+// POST /api/controller/sessions/generate — Generate today's ClassSession records from timetables
 router.post('/sessions/generate', async (req, res) => {
   try {
     const targetDate = sanitizeToString(req.body.date) || null;
@@ -102,7 +102,7 @@ router.post('/sessions/generate', async (req, res) => {
   }
 });
 
-// 0f. Alerts Endpoints (GET /alerts, POST /alerts/:id/ack, snooze, resolve)
+// Alerts Endpoints (GET /alerts, POST /alerts/:id/ack, snooze, resolve)
 router.get('/alerts', async (req, res) => {
   try {
     const status = sanitizeToString(req.query.status) || 'active';
@@ -161,7 +161,7 @@ router.post('/alerts/:id/resolve', async (req, res) => {
   }
 });
 
-// ── C4. Class Live View & Drawer Endpoints ─────────────────────────
+// ── C4. Class Live View & Drawer Endpoints ─
 
 // GET /api/controller/class/:classId/live — Detailed Live View Drawer / Full Page
 router.get('/class/:classId/live', async (req, res) => {
@@ -186,13 +186,13 @@ router.get('/class/:classId/live', async (req, res) => {
       return res.status(403).json({ error: 'Access denied: Class outside your departmental scope' });
     }
 
-    // 1. Fetch today's ClassSessions for this class
+    // Fetch today's ClassSessions for this class
     const todaySessions = await M.ClassSession.find({
       classId: String(cls._id),
       date: dateStr
     }).sort({ periodNumber: 1 }).lean();
 
-    // 2. Identify active / current session
+    // Identify active / current session
     const nowHM = getCurrentTimeHM();
     const nowMins = timeToMinutes(nowHM);
     const nowSession = todaySessions.find(s => {
@@ -201,7 +201,7 @@ router.get('/class/:classId/live', async (req, res) => {
       return nowMins >= sMins && nowMins <= eMins;
     }) || todaySessions[0] || null;
 
-    // 3. Fetch enrolled students
+    // Fetch enrolled students
     const students = await M.Student.find({
       $or: [{ classId: cls._id }, { class: cls.name }]
     })
@@ -209,7 +209,7 @@ router.get('/class/:classId/live', async (req, res) => {
       .sort({ registerNo: 1 })
       .lean();
 
-    // 4. Fetch ClassAttendance for today
+    // Fetch ClassAttendance for today
     const startOfDay = new Date(dateStr + 'T00:00:00.000Z');
     const endOfDay = new Date(dateStr + 'T23:59:59.999Z');
     const todayAtt = await M.ClassAttendance.findOne({
@@ -217,7 +217,7 @@ router.get('/class/:classId/live', async (req, res) => {
       date: { $gte: startOfDay, $lte: endOfDay }
     }).lean();
 
-    // 5. Fetch approved leaves & ODs covering today for these students
+    // Fetch approved leaves & ODs covering today for these students
     const studentTrackIds = students.map(s => s.trackId);
     const activeLeaves = await M.LeaveRequest.find({
       dates: dateStr,
@@ -239,7 +239,7 @@ router.get('/class/:classId/live', async (req, res) => {
       odMap.set(od.studentTrackId, od);
     }
 
-    // 6. Build presence map across today's periods for each student
+    // Build presence map across today's periods for each student
     const studentPeriodStatus = new Map();
     for (const s of students) {
       studentPeriodStatus.set(s.trackId, {});
@@ -261,7 +261,7 @@ router.get('/class/:classId/live', async (req, res) => {
       }
     }
 
-    // 7. Build Roster items with smart tags
+    // Build Roster items with smart tags
     const targetPeriod = nowSession?.periodNumber || 1;
     const roster = students.map(s => {
       const pMap = studentPeriodStatus.get(s.trackId) || {};
@@ -348,7 +348,7 @@ router.get('/class/:classId/live', async (req, res) => {
       return (order[a.status] || 9) - (order[b.status] || 9);
     });
 
-    // 8. Presence Matrix across P1..P8
+    // Presence Matrix across P1..P8
     const matrix = [];
     for (let p = 1; p <= 8; p++) {
       const sess = todaySessions.find(s => Number(s.periodNumber) === p);
@@ -381,7 +381,7 @@ router.get('/class/:classId/live', async (req, res) => {
       });
     }
 
-    // 9. Last 7 Days Attendance Trend Line
+    // Last 7 Days Attendance Trend Line
     const past7DateStart = new Date(new Date(dateStr).getTime() - 7 * 86400000);
     const past7AttDocs = await M.ClassAttendance.find({
       classId: String(cls._id),
@@ -770,7 +770,7 @@ router.post('/unlock-requests/:id/reject', async (req, res) => {
   }
 });
 
-// ── C5. Free-Teacher Finder & Alerts Digest ────────────────────────
+// ── C5. Free-Teacher Finder & Alerts Digest
 
 // GET /api/controller/free-teachers — Ranked candidate faculty for period substitution
 router.get('/free-teachers', async (req, res) => {
@@ -815,7 +815,7 @@ router.get('/alerts/digest', async (req, res) => {
   }
 });
 
-// 0. GET /api/controller/me — Identity, acting roles, scope and capabilities
+// GET /api/controller/me — Identity, acting roles, scope and capabilities
 router.get('/me', async (req, res) => {
   try {
     return res.json({
@@ -849,7 +849,7 @@ function getDeptFilter(req, requestedDeptId) {
   return null;
 }
 
-// 1. GET /api/controller/init — Bootstrap context, profile and badge counts
+// GET /api/controller/init — Bootstrap context, profile and badge counts
 router.get('/init', async (req, res) => {
   try {
     const ctx = req.controllerContext;
@@ -891,7 +891,7 @@ router.get('/init', async (req, res) => {
   }
 });
 
-// 2. GET /api/controller/dashboard — Aggregated dashboard statistics & trends
+// GET /api/controller/dashboard — Aggregated dashboard statistics & trends
 router.get('/dashboard', async (req, res) => {
   try {
     const ctx = req.controllerContext;
@@ -1072,7 +1072,7 @@ router.get('/dashboard', async (req, res) => {
   }
 });
 
-// 3. GET /api/controller/attendance/daily — Detailed attendance by date & class
+// GET /api/controller/attendance/daily — Detailed attendance by date & class
 router.get('/attendance/daily', async (req, res) => {
   try {
     const ctx = req.controllerContext;
@@ -1177,7 +1177,7 @@ router.get('/attendance/daily', async (req, res) => {
   }
 });
 
-// 4. GET /api/controller/leaves/student — Student leave requests
+// GET /api/controller/leaves/student — Student leave requests
 router.get('/leaves/student', async (req, res) => {
   try {
     const ctx = req.controllerContext;
@@ -1211,7 +1211,7 @@ router.get('/leaves/student', async (req, res) => {
   }
 });
 
-// 5. GET /api/controller/leaves/teacher — Faculty leave requests
+// GET /api/controller/leaves/teacher — Faculty leave requests
 router.get('/leaves/teacher', async (req, res) => {
   try {
     const ctx = req.controllerContext;
@@ -1249,7 +1249,7 @@ router.get('/leaves/teacher', async (req, res) => {
   }
 });
 
-// 6. POST /api/controller/leaves/approve — Single or Bulk Leave Approval
+// POST /api/controller/leaves/approve — Single or Bulk Leave Approval
 router.post('/leaves/approve', async (req, res) => {
   try {
     const ctx = req.controllerContext;
@@ -1446,7 +1446,7 @@ router.post('/leaves/approve', async (req, res) => {
   }
 });
 
-// 7. POST /api/controller/leaves/reject — Single or Bulk Leave Rejection
+// POST /api/controller/leaves/reject — Single or Bulk Leave Rejection
 router.post('/leaves/reject', async (req, res) => {
   try {
     const ctx = req.controllerContext;
@@ -1534,7 +1534,7 @@ router.post('/leaves/reject', async (req, res) => {
   }
 });
 
-// 8. GET /api/controller/faculty — Faculty directory with today's marking status
+// GET /api/controller/faculty — Faculty directory with today's marking status
 router.get('/faculty', async (req, res) => {
   try {
     const ctx = req.controllerContext;
@@ -1603,7 +1603,7 @@ router.get('/faculty', async (req, res) => {
   }
 });
 
-// 9. GET /api/controller/students — Student directory with cumulative attendance % & server pagination
+// GET /api/controller/students — Student directory with cumulative attendance % & server pagination
 router.get('/students', async (req, res) => {
   try {
     const ctx = req.controllerContext;
@@ -1730,7 +1730,7 @@ router.get('/students', async (req, res) => {
   }
 });
 
-// ── C6. Student Records & Defaulter Actions ────────────────────────
+// ── C6. Student Records & Defaulter Actions
 
 // GET /api/controller/students/:trackId/record — Comprehensive student profile with heatmap and projections
 router.get('/students/:trackId/record', async (req, res) => {
@@ -2087,7 +2087,7 @@ router.get('/export/defaulters.csv', async (req, res) => {
   }
 });
 
-// 10. GET /api/controller/records — Period-wise teaching notes and topics covered
+// GET /api/controller/records — Period-wise teaching notes and topics covered
 router.get('/records', async (req, res) => {
   try {
     const ctx = req.controllerContext;
@@ -2158,7 +2158,7 @@ router.get('/records', async (req, res) => {
   }
 });
 
-// 11. GET /api/controller/defaulters — Defaulters list below policy threshold with condonation bands
+// GET /api/controller/defaulters — Defaulters list below policy threshold with condonation bands
 router.get('/defaulters', async (req, res) => {
   try {
     const classId = sanitizeToString(req.query.classId) || null;
@@ -2260,7 +2260,7 @@ router.get('/defaulters', async (req, res) => {
   }
 });
 
-// 12. POST /api/controller/defaulters/meet — Bulk "Meet Me" Notice Action
+// POST /api/controller/defaulters/meet — Bulk "Meet Me" Notice Action
 router.post('/defaulters/meet', async (req, res) => {
   try {
     const ctx = req.controllerContext;
@@ -2277,7 +2277,7 @@ router.post('/defaulters/meet', async (req, res) => {
     const advisorTrackIds = new Set();
 
     for (const student of students) {
-      // 1. Notify Student
+      // Notify Student
       await M.Notification.create({
         type: 'attendance-alert',
         from: `${ctx.name} (${ctx.role.toUpperCase()})`,
@@ -2301,7 +2301,7 @@ router.post('/defaulters/meet', async (req, res) => {
       }
     }
 
-    // 2. Notify Class Advisors copy
+    // Notify Class Advisors copy
     for (const advTrackId of advisorTrackIds) {
       const advTeacher = await M.Teacher.findOne({ trackId: advTrackId }).lean();
       if (!advTeacher) continue;
@@ -2359,7 +2359,7 @@ router.post('/defaulters/meet', async (req, res) => {
   }
 });
 
-// 13. GET /api/controller/reports/monthly — Aggregated monthly class attendance
+// GET /api/controller/reports/monthly — Aggregated monthly class attendance
 router.get('/reports/monthly', async (req, res) => {
   try {
     const ctx = req.controllerContext;
@@ -2425,7 +2425,7 @@ router.get('/reports/monthly', async (req, res) => {
   }
 });
 
-// 14. GET /api/controller/reports/semester — Subject-wise semester summary
+// GET /api/controller/reports/semester — Subject-wise semester summary
 router.get('/reports/semester', async (req, res) => {
   try {
     const ctx = req.controllerContext;
@@ -2479,7 +2479,7 @@ router.get('/reports/semester', async (req, res) => {
   }
 });
 
-// 14b. GET /api/controller/reports/weekly — Monday-to-Saturday calendar week report
+// GET /api/controller/reports/weekly — Monday-to-Saturday calendar week report
 router.get('/reports/weekly', async (req, res) => {
   try {
     const ctx = req.controllerContext;
@@ -2573,7 +2573,7 @@ router.get('/reports/weekly', async (req, res) => {
   }
 });
 
-// 14c. GET /api/controller/attendance/overview — Headline KPI, Delta, SVG Trend Series & Class Rankings
+// GET /api/controller/attendance/overview — Headline KPI, Delta, SVG Trend Series & Class Rankings
 router.get('/attendance/overview', async (req, res) => {
   try {
     const ctx = req.controllerContext;
@@ -2582,13 +2582,13 @@ router.get('/attendance/overview', async (req, res) => {
     const targetDate = sanitizeToString(req.query.date) || getTodayIST();
     const deptCodes = req.scope.deptCodes || [];
 
-    // 1. Get dynamic settings threshold
+    // Get dynamic settings threshold
     const settingsDoc = await M.Settings.findOne({ key: 'attendancePolicy' }).lean();
     const minThreshold = Number(settingsDoc?.value?.minAttendancePct) || 75;
     const condonationMin = Number(settingsDoc?.value?.condonationMinPct) || Math.max(0, minThreshold - 10);
     const atRiskUpper = minThreshold + 5;
 
-    // 2. Build date windows based on range
+    // Build date windows based on range
     const base = new Date(targetDate + 'T12:00:00+05:30');
     let currentDates = [];
     let prevDates = [];
@@ -2748,7 +2748,7 @@ router.get('/attendance/overview', async (req, res) => {
   }
 });
 
-// 14d. GET /api/controller/staff/compliance — 30-day punctuality & role coverage gap analysis
+// GET /api/controller/staff/compliance — 30-day punctuality & role coverage gap analysis
 router.get('/staff/compliance', async (req, res) => {
   try {
     const ctx = req.controllerContext;
@@ -2756,7 +2756,7 @@ router.get('/staff/compliance', async (req, res) => {
     const deptCodes = req.scope.deptCodes || [];
     const targetDeptId = !isPrincipal ? ctx.deptId : (req.query.deptId || null);
 
-    // 1. Calculate 30-day window
+    // Calculate 30-day window
     const todayStr = getTodayIST();
     const base = new Date(todayStr + 'T12:00:00+05:30');
     const startD = new Date(base);
@@ -2806,7 +2806,7 @@ router.get('/staff/compliance', async (req, res) => {
       return t;
     }).sort((a, b) => b.totalSessions - a.totalSessions);
 
-    // 2. Operational role coverage gap analysis
+    // Operational role coverage gap analysis
     const classQuery = targetDeptId ? { deptId: targetDeptId } : {};
     const classes = await M.Class.find(classQuery).lean();
 
@@ -2840,7 +2840,7 @@ router.get('/staff/compliance', async (req, res) => {
   }
 });
 
-// 14e. GET /api/controller/search — Global Search (Students, Faculty, Classes)
+// GET /api/controller/search — Global Search (Students, Faculty, Classes)
 router.get('/search', async (req, res) => {
   try {
     const ctx = req.controllerContext;
@@ -2935,7 +2935,7 @@ router.get('/search', async (req, res) => {
   }
 });
 
-// 15. POST /api/controller/broadcast — Dispatch tagged announcement
+// POST /api/controller/broadcast — Dispatch tagged announcement
 router.post('/broadcast', async (req, res) => {
   try {
     const ctx = req.controllerContext;
@@ -2990,7 +2990,7 @@ router.post('/broadcast', async (req, res) => {
   }
 });
 
-// 16. GET /api/controller/broadcast/history — Broadcast dispatch logs
+// GET /api/controller/broadcast/history — Broadcast dispatch logs
 router.get('/broadcast/history', async (req, res) => {
   try {
     const ctx = req.controllerContext;
@@ -3016,7 +3016,7 @@ router.get('/broadcast/history', async (req, res) => {
   }
 });
 
-// 17. GET /api/controller/calendar — Academic calendar viewer (read-only)
+// GET /api/controller/calendar — Academic calendar viewer (read-only)
 router.get('/calendar', async (req, res) => {
   try {
     const CalendarModel = M.CalendarDay || M.AcademicCalendar;
@@ -3055,7 +3055,7 @@ router.get('/calendar', async (req, res) => {
   }
 });
 
-// 18. GET /api/controller/timetable — Class timetable master viewer (read-only)
+// GET /api/controller/timetable — Class timetable master viewer (read-only)
 router.get('/timetable', async (req, res) => {
   try {
     const ctx = req.controllerContext;
@@ -3141,7 +3141,7 @@ router.get('/timetable', async (req, res) => {
   }
 });
 
-// 18b. GET /api/controller/workload - Faculty Workload & Schedule slot source & metrics
+// GET /api/controller/workload - Faculty Workload & Schedule slot source & metrics
 router.get('/workload', async (req, res) => {
   try {
     const ctx = req.controllerContext;
@@ -3216,7 +3216,7 @@ router.get('/workload', async (req, res) => {
   }
 });
 
-// 19. GET /api/controller/inbox — Approvals Inbox (C7 §11)
+// GET /api/controller/inbox — Approvals Inbox
 router.get('/inbox', async (req, res) => {
   try {
     const ctx = req.controllerContext;
@@ -3229,7 +3229,7 @@ router.get('/inbox', async (req, res) => {
     const now = Date.now();
     const FORTY_EIGHT_HOURS = 48 * 60 * 60 * 1000;
 
-    // 1. Faculty Leaves awaiting approval
+    // Faculty Leaves awaiting approval
     const flQuery = isPrincipal
       ? { status: { $in: ['pending_principal', 'Pending'] }, principalStatus: { $ne: 'Approved' } }
       : { status: { $in: ['pending_hod', 'Pending'] }, hodStatus: { $ne: 'Permitted' }, ...deptIdFilter };
@@ -3268,7 +3268,7 @@ router.get('/inbox', async (req, res) => {
       });
     });
 
-    // 2. Student Leaves awaiting approval
+    // Student Leaves awaiting approval
     const slFilter = { status: 'Pending' };
     if (!isPrincipal && ctx.deptId) {
       slFilter.deptId = ctx.deptId;
@@ -3310,7 +3310,7 @@ router.get('/inbox', async (req, res) => {
       });
     });
 
-    // 3. Student OD Requests awaiting HOD / Principal stage
+    // Student OD Requests awaiting HOD / Principal stage
     const odStage = isPrincipal ? 'principal' : 'hod';
     const odQuery = {
       status: 'pending',
@@ -3349,7 +3349,7 @@ router.get('/inbox', async (req, res) => {
       });
     });
 
-    // 4. Evidence Overdue ODs
+    // Evidence Overdue ODs
     const overdueODs = await M.ODRequest.find({
       status: 'evidence_overdue',
       ...deptFilter
@@ -3380,7 +3380,7 @@ router.get('/inbox', async (req, res) => {
       });
     });
 
-    // 5. Attendance Unlock Requests (Alerts)
+    // Attendance Unlock Requests (Alerts)
     const alertQuery = {
       status: 'open',
       type: { $in: ['unlock_request', 'attendance_unlock', 'attendance_correction'] }
@@ -3413,7 +3413,7 @@ router.get('/inbox', async (req, res) => {
       });
     });
 
-    // 6. Unresolved Substitutions (Today)
+    // Unresolved Substitutions
     const unresolvedSessions = await M.ClassSession.find({
       date: getTodayIST(),
       flags: 'unresolved_sub',
@@ -3447,7 +3447,7 @@ router.get('/inbox', async (req, res) => {
       });
     });
 
-    // 7. Sub-Admin Role Access Requests
+    // Sub-Admin Role Access Requests
     const arFilter = { status: isPrincipal ? 'pending_principal' : 'pending_hod' };
     if (!isPrincipal && ctx.deptId) {
       arFilter.deptId = ctx.deptId;
@@ -3475,7 +3475,7 @@ router.get('/inbox', async (req, res) => {
       });
     });
 
-    // 8. Timetable Verification requests awaiting review
+    // Timetable Verification requests awaiting review
     const ttFilter = { verificationStatus: 'pending' };
     if (!isPrincipal) {
       const orBranches = [];
@@ -3554,7 +3554,7 @@ router.get('/inbox', async (req, res) => {
   }
 });
 
-// 20. GET /api/controller/reports/daily
+// GET /api/controller/reports/daily
 router.get('/reports/daily', async (req, res) => {
   try {
     const ctx = req.controllerContext;
@@ -3717,7 +3717,7 @@ router.get('/reports/daily', async (req, res) => {
   }
 });
 
-// 21. GET /api/controller/reports/punctuality — Faculty Punctuality & Coverage Report (C7 §12)
+// GET /api/controller/reports/punctuality — Faculty Punctuality & Coverage Report
 router.get('/reports/punctuality', async (req, res) => {
   try {
     const ctx = req.controllerContext;
@@ -3820,7 +3820,7 @@ router.get('/reports/punctuality', async (req, res) => {
   }
 });
 
-// 22. GET /api/controller/reports/heatmap — Weekday × Period & Section × Date Presence Heatmaps (C7 §12)
+// GET /api/controller/reports/heatmap — Weekday × Period & Section × Date Presence Heatmaps
 router.get('/reports/heatmap', async (req, res) => {
   try {
     const ctx = req.controllerContext;
@@ -3875,7 +3875,7 @@ router.get('/reports/heatmap', async (req, res) => {
   }
 });
 
-// 23. GET /api/controller/reports/subjects — Subject-level Performance and Defaulter Risk (C7 §12)
+// GET /api/controller/reports/subjects — Subject-level Performance and Defaulter Risk
 router.get('/reports/subjects', async (req, res) => {
   try {
     const ctx = req.controllerContext;
@@ -3934,7 +3934,7 @@ router.get('/reports/subjects', async (req, res) => {
   }
 });
 
-// 24. GET /api/controller/reports/export/:kind — Export Reports to CSV (C7 §12)
+// GET /api/controller/reports/export/:kind — Export Reports to CSV
 router.get('/reports/export/:kind', async (req, res) => {
   try {
     const kind = req.params.kind;
@@ -4001,7 +4001,7 @@ router.get('/reports/export/:kind', async (req, res) => {
   }
 });
 
-// 25. POST /api/controller/calendar/holiday — Declare Holiday / Half-Day (C7 §14)
+// POST /api/controller/calendar/holiday — Declare Holiday / Half-Day
 router.post('/calendar/holiday', async (req, res) => {
   try {
     const ctx = req.controllerContext;
@@ -4085,7 +4085,7 @@ router.post('/calendar/holiday', async (req, res) => {
   }
 });
 
-// 26. POST /api/controller/attendance/extend-lock — Extend Attendance Marking Lock Window (C7 §14)
+// POST /api/controller/attendance/extend-lock — Extend Attendance Marking Lock Window
 router.post('/attendance/extend-lock', async (req, res) => {
   try {
     const ctx = req.controllerContext;
@@ -4137,7 +4137,7 @@ router.post('/attendance/extend-lock', async (req, res) => {
   }
 });
 
-// 27. GET /api/controller/audit — Executive Audit Log (C7 §16)
+// GET /api/controller/audit — Executive Audit Log
 router.get('/audit', async (req, res) => {
   try {
     const ctx = req.controllerContext;

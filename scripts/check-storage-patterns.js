@@ -3,7 +3,7 @@
 /**
  * scripts/check-storage-patterns.js
  * Scans timetable frontend code for localStorage and sessionStorage references.
- * Implements the Phase 0 Ratchet Check (Z7):
+ * Implements the  Ratchet Check (Z7):
  *   - Legacy baseline allows at most 14 existing references across known keys:
  *       - 'tt_freeze_panes'
  *       - 'eams_tt_workspace'

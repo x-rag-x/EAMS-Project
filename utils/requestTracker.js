@@ -3,9 +3,7 @@
 /**
  * Request Tracker — derives a read-only progress tracker for a student's
  * Leave or OD request from fields that already exist on the documents.
- *
  * Nothing here changes the approval workflow. It only describes it.
- *
  * Output contract (JSON-safe, attached to API responses as `tracker`):
  * {
  *   kind:     'leave' | 'od',
@@ -176,7 +174,6 @@ function buildLeaveTracker(leave) {
  * Mirrors utils/approvalWorkflow.js WORKFLOW_STAGES.od, including the stage-merge
  * rule (a stage with the same approver is auto-approved and recorded as
  * `skipped_merged` in approvalChain).
- *
  * @param {Object} od
  * @param {{ returnedRemark?: string }} [opts]
  */

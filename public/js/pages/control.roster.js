@@ -1,6 +1,5 @@
 /**
  * public/js/pages/control.roster.js
- *
  * Attendance Roster Page Controller (AttReg Part 1)
  * Admin-only day view and period forensics:
  * - Cascading selectors: Dept -> Class -> Date
@@ -273,7 +272,7 @@
 
     var html = '';
 
-    // 1. KPI Stats Cards
+    // KPI Stats Cards
     var enrolled = data.strength ? data.strength.enrolled : (data.students || []).length;
     var hasDiscrepancy = data.strength && data.strength.hasDiscrepancy;
     var markedMax = data.strength ? data.strength.markedMax : 0;
@@ -313,7 +312,7 @@
     html += '<div class="att-kpi-card"><span class="att-kpi-lbl">Last Saved</span><span class="att-kpi-val" style="font-size:16px;font-family:\'JetBrains Mono\',monospace;">' + lastSavedStr + '</span><span class="att-kpi-sub">IST Clock</span></div>';
     html += '</div>';
 
-    // 2. Period Strip (Tabs to toggle between full day matrix and period forensics)
+    // Period Strip (Tabs to toggle between full day matrix and period forensics)
     html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">';
     html += '<div style="font-size:12px;font-weight:700;color:var(--td);text-transform:uppercase;letter-spacing:0.5px;">Schedule & Period Sessions</div>';
     html += '<button class="btn btn-sm btn-out" onclick="window.toggleRosterPeriod(null)" style="' + (rosterState.selectedPeriod === null ? 'background:var(--gD);color:#fff;border-color:var(--gD);' : '') + '">● Full-Day Matrix</button>';
@@ -338,7 +337,7 @@
     });
     html += '</div>';
 
-    // 3. Filter Chips
+    // Filter Chips
     html += '<div class="att-filter-chips">';
     html += '<span style="font-size:11px;font-weight:700;color:var(--tmu);margin-right:4px;">FILTER:</span>';
     var chips = [
@@ -354,7 +353,7 @@
     });
     html += '</div>';
 
-    // 4. Main Table Placeholder
+    // Main Table Placeholder
     html += '<div id="roster-table-container"></div>';
 
     bodyEl.innerHTML = html;

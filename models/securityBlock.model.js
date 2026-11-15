@@ -2,10 +2,8 @@ const mongoose = require('mongoose');
 
 /**
  * SecurityBlock Model
- *
  * Multi-dimensional security blocking for login abuse prevention.
  * Supports blocking by: account, device, IP, and account+device combo.
- *
  * Uses MongoDB TTL index on `expiresAt` for automatic document expiry.
  */
 const SecurityBlockSchema = new mongoose.Schema({

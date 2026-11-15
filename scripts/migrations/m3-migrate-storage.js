@@ -1,7 +1,7 @@
 'use strict';
 const fs = require('fs');
 
-// 1. Update tabWorkspace.js
+// Update tabWorkspace.js
 let tw = fs.readFileSync('public/js/core/tabWorkspace.js', 'utf8');
 
 const oldBlock = `    // ── Session Storage Persistence ──
@@ -186,7 +186,7 @@ if (twNormalized.includes(oldNormalized)) {
   console.error('[FAIL] tabWorkspace.js target block not found!');
 }
 
-// 2. Update timetable.page.js
+// Update timetable.page.js
 let tp = fs.readFileSync('public/js/pages/timetable.page.js', 'utf8');
 const tpNormalized = tp.replace(/\r\n/g, '\n');
 
@@ -209,19 +209,19 @@ tpReplaced = tpReplaced.replace(
 );
 
 tpReplaced = tpReplaced.replace(
-  '// Revalidation helper for sessionStorage restore (§6.3)',
-  '// Revalidation helper for database UserState restore (§6.3)'
+  '// Revalidation helper for sessionStorage restore',
+  '// Revalidation helper for database UserState restore'
 );
 
 tpReplaced = tpReplaced.replace(
-  '// 2. Restore any persisted class tabs from sessionStorage',
-  '// 2. Restore any persisted class tabs from database UserState'
+  '// Restore any persisted class tabs from sessionStorage',
+  '// Restore any persisted class tabs from database UserState'
 );
 
 // Append syncUserStateToDb helper if not present
 if (!tpReplaced.includes('function syncUserStateToDb')) {
   const syncHelper = `
-// ── Database User State Synchronization (Z7 / Phase 2) ──
+// ── Database User State Synchronization ──
 let _userStateSyncTimer = null;
 function syncUserStateToDb(partialState = {}) {
   clearTimeout(_userStateSyncTimer);

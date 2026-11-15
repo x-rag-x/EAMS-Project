@@ -18,7 +18,7 @@ async function runODCompletionJob() {
   let transitionedToOverdue = 0;
   let remindersSent = 0;
 
-  // 1. Move approved requests whose event end date has passed into 'awaiting_outcome'
+  // Move approved requests whose event end date has passed into 'awaiting_outcome'
   const pastApprovedRequests = await M.ODRequest.find({
     status: 'approved',
     'eventDetails.endDate': { $lt: todayIST }
@@ -46,7 +46,7 @@ async function runODCompletionJob() {
     transitionedToAwaiting++;
   }
 
-  // 2. Send reminders for outcome evidence approaching deadline (§8, B3)
+  // Send reminders for outcome evidence approaching deadline
   const now = new Date();
   const awaitingRequests = await M.ODRequest.find({
     status: 'awaiting_outcome',
@@ -102,7 +102,7 @@ async function runODCompletionJob() {
     }
   }
 
-  // 3. Mark overdue outcomes
+  // Mark overdue outcomes
   const overdueRequests = await M.ODRequest.find({
     status: 'awaiting_outcome',
     'outcome.dueAt': { $lt: now },

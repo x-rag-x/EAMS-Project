@@ -1,9 +1,7 @@
 /**
  * public/js/shared/ttConflicts.shared.js
- *
- * Shared Conflict Detection Engine (Phase 6, N26):
+ * Shared Conflict Detection Engine:
  * UMD Module running identically in Browser (<script>) and Server (require).
- *
  * Calculates CLOCK-TIME minutes from midnight, NOT arbitrary period numbers.
  * Resolves staggered timing sets (SET_1 vs SET_2) with zero false-positive clashes.
  */

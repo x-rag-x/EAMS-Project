@@ -547,7 +547,7 @@ function getPageViewDescription(log) {
   var subType = log.subType || '';
   var details = log.details || '';
 
-  // 1. Attendance Class Daily Summary Log (Item 18.1)
+  // Attendance Class Daily Summary Log (Item 18.1)
   if (log.attendanceClassDaily && Array.isArray(log.attendanceClassDaily.periods) && log.attendanceClassDaily.periods.length > 0) {
     var acd = log.attendanceClassDaily;
     var periodCount = acd.periods.length;
@@ -559,7 +559,7 @@ function getPageViewDescription(log) {
       ' · Last: Period ' + latestPeriod.periodNumber + ' (' + (pStats.present || 0) + '/' + (pStats.total || 0) + ' Present' + methodStr + ')';
   }
 
-  // 2. Session / Login Log Rule:
+  // Session / Login Log Rule:
   // If active: "<user> Logged In at <time> (Active)"
   // If ended: "<user> Logged In at <time> · Logged Out at <time> (<manual/auto>)"
   if (subType === 'session' && log.sessionInfo) {
@@ -574,7 +574,7 @@ function getPageViewDescription(log) {
     }
   }
 
-  // 3. Legacy Attendance Summary Log
+  // Legacy Attendance Summary Log
   if (subType === 'attendance' && log.attendanceSummary) {
     var att = log.attendanceSummary;
     var presentCount = (att.periods || []).filter(function (p) { return p.status === 'P'; }).length;
@@ -582,12 +582,12 @@ function getPageViewDescription(log) {
     return '<re-icon icon="calendar"></re-icon> Attendance for <b>' + escapeHtml(att.studentName || log.userName) + '</b> on ' + (att.date || '') + ': <b>' + presentCount + '/' + totalPeriods + ' Periods Present</b>';
   }
 
-  // 3. Field Edits / Diff Log
+  // Field Edits / Diff Log
   if (subType === 'field-edit' && log.changes) {
     return '<re-icon icon="edit"></re-icon> ' + (details || 'Modified attributes updated with before/after audit tracking');
   }
 
-  // 4. Default fallback
+  // Default fallback
   return escapeHtml(details || action);
 }
 
@@ -688,7 +688,7 @@ function renderModalDetailContent(log) {
 
   var html = '';
 
-  // 1. Actor & Hardware Profile Card
+  // Actor & Hardware Profile Card
   var modalSessId = log.sessionId || (log.sessionInfo && log.sessionInfo.sessionId) || '';
   html += '<div class="kv-grid">' +
     '<div class="kv-item"><span class="kv-lbl">Actor Name / User</span><span class="kv-val">' + escapeHtml(log.userName || 'System') + ' (' + (log.role || 'system').toUpperCase() + ')</span></div>' +
@@ -700,7 +700,7 @@ function renderModalDetailContent(log) {
     '</span></div>' +
   '</div>';
 
-  // 2. Session / Geolocation Information
+  // Session / Geolocation Information
   var modalLoc = log.location || (log.sessionInfo && log.sessionInfo.location) || {};
   var hasLocOrSession = modalSessId || modalLoc.latitude || modalLoc.address || log.sessionInfo;
 
@@ -726,7 +726,7 @@ function renderModalDetailContent(log) {
     '</div>';
   }
 
-  // 3. Before/After Field Diff Table (If Field Edit)
+  // Before/After Field Diff Table (If Field Edit)
   if (log.changes && (log.changes.before || log.changes.after)) {
     html += '<div>' +
       '<div style="font-weight:800;font-size:13.5px;color:var(--text-main);margin-bottom:6px;"><re-icon icon="edit"></re-icon> Modified Attribute Diffs (Before vs After)</div>' +
@@ -734,7 +734,7 @@ function renderModalDetailContent(log) {
     '</div>';
   }
 
-  // 4. Class Daily Attendance Sheet (Item 18.1)
+  // Class Daily Attendance Sheet (Item 18.1)
   if (log.attendanceClassDaily && Array.isArray(log.attendanceClassDaily.periods) && log.attendanceClassDaily.periods.length > 0) {
     var acd = log.attendanceClassDaily;
     html += '<div>' +
@@ -794,7 +794,7 @@ function renderModalDetailContent(log) {
     '</div>';
   }
 
-  // 5. Legacy Student Daily Attendance Summary View
+  // Legacy Student Daily Attendance Summary View
   var hasMarkedAttendance = false;
   var markedPeriods = [];
   if (!log.attendanceClassDaily && log.attendanceSummary && Array.isArray(log.attendanceSummary.periods) && log.attendanceSummary.periods.length > 0) {
@@ -834,7 +834,7 @@ function renderModalDetailContent(log) {
     '</div>';
   }
 
-  // 5. Raw Event Details
+  // Raw Event Details
   if (log.details) {
     html += '<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:14px;">' +
       '<div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px;">Log Details Message</div>' +

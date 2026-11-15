@@ -1,6 +1,5 @@
 /**
  * Capacity Meter Utility for Timetable and Semester Subject Sets
- *
  * Matrix standard:
  * - Mon–Sat x 9 periods = 54 periods per week (separate Saturday order)
  * - Mon–Fri x 9 periods = 45 periods per week (copy of weekday order)

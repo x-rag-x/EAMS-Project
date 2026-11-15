@@ -32,12 +32,12 @@ async function scopeMiddleware(req, res, next) {
     const today = getTodayIST();
     const specials = Array.isArray(req.user.specials) ? req.user.specials : [];
 
-    // 1. Check Principal privilege
+    // Check Principal privilege
     const isPrincipalUser = isSudoAdmin(req.user) ||
       req.user.isPrincipal === true ||
       specials.some(s => s.option === 'isPrincipal');
 
-    // 2. Check HOD privilege
+    // Check HOD privilege
     const isHodUser = req.user.role === 'hod' || req.user.isHod === true || specials.some(s => s && s.option === 'isHod');
     let userHodDeptCode = null;
 
@@ -75,7 +75,7 @@ async function scopeMiddleware(req, res, next) {
       }
     }
 
-    // 3. Check Acting HOD privilege for today
+    // Check Acting HOD privilege for today
     let actingRoleDoc = null;
     if (!isPrincipalUser && !userHodDeptCode) {
       actingRoleDoc = await M.ActingRole.findOne({

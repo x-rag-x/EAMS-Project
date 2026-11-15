@@ -16,13 +16,13 @@
 
 <body>
 
-  <!-- APP SHELL -->
+  
   <div id="app-shell">
 
-    <!-- Mobile Sidebar Backdrop -->
+    
     <div id="sb-backdrop" style="position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:45;display:none;" onclick="toggleSidebar()"></div>
 
-    <!-- ── SIDEBAR NAVIGATION ── -->
+    
     <nav class="sb" id="sidebar">
       <div class="sb-logo">
         <div>
@@ -90,10 +90,10 @@
       </div>
     </nav>
 
-    <!-- ── MAIN CONTENT ── -->
+    
     <main class="mc">
 
-      <!-- Topbar Header -->
+      
       <header class="topbar">
         <div class="topbar-left">
           <button class="mobile-menu-btn" onclick="toggleSidebar()" aria-label="Toggle navigation"><re-icon icon="menu" size="18"></re-icon></button>
@@ -108,10 +108,10 @@
         </div>
       </header>
 
-      <!-- Scrollable Container -->
+      
       <div class="scroll-wrap">
 
-        <!-- ── PAGE HEADER (EAMS STANDARD) ── -->
+        
         <div class="page-hd">
           <div>
             <div class="page-title" id="page-section-title">System Audit Overview</div>
@@ -124,19 +124,19 @@
           </div>
         </div>
 
-        <!-- ── STATUS CARDS ── -->
+        
         <section class="stats-grid" id="status-cards-container">
-          <!-- Populated dynamically via logs.page.js -->
+          
         </section>
 
-        <!-- ── FILTER CONTROLS ── -->
+        
         <section class="filter-card">
-          <!-- Sub-filter chips row -->
+          
           <div class="subfilter-chips-row" id="subfilter-chips-container">
-            <!-- Populated dynamically per section -->
+            
           </div>
 
-          <!-- Search & Filter inputs -->
+          
           <div class="filter-inputs-grid">
             <div class="input-box-wrap">
               <span class="search-ic"><re-icon icon="search"></re-icon></span>
@@ -162,24 +162,21 @@
           </div>
         </section>
 
-        <!-- ── LOG FEED ── -->
+        
         <section class="log-feed-wrap" id="log-feed-container">
-          <!-- Populated dynamically -->
+          
         </section>
 
-        <!-- Load More Button -->
+        
         <div id="load-more-wrap" style="text-align:center;padding:16px 0;display:none;">
           <button class="btn-out" id="btn-load-more" onclick="loadMoreLogs()">Load More Activities ↓</button>
         </div>
 
-      </div><!-- /scroll-wrap -->
+      </div>
     </main>
 
-  </div><!-- /app-shell -->
+  </div>
 
-  <!-- ══════════════════════════════════════════════════════════════ -->
-  <!-- ── CLEAR LOGS CONFIRMATION MODAL ── -->
-  <!-- ══════════════════════════════════════════════════════════════ -->
   <div class="modal-overlay" id="m-clear-logs" onclick="if(event.target===this)closeClearLogsModal()">
     <div class="modal-card" style="max-width:440px;">
       <div class="modal-header" style="background:#fef2f2;border-bottom-color:#fecaca;">
@@ -206,9 +203,6 @@
     </div>
   </div>
 
-  <!-- ══════════════════════════════════════════════════════════════ -->
-  <!-- ── LOG DETAIL MODAL ── -->
-  <!-- ══════════════════════════════════════════════════════════════ -->
   <div class="modal-overlay" id="m-log-detail" onclick="if(event.target===this)closeDetailModal()">
     <div class="modal-card">
       <div class="modal-header">
@@ -226,12 +220,12 @@
       </div>
 
       <div class="modal-body" id="modal-body-content">
-        <!-- Injected dynamically based on log type -->
+        
       </div>
     </div>
   </div>
 
-  <!-- Toast Box -->
+  
   <div class="toast-box" id="app-toast">
     <span id="toast-icon"><re-icon icon="info-circle"></re-icon></span>
     <span id="toast-text">Notification message</span>

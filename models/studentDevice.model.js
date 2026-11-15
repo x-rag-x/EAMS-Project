@@ -1,8 +1,7 @@
 const mongoose = require('mongoose');
 
 /**
- * StudentDevice Schema (§4, T1.1)
- *
+ * StudentDevice Schema
  * Tracks hardware browser profiles bound to students for attendance and session trust.
  * Bound via non-extractable WebCrypto ECDSA P-256 key pair in IndexedDB.
  */

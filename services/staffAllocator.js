@@ -3,7 +3,7 @@ const M = require('../models');
 const { logAction, getNextLogTrackId } = require('../utils/logAction');
 
 /**
- * Staff Allocator Service (Phase 3)
+ * Staff Allocator Service
  * Implements automated faculty allocation adhering to Rules R5, R9, R10, R11, R15, R16.
  */
 
@@ -70,7 +70,7 @@ async function proposeAllocations({ batch, deptId }) {
     facultyWorkloads: {}
   };
 
-  // 1. Fetch SemesterSubjectSet
+  // Fetch SemesterSubjectSet
   let subjectSet = null;
   if (isDbConnected) {
     let setQuery = { batch };
@@ -88,7 +88,7 @@ async function proposeAllocations({ batch, deptId }) {
         { subjectId: new mongoose.Types.ObjectId(), name: 'Web Dev Lab', code: 'CS309', slotsTarget: 3, component: 'lab', category: 'easy' },
       ];
 
-  // 2. Fetch Classes in batch
+  // Fetch Classes in batch
   let classes = [];
   if (isDbConnected) {
     let clsQuery = { batch };
@@ -103,7 +103,7 @@ async function proposeAllocations({ batch, deptId }) {
   }
   result.classes = classes;
 
-  // 3. Fetch Teachers & Workload Policy
+  // Fetch Teachers & Workload Policy
   let teachers = [];
   let workloadPolicy = null;
   if (isDbConnected) {
@@ -156,7 +156,7 @@ async function proposeAllocations({ batch, deptId }) {
     };
   }
 
-  // 4. Allocation Pass: For each class, for each subject/component
+  // Allocation Pass: For each class, for each subject/component
   for (const cls of classes) {
     let advisorId = cls.advisorTeacherId ? String(cls.advisorTeacherId) : (cls.advisorId ? String(cls.advisorId) : '');
     let advisorName = cls.advisorTeacherName || cls.advisor || cls.incharge || cls.classAdvisor || '';
@@ -235,7 +235,7 @@ async function proposeAllocations({ batch, deptId }) {
           let score = 0;
           const reasonParts = [];
 
-          // 1. Advisor bonus: prioritize class advisor teaching their assigned section
+          // Advisor bonus: prioritize class advisor teaching their assigned section
           const isAdvisor = (advisorId && (tId === advisorId || (t.trackId && t.trackId === advisorTrackId))) ||
                             (advisorName && (
                               (t.name && t.name.toLowerCase() === advisorName.toLowerCase()) ||
@@ -247,7 +247,7 @@ async function proposeAllocations({ batch, deptId }) {
             reasonParts.push('Class Advisor priority (teaches assigned class)');
           }
 
-          // 2. Seniority bonus (4-credit, important, or hard subjects)
+          // Seniority bonus (4-credit, important, or hard subjects)
           const isDemandingSubject = (sub.category === 'hard' || sub.category === 'important' || sub.slotsTarget >= 5);
           if (isDemandingSubject) {
             const seniority = computeSeniorityScore(t.joiningDate);
@@ -255,7 +255,7 @@ async function proposeAllocations({ batch, deptId }) {
             if (seniority >= 20) reasonParts.push(`Senior staff (joined ${t.joiningDate ? new Date(t.joiningDate).getFullYear() : 'prior'})`);
           }
 
-          // 3. Preparation reuse across sections
+          // Preparation reuse across sections
           const hasSameSubjectInOtherClass = state.assignedSubjects.some(
             s => (s.subjectCode === subCode || s.subjectName === subName) && String(s.classId) !== String(cls._id)
           );
@@ -264,7 +264,7 @@ async function proposeAllocations({ batch, deptId }) {
             reasonParts.push('Teaches same subject in another section (preparation reuse)');
           }
 
-          // 4. Strong subjects bonus
+          // Strong subjects bonus
           const isStrong = Array.isArray(t.strongSubjects) && t.strongSubjects.some(s => {
             const sLower = String(s).toLowerCase();
             return sLower === subCode.toLowerCase() || sLower === subName.toLowerCase();
@@ -274,7 +274,7 @@ async function proposeAllocations({ batch, deptId }) {
             reasonParts.push('Specialized strong subject');
           }
 
-          // 5. Workload headroom
+          // Workload headroom
           const headroom = state.allowed - proposedLoad;
           score += Math.max(0, headroom * 2);
 

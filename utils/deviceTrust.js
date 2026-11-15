@@ -5,14 +5,13 @@ const { isCampusIpAllowed } = require('./ipCheck');
 
 /**
  * utils/deviceTrust.js
- *
- * Implements EAMS Attendance Gate & Trust Engine (§7, §9, T2.1-T2.5):
- * 1. Verifies non-extractable WebCrypto ECDSA P-256 signatures over mark tokens.
- * 2. Compares browser install ID and stable hardware fingerprint signals.
- * 3. Calculates frozen Device Score (0–50) per §9 weights.
- * 4. Checks student Trust Score (0–100) and account lock status.
- * 5. Evaluates Combined Score (0–100) and Risk Level ('low' | 'medium' | 'high').
- * 6. Generates frozen security snapshot (§4).
+ * Implements EAMS Attendance Gate & Trust Engine:
+ * Verifies non-extractable WebCrypto ECDSA P-256 signatures over mark tokens.
+ * Compares browser install ID and stable hardware fingerprint signals.
+ * Calculates frozen Device Score (0–50) weights.
+ * Checks student Trust Score (0–100) and account lock status.
+ * Evaluates Combined Score (0–100) and Risk Level ('low' | 'medium' | 'high').
+ * Generates frozen security snapshot.
  */
 
 const DEFAULT_WEIGHTS = {
@@ -25,7 +24,6 @@ const DEFAULT_WEIGHTS = {
 
 /**
  * Evaluates device proof, trust score, and mark risk level.
- *
  * @param {object} params
  * @param {object} params.student - Student mongoose doc or object
  * @param {object} [params.deviceProof] - { signature, ts, installId, fingerprintHash }
@@ -45,7 +43,7 @@ async function evaluateDeviceTrust(params) {
     deviceId = ''
   } = params;
 
-  // 1. Fetch system settings
+  // Fetch system settings
   const settingsMap = await getSettings(['trust', 'device', 'college_ips']);
   const trustSettings = settingsMap?.trust || {};
   const weights = trustSettings.deviceWeights || DEFAULT_WEIGHTS;
@@ -53,7 +51,7 @@ async function evaluateDeviceTrust(params) {
   const deviceSettings = settingsMap?.device || {};
   const requireRegistered = deviceSettings.requireRegisteredDevice !== false;
 
-  // 2. Check Student Trust Score & Lock Gate (§7.2, §8)
+  // Check Student Trust Score & Lock Gate
   const trustObj = student?.trust || {};
   const trustScore = typeof trustObj.score === 'number' ? trustObj.score : 100;
   const isLocked = !!(trustObj.lockedUntil && new Date(trustObj.lockedUntil) > new Date());
@@ -72,7 +70,7 @@ async function evaluateDeviceTrust(params) {
     };
   }
 
-  // 3. Find registered trusted device (§4, T1)
+  // Find registered trusted device
   const trustedDevice = await M.StudentDevice.findOne({
     studentId: student._id,
     status: 'TRUSTED'
@@ -82,7 +80,7 @@ async function evaluateDeviceTrust(params) {
   let deviceProofOk = false;
   const riskReasons = [];
 
-  // 4. Verify Cryptographic Signature (T2.1, T2.2)
+  // Verify Cryptographic Signature
   if (!trustedDevice) {
     deviceRegisteredOk = false;
     deviceProofOk = false;
@@ -147,7 +145,7 @@ async function evaluateDeviceTrust(params) {
     }
   }
 
-  // 5. Calculate Device Score (0–50) per §9
+  // Calculate Device Score (0–50)
   let deviceScore = 0;
 
   // Signal 1: Valid signature by registered key
@@ -189,7 +187,7 @@ async function evaluateDeviceTrust(params) {
     riskReasons.push('Suspicious geolocation fix (zero coordinates or zero reported accuracy)');
   }
 
-  // Signal 6: Device in open DeviceShareCase (§9, capped at 10)
+  // Signal 6: Device in open DeviceShareCase
   try {
     const studentObjectId = student?._id;
     const studentTrackId = student?.trackId || String(student?._id || '');
@@ -209,15 +207,15 @@ async function evaluateDeviceTrust(params) {
   // Clamp device score to 0–50
   deviceScore = Math.max(0, Math.min(50, deviceScore));
 
-  // 6. Combined Score (§3 & §4)
+  // Combined Score
   const combinedScore = Math.round((trustScore / 2) + deviceScore);
 
-  // 7. Risk Level & Outcome Determination (§7.2)
+  // Risk Level & Outcome Determination
   let riskLevel = 'low';
   let requiresTeacherVerification = false;
 
   if (!deviceRegisteredOk) {
-    // Unregistered / new device (§7.2: high risk, pending teacher verification)
+    // Unregistered / new device (high risk, pending teacher verification)
     riskLevel = 'high';
     requiresTeacherVerification = true;
     if (!riskReasons.includes('Unregistered device (no trusted phone registered for student)')) {
@@ -237,7 +235,7 @@ async function evaluateDeviceTrust(params) {
     riskReasons.push('Low trust score or low device score');
   }
 
-  // 8. Construct Frozen Security Snapshot (§4)
+  // Construct Frozen Security Snapshot
   const securitySnapshot = {
     deviceTrackId: trustedDevice?.deviceTrackId || '',
     deviceProofOk: Boolean(deviceProofOk),
@@ -266,7 +264,7 @@ async function evaluateDeviceTrust(params) {
 
 
 /**
- * AttReg Part 1 (§3.8, §10): Heuristic Forensic Device Trust Engine
+ * AttReg Part 1: Heuristic Forensic Device Trust Engine
  */
 const TRUST_VERSION = 1;
 const WEIGHTS = {

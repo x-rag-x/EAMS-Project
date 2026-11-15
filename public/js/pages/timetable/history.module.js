@@ -1,6 +1,5 @@
 /**
  * public/js/pages/timetable/history.module.js
- *
  * Production Commits & Lineage History Module (P1 / Section 12.1)
  */
 (function (global) {

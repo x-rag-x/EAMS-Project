@@ -1,6 +1,5 @@
 /**
  * services/backupRestoreService.js
- *
  * Comprehensive Backup, Cloud Sync, and Restoration Conflict Resolver Service.
  * - Compiles complete database snapshots across all core collections.
  * - Encrypts with AES-256-GCM (only EAMS can decrypt).
@@ -104,7 +103,7 @@ async function createFullBackup({ user, ip, userAgent, clientDeviceInfo = {} }) 
   const timestamp = new Date();
   const backupId = `EAMS_BK_${timestamp.toISOString().replace(/[:.]/g, '-')}`;
 
-  // 1. Fetch complete data across all collections
+  // Fetch complete data across all collections
   // Password fields are select: false in Student and Teacher, so explicitly select them here
   const [
     students,
@@ -231,10 +230,10 @@ async function createFullBackup({ user, ip, userAgent, clientDeviceInfo = {} }) 
     }
   };
 
-  // 2. High-grade authenticated encryption (AES-256-GCM)
+  // High-grade authenticated encryption (AES-256-GCM)
   const encryptedPayload = encryptBackupPayload(backupData, backupPassword);
 
-  // 3. Assemble .zip archive with JSZip
+  // Assemble .zip archive with JSZip
   const zip = new JSZip();
   const manifest = {
     backupId,
@@ -302,10 +301,10 @@ async function createFullBackup({ user, ip, userAgent, clientDeviceInfo = {} }) 
     driveResult.driveUrl ||
     (driveResult.fileId ? `https://drive.google.com/file/d/${driveResult.fileId}/view` : 'https://drive.google.com');
 
-  // 5. Look up Sudo Admin contact from TeacherSchema
+  // Look up Sudo Admin contact from TeacherSchema
   const sudoAdmin = await resolveSudoAdminContact();
 
-  // 6. Gather device & requester telemetry
+  // Gather device & requester telemetry
   const uaTelemetry = parseUserAgentTelemetry(userAgent);
   const deviceInfo = {
     ip: ip || '127.0.0.1',
@@ -322,7 +321,7 @@ async function createFullBackup({ user, ip, userAgent, clientDeviceInfo = {} }) 
     trackId: user?.trackId || 'TR-ADMIN001'
   };
 
-  // 7. Dispatch rich email via Google Mail
+  // Dispatch rich email via Google Mail
   let mailResult = { sent: false };
   try {
     mailResult = await sendBackupNotificationMail({
@@ -341,7 +340,7 @@ async function createFullBackup({ user, ip, userAgent, clientDeviceInfo = {} }) 
     console.warn('[BackupService] Mail dispatch warning:', mailErr.message);
   }
 
-  // 8. Add audit log
+  // Add audit log
   await logAction(
     user?.trackId || user?._id || 'SYS-BACKUP',
     user?.name || 'Administrator',
@@ -674,7 +673,6 @@ async function swapCollection(tempCollName, targetCollName, model) {
 
 /**
  * Executes restoration using the chosen conflict resolution strategy.
- *
  * Strategies:
  * - 'overwrite': Upserts conflicting records, inserts new records.
  * - 'skip': Preserves existing DB records, inserts only new records.
@@ -713,7 +711,7 @@ async function executeBackupRestore({
   }
   const ciphertextBuf = await dataFile.async('nodebuffer');
 
-  // 1. Decrypt and validate the entire archive first
+  // Decrypt and validate the entire archive first
   const decrypted = decryptBackupPayload(
     {
       salt: manifest.salt,
@@ -787,15 +785,15 @@ async function executeBackupRestore({
   if (activeStrategy === 'clean') {
     // CLEAN STRATEGY:
     // Safe multi-collection restore:
-    // 1. Insert records into temporary collections first.
-    // 2. If any error occurs during insertion or validation across any collection,
+    // Insert records into temporary collections first.
+    // If any error occurs during insertion or validation across any collection,
     //    abort immediately and drop all temporary collections.
-    // 3. The live database collections are NEVER emptied beforehand!
-    // 4. Once all temporary collections are staged successfully, swap each collection into place.
+    // The live database collections are NEVER emptied beforehand!
+    // Once all temporary collections are staged successfully, swap each collection into place.
     const tempCollectionsCreated = [];
 
     try {
-      // Phase 1: Populate all temporary collections
+
       for (const colName of targetCollections) {
         const incomingList = Array.isArray(backupData[colName]) ? backupData[colName] : [];
         const model = getModelForCollection(colName);
@@ -824,7 +822,7 @@ async function executeBackupRestore({
         }
       }
 
-      // Phase 2: All collections staged successfully in temporary collections.
+
       // Now swap each collection into place safely.
       for (const item of tempCollectionsCreated) {
         await swapCollection(item.tempCollName, item.targetCollName, item.model);

@@ -4,7 +4,6 @@ const { getSettings } = require('./settingsCache');
 /**
  * Computes the Participation Record score (0–100) based on student's historical participation and attendance.
  * Only the Participation Record score is visible to the student.
- *
  * @param {string} studentTrackId
  * @returns {Promise<{ score: number, isNew: boolean, breakdown: object }>}
  */
@@ -24,7 +23,7 @@ async function calculateParticipationRecord(studentTrackId) {
     };
   }
 
-  // 1. Fetch student's past participation records
+  // Fetch student's past participation records
   const allODs = await M.ODRequest.find({ studentTrackId }).lean();
   
   // Find completed / outcome submitted activities
@@ -149,7 +148,6 @@ async function calculateParticipationRecord(studentTrackId) {
 
 /**
  * Computes Request Evidence score (0–100) live while filling/reviewing the request.
- *
  * @param {object} draft
  * @returns {{ score: number, breakdown: object }}
  */
@@ -157,7 +155,7 @@ function calculateRequestEvidence(draft = {}) {
   const eventDetails = draft.eventDetails || draft;
   const evidenceList = draft.evidenceAtRequest || draft.evidence || [];
 
-  // 1. Required fields complete (25 pts)
+  // Required fields complete (25 pts)
   let requiredFields = 0;
   if (eventDetails.name || draft.eventName) requiredFields += 5;
   if (eventDetails.organizer || draft.organizer) requiredFields += 5;
@@ -165,7 +163,7 @@ function calculateRequestEvidence(draft = {}) {
   if (draft.mentorTrackId) requiredFields += 5;
   if (eventDetails.description || draft.description) requiredFields += 5;
 
-  // 2. Event proof (30 pts): Official link, poster, or known event in registry
+  // Event proof (30 pts): Official link, poster, or known event in registry
   let eventProof = 0;
   const hasEventProofFile = evidenceList.some(e => e.type === 'event_proof' || e.category === 'event_proof');
   const hasOfficialLink = Boolean(eventDetails.websiteUrl || draft.websiteUrl);
@@ -176,7 +174,7 @@ function calculateRequestEvidence(draft = {}) {
   else if (hasOfficialLink) eventProof = 20;
   else if (isKnownEvent) eventProof = 20;
 
-  // 3. Registration proof (30 pts)
+  // Registration proof (30 pts)
   let regProof = 0;
   const hasRegProof = evidenceList.some(e => e.type === 'registration_proof' || e.category === 'registration_proof');
   if (hasRegProof) {
@@ -186,7 +184,7 @@ function calculateRequestEvidence(draft = {}) {
     regProof = 25;
   }
 
-  // 4. Consistency (15 pts): Dates inside event dates, valid dates, valid mentor
+  // Consistency (15 pts): Dates inside event dates, valid dates, valid mentor
   let consistency = 0;
   const start = eventDetails.startDate || draft.startDate;
   const end = eventDetails.endDate || draft.endDate;
@@ -213,7 +211,6 @@ function calculateRequestEvidence(draft = {}) {
 /**
  * Calculates overall OD Verification Score (0–100) combining Participation Record and Request Evidence.
  * Shown only to reviewers (Advisor, Mentor, HOD, Principal).
- *
  * @param {string} studentTrackId
  * @param {object} draft
  * @returns {Promise<object>}

@@ -114,7 +114,7 @@ router.use('/semester-sets',    semesterSubjectSetRoutes);
 router.use('/autogen',          autoGenRoutes);
 router.use('/hall-shifts',      hallShiftRoutes);
 
-// 404 Fallback for undefined /api routes (preserves EAMS JSON contract)
+// Fallback for undefined /api routes (preserves EAMS JSON contract)
 router.use((req, res) => {
   res.status(404).json({ error: `API route not found: ${req.method} ${req.originalUrl}` });
 });

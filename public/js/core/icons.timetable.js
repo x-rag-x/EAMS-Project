@@ -2,7 +2,6 @@
  * public/js/core/icons.js
  * Electronic Attendance Management System (EAMS) Icon Subsystem
  * Native <re-icon> Web Component & SVG Helper
- * 
  * Contains 100% offline, zero-dependency, curated Reicon SVG paths (24x24)
  * with dual-path rendering support for 60fps CSS hover/active weight transitions.
  */

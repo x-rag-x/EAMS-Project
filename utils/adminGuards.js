@@ -1,6 +1,5 @@
 /**
  * EAMS Admin Guards and Privilege Verification Helpers
- *
  * Implements database-backed security invariants:
  * - Last-admin guard: prevents deleting, deactivating, or demoting the last active Sudo Admin.
  */
@@ -11,7 +10,6 @@ const { isSudoAdmin } = require('./access');
 /**
  * Checks whether modifying/deleting/deactivating target user(s) would leave
  * the system with zero active Sudo Administrators.
- *
  * @param {Array<string>|string} targetIdentifiers - Array or single trackId / username / _id
  * @returns {Promise<{ allowed: boolean, error?: string }>}
  */

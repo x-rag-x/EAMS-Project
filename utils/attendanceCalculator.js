@@ -5,9 +5,7 @@ const M = require('../models');
  * Computes live attendance statistics for a single student across all class attendance records,
  * persists the overall percentage and subject counts to StudentAttendance,
  * and updates the Student document's attendancePercentage field for fast institutional reporting.
- * 
  * Resolves Finding A13.
- * 
  * @param {string} studentTrackId - Student trackId or ObjectId
  * @param {string} [targetClassId] - Optional explicit classId
  * @returns {Promise<{ overallPercentage: number, totalHeld: number, totalAttended: number, subjects: Array } | null>}
@@ -144,7 +142,6 @@ async function computeStudentAttendance(studentTrackId, targetClassId) {
 
 /**
  * Bulk recalculate and update attendance percentage for all students in a class.
- * 
  * @param {string} classIdInput - Class ID, trackId, or Class name
  * @returns {Promise<number>} - Count of students updated
  */

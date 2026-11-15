@@ -2,8 +2,7 @@ const mongoose = require('mongoose');
 
 /**
  * models/attendanceAdjustment.model.js
- *
- * Attendance percentage adjustment model (§12, §13, T-D6)
+ * Attendance percentage adjustment model
  * Stores visible percentage deltas (e.g. +2% for accepted dispute, -5% for friend-marking penalty)
  * without corrupting raw attendance records. Affects eligibility/75% calculations.
  */

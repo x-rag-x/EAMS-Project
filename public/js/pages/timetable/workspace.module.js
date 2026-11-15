@@ -1,7 +1,6 @@
 /**
  * public/js/pages/timetable/workspace.module.js
- *
- * Workspaces Core Module (Timetable v3 - Phase 2):
+ * Workspaces Core Module (Timetable v3 - ):
  * - Environment toggle & Workspace switcher (Mine, Dept, Shared, Archived)
  * - Production viewer ribbon ("Live timetable · view only") & Development ribbon
  * - Debounced autosave (2s) with optimistic concurrency revision checking (409 on conflict)
@@ -562,7 +561,7 @@
     }
   }
 
-  // ── Submit & Commits & Approvals Modals (Phase 4) ──
+  // ── Submit & Commits & Approvals Modals ──
 
   async function openSubmitModal() {
     if (!moduleState.activeWorkspaceId) {

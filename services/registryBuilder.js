@@ -1,7 +1,6 @@
 /**
  * services/registryBuilder.js
- *
- * AttReg Part 2 (§4.4, §4.5): Unified Attendance Registry Matrix Builder.
+ * AttReg Part 2: Unified Attendance Registry Matrix Builder.
  * Shared by:
  * - JSON endpoint (GET /api/attendance-records/registry)
  * - Excel exporter (generateExcel)
@@ -58,7 +57,6 @@ function formatISTDate(d) {
 
 /**
  * Builds the complete Attendance Registry matrix.
- *
  * @param {object} params
  * @param {string} params.classId - Mongo ID or trackId
  * @param {string} params.from - 'YYYY-MM-DD'
@@ -87,7 +85,7 @@ async function buildRegistry(params) {
     throw new Error('Date range cannot exceed 62 days');
   }
 
-  // 1. Resolve Class
+  // Resolve Class
   const classQueries = [{ trackId: classId }, { name: classId }];
   if (mongoose.isValidObjectId(classId)) {
     classQueries.unshift({ _id: new mongoose.Types.ObjectId(classId) });
@@ -102,14 +100,14 @@ async function buildRegistry(params) {
     validClassIds.push(classTrackId);
   }
 
-  // 2. Fetch Settings
+  // Fetch Settings
   const settings = await getCachedSettings();
   const periodsPerDay = Number(settings.academic?.periodsPerDay) || 7;
   const fnPeriods = Number(settings.academic?.fnPeriods) || Math.ceil(periodsPerDay / 2);
   const minAttendance = Number(settings.academic?.minAttendance) || 75;
   const lowAttendanceThreshold = Number(settings.academic?.lowAttendanceThreshold) || 65;
 
-  // 3. Generate Candidate Day List (Excluding All Sundays)
+  // Generate Candidate Day List (Excluding All Sundays)
   const candidateDays = [];
   const curr = new Date(from + 'T00:00:00.000Z');
   const end = new Date(to + 'T00:00:00.000Z');
@@ -133,7 +131,7 @@ async function buildRegistry(params) {
     curr.setUTCDate(curr.getUTCDate() + 1);
   }
 
-  // 4. Load Working Dates from Manage Page Calendar (M.CalendarDay)
+  // Load Working Dates from Manage Page Calendar (M.CalendarDay)
   const queryStart = new Date(new Date(from + 'T00:00:00.000Z').getTime() - 24 * 60 * 60 * 1000);
   const queryEnd = new Date(new Date(to + 'T23:59:59.999Z').getTime() + 24 * 60 * 60 * 1000);
 
@@ -230,7 +228,7 @@ async function buildRegistry(params) {
     }));
   }
 
-  // 5. Load Class Attendance Docs in Range
+  // Load Class Attendance Docs in Range
   const attDocs = await M.ClassAttendance.find({
     classId: { $in: validClassIds },
     date: { $gte: fromDate, $lte: toDate }
@@ -264,7 +262,7 @@ async function buildRegistry(params) {
     }
   });
 
-  // 6. Load Students
+  // Load Students
   const studentQueries = [
     { classId: { $in: validClassIds } },
     { classId: cls._id }
@@ -278,14 +276,14 @@ async function buildRegistry(params) {
 
   const studentTrackIds = students.map(s => s.trackId);
 
-  // 7. Load Approved Leaves
+  // Load Approved Leaves
   const leaves = await M.LeaveRequest.find({
     studentTrackId: { $in: studentTrackIds },
     status: 'Approved',
     dates: { $elemMatch: { $gte: fromDate, $lte: toDate } }
   }).lean();
 
-  // 8. Build Matrix for each Student
+  // Build Matrix for each Student
   const studentRows = [];
   const presentByCol = new Array(days.length * periodsPerDay).fill(0);
   const dayPresentTotals = new Array(days.length).fill(0);
@@ -343,7 +341,7 @@ async function buildRegistry(params) {
           dayPresentTotals[dIdx]++;
           dayMarkedTotals[dIdx]++;
         } else {
-          // Absent - Check Leave Overlay (Rule 3)
+          // Absent - Check Leave Overlay
           const targetDateObj = new Date(day.date + 'T00:00:00.000Z');
           const matchedLeave = leaves.find(lv => {
             if (lv.studentTrackId !== st.trackId) return false;
@@ -413,7 +411,7 @@ async function buildRegistry(params) {
     });
   });
 
-  // 9. Footer calculations
+  // Footer calculations
   const dayPct = dayMarkedTotals.map((m, idx) => {
     return m > 0 ? Math.round((dayPresentTotals[idx] / m) * 1000) / 10 : null;
   });

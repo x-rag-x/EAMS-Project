@@ -3,7 +3,6 @@ const crypto = require('crypto');
 /**
  * Generates a rotating HMAC token for the warden's roll-call QR screen.
  * Rotates every rotateSec seconds (default 15s).
- *
  * Token format: <rollCallId>.<step>.<hmacHex>
  */
 function generateQRToken(rollCallId, qrSecret, rotateSec = 15) {

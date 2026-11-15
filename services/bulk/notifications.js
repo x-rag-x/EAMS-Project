@@ -50,7 +50,7 @@ async function notifySudoOnForward(batch, uploader) {
     const title = `[EAMS Bulk] Initial Approval Required for ${batch.title || batch.type}`;
     const msg = `User ${uploader?.name || uploader?.username || 'Staff'} has staged ${batch.eligibleCount || 0} ${batch.type} records and submitted for Sudo Admin approval.`;
 
-    // 1. In-app notification for Sudo Admins
+    // In-app notification for Sudo Admins
     if (M.Notification && typeof M.Notification.create === 'function') {
       try {
         await M.Notification.create({
@@ -72,7 +72,7 @@ async function notifySudoOnForward(batch, uploader) {
       }
     }
 
-    // 2. Email dispatch to Sudo Admins
+    // Email dispatch to Sudo Admins
     const sudos = await getSudoRecipients();
     const emailRecipients = sudos.filter(s => s.email && s.email.includes('@'));
     for (const sudo of emailRecipients) {
@@ -92,7 +92,7 @@ async function notifySudoOnSubmitFinal(batch, uploader) {
     const title = `[EAMS Bulk] Final Commitment Approval Needed for ${batch.title || batch.type}`;
     const msg = `Verification is complete for ${batch.eligibleCount || 0} ${batch.type} records. Ready for database commitment.`;
 
-    // 1. In-app notification for Sudo Admins
+    // In-app notification for Sudo Admins
     if (M.Notification && typeof M.Notification.create === 'function') {
       try {
         await M.Notification.create({
@@ -114,7 +114,7 @@ async function notifySudoOnSubmitFinal(batch, uploader) {
       }
     }
 
-    // 2. Email dispatch to Sudo Admins
+    // Email dispatch to Sudo Admins
     const sudos = await getSudoRecipients();
     const emailRecipients = sudos.filter(s => s.email && s.email.includes('@'));
     for (const sudo of emailRecipients) {
@@ -167,7 +167,7 @@ async function notifyUploaderOnDecision(batch, decision, reason, sudoUser) {
     const title = `[EAMS Bulk] Your Import Request for ${batch.title || batch.type} was ${decision}`;
     const msg = `Sudo Administrator ${sudoUser?.name || 'Sudo Admin'} has marked your batch as ${decision}. ${reason ? `Reason: ${reason}` : ''}`.trim();
 
-    // 1. In-app notification for the uploader
+    // In-app notification for the uploader
     if (M.Notification && typeof M.Notification.create === 'function') {
       try {
         await M.Notification.create({
@@ -190,7 +190,7 @@ async function notifyUploaderOnDecision(batch, decision, reason, sudoUser) {
       }
     }
 
-    // 2. Email dispatch to the uploader
+    // Email dispatch to the uploader
     if (uploaderEmail && uploaderEmail.includes('@')) {
       sendGenericMail({
         to: uploaderEmail,

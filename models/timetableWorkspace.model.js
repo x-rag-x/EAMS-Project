@@ -119,7 +119,7 @@ const WorkspaceCheckpointSchema = new Schema({
 
 WorkspaceCheckpointSchema.index({ workspaceId: 1, seq: -1 });
 
-// ── WorkspaceShare: Cross-Department & Multi-Role Collaborator Share (Phase 5) ──
+// ── WorkspaceShare: Cross-Department & Multi-Role Collaborator Share ──
 const WorkspaceShareSchema = new Schema({
   workspaceId:    { type: Schema.Types.ObjectId, ref: 'TimetableWorkspace', required: true },
   scope:          { type: String, enum: ['workspace', 'draft', 'class'], default: 'workspace' },
@@ -199,7 +199,7 @@ const TimetableDraftSchema = new Schema({
 
 TimetableDraftSchema.index({ workspaceId: 1, seq: -1 });
 
-// ── DraftOp: Append-only granular cell operation log (Phase 3) ──
+// ── DraftOp: Append-only granular cell operation log ──
 const DraftOpSchema = new Schema({
   draftId:     { type: Schema.Types.ObjectId, required: true, index: true },
   workspaceId: { type: Schema.Types.ObjectId, ref: 'TimetableWorkspace', default: null, index: true },
@@ -223,7 +223,7 @@ DraftOpSchema.index({ draftId: 1, clientOpId: 1 }, { unique: true });
 DraftOpSchema.index({ draftId: 1, seq: -1 });
 DraftOpSchema.index({ draftId: 1, classId: 1, slotKey: 1, seq: -1 });
 
-// ── DraftVersion: 15-Minute IST Time Bucket Version (Phase 3) ──
+// ── DraftVersion: 15-Minute IST Time Bucket Version ──
 const DraftVersionSchema = new Schema({
   draftId:     { type: Schema.Types.ObjectId, required: true, index: true },
   workspaceId: { type: Schema.Types.ObjectId, ref: 'TimetableWorkspace', default: null },
@@ -254,7 +254,7 @@ const DraftVersionSchema = new Schema({
 DraftVersionSchema.index({ draftId: 1, bucketKey: 1, source: 1 });
 DraftVersionSchema.index({ draftId: 1, startedAt: -1 });
 
-// ── WorkspaceLink: Shareable Cryptographic URL State (Phase 5) ──
+// ── WorkspaceLink: Shareable Cryptographic URL State ──
 const WorkspaceLinkSchema = new Schema({
   workspaceId:    { type: Schema.Types.ObjectId, ref: 'TimetableWorkspace', required: true },
   scope:          { type: String, enum: ['workspace', 'draft'], default: 'workspace' },
@@ -270,7 +270,7 @@ const WorkspaceLinkSchema = new Schema({
 
 WorkspaceLinkSchema.index({ workspaceId: 1, scope: 1, draftId: 1 });
 
-// ── WorkspaceAccessRequest: Pending Approval Queue (Phase 5) ──
+// ── WorkspaceAccessRequest: Pending Approval Queue ──
 const WorkspaceAccessRequestSchema = new Schema({
   workspaceId:    { type: Schema.Types.ObjectId, ref: 'TimetableWorkspace', required: true },
   draftId:        { type: Schema.Types.ObjectId, ref: 'TimetableDraft', default: null },
@@ -286,7 +286,7 @@ const WorkspaceAccessRequestSchema = new Schema({
 
 WorkspaceAccessRequestSchema.index({ workspaceId: 1, requesterId: 1, status: 1 });
 
-// ── WorkspaceComment: Threaded Comments (Phase 5) ──
+// ── WorkspaceComment: Threaded Comments ──
 const WorkspaceCommentSchema = new Schema({
   workspaceId:    { type: Schema.Types.ObjectId, ref: 'TimetableWorkspace', required: true, index: true },
   draftId:        { type: Schema.Types.ObjectId, ref: 'TimetableDraft', default: null },

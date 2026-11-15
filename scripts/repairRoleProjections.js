@@ -1,7 +1,7 @@
 /**
  * scripts/repairRoleProjections.js
  * Repairs and reconciles projection fields on Teacher, Department, Class, and Block
- * from active RoleAssignment records (§4.5, R4.2).
+ * from active RoleAssignment records.
  */
 const mongoose = require('mongoose');
 const cfg = require('../config');

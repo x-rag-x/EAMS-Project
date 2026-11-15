@@ -16,15 +16,11 @@ function escapeHtml(str) {
 
 }
 
-
-
 // ══ AUTH ══════════════════════════════════════════════════════════════
 
 var USER = getUser();
 
 var TOKEN = getToken();
-
-
 
 // Init topbar from cached user
 
@@ -42,8 +38,6 @@ if (USER) {
 
 }
 
-
-
 function toast(msg, type) {
 
   var state = type === 'error' ? 'error' : (type === 'warn' ? 'saving' : (type === 'saving' ? 'saving' : 'success'));
@@ -59,8 +53,6 @@ function toast(msg, type) {
   }
 
 }
-
-
 
 // ══ API HELPER ════════════════════════════════════════════════════════
 
@@ -112,8 +104,6 @@ function api(url, opts, skipLogout) {
 
 }
 
-
-
 // ══ TOGGLE PW ════════════════════════════════════════════════════════
 
 function togglePw(id, btn) {
@@ -125,8 +115,6 @@ function togglePw(id, btn) {
   btn.innerHTML = inp.type === 'password' ? '<re-icon icon="eye"></re-icon>' : '<re-icon icon="eye-off"></re-icon>';
 
 }
-
-
 
 // ══ PASSWORD STRENGTH ════════════════════════════════════════════════
 
@@ -158,8 +146,6 @@ function updateStrength(val, barId) {
 
 }
 
-
-
 // ══ CHANGE PASSWORD ═══════════════════════════════════════════════════
 
 function doChangePw() {
@@ -183,8 +169,6 @@ function doChangePw() {
   if(oldPw === newPw) {errEl.textContent = 'Old and new password must not be same'; errEl.style.display = 'block'; return; }
 
   if(newPw.toUpperCase().includes('STUDENT')) {errEl.textContent = 'Password must not contain STUDENT'; errEl.style.display = 'block'; return; }
-
-
 
   api('/api/auth/change-password', { method:'POST', body:JSON.stringify({ currentPassword:oldPw, newPassword:newPw }) }, true)
 
@@ -213,8 +197,6 @@ function doChangePw() {
   .catch(function(e) { errEl.textContent = e.message; errEl.style.display = 'block'; });
 
 }
-
-
 
 // Same for inline profile change password
 
@@ -266,11 +248,7 @@ function doChangePwInline() {
 
 }
 
-
-
 function openChangePw() { openModal('m-chpw'); }
-
-
 
 // ══ SIDEBAR ══════════════════════════════════════════════════════════
 
@@ -294,10 +272,7 @@ function closeSidebar() {
 
 }
 
-
-
-
-// ── Settings & Policy Loader (§6, B2) ─────────────────────────────────
+// ── Settings & Policy Loader ─
 var _portalSettings = null;
 function loadPortalSettings() {
   return api('/api/settings/student-portal')
@@ -397,7 +372,7 @@ function showView(name, skipHash) {
   window.scrollTo(0, 0);
 }
 
-// ── Hash routing (§6, B4) ──────────────────────────────────────────────
+// ── Hash routing ──
 function handleHashRoute() {
   var hash = (window.location.hash || '').replace(/^#\/?/, '').trim();
   if (!hash) {
@@ -484,13 +459,9 @@ function daysSince(str) {
 
 }
 
-
-
 var _GLOBAL_ACAD = { minAttendance: null, lowAttendanceThreshold: null, academicYear: '' };
 
 var _ACTIVE_YEAR = '';
-
-
 
 // Load academic parameters strictly from settings
 
@@ -508,13 +479,9 @@ var _settingsPromise = fetch('/api/settings/public')
 
       else if (pub.academic.minAttendance) _GLOBAL_ACAD.minAttendance = Number(pub.academic.minAttendance);
 
-
-
       if (typeof pub.academic.lowAttendanceThreshold === 'number') _GLOBAL_ACAD.lowAttendanceThreshold = pub.academic.lowAttendanceThreshold;
 
       else if (pub.academic.lowAttendanceThreshold) _GLOBAL_ACAD.lowAttendanceThreshold = Number(pub.academic.lowAttendanceThreshold);
-
-
 
       if (pub.academic.academicYear) _GLOBAL_ACAD.academicYear = pub.academic.academicYear;
 
@@ -558,8 +525,6 @@ var _settingsPromise = fetch('/api/settings/public')
 
   }).catch(function(e){ console.warn(e); });
 
-
-
 // Fetch active year from yearconfig
 
 var _yearPromise = fetch('/api/year/current', { headers: { 'Authorization': 'Bearer ' + TOKEN } })
@@ -569,8 +534,6 @@ var _yearPromise = fetch('/api/year/current', { headers: { 'Authorization': 'Bea
   .then(function(yr){ if (yr) _ACTIVE_YEAR = yr; return yr; })
 
   .catch(function(){});
-
-
 
 function getClass(pct, minReq) {
 
@@ -634,13 +597,9 @@ function buildGaugeSVG(pct, cls) {
 
 }
 
-
-
 // ══ DASHBOARD RENDER ═════════════════════════════════════════════════
 
 var _data = null;
-
-
 
 function renderPortal(d) {
 
@@ -662,8 +621,6 @@ function renderPortal(d) {
 
   var oCls = getClass(oPct, minR);
 
-
-
   // Update sidebar and topbar
 
   var displayName = stu.name || usr.name || 'Student';
@@ -681,8 +638,6 @@ function renderPortal(d) {
 
   var regSb   = document.getElementById('sb-reg'); if (regSb) regSb.textContent = stu.regNo || '—';
 
-
-
   if (stu.isRep || (USER && USER.isRep)) {
 
     var navRep = document.getElementById('nav-rep-att');
@@ -690,10 +645,6 @@ function renderPortal(d) {
     if (navRep) navRep.style.display = 'flex';
 
   }
-
-
-
-
 
   var mustChange = sessionStorage.getItem('eams_mustChangePw') === '1';
 
@@ -713,11 +664,7 @@ function renderPortal(d) {
 
   }
 
-
-
   html += '<div id="live-session-container"></div>';
-
-
 
   // Hero
 
@@ -726,8 +673,6 @@ function renderPortal(d) {
   var badgeText  = oCls === 'ok' ? '<re-icon icon="check-circle"></re-icon> On Track' : oCls === 'warn' ? '<re-icon icon="alert-triangle"></re-icon> Below Threshold' : '<re-icon icon="siren"></re-icon> Critical';
 
   var yearToDisplay = _ACTIVE_YEAR || _GLOBAL_ACAD.academicYear || stu.academicYear || '—';
-
-
 
   html += '<div class="hero">'
 
@@ -761,8 +706,6 @@ function renderPortal(d) {
 
     + '</div></div></div>';
 
-
-
   // Stats
 
   var shortage = calcShortage(att.totalPresent, att.totalClasses, minR);
@@ -778,8 +721,6 @@ function renderPortal(d) {
     + '<div class="stat-card"><div class="sc-icon">'+(shortage>0?'<re-icon icon="alert-triangle"></re-icon>':'<re-icon icon="flag"></re-icon>')+'</div><div class="sc-val" style="color:'+(shortage>0?'#f59e0b':'var(--gK)')+';">'+(shortage>0?shortage:'—')+'</div><div class="sc-label">'+(shortage>0?'Classes Needed':'Requirement Met')+'</div><div class="sc-sub">To reach '+minR+'% threshold</div></div>'
 
     + '</div>';
-
-
 
   // Two-col: gauge + profile quick view
 
@@ -808,8 +749,6 @@ function renderPortal(d) {
     + (shortage>0?' &nbsp;·&nbsp; Need <b style="color:#dc2626;">'+shortage+'</b> more classes':' &nbsp;·&nbsp; <b style="color:var(--gK);">You are on track <re-icon icon="confetti"></re-icon></b>')
 
     + '</div></div></div></div>';
-
-
 
   html += '<div class="card">'
 
@@ -847,8 +786,6 @@ function renderPortal(d) {
 
   html += '</div>';
 
-
-
   // Subject table
 
   html += '<div class="card" style="margin-bottom:18px;">'
@@ -867,8 +804,6 @@ function renderPortal(d) {
 
     + '</tr></thead><tbody id="sub-tbody"></tbody></table></div></div>';
 
-
-
   html += '<div class="card">'
 
     + '<div class="card-hd"><div class="card-title"><re-icon icon="calendar"></re-icon> Recent Attendance Log</div></div>'
@@ -881,21 +816,15 @@ function renderPortal(d) {
 
     + '</div></div>';
 
-
-
   var mainEl = document.getElementById('main-content');
 
   if (mainEl) mainEl.innerHTML = html;
-
-
 
   renderSubjectTableInto('sub-tbody', 'sub-detail-', att.subjects, minR);
 
   renderSubjectTabsInto('sub-tabs', 'sub-cal', att.subjects);
 
 }
-
-
 
 function gaugeRow(label, val, total, color) {
 
@@ -920,8 +849,6 @@ function pRow(label, val) {
   return '<div class="prow"><div class="plabel">'+label+'</div><div class="pval">'+val+'</div></div>';
 
 }
-
-
 
 function renderSubjectTableInto(tbodyId, detailPrefix, subjects, minR) {
 
@@ -983,8 +910,6 @@ function renderSubjectTableInto(tbodyId, detailPrefix, subjects, minR) {
 
 }
 
-
-
 function renderDateChips(dates) {
 
   if (!dates || !dates.length) return '<div style="font-size:12px;color:var(--tdi);padding:4px;">No records yet.</div>';
@@ -998,8 +923,6 @@ function renderDateChips(dates) {
   return '<div style="display:flex;flex-wrap:wrap;gap:2px;">'+chips+'</div>';
 
 }
-
-
 
 function toggleNamedDetail(detailId) {
 
@@ -1020,8 +943,6 @@ function toggleNamedDetail(detailId) {
   }
 
 }
-
-
 
 function renderSubjectTabsInto(tabsId, calId, subjects) {
 
@@ -1053,8 +974,6 @@ function renderSubjectTabsInto(tabsId, calId, subjects) {
 
 }
 
-
-
 function switchSubjectCalInTarget(calId, idx, btn) {
 
   if (btn && btn.parentNode) {
@@ -1072,8 +991,6 @@ function switchSubjectCalInTarget(calId, idx, btn) {
   }
 
 }
-
-
 
 function renderCalendarInto(calId, subject) {
 
@@ -1149,8 +1066,6 @@ function renderCalendarInto(calId, subject) {
 
 }
 
-
-
 // ══════════════════════════════════════════════════════════════════════
 
 // DEDICATED ATTENDANCE PAGE
@@ -1183,11 +1098,7 @@ function renderAttendancePage(d) {
 
   var shortage = calcShortage(att.totalPresent, att.totalClasses, minR);
 
-
-
   var html = '';
-
-
 
   // Hero
 
@@ -1211,8 +1122,6 @@ function renderAttendancePage(d) {
 
     + '</div>';
 
-
-
   // Stats Row
 
   html += '<div class="stats-row" style="margin-bottom:20px;">'
@@ -1227,8 +1136,6 @@ function renderAttendancePage(d) {
 
     + '</div>';
 
-
-
   // Subject Cards Grid
 
   html += '<div style="font-size:14px;font-weight:700;color:var(--td);margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;">'
@@ -1238,8 +1145,6 @@ function renderAttendancePage(d) {
     + '<span style="font-size:11px;color:var(--tmu);font-weight:500;">' + (att.subjects ? att.subjects.length : 0) + ' subjects</span>'
 
     + '</div>';
-
-
 
   if (!att.subjects || !att.subjects.length) {
 
@@ -1285,8 +1190,6 @@ function renderAttendancePage(d) {
 
   }
 
-
-
   // Detailed Table
 
   html += '<div class="card" style="margin-bottom:20px;">'
@@ -1300,8 +1203,6 @@ function renderAttendancePage(d) {
     + '<th>Subject</th><th>Teacher</th><th>Present</th><th>Absent</th><th>Total</th><th style="min-width:140px;">Attendance</th><th>Status</th>'
 
     + '</tr></thead><tbody id="att-tbl-tbody"></tbody></table></div></div>';
-
-
 
   // Calendar
 
@@ -1317,19 +1218,13 @@ function renderAttendancePage(d) {
 
     + '</div></div>';
 
-
-
   cont.innerHTML = html;
-
-
 
   renderSubjectTableInto('att-tbl-tbody', 'att-sub-detail-', att.subjects, minR);
 
   renderSubjectTabsInto('att-cal-tabs', 'att-cal-grid', att.subjects);
 
 }
-
-
 
 // ══════════════════════════════════════════════════════════════════════
 
@@ -1338,8 +1233,6 @@ function renderAttendancePage(d) {
 // ══════════════════════════════════════════════════════════════════════
 
 var _profileRendered = false;
-
-
 
 function renderProfilePage(d) {
 
@@ -1351,13 +1244,9 @@ function renderProfilePage(d) {
 
   var att = d.attendance;
 
-
-
   var cleanName = (stu.name || '').trim();
 
   var initials = cleanName.split(' ').map(function(w){return w[0];}).join('').slice(0,2).toUpperCase();
-
-
 
   // Split name into parts cleanly
 
@@ -1419,11 +1308,7 @@ function renderProfilePage(d) {
 
   }
 
-
-
   var html = '';
-
-
 
   // ── PROFILE HERO
 
@@ -1451,8 +1336,6 @@ function renderProfilePage(d) {
 
     + '</div>';
 
-
-
   // ── SECTION 1: PROFILE INFO
 
   html += '<div class="prof-section" id="prof-info-section">'
@@ -1464,8 +1347,6 @@ function renderProfilePage(d) {
     + '</div>'
 
     + '<div class="prof-section-body">'
-
-
 
     // ─ Identity fields
 
@@ -1480,8 +1361,6 @@ function renderProfilePage(d) {
     + profFieldReadonly('Last Name', lastName || '—')
 
     + '</div>'
-
-
 
     // ─ Academic fields
 
@@ -1507,8 +1386,6 @@ function renderProfilePage(d) {
 
     + '</div>'
 
-
-
     // ─ Contact & Account fields
 
     + '<div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:var(--tdi);margin-bottom:10px;">Contact &amp; Account</div>'
@@ -1523,8 +1400,6 @@ function renderProfilePage(d) {
 
     + '</div>'
 
-
-
     // ─ Status fields
 
     + '<div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:var(--tdi);margin-bottom:10px;">Status &amp; Roles</div>'
@@ -1537,8 +1412,6 @@ function renderProfilePage(d) {
 
     + '</div></div>';
 
-
-
   // ── SECTION 2: LOGIN ACTIVITY
 
   var firstAccess = getFirstAccessTime(usr);
@@ -1548,8 +1421,6 @@ function renderProfilePage(d) {
   var currentTime = new Date().toISOString();
 
   var currentSub  = 'Session started: ' + fmtDateTime(sessionStorage.getItem('eams_session_start') || currentTime);
-
-
 
   html += '<div class="prof-section">'
 
@@ -1589,8 +1460,6 @@ function renderProfilePage(d) {
 
     + '</div></div>';
 
-
-
   // ── SECTION 3: SESSION INFO
 
   var sessionStart = sessionStorage.getItem('eams_session_start') || new Date().toISOString();
@@ -1600,8 +1469,6 @@ function renderProfilePage(d) {
     sessionStorage.setItem('eams_session_start', sessionStart);
 
   }
-
-
 
   html += '<div class="prof-section">'
 
@@ -1630,8 +1497,6 @@ function renderProfilePage(d) {
     + '</div>'
 
     + '</div></div>';
-
-
 
   // ── SECTION 4: CHANGE PASSWORD
 
@@ -1685,9 +1550,7 @@ function renderProfilePage(d) {
 
     + '</div></div>';
 
-
-
-  // ── SECTION 5: TRUST & DEVICES (§10)
+  // ── SECTION 5: TRUST & DEVICES
 
   var tData = window._studentTrustData || null;
 
@@ -1703,13 +1566,9 @@ function renderProfilePage(d) {
 
   var tDev = tData && tData.deviceInfo ? tData.deviceInfo : null;
 
-
-
   var bandBadgeColor = tBand === 'NORMAL' ? '#166534' : (tBand === 'MONITOR' ? '#92400e' : '#991b1b');
 
   var bandBadgeBg = tBand === 'NORMAL' ? '#dcfce7' : (tBand === 'MONITOR' ? '#fef3c7' : '#fee2e2');
-
-
 
   html += '<div class="prof-section">'
 
@@ -1742,8 +1601,6 @@ function renderProfilePage(d) {
     + '</div>'
 
     + '</div>';
-
-
 
   if (tData && Array.isArray(tData.history) && tData.history.length > 0) {
 
@@ -1795,15 +1652,9 @@ function renderProfilePage(d) {
 
   }
 
-
-
   html += '</div></div>';
 
-
-
   document.getElementById('profile-content').innerHTML = html;
-
-
 
   // Start session timer
 
@@ -1815,9 +1666,7 @@ function renderProfilePage(d) {
 
 }
 
-
-
-// ── Phase T6: Student Trust Dispute Handlers (§12) ────────────────
+// ── Student Trust Dispute Handlers
 
 function openDisputeModal(eventId, eventType, delta, reason, at) {
 
@@ -1833,8 +1682,6 @@ function openDisputeModal(eventId, eventType, delta, reason, at) {
 
   var inputEl = document.getElementById('dispute-student-reason');
 
-
-
   if (idEl) idEl.value = eventId;
 
   if (dateEl) dateEl.textContent = at ? new Date(at).toLocaleDateString() : '—';
@@ -1847,21 +1694,15 @@ function openDisputeModal(eventId, eventType, delta, reason, at) {
 
   if (inputEl) inputEl.value = '';
 
-
-
   if (typeof openModal === 'function') openModal('modal-dispute-event');
 
 }
-
-
 
 function submitDisputeForm() {
 
   var eventId = document.getElementById('dispute-event-id') ? document.getElementById('dispute-event-id').value : '';
 
   var reason = document.getElementById('dispute-student-reason') ? document.getElementById('dispute-student-reason').value.trim() : '';
-
-
 
   if (!eventId) {
 
@@ -1879,13 +1720,9 @@ function submitDisputeForm() {
 
   }
 
-
-
   var btn = document.getElementById('btn-submit-dispute');
 
   if (btn) btn.disabled = true;
-
-
 
   fetch('/api/trust/disputes', {
 
@@ -1943,9 +1780,7 @@ function submitDisputeForm() {
 
 }
 
-
-
-// ── Phase T7: Student Device Replacement Request Handlers (§14) ───
+// ── Student Device Replacement Request Handlers ───
 
 function openReplacementModal() {
 
@@ -1961,21 +1796,15 @@ function openReplacementModal() {
 
 }
 
-
-
 function submitDeviceReplacementRequest() {
 
   var reason = document.getElementById('input-replacement-reason') ? document.getElementById('input-replacement-reason').value : 'new_phone';
 
   var note = document.getElementById('input-replacement-note') ? document.getElementById('input-replacement-note').value.trim() : '';
 
-
-
   var btn = document.getElementById('btn-submit-replacement');
 
   if (btn) btn.disabled = true;
-
-
 
   fetch('/api/devices/replacement-requests', {
 
@@ -2039,16 +1868,12 @@ function submitDeviceReplacementRequest() {
 
 }
 
-
-
 window.openReplacementModal = openReplacementModal;
 
 window.submitDeviceReplacementRequest = submitDeviceReplacementRequest;
 
-
-
-// ── Profile field helpers (§6, B5: dead code removed, escaping enforced) ──
-// ── Profile field helpers ─────────────────────────────────────────
+// ── Profile field helpers ──
+// ── Profile field helpers ─
 function profFieldReadonly(label, val) {
   return '<div class="field-group">'
     + '<div class="field-label">' + escapeHtml(label) + '</div>'
@@ -2064,11 +1889,9 @@ function profFieldBadge(label, val, cls, icon) {
     + '<div><span class="field-badge ' + escapeHtml(cls) + '">' + (icon || '') + ' ' + escapeHtml(String(val || '—')) + '</span></div>'
     + '</div>';
 }
-// ── Login activity helpers ─────────────────────────────────────────
+// ── Login activity helpers ─
 
 var _loginActivities = null;
-
-
 
 function openLoginActivity() {
 
@@ -2126,8 +1949,6 @@ function openLoginActivity() {
 
 }
 
-
-
 function reportUnknownLogin() {
 
   closeModal('m-activity');
@@ -2135,8 +1956,6 @@ function reportUnknownLogin() {
   setTimeout(function() { openModal('m-unknown'); }, 250);
 
 }
-
-
 
 function submitUnknownReport() {
 
@@ -2168,8 +1987,6 @@ function submitUnknownReport() {
 
 }
 
-
-
 async function logoutAllDevices() {
 
   const ok = await showConfirm('This will log you out of all devices including this one. Continue?', 'Logout All Devices', null, null, { danger: true, confirmText: 'Logout All' });
@@ -2200,8 +2017,6 @@ async function logoutAllDevices() {
 
 }
 
-
-
 function getFirstAccessTime(usr) {
 
   if (usr && usr.firstLogin) return usr.firstLogin;
@@ -2214,13 +2029,9 @@ function getFirstAccessTime(usr) {
 
 }
 
-
-
 function shouldForcePasswordChange(userObj) {
 
   if (!userObj) return false;
-
-
 
   return !!(
 
@@ -2238,9 +2049,7 @@ function shouldForcePasswordChange(userObj) {
 
 }
 
-
-
-// ── Session timer ─────────────────────────────────────────────────
+// ── Session timer ─
 
 var _sessionTimerInterval = null;
 
@@ -2269,8 +2078,6 @@ function startSessionTimer(startIso) {
   _sessionTimerInterval = setInterval(update, 60000);
 
 }
-
-
 
 function updateTokenExpiry() {
 
@@ -2314,9 +2121,7 @@ function updateTokenExpiry() {
 
 }
 
-
-
-// ── Device/browser utils ─────────────────────────────────────────
+// ── Device/browser utils ─
 
 function getDeviceType() {
 
@@ -2346,8 +2151,6 @@ function getBrowserName() {
 
 }
 
-
-
 // ══ BOOT & DATA FETCH ═════════════════════════════════════════════════
 
 function renderErrorState(msg) {
@@ -2375,8 +2178,6 @@ function renderErrorState(msg) {
   var a = document.getElementById('attendance-content'); if (a) a.innerHTML = errorHtml;
 
 }
-
-
 
 function loadStudentData() {
   Promise.all([
@@ -2414,8 +2215,6 @@ var _leaveCoverage = 'full_day';
 
 var _leaveCategory = 'Leave';
 
-
-
 function setLeaveCoverage(cov) {
 
   _leaveCoverage = cov;
@@ -2431,8 +2230,6 @@ function setLeaveCoverage(cov) {
     { id: 'tab-leave-period', key: 'periods' }
 
   ];
-
-
 
   tabs.forEach(function(t) {
 
@@ -2460,8 +2257,6 @@ function setLeaveCoverage(cov) {
 
   });
 
-
-
   var toDateInput = document.getElementById('input-to-date');
 
   var fromDateInput = document.getElementById('input-from-date');
@@ -2471,8 +2266,6 @@ function setLeaveCoverage(cov) {
   var periodSelect = document.getElementById('group-period-select');
 
   var datesGrid = document.getElementById('group-leave-dates');
-
-
 
   if (cov === 'full_day') {
 
@@ -2524,13 +2317,9 @@ function setLeaveCoverage(cov) {
 
   }
 
-
-
   calculateLeaveDays();
 
 }
-
-
 
 function setLeaveCategory(cat) {
 
@@ -2539,8 +2328,6 @@ function setLeaveCategory(cat) {
   else setLeaveCoverage('full_day');
 
 }
-
-
 
 function onLeaveCategoryChange() {
 
@@ -2557,8 +2344,6 @@ function onLeaveCategoryChange() {
   }
 
 }
-
-
 
 function isValidDriveLink(url) {
   if (!url || typeof url !== 'string') return false;
@@ -2600,8 +2385,6 @@ function toggleCertToFollow(checked) {
 
 }
 
-
-
 function onFromDateChange() {
 
   if (_leaveCoverage !== 'full_day') {
@@ -2618,8 +2401,6 @@ function onFromDateChange() {
 
 }
 
-
-
 function calculateLeaveDays() {
 
   var from = document.getElementById('input-from-date') ? document.getElementById('input-from-date').value : '';
@@ -2629,8 +2410,6 @@ function calculateLeaveDays() {
   var calcEl = document.getElementById('leave-days-calc');
 
   if (!calcEl) return;
-
-
 
   if (_leaveCoverage === 'fn') {
 
@@ -2678,8 +2457,6 @@ function calculateLeaveDays() {
 
   }
 
-
-
   // Full day
 
   if (!from || !to) {
@@ -2726,8 +2503,6 @@ function calculateLeaveDays() {
 
 }
 
-
-
 function loadLeaveData() {
 
   var today = todayIST();
@@ -2742,9 +2517,7 @@ function loadLeaveData() {
 
   calculateLeaveDays();
 
-
-
-  // 1. Fetch Advisor info
+  // Fetch Advisor info
 
   api('/api/leave/advisor-info').then(function(d) {
 
@@ -2772,9 +2545,7 @@ function loadLeaveData() {
 
   }).catch(function() {});
 
-
-
-  // 2. Fetch My Leave Requests
+  // Fetch My Leave Requests
 
   api('/api/student-leave/me').then(function(res) {
 
@@ -2802,8 +2573,6 @@ function loadLeaveData() {
 
 }
 
-
-
 function renderLeaveStatsAndLists(list) {
 
   var approvedLeaves = list.filter(function(r) { return r.status === 'Approved'; });
@@ -2816,25 +2585,17 @@ function renderLeaveStatsAndLists(list) {
 
   var pendingReqs = list.filter(function(r) { return r.status === 'Pending'; });
 
-
-
   var statDaysEl = document.getElementById('leave-stat-approved-days');
 
   if (statDaysEl) statDaysEl.textContent = totalApprovedDays + (totalApprovedDays === 1 ? ' Day' : ' Days');
-
-
 
   var statPendingEl = document.getElementById('leave-stat-pending-count');
 
   if (statPendingEl) statPendingEl.textContent = pendingReqs.length;
 
-
-
   var badgePendingEl = document.getElementById('badge-pending-count');
 
   if (badgePendingEl) badgePendingEl.textContent = pendingReqs.length + ' Active';
-
-
 
   // Render Pending Requests Box
 
@@ -2859,8 +2620,6 @@ function renderLeaveStatsAndLists(list) {
         var daysText = (r.daysCount || 1) + ' day' + (r.daysCount === 1 ? '' : 's');
 
         var trackerId = 'pending-leave-tracker-' + idx;
-
-
 
         return '<div style="background:#fffbeb;border:1.5px solid #fef3c7;border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:8px;">'
 
@@ -2896,8 +2655,6 @@ function renderLeaveStatsAndLists(list) {
 
       }).join('');
 
-
-
       // Render trackers after HTML is inserted
 
       pendingReqs.forEach(function(r, idx) {
@@ -2913,8 +2670,6 @@ function renderLeaveStatsAndLists(list) {
     }
 
   }
-
-
 
   // Render History Table (10 columns matching thead)
 
@@ -2936,8 +2691,6 @@ function renderLeaveStatsAndLists(list) {
 
         var catName = r.leaveCategory || r.category || 'Personal';
 
-
-
         var statusBg = r.status === 'Approved' ? '#dcfce7' : r.status === 'Rejected' ? '#fee2e2' : r.status === 'Cancelled' ? '#f3f4f6' : '#fef3c7';
 
         var statusColor = r.status === 'Approved' ? '#166534' : r.status === 'Rejected' ? '#991b1b' : r.status === 'Cancelled' ? '#4b5563' : '#92400e';
@@ -2945,8 +2698,6 @@ function renderLeaveStatsAndLists(list) {
         var statusBadge = '<span style="background:' + statusBg + ';color:' + statusColor + ';font-size:10.5px;font-weight:800;padding:2px 8px;border-radius:8px;">' + escapeHtml(r.status) + '</span>';
 
         var canCancel = r.status === 'Pending';
-
-
 
         var certHtml = '—';
 
@@ -2970,11 +2721,7 @@ function renderLeaveStatsAndLists(list) {
 
         }
 
-
-
         var remarks = r.advisorRemarks || r.reviewRemarks || (r.reviewedBy ? ('By ' + r.reviewedBy) : '—');
-
-
 
         return '<tr>'
 
@@ -3008,8 +2755,6 @@ function renderLeaveStatsAndLists(list) {
 
 }
 
-
-
 async function handleLeaveSubmit(e) {
 
   e.preventDefault();
@@ -3018,8 +2763,6 @@ async function handleLeaveSubmit(e) {
 
   var origHtml = submitBtn ? submitBtn.innerHTML : '';
 
-
-
   var category = document.getElementById('input-leave-category') ? document.getElementById('input-leave-category').value : 'Personal';
 
   var fromDate = document.getElementById('input-from-date') ? document.getElementById('input-from-date').value : '';
@@ -3027,8 +2770,6 @@ async function handleLeaveSubmit(e) {
   var toDate = _leaveCoverage === 'full_day' && document.getElementById('input-to-date') ? document.getElementById('input-to-date').value : fromDate;
 
   var reason = document.getElementById('input-leave-reason') ? document.getElementById('input-leave-reason').value.trim() : '';
-
-
 
   if (!fromDate) {
 
@@ -3062,8 +2803,6 @@ async function handleLeaveSubmit(e) {
 
   }
 
-
-
   var selectedPeriods = [];
 
   if (_leaveCoverage === 'periods') {
@@ -3084,8 +2823,6 @@ async function handleLeaveSubmit(e) {
 
   }
 
-
-
   var certLink = document.getElementById('input-cert-link') ? document.getElementById('input-cert-link').value.trim() : '';
   if (category === 'Medical' && certLink && !certToFollow && !isValidDriveLink(certLink)) {
     toast('Invalid certificate link. Only Google Drive or Google Docs https links are accepted.', 'warning');
@@ -3093,8 +2830,6 @@ async function handleLeaveSubmit(e) {
   }
 
   var certToFollow = document.getElementById('input-cert-to-follow') ? document.getElementById('input-cert-to-follow').checked : false;
-
-
 
   var payload = {
 
@@ -3116,8 +2851,6 @@ async function handleLeaveSubmit(e) {
 
   };
 
-
-
   if (submitBtn) {
 
     submitBtn.disabled = true;
@@ -3125,8 +2858,6 @@ async function handleLeaveSubmit(e) {
     submitBtn.innerHTML = '<span><re-icon icon="hourglass"></re-icon> Submitting…</span>';
 
   }
-
-
 
   try {
 
@@ -3138,8 +2869,6 @@ async function handleLeaveSubmit(e) {
 
     });
 
-
-
     if (res && res.error) {
 
       toast(res.error, 'error');
@@ -3147,8 +2876,6 @@ async function handleLeaveSubmit(e) {
       return;
 
     }
-
-
 
     toast('<re-icon icon="confetti"></re-icon> ' + (res.message || 'Leave request sent to Class Advisor!'), 'success');
 
@@ -3190,15 +2917,11 @@ async function handleLeaveSubmit(e) {
 
 }
 
-
-
 async function cancelLeaveRequest(id) {
 
   const ok = await showConfirm('Are you sure you want to cancel this leave request?', 'Cancel Leave Request', null, null, { danger: true, confirmText: 'Cancel Request' });
 
   if (!ok) return;
-
-
 
   api('/api/student-leave/' + id + '/cancel', {
 
@@ -3240,8 +2963,6 @@ async function cancelLeaveRequest(id) {
 
 }
 
-
-
 // ══ ON-DUTY (OD) MANAGEMENT (L3 & L4) ═════════════════════════════════
 
 var _odCoverage = 'full_day';
@@ -3249,8 +2970,6 @@ var _odCoverage = 'full_day';
 var _odEventsList = [];
 
 var _odMentorsList = [];
-
-
 
 function setODCoverage(cov) {
 
@@ -3269,8 +2988,6 @@ function setODCoverage(cov) {
     { id: 'tab-od-none', key: 'none' }
 
   ];
-
-
 
   tabs.forEach(function(t) {
 
@@ -3298,19 +3015,13 @@ function setODCoverage(cov) {
 
   });
 
-
-
   var hintNone = document.getElementById('od-none-hint');
 
   if (hintNone) hintNone.style.display = cov === 'none' ? 'block' : 'none';
 
-
-
   var periodSelect = document.getElementById('group-od-period-select');
 
   if (periodSelect) periodSelect.style.display = cov === 'periods' ? 'block' : 'none';
-
-
 
   var toDateInput = document.getElementById('input-od-to-date');
 
@@ -3319,8 +3030,6 @@ function setODCoverage(cov) {
   var wrapToDate = document.getElementById('wrap-od-to-date');
 
   var datesGrid = document.getElementById('group-od-dates');
-
-
 
   if (cov === 'fn' || cov === 'an') {
 
@@ -3352,15 +3061,11 @@ function setODCoverage(cov) {
 
   }
 
-
-
   calculateODDays();
 
   loadStudentGroupODInvites();
 
 }
-
-
 
 function onODFromDateChange() {
 
@@ -3377,8 +3082,6 @@ function onODFromDateChange() {
   calculateODDays();
 
 }
-
-
 
 var OD_SUBTYPES = {
 
@@ -3460,8 +3163,6 @@ var OD_SUBTYPES = {
 
 };
 
-
-
 function onODTypeChange() {
 
   var typeEl = document.getElementById('input-od-type');
@@ -3492,8 +3193,6 @@ function onODTypeChange() {
 
 }
 
-
-
 function onODLevelChange() {
 
   var lvlEl = document.getElementById('input-od-level');
@@ -3506,8 +3205,6 @@ function onODLevelChange() {
 
   var hostCity = document.getElementById('input-od-host-city');
 
-
-
   var requiresHost = ['inter-collegiate', 'university', 'state', 'national', 'international'].includes(lvl);
 
   if (wrap) wrap.style.display = requiresHost ? 'block' : 'none';
@@ -3518,8 +3215,6 @@ function onODLevelChange() {
 
 }
 
-
-
 function onODEventSelectChange() {
 
   var sel = document.getElementById('input-od-event-select');
@@ -3529,8 +3224,6 @@ function onODEventSelectChange() {
   var evId = sel.value;
 
   var titleInp = document.getElementById('input-od-event-title');
-
-
 
   if (!evId) {
 
@@ -3545,8 +3238,6 @@ function onODEventSelectChange() {
     return;
 
   }
-
-
 
   var ev = _odEventsList.find(function(e) { return String(e._id) === String(evId) || e.eventId === evId; });
 
@@ -3574,8 +3265,6 @@ function onODEventSelectChange() {
 
     if (subEl && ev.subType) subEl.value = ev.subType;
 
-
-
     var lvlEl = document.getElementById('input-od-level');
 
     if (lvlEl && ev.level) {
@@ -3585,8 +3274,6 @@ function onODEventSelectChange() {
       onODLevelChange();
 
     }
-
-
 
     if (ev.hostCollege && document.getElementById('input-od-host-college')) {
 
@@ -3618,15 +3305,11 @@ function onODEventSelectChange() {
 
 }
 
-
-
 function calculateODDays() {
 
   var calcEl = document.getElementById('od-days-calc');
 
   if (!calcEl) return;
-
-
 
   if (_odCoverage === 'none') {
 
@@ -3680,8 +3363,6 @@ function calculateODDays() {
 
   }
 
-
-
   var from = document.getElementById('input-od-from-date') ? document.getElementById('input-od-from-date').value : '';
 
   var to = document.getElementById('input-od-to-date') ? document.getElementById('input-od-to-date').value : '';
@@ -3695,8 +3376,6 @@ function calculateODDays() {
     return;
 
   }
-
-
 
   var d1 = new Date(from);
 
@@ -3722,8 +3401,6 @@ function calculateODDays() {
 
 }
 
-
-
 async function handleODSubmit(e) {
 
   e.preventDefault();
@@ -3731,8 +3408,6 @@ async function handleODSubmit(e) {
   var submitBtn = document.getElementById('btn-submit-od');
 
   var origHtml = submitBtn ? submitBtn.innerHTML : '';
-
-
 
   var eventName = document.getElementById('input-od-event-title') ? document.getElementById('input-od-event-title').value.trim() : '';
 
@@ -3757,8 +3432,6 @@ async function handleODSubmit(e) {
   var evidenceLink = document.getElementById('input-od-evidence-link') ? document.getElementById('input-od-evidence-link').value.trim() : '';
 
   var reason = document.getElementById('input-od-reason') ? document.getElementById('input-od-reason').value.trim() : '';
-
-
 
   if (!eventName) {
 
@@ -3818,8 +3491,6 @@ async function handleODSubmit(e) {
 
   }
 
-
-
   var selectedPeriods = [];
 
   if (_odCoverage === 'periods') {
@@ -3836,8 +3507,6 @@ async function handleODSubmit(e) {
 
   }
 
-
-
   var evidenceArr = [];
 
   if (evidenceLink) {
@@ -3853,8 +3522,6 @@ async function handleODSubmit(e) {
     });
 
   }
-
-
 
   var payload = {
 
@@ -3894,8 +3561,6 @@ async function handleODSubmit(e) {
 
   };
 
-
-
   if (submitBtn) {
 
     submitBtn.disabled = true;
@@ -3903,8 +3568,6 @@ async function handleODSubmit(e) {
     submitBtn.innerHTML = '<span><re-icon icon="hourglass"></re-icon> Submitting…</span>';
 
   }
-
-
 
   try {
 
@@ -3916,8 +3579,6 @@ async function handleODSubmit(e) {
 
     });
 
-
-
     if (res && res.error) {
 
       toast(res.error, 'error');
@@ -3925,8 +3586,6 @@ async function handleODSubmit(e) {
       return;
 
     }
-
-
 
     toast('<re-icon icon="confetti"></re-icon> ' + (res.message || 'OD request submitted to Faculty Mentor!'), 'success');
 
@@ -3974,15 +3633,11 @@ async function handleODSubmit(e) {
 
 }
 
-
-
 async function cancelODRequest(id) {
 
   const ok = await showConfirm('Are you sure you want to cancel this On-Duty request?', 'Cancel OD Request', null, null, { danger: true, confirmText: 'Cancel Request' });
 
   if (!ok) return;
-
-
 
   api('/api/od/' + id + '/cancel', {
 
@@ -4010,8 +3665,6 @@ async function cancelODRequest(id) {
 
 }
 
-
-
 function loadODData() {
 
   var today = todayIST();
@@ -4030,9 +3683,7 @@ function loadODData() {
 
   calculateODDays();
 
-
-
-  // 1. Fetch Faculty Mentors
+  // Fetch Faculty Mentors
 
   api('/api/od/mentors').then(function(res) {
 
@@ -4060,9 +3711,7 @@ function loadODData() {
 
   }).catch(function() {});
 
-
-
-  // 2. Fetch Events Registry
+  // Fetch Events Registry
 
   api('/api/od/events').then(function(res) {
 
@@ -4084,9 +3733,7 @@ function loadODData() {
 
   }).catch(function() {});
 
-
-
-  // 3. Fetch Student's OD Requests
+  // Fetch Student's OD Requests
 
   api('/api/od/me').then(function(res) {
 
@@ -4102,9 +3749,7 @@ function loadODData() {
 
   });
 
-
-
-  // 4. Fetch Participation Profile Summary
+  // Fetch Participation Profile Summary
 
   api('/api/participation/me').then(function(res) {
 
@@ -4148,8 +3793,6 @@ function loadODData() {
 
 }
 
-
-
 function renderODStatsAndLists(list) {
 
   var approvedODs = list.filter(function(r) { return r.status === 'approved'; });
@@ -4168,31 +3811,21 @@ function renderODStatsAndLists(list) {
 
   });
 
-
-
   var statApprovedEl = document.getElementById('od-stat-approved-days');
 
   if (statApprovedEl) statApprovedEl.textContent = totalApprovedDays + (totalApprovedDays === 1 ? ' Day' : ' Days');
-
-
 
   var statPendingEl = document.getElementById('od-stat-pending-count');
 
   if (statPendingEl) statPendingEl.textContent = pendingReqs.length;
 
-
-
   var statOutcomeEl = document.getElementById('od-stat-awaiting-outcome');
 
   if (statOutcomeEl) statOutcomeEl.textContent = awaitingOutcome.length;
 
-
-
   var badgePendingEl = document.getElementById('badge-od-pending-count');
 
   if (badgePendingEl) badgePendingEl.textContent = pendingReqs.length + ' Active';
-
-
 
   var navBadge = document.getElementById('st-od-badge');
 
@@ -4203,8 +3836,6 @@ function renderODStatsAndLists(list) {
     navBadge.style.display = pendingReqs.length > 0 ? 'inline-block' : 'none';
 
   }
-
-
 
   // Render Active Workflows (Right Card)
 
@@ -4227,8 +3858,6 @@ function renderODStatsAndLists(list) {
         var stageText = r.currentStage ? ('Stage: ' + r.currentStage.toUpperCase()) : 'Awaiting Approval';
 
         var trackerId = 'active-od-tracker-' + idx;
-
-
 
         return '<div style="background:#f0f9ff;border:1.5px solid #bae6fd;border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:8px;">'
 
@@ -4262,8 +3891,6 @@ function renderODStatsAndLists(list) {
 
       }).join('');
 
-
-
       // Render trackers after HTML is inserted
 
       pendingReqs.forEach(function(r, idx) {
@@ -4279,8 +3906,6 @@ function renderODStatsAndLists(list) {
     }
 
   }
-
-
 
   // Render OD History Table (8 columns matching thead)
 
@@ -4304,15 +3929,11 @@ function renderODStatsAndLists(list) {
 
         var covLabel = r.coverage === 'fn' ? 'FN' : r.coverage === 'an' ? 'AN' : r.coverage === 'periods' ? ('Periods: ' + (r.periods || []).map(function(p){ return 'P'+p; }).join(',')) : (r.coverage === 'none' ? 'No-OD (Log)' : 'Full Day');
 
-
-
         var statusBg = r.status === 'approved' ? '#dcfce7' : r.status === 'rejected' ? '#fee2e2' : r.status === 'cancelled' ? '#f3f4f6' : '#fef3c7';
 
         var statusColor = r.status === 'approved' ? '#166534' : r.status === 'rejected' ? '#991b1b' : r.status === 'cancelled' ? '#4b5563' : '#92400e';
 
         var statusBadge = '<span style="background:' + statusBg + ';color:' + statusColor + ';font-size:10.5px;font-weight:800;padding:2px 8px;border-radius:8px;">' + escapeHtml(r.status.toUpperCase()) + '</span>';
-
-
 
         var outcomeStatus = '—';
 
@@ -4333,8 +3954,6 @@ function renderODStatsAndLists(list) {
 
         }
 
-
-
         var actionsHtml = '—';
 
         if (r.status === 'pending') {
@@ -4346,8 +3965,6 @@ function renderODStatsAndLists(list) {
           actionsHtml = '<button class="btn-pri bsm" onclick="openODOutcomeModal(\'' + (r.requestId || r._id) + '\', \'' + escapeHtml((r.eventDetails && r.eventDetails.name) || 'Event').replace(/'/g, "\\'") + '\')" style="padding:3px 8px;font-size:10.5px;background:#16a34a;"><re-icon icon="trophy" size="11"></re-icon> Submit Outcome</button>';
 
         }
-
-
 
         return '<tr>'
 
@@ -4377,11 +3994,7 @@ function renderODStatsAndLists(list) {
 
 }
 
-
-
 var _currentOutcomeReqId = null;
-
-
 
 function openODOutcomeModal(requestId, eventTitle) {
 
@@ -4399,8 +4012,6 @@ function openODOutcomeModal(requestId, eventTitle) {
 
   var evidenceInp = document.getElementById('input-od-outcome-evidence');
 
-
-
   if (reqIdEl) reqIdEl.textContent = requestId;
 
   if (titleEl) titleEl.textContent = eventTitle || 'Event';
@@ -4410,8 +4021,6 @@ function openODOutcomeModal(requestId, eventTitle) {
   if (certCountInp) certCountInp.value = '1';
 
   if (evidenceInp) evidenceInp.value = '';
-
-
 
   if (typeof openModal === 'function') {
 
@@ -4427,13 +4036,9 @@ function openODOutcomeModal(requestId, eventTitle) {
 
 }
 
-
-
 // ── EVIDENCE FILE UPLOAD (IMG/JPG/PDF <= 10MB) ──
 
 var _outcomeSelectedFile = null;
-
-
 
 function handleOutcomeFileSelect(input) {
 
@@ -4441,9 +4046,7 @@ function handleOutcomeFileSelect(input) {
 
   var file = input.files[0];
 
-
-
-  // 1. Size check: 10MB max
+  // Size check: 10MB max
 
   var maxBytes = 10 * 1024 * 1024;
 
@@ -4457,9 +4060,7 @@ function handleOutcomeFileSelect(input) {
 
   }
 
-
-
-  // 2. Extension check
+  // Extension check
 
   var ext = (file.name.split('.').pop() || '').toLowerCase();
 
@@ -4475,11 +4076,7 @@ function handleOutcomeFileSelect(input) {
 
   }
 
-
-
   _outcomeSelectedFile = file;
-
-
 
   var unselected = document.getElementById('od-file-unselected');
 
@@ -4490,8 +4087,6 @@ function handleOutcomeFileSelect(input) {
   var metaEl = document.getElementById('od-file-meta');
 
   var statusEl = document.getElementById('od-upload-status');
-
-
 
   if (unselected) unselected.style.display = 'none';
 
@@ -4507,8 +4102,6 @@ function handleOutcomeFileSelect(input) {
 
   }
 
-
-
   // Upload file to Google Drive via backend
 
   var formData = new FormData();
@@ -4516,8 +4109,6 @@ function handleOutcomeFileSelect(input) {
   formData.append('file', file);
 
   formData.append('odTrackId', _currentOutcomeReqId || '');
-
-
 
   fetch('/api/od/upload-evidence', {
 
@@ -4577,8 +4168,6 @@ function handleOutcomeFileSelect(input) {
 
 window.handleOutcomeFileSelect = handleOutcomeFileSelect;
 
-
-
 function clearOutcomeFile() {
 
   _outcomeSelectedFile = null;
@@ -4603,8 +4192,6 @@ function clearOutcomeFile() {
 
 window.clearOutcomeFile = clearOutcomeFile;
 
-
-
 async function submitODOutcome() {
 
   if (!_currentOutcomeReqId) return;
@@ -4617,13 +4204,9 @@ async function submitODOutcome() {
 
   var origHtml = btn ? btn.innerHTML : '';
 
-
-
   var summary = summaryInp ? summaryInp.value.trim() : '';
 
   var evidence = evidenceInp ? evidenceInp.value.trim() : '';
-
-
 
   if (!summary) {
 
@@ -4642,8 +4225,6 @@ async function submitODOutcome() {
     return;
   }
 
-
-
   if (btn) {
 
     btn.disabled = true;
@@ -4651,8 +4232,6 @@ async function submitODOutcome() {
     btn.innerHTML = '<span><re-icon icon="hourglass"></re-icon> Submitting…</span>';
 
   }
-
-
 
   try {
 
@@ -4672,8 +4251,6 @@ async function submitODOutcome() {
 
     });
 
-
-
     if (res && res.error) {
 
       toast(res.error, 'error');
@@ -4681,8 +4258,6 @@ async function submitODOutcome() {
       return;
 
     }
-
-
 
     toast('Outcome and certificate submitted successfully!', 'success');
 
@@ -4720,8 +4295,6 @@ async function submitODOutcome() {
 
 window.submitODOutcome = submitODOutcome;
 
-
-
 // ── STUDENT GROUP OD TEAM HEAD INVITATIONS ──
 
 var _activeStudentGroupInvite = null;
@@ -4729,8 +4302,6 @@ var _activeStudentGroupInvite = null;
 var _stGodAllStudents = [];
 
 var _stGodMembers = [];
-
-
 
 function loadStudentGroupODInvites() {
 
@@ -4753,8 +4324,6 @@ function loadStudentGroupODInvites() {
     var desc = document.getElementById('student-group-invite-desc');
 
     if (!card) return;
-
-
 
     if (res.ok && Array.isArray(res.invites) && res.invites.length > 0) {
 
@@ -4788,8 +4357,6 @@ function loadStudentGroupODInvites() {
 
 window.loadStudentGroupODInvites = loadStudentGroupODInvites;
 
-
-
 function openStudentGroupODModal() {
 
   if (!_activeStudentGroupInvite) return;
@@ -4804,13 +4371,9 @@ function openStudentGroupODModal() {
 
   if (nameInp) nameInp.value = inv.eventDetails ? (inv.eventDetails.name || '') : '';
 
-
-
   _stGodMembers = [];
 
   renderStudentGroupMemberChips();
-
-
 
   // Fetch student roster for dropdown
 
@@ -4834,8 +4397,6 @@ function openStudentGroupODModal() {
 
   });
 
-
-
   if (typeof openModal === 'function') {
 
     openModal('modal-student-group-od');
@@ -4851,8 +4412,6 @@ function openStudentGroupODModal() {
 }
 
 window.openStudentGroupODModal = openStudentGroupODModal;
-
-
 
 function populateStudentGroupMemberDropdown(list) {
 
@@ -4881,8 +4440,6 @@ function populateStudentGroupMemberDropdown(list) {
   sel.style.display = 'block';
 
 }
-
-
 
 function filterStudentGroupMembers(query) {
 
@@ -4913,8 +4470,6 @@ function filterStudentGroupMembers(query) {
 }
 
 window.filterStudentGroupMembers = filterStudentGroupMembers;
-
-
 
 function addStudentGroupMember(sel) {
 
@@ -4948,8 +4503,6 @@ function addStudentGroupMember(sel) {
 
 window.addStudentGroupMember = addStudentGroupMember;
 
-
-
 function removeStudentGroupMember(trackId) {
 
   _stGodMembers = _stGodMembers.filter(function(m) { return m.trackId !== trackId; });
@@ -4959,8 +4512,6 @@ function removeStudentGroupMember(trackId) {
 }
 
 window.removeStudentGroupMember = removeStudentGroupMember;
-
-
 
 function renderStudentGroupMemberChips() {
 
@@ -4990,8 +4541,6 @@ function renderStudentGroupMemberChips() {
 
 }
 
-
-
 function submitStudentGroupODDetails() {
 
   if (!_activeStudentGroupInvite) return;
@@ -5010,8 +4559,6 @@ function submitStudentGroupODDetails() {
 
   var desc = (document.getElementById('st-god-desc') ? document.getElementById('st-god-desc').value : '').trim();
 
-
-
   if (!eventName || !startDate || !endDate) {
 
     toast('Please fill Event Name, Start Date, and End Date', 'warning');
@@ -5019,8 +4566,6 @@ function submitStudentGroupODDetails() {
     return;
 
   }
-
-
 
   var membersPayload = _stGodMembers.map(function(m) {
 
@@ -5039,8 +4584,6 @@ function submitStudentGroupODDetails() {
     };
 
   });
-
-
 
   toast('Submitting details to faculty…', 'saving');
 
@@ -5120,8 +4663,6 @@ function submitStudentGroupODDetails() {
 
 window.submitStudentGroupODDetails = submitStudentGroupODDetails;
 
-
-
 // Initialize OD Subtype options immediately
 
 try {
@@ -5132,13 +4673,9 @@ try {
 
 } catch (e) {}
 
-
-
 // ══ STUDENT NOTIFICATIONS ═════════════════════════════════════════════
 
 var _studentNotifs = [];
-
-
 
 function fetchStudentNotifs() {
 
@@ -5163,8 +4700,6 @@ function fetchStudentNotifs() {
   }).catch(function() {});
 
 }
-
-
 
 function renderStudentNotifsList() {
 
@@ -5200,8 +4735,6 @@ function renderStudentNotifsList() {
 
       : '<span style="background:rgba(59,130,246,.1);color:#1d4ed8;font-size:9px;font-weight:700;padding:1px 6px;border-radius:6px;margin-left:auto;display:inline-flex;align-items:center;gap:3px;"><re-icon icon="check"></re-icon> Delivered</span>';
 
-
-
     return '<div onclick="markStudentNotifRead(\'' + n._id + '\')" style="padding:10px 14px;border-bottom:1px solid var(--brl);display:flex;gap:10px;align-items:flex-start;background:' + (isRead ? '#fff' : bg) + ';border-left:3px solid ' + border + ';cursor:pointer;" title="' + (!isRead ? 'Click to mark as read' : '') + '">'
 
       + '<div style="font-size:16px;">' + icon + '</div>'
@@ -5221,8 +4754,6 @@ function renderStudentNotifsList() {
   }).join('');
 
 }
-
-
 
 function markStudentNotifRead(id) {
 
@@ -5254,8 +4785,6 @@ function markStudentNotifRead(id) {
 
 }
 
-
-
 function toggleStudentNotifs() {
 
   var drop = document.getElementById('st-ndrop');
@@ -5269,8 +4798,6 @@ function toggleStudentNotifs() {
   if (!isOpen) fetchStudentNotifs();
 
 }
-
-
 
 function clearStudentNotifs() {
 
@@ -5302,8 +4829,6 @@ function clearStudentNotifs() {
 
 }
 
-
-
 // Close notification dropdown when clicked outside
 
 document.addEventListener('click', function(e) {
@@ -5320,15 +4845,9 @@ document.addEventListener('click', function(e) {
 
 });
 
-
-
-// (§6, B1): Notif count polled via /api/student/pulse
-
-
+// : Notif count polled via /api/student/pulse
 
 loadStudentData();
-
-
 
 // ══ LIVE SESSION POLLING ══════════════════════════════════════════════
 
@@ -5404,8 +4923,6 @@ window.submitLiveSession = function() {
 
   dbToast('Submitting passcode…', 'saving');
 
-
-
   var studentTrackId = (typeof STUDENT !== 'undefined' && STUDENT && (STUDENT.trackId || STUDENT._id)) || '';
 
   var devId = window.DeviceKey && typeof window.DeviceKey.getInstallId === 'function'
@@ -5413,8 +4930,6 @@ window.submitLiveSession = function() {
     ? window.DeviceKey.getInstallId()
 
     : (localStorage.getItem('eams_device_id') || '');
-
-
 
   function doSend(pos, proof) {
 
@@ -5439,8 +4954,6 @@ window.submitLiveSession = function() {
       payload.accuracy = pos.accuracy;
 
     }
-
-
 
     fetch('/api/live-session/mark', {
 
@@ -5476,8 +4989,6 @@ window.submitLiveSession = function() {
 
   }
 
-
-
   var proofPromise = Promise.resolve(null);
 
   if (window.DeviceKey && typeof window.DeviceKey.createDeviceProof === 'function') {
@@ -5491,8 +5002,6 @@ window.submitLiveSession = function() {
     ).catch(function() { return null; });
 
   }
-
-
 
   proofPromise.then(function(proof) {
 
@@ -5530,11 +5039,7 @@ window.submitLiveSession = function() {
 
 };
 
-// (§6, B1): Live session polled via /api/student/pulse
-
-
-
-
+// : Live session polled via /api/student/pulse
 
 // ══ QUICK PASS & REP SHARE POLLING ════════════════════════════════════
 
@@ -5582,15 +5087,11 @@ function pollQuickPassActive() {
 
 }
 
-
-
 var _repSession = null;
 
 var _repStudents = [];
 
 var _repMarkings = {}; // trackId -> { status: 'Present', remarks: '' }
-
-
 
 function checkRepPendingSession() {
 
@@ -5648,8 +5149,6 @@ function checkRepPendingSession() {
 
 }
 
-
-
 function loadRepPendingSession() {
 
   var t = TOKEN || sessionStorage.getItem('eams_token');
@@ -5696,8 +5195,6 @@ function loadRepPendingSession() {
 
 }
 
-
-
 function renderRepPendingSession(session, students) {
 
   _repSession = session;
@@ -5706,8 +5203,6 @@ function renderRepPendingSession(session, students) {
 
   _repMarkings = {};
 
-
-
   var empty = document.getElementById('rep-empty-state');
 
   var area = document.getElementById('rep-session-area');
@@ -5715,8 +5210,6 @@ function renderRepPendingSession(session, students) {
   if (empty) empty.style.display = 'none';
 
   if (area) area.style.display = 'block';
-
-
 
   // Fill details
 
@@ -5744,15 +5237,11 @@ function renderRepPendingSession(session, students) {
 
   if (elTime) elTime.textContent = 'Delegated: ' + (session.notifiedAt ? new Date(session.notifiedAt).toLocaleTimeString() : 'Just now');
 
-
-
   // Initialize markings default to Present
 
   var tbody = document.getElementById('rep-student-tbody');
 
   if (!tbody) return;
-
-
 
   var html = '';
 
@@ -5775,8 +5264,6 @@ function renderRepPendingSession(session, students) {
       remarks: ''
 
     };
-
-
 
     html += '<tr id="rep-row-' + tid + '">'
 
@@ -5810,15 +5297,11 @@ function renderRepPendingSession(session, students) {
 
   });
 
-
-
   tbody.innerHTML = html;
 
   updateRepStats();
 
 }
-
-
 
 window.setRepStatus = function(tid, status) {
 
@@ -5826,15 +5309,11 @@ window.setRepStatus = function(tid, status) {
 
   _repMarkings[tid].status = status;
 
-
-
   var btnP = document.getElementById('rep-btn-p-' + tid);
 
   var btnA = document.getElementById('rep-btn-a-' + tid);
 
   var btnOD = document.getElementById('rep-btn-od-' + tid);
-
-
 
   if (btnP) {
 
@@ -5860,13 +5339,9 @@ window.setRepStatus = function(tid, status) {
 
   }
 
-
-
   updateRepStats();
 
 };
-
-
 
 window.updateRepRemark = function(tid, val) {
 
@@ -5878,8 +5353,6 @@ window.updateRepRemark = function(tid, val) {
 
 };
 
-
-
 window.markAllRep = function(status) {
 
   Object.keys(_repMarkings).forEach(function(tid) {
@@ -5890,8 +5363,6 @@ window.markAllRep = function(status) {
 
 };
 
-
-
 function updateRepStats() {
 
   var total = _repStudents.length;
@@ -5899,8 +5370,6 @@ function updateRepStats() {
   var present = 0;
 
   var absent = 0;
-
-
 
   Object.keys(_repMarkings).forEach(function(tid) {
 
@@ -5911,8 +5380,6 @@ function updateRepStats() {
     else if (s === 'Absent') absent++;
 
   });
-
-
 
   var elTot = document.getElementById('rep-cnt-total');
 
@@ -5926,15 +5393,11 @@ function updateRepStats() {
 
   if (elAbs) elAbs.textContent = absent;
 
-
-
   var elSummary = document.getElementById('rep-summary-text');
 
   if (elSummary) elSummary.textContent = present + ' of ' + total + ' Students Marked Present (' + (total - present) + ' Absent/OD)';
 
 }
-
-
 
 window.openRepConfirmModal = function() {
 
@@ -5946,13 +5409,9 @@ window.openRepConfirmModal = function() {
 
   });
 
-
-
   var disp = document.getElementById('rep-verify-marked-display');
 
   if (disp) disp.textContent = present;
-
-
 
   var inp = document.getElementById('input-rep-headcount');
 
@@ -5964,25 +5423,17 @@ window.openRepConfirmModal = function() {
 
   }
 
-
-
   var err = document.getElementById('rep-headcount-err');
 
   if (err) { err.style.display = 'none'; err.textContent = ''; }
-
-
 
   var btn = document.getElementById('btn-rep-final-submit');
 
   if (btn) btn.disabled = true;
 
-
-
   openModal('modal-rep-confirm');
 
 };
-
-
 
 window.validateRepHeadcount = function() {
 
@@ -5994,8 +5445,6 @@ window.validateRepHeadcount = function() {
 
   });
 
-
-
   var inp = document.getElementById('input-rep-headcount');
 
   var err = document.getElementById('rep-headcount-err');
@@ -6003,8 +5452,6 @@ window.validateRepHeadcount = function() {
   var btn = document.getElementById('btn-rep-final-submit');
 
   if (!inp || !err || !btn) return;
-
-
 
   var val = inp.value.trim();
 
@@ -6019,8 +5466,6 @@ window.validateRepHeadcount = function() {
     return;
 
   }
-
-
 
   var count = parseInt(val, 10);
 
@@ -6046,8 +5491,6 @@ window.validateRepHeadcount = function() {
 
 };
 
-
-
 window.submitRepConfirmedAttendance = function() {
 
   if (!_repSession) {
@@ -6057,8 +5500,6 @@ window.submitRepConfirmedAttendance = function() {
     return;
 
   }
-
-
 
   var present = 0;
 
@@ -6074,8 +5515,6 @@ window.submitRepConfirmedAttendance = function() {
 
   });
 
-
-
   var inp = document.getElementById('input-rep-headcount');
 
   var count = parseInt(inp ? inp.value : '', 10);
@@ -6088,13 +5527,9 @@ window.submitRepConfirmedAttendance = function() {
 
   }
 
-
-
   var btn = document.getElementById('btn-rep-final-submit');
 
   if (btn) { btn.disabled = true; btn.textContent = 'Submitting Attendance…'; }
-
-
 
   var t = TOKEN || sessionStorage.getItem('eams_token');
 
@@ -6170,19 +5605,11 @@ window.submitRepConfirmedAttendance = function() {
 
 };
 
+// : Quick Pass polled via /api/student/pulse
 
+// : Rep share polled via /api/student/pulse
 
-// (§6, B1): Quick Pass polled via /api/student/pulse
-
-
-
-// (§6, B1): Rep share polled via /api/student/pulse
-
-
-
-
-
-// ── Phase T4: Student Trust Profile & Gating (§10, T4.6) ─────────────────────
+// ── Student Trust Profile & Gating ─
 
 function loadStudentTrustProfile() {
 
@@ -6202,17 +5629,13 @@ function loadStudentTrustProfile() {
 
     window._studentTrustData = data;
 
-
-
-    // 1. Update Topbar Chip (§10)
+    // Update Topbar Chip
 
     var chipEl = document.getElementById('st-trust-chip');
 
     var iconEl = document.getElementById('st-trust-icon');
 
     var textEl = document.getElementById('st-trust-text');
-
-
 
     if (chipEl && iconEl && textEl) {
 
@@ -6260,17 +5683,13 @@ function loadStudentTrustProfile() {
 
     }
 
-
-
-    // 2. Dashboard Lock / Low Trust Gating (§7.2, §10)
+    // Dashboard Lock / Low Trust Gating
 
     var banner = document.getElementById('st-trust-lock-banner');
 
     var bannerTitle = document.getElementById('st-lock-banner-title');
 
     var bannerDesc = document.getElementById('st-lock-banner-desc');
-
-
 
     if (data.isLocked || data.score < 40) {
 
@@ -6295,8 +5714,6 @@ function loadStudentTrustProfile() {
         }
 
       }
-
-
 
       // Disable Mark Attendance button in sidebar and active session banner
 
@@ -6336,22 +5753,20 @@ function loadStudentTrustProfile() {
 
 window.loadStudentTrustProfile = loadStudentTrustProfile;
 
-
-
 loadStudentTrustProfile();
 
-// (§6, B1): Trust profile loaded on demand
+// : Trust profile loaded on demand
 
-// ══ CONSOLIDATED STUDENT PULSE POLLER (§6, B1) ═════════════════════════
+// ══ CONSOLIDATED STUDENT PULSE POLLER ═════════════════════════
 var _pulseTimer = null;
-var _pulseInterval = 15000; // 15 seconds
+var _pulseInterval = 15000; // seconds
 var _pulseBackoff = 15000;
 var _isPulsing = false;
 
 function applyPulseData(d) {
   if (!d) return;
 
-  // 1. Live Session
+  // Live Session
   var live = d.liveSession || {};
   var cont = document.getElementById('live-session-container');
   if (cont) {
@@ -6376,7 +5791,7 @@ function applyPulseData(d) {
     }
   }
 
-  // 2. Quick Pass
+  // Quick Pass
   var qp = d.quickPass || {};
   var qpBanner = document.getElementById('st-active-session-banner');
   if (qpBanner) {
@@ -6394,7 +5809,7 @@ function applyPulseData(d) {
     }
   }
 
-  // 3. Class Rep Share
+  // Class Rep Share
   var rep = d.repShare || {};
   var navRep = document.getElementById('nav-rep-att');
   var repBadge = document.getElementById('rep-badge');
@@ -6408,7 +5823,7 @@ function applyPulseData(d) {
     if (repBadge) repBadge.style.display = 'none';
   }
 
-  // 4. Notifications Unread Count
+  // Notifications Unread Count
   var unread = typeof d.unreadNotifsCount === 'number' ? d.unreadNotifsCount : 0;
   var notifBadge = document.getElementById('st-nbadge');
   if (notifBadge) {
@@ -6454,7 +5869,7 @@ function stopPulsePoller() {
   clearTimeout(_pulseTimer);
 }
 
-// VisibilityChange listener (§6, B1)
+// VisibilityChange listener
 document.addEventListener('visibilitychange', function() {
   if (document.hidden) {
     stopPulsePoller();
@@ -6657,7 +6072,7 @@ function renderTimetablePage(data) {
 
   var html = '';
 
-  // 1. Hero
+  // Hero
   html += '<div class="tt-hero">'
     + '  <div>'
     + '    <h1 class="tt-hero-title"><re-icon icon="calendar-days" size="22"></re-icon> ' + escapeHtml(cls.name || 'Class') + ' Timetable</h1>'
@@ -6678,7 +6093,7 @@ function renderTimetablePage(data) {
     + '  </div>'
     + '</div>';
 
-  // 2. Controls: Day Pills + View Mode Toggle
+  // Controls: Day Pills + View Mode Toggle
   html += '<div class="tt-controls-row">'
     + '  <div class="tt-day-pills">'
     + '    <button class="tt-day-pill ' + (_activeTimetableDay === 'Today' ? 'active' : '') + '" data-action="switch-timetable-day" data-day="Today">'
@@ -6705,7 +6120,7 @@ function renderTimetablePage(data) {
     + '  </div>'
     + '</div>';
 
-  // 3. View Body
+  // View Body
   if (_activeTimetableMode === 'week') {
     html += renderWeeklyMatrix(dayList, periods, slots, currentDay, data.selfAbsences);
   } else {

@@ -22,7 +22,7 @@ function getActor(req) {
 
 /**
  * GET /api/roles/overview
- * Returns executive overview cards for departments (§7.4)
+ * Returns executive overview cards for departments
  */
 router.get('/overview', authMiddleware, requirePage('admin', 'view', { tab: 'roles' }), async (req, res) => {
   try {
@@ -136,7 +136,7 @@ router.get('/overview', authMiddleware, requirePage('admin', 'view', { tab: 'rol
 
 /**
  * GET /api/roles/departments/:deptId
- * Drawer: returns role details and privileged staff for a single department (§7.5)
+ * Drawer: returns role details and privileged staff for a single department
  */
 router.get('/departments/:deptId', authMiddleware, requirePage('admin', 'view', { tab: 'roles' }), async (req, res) => {
   try {
@@ -198,7 +198,7 @@ router.get('/departments/:deptId', authMiddleware, requirePage('admin', 'view', 
 
 /**
  * GET /api/roles/departments/:deptId/staff?role=
- * Searchable staff picker for assigning roles (§7.5)
+ * Searchable staff picker for assigning roles
  */
 router.get('/departments/:deptId/staff', authMiddleware, requirePage('admin', 'view', { tab: 'roles' }), async (req, res) => {
   try {
@@ -264,7 +264,7 @@ router.get('/departments/:deptId/staff', authMiddleware, requirePage('admin', 'v
 
 /**
  * PUT /api/roles/departments/:deptId/:role
- * Assign / replace department-level role (§7.2, §7.8)
+ * Assign / replace department-level role
  */
 router.put('/departments/:deptId/:role', authMiddleware, requirePage('admin', 'assign', { tab: 'roles' }), async (req, res) => {
   try {
@@ -274,7 +274,7 @@ router.put('/departments/:deptId/:role', authMiddleware, requirePage('admin', 'a
 
     assertInScope(req, deptId);
 
-    // Permission Matrix (§7.2): Super Admin can only assign ttCoordinator, placementCoordinator
+    // Permission Matrix: Super Admin can only assign ttCoordinator, placementCoordinator
     if (!req.user.isSudoAdmin && !['ttCoordinator', 'secondaryTtCoordinator', 'placementCoordinator'].includes(role)) {
       return res.status(403).json({
         error: `Super Admins cannot assign or modify "${role}". Only Sudo Admin can manage HODs and Super Admins.`,
@@ -285,7 +285,7 @@ router.put('/departments/:deptId/:role', authMiddleware, requirePage('admin', 'a
     const teacherId = sanitizeToObjectId(req.body.teacherId);
     if (!teacherId) return res.status(400).json({ error: 'Faculty member ID is required', code: 'TEACHER_REQUIRED' });
 
-    // Self-grant guard (§7.8 rule 8)
+    // Self-grant guard
     if (!req.user.isSudoAdmin && String(teacherId) === String(req.user._id)) {
       return res.status(403).json({
         error: 'Administrators cannot assign roles to themselves.',
@@ -322,7 +322,7 @@ router.put('/departments/:deptId/:role', authMiddleware, requirePage('admin', 'a
 
 /**
  * DELETE /api/roles/departments/:deptId/:role
- * Remove department-level role (§7.2, §7.8)
+ * Remove department-level role
  */
 router.delete('/departments/:deptId/:role', authMiddleware, requirePage('admin', 'assign', { tab: 'roles' }), async (req, res) => {
   try {
@@ -362,7 +362,7 @@ router.delete('/departments/:deptId/:role', authMiddleware, requirePage('admin',
 
 /**
  * GET /api/roles/departments/:deptId/advisors
- * Drawer: returns classes and advisors for a department (§7.6)
+ * Drawer: returns classes and advisors for a department
  */
 router.get('/departments/:deptId/advisors', authMiddleware, requirePage('admin', 'view', { tab: 'roles' }), async (req, res) => {
   try {
@@ -406,7 +406,7 @@ router.get('/departments/:deptId/advisors', authMiddleware, requirePage('admin',
 
 /**
  * PUT /api/roles/classes/:classId/advisor
- * Assign / replace class advisor (§7.6)
+ * Assign / replace class advisor
  */
 router.put('/classes/:classId/advisor', authMiddleware, requirePage('admin', 'assign', { tab: 'roles' }), async (req, res) => {
   try {
@@ -450,7 +450,7 @@ router.put('/classes/:classId/advisor', authMiddleware, requirePage('admin', 'as
 
 /**
  * DELETE /api/roles/classes/:classId/advisor
- * Remove class advisor (§7.6)
+ * Remove class advisor
  */
 router.delete('/classes/:classId/advisor', authMiddleware, requirePage('admin', 'assign', { tab: 'roles' }), async (req, res) => {
   try {
@@ -564,7 +564,7 @@ router.delete('/classes/:classId/secondary-advisor', authMiddleware, requirePage
 
 /**
  * GET /api/roles/wardens
- * Sudo only: lists hostel blocks and wardens (§7.7)
+ * Sudo only: lists hostel blocks and wardens
  */
 router.get('/wardens', authMiddleware, requirePage('admin', 'view', { tab: 'roles' }), async (req, res) => {
   try {
@@ -617,7 +617,7 @@ router.get('/wardens', authMiddleware, requirePage('admin', 'view', { tab: 'role
 
 /**
  * PUT /api/roles/blocks/:blockId/warden
- * Sudo only: assigns hostel block warden (§7.7)
+ * Sudo only: assigns hostel block warden
  */
 router.put('/blocks/:blockId/warden', authMiddleware, requirePage('admin', 'assign', { tab: 'roles' }), async (req, res) => {
   try {
@@ -658,7 +658,7 @@ router.put('/blocks/:blockId/warden', authMiddleware, requirePage('admin', 'assi
 
 /**
  * DELETE /api/roles/blocks/:blockId/warden
- * Sudo only: removes hostel block warden (§7.7)
+ * Sudo only: removes hostel block warden
  */
 router.delete('/blocks/:blockId/warden', authMiddleware, requirePage('admin', 'assign', { tab: 'roles' }), async (req, res) => {
   try {
@@ -692,7 +692,7 @@ router.delete('/blocks/:blockId/warden', authMiddleware, requirePage('admin', 'a
 
 /**
  * GET /api/roles/staff
- * College-wide staff list for Principal and Warden assignments (§7.3, §7.7)
+ * College-wide staff list for Principal and Warden assignments
  */
 router.get('/staff', authMiddleware, requirePage('admin', 'view', { tab: 'roles' }), async (req, res) => {
   try {
@@ -749,11 +749,11 @@ router.get('/staff', authMiddleware, requirePage('admin', 'view', { tab: 'roles'
 
 /**
  * GET /api/roles/institution
- * Returns institutional summary: Principal, Sudo Admins, Super Admins, Sub-Admins (§7.3)
+ * Returns institutional summary: Principal, Sudo Admins, Super Admins, Sub-Admins
  */
 router.get('/institution', authMiddleware, requirePage('admin', 'view', { tab: 'roles' }), async (req, res) => {
   try {
-    // 1. Current Principal
+    // Current Principal
     const principalAssignment = await M.RoleAssignment.findOne({ role: 'principal', active: true }).lean();
     let principal = null;
     if (principalAssignment) {
@@ -770,13 +770,13 @@ router.get('/institution', authMiddleware, requirePage('admin', 'view', { tab: '
       };
     }
 
-    // 2. Sudo Admins
+    // Sudo Admins
     const sudoAdmins = await M.Teacher.find({
       $or: [{ 'pageRights.accessRole': 'sudoAdmin' }, { isSudoAdmin: true }],
       active: { $ne: false }
     }).select('fullName employeeNo department email').lean();
 
-    // 3. Super Admins
+    // Super Admins
     const superAssignments = await M.RoleAssignment.find({ role: 'superAdmin', active: true }).lean();
     const superAdmins = superAssignments.map(sa => ({
       teacherId: sa.teacherId,
@@ -786,7 +786,7 @@ router.get('/institution', authMiddleware, requirePage('admin', 'view', { tab: '
       from: sa.from
     }));
 
-    // 4. Sub-Admins count
+    // Sub-Admins count
     const subAdminCount = await M.Teacher.countDocuments({
       'pageRights.grants.0': { $exists: true },
       active: { $ne: false }
@@ -847,7 +847,7 @@ router.put('/principal', authMiddleware, requirePage('admin', 'assign', { tab: '
 
 /**
  * PUT /api/roles/super-admin/bulk-toggle
- * Sudo only: enables or disables bulk upload permission for a Super Admin (§6.4)
+ * Sudo only: enables or disables bulk upload permission for a Super Admin
  */
 router.put('/super-admin/bulk-toggle', authMiddleware, requirePage('admin', 'assign', { tab: 'roles' }), async (req, res) => {
   try {
@@ -912,7 +912,7 @@ router.put('/super-admin/bulk-toggle', authMiddleware, requirePage('admin', 'ass
 
 /**
  * GET /api/roles/history
- * Returns role history logs (§7.2, §11)
+ * Returns role history logs
  */
 router.get('/history', authMiddleware, requirePage('admin', 'view', { tab: 'roles' }), async (req, res) => {
   try {
@@ -942,7 +942,7 @@ router.get('/history', authMiddleware, requirePage('admin', 'view', { tab: 'role
 
 /**
  * GET /api/roles/grants
- * Returns privileged staff / sub-admin grants for a teacher or department (§7.5, §11)
+ * Returns privileged staff / sub-admin grants for a teacher or department
  */
 router.get('/grants', authMiddleware, requirePage('admin', 'view', { tab: 'roles' }), async (req, res) => {
   try {
@@ -990,7 +990,7 @@ router.get('/grants', authMiddleware, requirePage('admin', 'view', { tab: 'roles
 
 /**
  * POST /api/roles/grants
- * Add privileged staff / sub-admin grant (§7.2, §7.5, §11)
+ * Add privileged staff / sub-admin grant
  */
 router.post('/grants', authMiddleware, requirePage('admin', 'assign', { tab: 'roles' }), async (req, res) => {
   try {
@@ -1002,7 +1002,7 @@ router.post('/grants', authMiddleware, requirePage('admin', 'assign', { tab: 'ro
     const teacher = await M.Teacher.findById(tId);
     if (!teacher) return res.status(404).json({ error: 'Faculty member not found', code: 'TEACHER_NOT_FOUND' });
 
-    // Validate Super Admin delegation rules (§7.2, §7.5)
+    // Validate Super Admin delegation rules
     if (!req.user.isSudoAdmin) {
       const callerDeptId = req.access?.pages?.admin?.deptId || req.user.deptId;
       if (!callerDeptId || String(teacher.deptId) !== String(callerDeptId)) {
@@ -1094,7 +1094,7 @@ router.post('/grants', authMiddleware, requirePage('admin', 'assign', { tab: 'ro
 
 /**
  * DELETE /api/roles/grants/:teacherId/:grantId
- * Revoke privileged staff / sub-admin grant (§7.5, §11)
+ * Revoke privileged staff / sub-admin grant
  */
 router.delete('/grants/:teacherId/:grantId', authMiddleware, requirePage('admin', 'assign', { tab: 'roles' }), async (req, res) => {
   try {
@@ -1156,7 +1156,7 @@ router.delete('/grants/:teacherId/:grantId', authMiddleware, requirePage('admin'
 
 /**
  * PATCH /api/roles/grants/:teacherId/:grantId
- * Extend or update an active sub-admin grant (§10, §11, R7.2)
+ * Extend or update an active sub-admin grant
  */
 router.patch('/grants/:teacherId/:grantId', authMiddleware, requirePage('admin', 'assign', { tab: 'roles' }), async (req, res) => {
   try {

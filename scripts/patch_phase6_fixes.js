@@ -1,7 +1,7 @@
 /**
  * scripts/patch_phase6_fixes.js
  *
- * Implements Phase 6 core server fixes:
+ * Implements  core server fixes:
  * 1. utils/timetableResolver.js: Prioritizes SectionTimetable (Head) before SemesterTemplate mirror.
  * 2. routes/timetable.routes.js: Drops legacy M.Timetable.find in /faculty-schedule (F17).
  * 3. routes/timetable.routes.js: Adds production read-only guard (process.env.TIMETABLE_PRODUCTION_READ_ONLY === 'true').

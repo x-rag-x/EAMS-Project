@@ -1,8 +1,7 @@
 /**
  * scripts/backfillSlotTeacherIds.js
  *
- * Backfill utility for Phase 6:
- * - Scans all SectionTimetable production slots and published SemesterTemplates
+ * Backfill utility for * - Scans all SectionTimetable production slots and published SemesterTemplates
  * - Resolves slot.teacher names to Teacher records via exact normName matching
  * - Dry-run by default: audits and reports matched, ambiguous, and unmatched teacher names
  * - Pass --apply to write teacherTrackId and teacherId to the database and invalidate production cache

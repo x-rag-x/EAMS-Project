@@ -1,8 +1,7 @@
 /**
  * routes/timetableImport.routes.js
- *
  * REST API endpoints for Feature #1: Timetable Excel Importer.
- * Implements two-phase preview and commit pipeline:
+ * Implements two- and commit pipeline:
  *  - POST /api/timetable/import/preview : Multi-sheet parse, fuzzy entity resolution, conflict check
  *  - POST /api/timetable/import/commit  : Atomic single-pass DB creation of Class, Assignment,
  *                                        SemesterTemplate (Draft), SectionTimetable (Production),
@@ -53,7 +52,7 @@ async function detectBatchConflicts(sections = [], existingTemplates = []) {
   const facultyPeriodMap = new Map(); // key: "day_period_teacherId" -> [sectionName]
   const roomPeriodMap = new Map();    // key: "day_period_hallNo" -> [sectionName]
 
-  // 1. Cross-check within the imported sections
+  // Cross-check within the imported sections
   for (const sec of sections) {
     const secName = sec.meta?.className || sec.sheetName || 'Section';
     for (const slot of (sec.slots || [])) {
@@ -110,7 +109,7 @@ async function detectBatchConflicts(sections = [], existingTemplates = []) {
     }
   });
 
-  // 2. Cross-check against existing DB records (active templates)
+  // Cross-check against existing DB records (active templates)
   if (existingTemplates.length > 0) {
     for (const sec of sections) {
       const secName = sec.meta?.className || sec.sheetName;
@@ -163,7 +162,7 @@ async function detectBatchConflicts(sections = [], existingTemplates = []) {
   return conflicts;
 }
 
-// ── 1. POST /preview : Parse workbook & resolve entities without writing ──
+// ── POST /preview : Parse workbook & resolve entities without writing ──
 router.post('/preview', authMiddleware, requireManager, upload.single('file'), async (req, res) => {
   try {
     if (!req.file || !req.file.buffer) {
@@ -172,7 +171,7 @@ router.post('/preview', authMiddleware, requireManager, upload.single('file'), a
 
     const preferredDeptId = req.body.deptId ? sanitizeToObjectId(req.body.deptId) : (req.user.deptId || null);
 
-    // 1. Fetch DB reference collections in parallel
+    // Fetch DB reference collections in parallel
     const [departments, subjects, teachers, specialActivities, rooms, timingSets, existingTemplates] = await Promise.all([
       M.Department.find().sort({ name: 1 }).lean(),
       M.Subject.find().lean(),
@@ -183,7 +182,7 @@ router.post('/preview', authMiddleware, requireManager, upload.single('file'), a
       M.SemesterTemplate.find({ status: { $in: ['published', 'draft'] } }).select('grid classId').limit(20).lean()
     ]);
 
-    // 2. Parse uploaded workbook buffer
+    // Parse uploaded workbook buffer
     const parseResult = await parseTimetableWorkbook(req.file.buffer, {
       fileName: req.file.originalname
     });
@@ -195,7 +194,7 @@ router.post('/preview', authMiddleware, requireManager, upload.single('file'), a
       });
     }
 
-    // 3. Resolve entities for each section
+    // Resolve entities for each section
     const resolvedSections = [];
     const aggregatedUnmatched = {
       courses: new Map(),
@@ -236,7 +235,7 @@ router.post('/preview', authMiddleware, requireManager, upload.single('file'), a
       resolvedSections.push(resolved);
     }
 
-    // 4. Run conflict detection across parsed sections
+    // Run conflict detection across parsed sections
     const conflicts = await detectBatchConflicts(resolvedSections, existingTemplates);
 
     res.json({
@@ -267,7 +266,7 @@ router.post('/preview', authMiddleware, requireManager, upload.single('file'), a
   }
 });
 
-// ── 2. POST /commit : Atomic batch commit into Class, Assignment, and Timetable ──
+// ── POST /commit : Atomic batch commit into Class, Assignment, and Timetable ──
 router.post('/commit', authMiddleware, requireManager, async (req, res) => {
   try {
     const {

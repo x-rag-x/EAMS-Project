@@ -40,7 +40,6 @@ function getCurrentTimeHM(d = new Date()) {
  * - A7: Room clash (two sections, same room, same period).
  * - A10: Teacher has >= 2 overdue periods today.
  * - A12: Approval waiting > 48h.
- *
  * @param {string} [dateStr] - YYYY-MM-DD IST
  * @param {Date|string} [nowInput]
  * @returns {Promise<Array<Object>>} Newly created or escalated alerts
@@ -111,7 +110,7 @@ async function evaluateLiveAlerts(dateStr = null, nowInput = new Date(), customS
   const teacherOverdueCounts = new Map();
   const roomSlotMap = new Map();
 
-  // 1. Evaluate session-level rules (A1, A2, A5, A7)
+  // Evaluate session-level rules
   for (const session of sessions) {
     const startMinutes = timeToMinutes(session.start);
     const endMinutes = timeToMinutes(session.end);
@@ -305,7 +304,7 @@ async function evaluateLiveAlerts(dateStr = null, nowInput = new Date(), customS
     }
   }
 
-  // 2. A10: Teacher has >= 2 overdue periods today
+  // A10: Teacher has >= 2 overdue periods today
   for (const [tTrackId, count] of teacherOverdueCounts.entries()) {
     if (count >= 2) {
       const alertKeyA10 = `A10:${targetDate}:${tTrackId}`;
@@ -340,7 +339,7 @@ async function evaluateLiveAlerts(dateStr = null, nowInput = new Date(), customS
     }
   }
 
-  // 3. A12: Approval waiting > 48h
+  // A12: Approval waiting > 48h
   let pendingLeavesOverdue = [];
   if (isDbConnected && M.LeaveRequest && M.LeaveRequest.find) {
     try {
@@ -385,7 +384,6 @@ async function evaluateLiveAlerts(dateStr = null, nowInput = new Date(), customS
 
 /**
  * Generate 30-min Executive Digest for the Principal.
- * 
  * @param {Array<string>|Array<Object>} [deptCodesOrAlerts]
  * @param {string} [dateStr]
  * @returns {Promise<Object>|Object} Summary digest

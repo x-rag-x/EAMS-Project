@@ -49,7 +49,7 @@ var _memStore = {};
   // DATE CONSTANTS
   const DAY_NAMES = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 
-  // Local-calendar YYYY-MM-DD. toISOString() is UTC, which in IST returns
+  // Local-calendar YYYY-MM-DD. toISOString is UTC, which in IST returns
   // *yesterday* between 00:00 and 05:30 and shifts every derived date range.
   function localISO(d) {
     if (typeof todayIST === 'function') return todayIST(d);
@@ -61,7 +61,7 @@ var _memStore = {};
     return (typeof todayIST === 'function') ? todayIST() : localISO(new Date());
   }
 
-  // Bearer header for plain api() calls — the API authenticates by
+  // Bearer header for plain api calls — the API authenticates by
   // Authorization header only (cookies are never sent/read).
   function isSafeHttpsUrl(url) {
     if (!url || typeof url !== 'string') return false;
@@ -74,7 +74,7 @@ var _memStore = {};
   }
 
 
-  // ── SCHEDULE HEALTH STRIP & ROSTER LIVE JOINS (§8.2) ──
+  // ── SCHEDULE HEALTH STRIP & ROSTER LIVE JOINS ──
   var _activeRegisterTab = 'forensic';
   var _prevQuickPassTrackIds = new Set();
 
@@ -150,7 +150,7 @@ var _memStore = {};
   }
   window.toggleRoleToolsGroup = toggleRoleToolsGroup;
 
-  // ── LIVE FACULTY LEAVE POLICY METER (§8.2) ──
+  // ── LIVE FACULTY LEAVE POLICY METER ──
   function updateLeavePolicyMeter() {
     var meterWrap = document.getElementById('tl-policy-meter');
     if (!meterWrap) return;
@@ -250,7 +250,7 @@ var _memStore = {};
   }
   window.onTeacherLeaveTypeChanged = onTeacherLeaveTypeChanged;
 
-  // ── FORENSIC CLASS REGISTER & ROSTER TABS (§8.2) ──
+  // ── FORENSIC CLASS REGISTER & ROSTER TABS ──
   function switchRegisterTab(mode) {
     _activeRegisterTab = mode || 'forensic';
     var tF = document.getElementById('tab-reg-forensic');
@@ -540,7 +540,7 @@ var _memStore = {};
   // syncMyStudents
   // Fetches /api/students?classId=X for every class in the teacher's assignments
   // and stores the deduplicated result in the render cache (DB). Called after
-  // syncMyAssignments() has populated DB.get('assignments').
+  // syncMyAssignments has populated DB.get('assignments').
   function syncMyStudents() {
     var tok = getToken();
     if (!tok) return Promise.resolve([]);
@@ -585,7 +585,7 @@ var _memStore = {};
   // and stores it in the render cache for the dashboard chart, defaulters mini
   // widget, and today's schedule "already marked" check.
   // Report pages (renderAttendanceRecord, renderDefaultersList) call
-  // fetchAttendanceForReport() independently so they can honour arbitrary filters.
+  // fetchAttendanceForReport independently so they can honour arbitrary filters.
   function syncMyAttendance() {
     var tok = getToken();
     if (!tok) return Promise.resolve([]);
@@ -622,7 +622,7 @@ var _memStore = {};
       .catch(function() { return []; });
   }
 
-  // ── Production Timetable Synchronization (Phase 3) ──
+  // ── Production Timetable Synchronization ──
   // Fetches this teacher's canonical weekly template and 14-day resolved schedule
   function syncMySchedule(weekOffsetDays) {
     var tok = getToken();
@@ -952,7 +952,7 @@ var _memStore = {};
     });
   }
 
-  // ── COLLAPSIBLE GROUP & PERMISSION HELPERS (B9, B10, B12, B14) ──
+  // ── COLLAPSIBLE GROUP & PERMISSION HELPERS ──
   function toggleReportGroup(forceState) {
     var btn = document.getElementById('sn-group-report');
     var sub = document.getElementById('sb-sub-reports');
@@ -1819,7 +1819,7 @@ var _memStore = {};
     const validTabs = ['dash', 'sched', 'att', 'my-classes', 'rep-att', 'rep-def', 'rep-stu', 'rep-insights', 'approvals', 'leaves', 'my-leaves', 'od', 'griev', 'profile', 'device-verify', 'workload', 'tt-verify', 'roster', 'registry'];
     if (validTabs.indexOf(pageName) === -1 || !isTabAllowed(pageName)) pageName = 'dash';
 
-    // Route legacy approval queues into Unified Approvals Inbox (§10.1, C6)
+    // Route legacy approval queues into Unified Approvals Inbox
     var isApprovalsRoute = (pageName === 'approvals' || pageName === 'leaves' || pageName === 'od' || pageName === 'device-verify' || pageName === 'tt-verify');
     var apprSubtab = subtab;
     if (pageName === 'leaves') apprSubtab = 'leaves';
@@ -2656,7 +2656,7 @@ var _memStore = {};
     renderNowAndNextHero();
     renderKpiStrip();
 
-    // 30s auto-refresh for Today's Schedule live states
+    // auto-refresh for Today's Schedule live states
     if (!renderTodaySchedule._timer) {
       renderTodaySchedule._timer = setInterval(function() {
         if (document.hidden) return;
@@ -2933,7 +2933,7 @@ var _memStore = {};
       console.warn('[applyTargetAttendanceSlot] fetchAllClassesAndSubjects error:', e);
     }
 
-    // 1. Hydrate Class dropdown
+    // Hydrate Class dropdown
     var classEl = document.getElementById('attcls');
     if (classEl && classId) {
       classEl.innerHTML = buildAttendanceClassOptions(classId);
@@ -2953,7 +2953,7 @@ var _memStore = {};
       }
     }
 
-    // 2. Hydrate Period dropdown
+    // Hydrate Period dropdown
     if (periodNumber) {
       var pEl = document.getElementById('attperiod');
       if (pEl) {
@@ -2967,13 +2967,13 @@ var _memStore = {};
       }
     }
 
-    // 3. Hydrate Date
+    // Hydrate Date
     if (dateISO) {
       var dEl2 = document.getElementById('attdate');
       if (dEl2) dEl2.value = dateISO;
     }
 
-    // 4. Hydrate Subject dropdown
+    // Hydrate Subject dropdown
     var subjectEl = document.getElementById('attsub');
     if (subjectEl && subjectId) {
       subjectEl.innerHTML = buildAttendanceSubjectOptions(subjectId, classId);
@@ -3302,7 +3302,7 @@ var _memStore = {};
       return;
     }
 
-    // Filter by active category (C7)
+    // Filter by active category
     var filtered = allNotifs.slice().reverse().filter(function(n) {
       if (window._notifFilter === 'all') return true;
       const isTt = n.type === 'timetable-verification' || !!n.timetableVersionId || (n.message && n.message.toLowerCase().includes('timetable verification'));
@@ -4277,7 +4277,7 @@ var _memStore = {};
     var stripEl = document.getElementById('sched-day-strip');
     if (!stripEl) return;
 
-    var dayOfWeek = target.getDay(); // 0 = Sun, 1 = Mon ... 6 = Sat
+    var dayOfWeek = target.getDay(); // = Sun, 1 = Mon ... 6 = Sat
     var diffToMonday = (dayOfWeek === 0) ? -6 : (1 - dayOfWeek);
     var monday = new Date(target.getFullYear(), target.getMonth(), target.getDate() + diffToMonday);
 
@@ -4869,7 +4869,7 @@ var _memStore = {};
     document.getElementById('schedhall').value = slot.hallNo || '';
     var editPeriod = slot.periodNumber || periodFromStartTime(slot.start);
     document.getElementById('schedperiod').value = editPeriod ? String(editPeriod) : 'custom';
-    // onSchedTypeChange() re-derives start/end from the period; restore the
+    // onSchedTypeChange re-derives start/end from the period; restore the
     // slot's own times afterwards so editing doesn't silently change them.
     onSchedTypeChange();
     document.getElementById('schedst').value = slot.start;
@@ -5596,7 +5596,7 @@ var _memStore = {};
   window.initAttendancePageStrict = initAttendancePageStrict;
 
   
-  // Auto-Lock Countdown Live Ticker (§8.1)
+  // Auto-Lock Countdown Live Ticker
   function startAttendanceLockTicker(lockMs, lockHours) {
     if (window._attLockCountdownTimer) {
       clearInterval(window._attLockCountdownTimer);
@@ -6112,7 +6112,7 @@ var _memStore = {};
       }
     }
 
-    // Sync sticky dock badge & sticky save bar (C3)
+    // Sync sticky dock badge & sticky save bar
     var dockSavedChip = document.getElementById('dock-saved-chip');
     var dockSavedText = document.getElementById('dock-saved-text');
     var savebarTitle = document.getElementById('savebar-status-title');
@@ -6438,7 +6438,7 @@ var _memStore = {};
           return false;
         });
 
-        // Priority §8.1: Teacher's personal preference wins over the institutional setting, falling back to 'present'
+        // Priority: Teacher's personal preference wins over the institutional setting, falling back to 'present'
         var userPref = (currentUser && currentUser.preferences && currentUser.preferences.defaultAttendanceStatus)
           ? currentUser.preferences.defaultAttendanceStatus.trim().toLowerCase()
           : null;
@@ -6557,7 +6557,7 @@ var _memStore = {};
       document.getElementById('ainfs').textContent = assignment.subjectName || '—';
       document.getElementById('ainfd').textContent = formatDateLong(date);
 
-      // Set Sticky Dock Breadcrumbs (C3)
+      // Set Sticky Dock Breadcrumbs
       var dockCls = document.getElementById('dock-cls-sub');
       if (dockCls) dockCls.textContent = (assignment.className || 'Class') + ' — ' + (assignment.subjectName || 'Subject');
       var dockPeriod = document.getElementById('dock-period-date');
@@ -6634,7 +6634,7 @@ var _memStore = {};
       showToast('Note: ' + (student.name || student.fullName || 'Student') + ' has approved leave (' + (student.leaveText || 'On Leave') + ')', 'warn');
     }
 
-    // Push to undo stack (C3)
+    // Push to undo stack
     if (!window._attUndoStack) window._attUndoStack = [];
     window._attUndoStack.push({
       type: 'single',
@@ -6664,7 +6664,7 @@ var _memStore = {};
       return;
     }
 
-    // Push to undo stack (C3)
+    // Push to undo stack
     if (!window._attUndoStack) window._attUndoStack = [];
     window._attUndoStack.push({
       type: 'bulk',
@@ -6703,7 +6703,7 @@ var _memStore = {};
     const totalLbl = document.getElementById('stotal') ? document.getElementById('stotal').nextElementSibling : null;
     if (totalLbl) totalLbl.textContent = unmarkedCount > 0 ? ('Total · ' + unmarkedCount + ' unmarked') : 'Total';
 
-    // Sticky dock live counters (C3)
+    // Sticky dock live counters
     var dt = document.getElementById('dock-cnt-total'); if (dt) dt.textContent = attendanceStudents.length;
     var dp = document.getElementById('dock-cnt-pres'); if (dp) dp.textContent = presentCount;
     var da = document.getElementById('dock-cnt-abs'); if (da) da.textContent = absentCount;
@@ -7258,8 +7258,8 @@ var _memStore = {};
       pollQrLiveSession();
       if (liveSessionPollTimer) clearInterval(liveSessionPollTimer);
       if (qrRotationTicker) clearInterval(qrRotationTicker);
-      liveSessionPollTimer = setInterval(pollQrLiveSession, 3000); // 3s stats sync
-      qrRotationTicker = setInterval(updateQrTicker, 200); // 200ms smooth timer & instant refresh
+      liveSessionPollTimer = setInterval(pollQrLiveSession, 3000); // stats sync
+      qrRotationTicker = setInterval(updateQrTicker, 200); // smooth timer & instant refresh
       dbToast('Live Rotating QR session started!', 'success', 'QR refreshes every ' + (data.qrIntervalSec || 60) + 's');
     })
     .catch(function(e){
@@ -7368,7 +7368,7 @@ var _memStore = {};
         rotBadge.textContent = 'Rotation ' + (data.currentRotation || 1) + ' / ' + (data.totalRotations || data.rotationCount || 2);
       }
 
-      // 1. Render QR to canvas only on initial token or when timer expired for rotation
+      // Render QR to canvas only on initial token or when timer expired for rotation
       var canvas = document.getElementById('qr-canvas');
       var shouldRotateQr = (qrCurrentToken !== data.qrTrackId && (!qrExpiresAtMs || qrExpiresAtMs <= Date.now()));
 
@@ -7380,10 +7380,10 @@ var _memStore = {};
 
         // Render QR and start timer ONLY AFTER successful image load
         renderQrToCanvas(canvas, fullUrl, 300, function(loadInfo) {
-          // 1. Note exact time
+          // Note exact time
           var readyTime = (loadInfo && loadInfo.loadedAt) ? loadInfo.loadedAt : new Date();
 
-          // 2. Create audit log entry for successful QR display
+          // Create audit log entry for successful QR display
           api('/api/qr-attendance/log-loaded', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getToken() },
@@ -7397,16 +7397,16 @@ var _memStore = {};
             console.error('[QR Log Loaded Error]:', e);
           });
 
-          // 3. ONLY start refresh countdown timer now that QR is displayed
+          // ONLY start refresh countdown timer now that QR is displayed
           qrExpiresAtMs = Date.now() + (qrIntervalSec * 1000);
           updateQrTicker();
 
-          // 4. Notify ready with dbToast
+          // Notify ready with dbToast
           dbToast('QR code ready for scanning', 'success', 'Token: ' + (data.qrTrackId || '—') + ' (' + qrIntervalSec + 's)');
         });
       }
 
-      // 2. Dev mode: Display direct clickable/copyable QR attendance URL below QR
+      // Dev mode: Display direct clickable/copyable QR attendance URL below QR
       var fullUrl = (window.location.origin || '') + data.qrUrl;
       var isDev = window.location.hostname === 'localhost' ||
                   window.location.hostname === '127.0.0.1' ||
@@ -7423,11 +7423,11 @@ var _memStore = {};
         }
       }
 
-      // 3. Update Window Token and Timer Bar
+      // Update Window Token and Timer Bar
       var tokenText = document.getElementById('qr-token-text');
       if (tokenText) tokenText.textContent = data.qrTrackId || '—';
 
-      // 4. Update Counts
+      // Update Counts
       var completedEl = document.getElementById('qr-count-completed');
       if (completedEl) completedEl.textContent = data.completedCount || 0;
 
@@ -7539,7 +7539,7 @@ var _memStore = {};
         setAttendanceStatus(idx, 'absent');
       }
 
-      // Security column (§7.4)
+      // Security column
       var securityHtml = '<span style="color:#94a3b8;font-size:11px;">—</span>';
       if (part && part.security) {
         var sec = part.security;
@@ -8451,7 +8451,7 @@ var _memStore = {};
   }
   window.exportAttendanceInsightsPDF = exportAttendanceInsightsPDF;
 
-  // ─── TEACHER GRIEVANCES (UPGRADED) ──────────────────────────────────
+  // ─── TEACHER GRIEVANCES (UPGRADED) ──
   let _teacherGrievancesList = [];
   let _teacherGrievFilterStatus = 'all';
   let _teacherGrievSearchQuery = '';
@@ -8617,7 +8617,7 @@ var _memStore = {};
   window.submitGrievance = submitGrievance;
   var submitGriev = submitGrievance;
 
-  // ─── TEACHER ON-DUTY (OD) APPROVAL SUITE ────────────────────────────
+  // ─── TEACHER ON-DUTY (OD) APPROVAL SUITE
   let _teacherODData = { pending: [], verify: [], history: [] };
   let _activeODReview = null;
   let _activeODVerify = null;
@@ -8999,10 +8999,10 @@ var _memStore = {};
       }
     };
 
-    // 1. Instantly open modal so user has immediate visual feedback
+    // Instantly open modal so user has immediate visual feedback
     openModal('m-od-stage-review');
 
-    // 2. Search local memory cache to render full request immediately without waiting
+    // Search local memory cache to render full request immediately without waiting
     var searchId = String(id).trim();
     var localList = (_teacherODData.history || []).concat(_teacherODData.pending || []).concat(_teacherODData.verify || []);
     var localReq = localList.find(function(it) {
@@ -9016,7 +9016,7 @@ var _memStore = {};
       populateModal(localReq, { tracker: localReq.tracker || null, summary: null });
     }
 
-    // 3. Fetch latest live detail from backend in background
+    // Fetch latest live detail from backend in background
     api('/api/od/' + encodeURIComponent(searchId), { headers: authHeaders() })
       .then(function(r) { return r.json(); })
       .then(function(res) {
@@ -9628,9 +9628,6 @@ var _memStore = {};
   var changePw = changePassword;
 
   // MODAL HELPERS
-  
-
-  
 
   // Close modal on backdrop click
   document.querySelectorAll('.modal-bg').forEach(function(bg) {
@@ -10035,7 +10032,7 @@ window.addEventListener('load', function(){
         document.querySelectorAll('[data-feature="exportSheet"]').forEach(function(b){
           b.style.display = 'none';
         });
-        // Export buttons controlled cleanly via data-feature="exportSheet" (§B9, §8.2)
+        // Export buttons controlled cleanly via data-feature="exportSheet"
       }
     }
     if (pub.attendance) {
@@ -10046,7 +10043,7 @@ window.addEventListener('load', function(){
         var btn = document.getElementById(btnId);
         var reasonEl = document.getElementById(reasonId);
         if (!btn) return;
-        btn.style.display = 'flex'; // Keep visible as real buttons (C2)
+        btn.style.display = 'flex'; // Keep visible as real buttons
         if (!enabled) {
           btn.disabled = true;
           btn.classList.add('is-disabled');
@@ -10096,7 +10093,7 @@ window.addEventListener('load', function(){
     }
   }
 
-  // Load authenticated teacher portal policies (§S7, §8)
+  // Load authenticated teacher portal policies
   var portalToken = getToken();
   if (portalToken) {
     api('/api/settings/teacher-portal', { headers: (typeof authHeaders === 'function' ? authHeaders() : { 'Authorization': 'Bearer ' + portalToken }) })
@@ -10140,9 +10137,9 @@ window.addEventListener('load', function(){
   }
 });
 
-// ─────────────────────────────────────────────────────────────
+// ─
 // PLAN 4 (FEATURES 6 & 11): FACULTY LEAVE & SUBSTITUTION LOGIC
-// ─────────────────────────────────────────────────────────────
+// ─
 
 var _myTeacherLeaves = [];
 var _currentAffectedSlots = [];
@@ -10882,9 +10879,9 @@ window.submitTeacherLeaveApplication = submitTeacherLeaveApplication;
 
 function hideMsgToast() { /* no-op - toast hidden by timer */ }
 
-// ─────────────────────────────────────────────────────────────
-// PHASE 4: LIVE SLOT WATCHER (AUTO-POPUP) & LIVE SLOT PROMPT
-// ─────────────────────────────────────────────────────────────
+// ─
+
+// ─
 
 var LiveSlotWatcher = (function () {
   var TICK_MS = 30000, timer = null;
@@ -11202,9 +11199,9 @@ var LiveSlotPrompt = (function () {
 })();
 window.LiveSlotPrompt = LiveSlotPrompt;
 
-// ─────────────────────────────────────────────────────────────
+// ─
 // HARD OVERDUE ATTENDANCE PROMPT & BANNER (BUG FIX B1)
-// ─────────────────────────────────────────────────────────────
+// ─
 
 var HardOverduePrompt = (function () {
   var _overdueSlots = [];

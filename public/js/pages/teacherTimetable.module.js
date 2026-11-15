@@ -5,16 +5,15 @@
  * Header is built from the real time boundaries of the timing sets,
  * not from period numbers -> no duplicate P3 / P8 / P11.
  * Slots placed by time (start/end in minutes). TextContent-safe (no XSS).
- *
  * API:
  *   TeacherTimetable.mount(container, {
  *     timingSets : [...],   // DB.get('timing-sets')
- *     slots      : [...],   // getMyTimetable()
+ *     slots      : [...],   // getMyTimetable
  *     days       : [['Mon','Monday'], ...],  // optional (default Mon-Sat)
  *     timeFormat : '24h' | '12h',            // default '24h'
  *     today      : 'Wed',                    // optional override
  *     onSlotClick: function(rawSlot, event)
- *   }) -> { update({timingSets, slots}), model() }
+ *   }) -> { update({timingSets, slots}), model }
  * ═══════════════════════════════════════════════════════════════════════
  */
 (function (global) {
@@ -27,7 +26,7 @@
   var PX_PER_MIN = 2.5;       // min column width = minutes x 2.5  (45 min -> 112 px)
   var BREAK_PX   = 34;        // fixed width of a break / lunch / tea column
 
-  /* ── CLASS COLOR PALETTE & HELPERS ────────────────────────────────── */
+  /* ── CLASS COLOR PALETTE & HELPERS ── */
   var CLASS_PALETTE = [
     { name: 'blue',    bg: '#eff6ff', border: '#2563eb', borderLight: '#bfdbfe', text: '#1e40af', badgeBg: '#dbeafe', badgeText: '#1d4ed8' },
     { name: 'purple',  bg: '#f5f3ff', border: '#7c3aed', borderLight: '#ddd6fe', text: '#5b21b6', badgeBg: '#ede9fe', badgeText: '#6d28d9' },
@@ -81,7 +80,7 @@
     return CLASS_PALETTE[Math.abs(hash) % CLASS_PALETTE.length];
   }
 
-  /* ── time helpers ─────────────────────────────────────────────────── */
+  /* ── time helpers ─── */
   function toMin(t) {
     if (typeof t === 'number') return t;
     var m = String(t == null ? '' : t).trim().match(/^(\d{1,2})[:.](\d{2})\s*(AM|PM)?$/i);
@@ -99,7 +98,7 @@
   }
   function range(s, e, f) { return fmt(s, f) + '–' + fmt(e, f); }
 
-  /* ── 1. normalise ONE timing set from the DB shape ────────────────────
+  /* ── normalise ONE timing set from the DB shape
      The DB stores breaks INSIDE periods[] with periodNumber:0, isBreak:true.
      We split them apart here.                                            */
   function isBreakEntry(p) {
@@ -226,7 +225,7 @@
     });
   }
 
-  /* ── 2. resolve a slot -> { set, start, end } in minutes ────────────────
+  /* ── resolve a slot -> { set, start, end } in minutes
      Preferred source = the slot's own timing set + periodNumber + span     */
   function dayKey(v) { return String(v || '').trim().slice(0, 3).toLowerCase(); }
   function escHtml(v) {
@@ -283,7 +282,7 @@
              variant: sub ? 'sub' : lab ? 'lab' : comb ? 'comb' : 'theory', clash: false };
   }
 
-  /* ── 3. build the shared time axis ────────────────────────────────────
+  /* ── build the shared time axis
      Every start/end of every visible set is a boundary; two boundaries
      enclose one grid column. A column is "common" when every visible set
      has the identical item there (same period/break, same start/end).
@@ -318,7 +317,7 @@
              hasFork: groups.some(function (g) { return g.type === 'fork'; }) };
   }
 
-  /* ── 4. the pure model (no DOM) – also handy for unit tests ─────────── */
+  /* ── the pure model (no DOM) – also handy for unit tests ─── */
   function colAtStart(axis, t) {
     var sg = axis.segs, k;
     for (k = 0; k < sg.length; k++) if (sg[k].s === t) return { c: k, exact: true };
@@ -389,7 +388,7 @@
              classColorMap: classColorMap };
   }
 
-  /* ── 5. DOM helpers (textContent only – no innerHTML with data) ─────── */
+  /* ── DOM helpers (textContent only – no innerHTML with data) ─── */
   function h(tag, cls, text, style) {
     var el = document.createElement(tag);
     if (cls) el.className = cls;
@@ -404,7 +403,7 @@
   }
   var BRK_ICON = { Break: '☕', Lunch: '🍱', Tea: '🍵' };
 
-  /* ── 6. render ──────────────────────────────────────────────────────── */
+  /* ── render  */
   function mount(root, opts) {
     opts = opts || {};
     var state = { timingSets: opts.timingSets || [], slots: opts.slots || [] };
@@ -656,7 +655,7 @@
     return api;
   }
 
-  /* ── 7. renderHtml (Synchronous HTML String Generator) ─────────────── */
+  /* ── renderHtml (Synchronous HTML String Generator) ─── */
   function renderHtml(opts) {
     opts = opts || {};
     var rawSets = (opts.timingSets && opts.timingSets.length)

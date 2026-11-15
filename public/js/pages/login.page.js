@@ -1,4 +1,4 @@
-// ── Client-Side Timing Marks Collector (S0.2) ──
+// ── Client-Side Timing Marks Collector ──
 window._eamsLoginTiming = {
   marks: {},
   durations: {},
@@ -59,7 +59,7 @@ window._eamsLoginTiming = {
   }
 };
 
-// ── Device Identity Context (S3.6) ──
+// ── Device Identity Context ──
 function getOrCreateDeviceInstallId() {
   try {
     var id = localStorage.getItem('eams_device_install_id');
@@ -124,7 +124,7 @@ function getClientDeviceInfo() {
   };
 }
 
-// ── Fast Background Geolocation Prefetch (§3.7) ──
+// ── Fast Background Geolocation Prefetch ──
 var locPromise = null;
 var locState = { s: 'idle', p: null, code: null, at: null };
 
@@ -241,7 +241,7 @@ function prefetchLocation(force) {
   return locPromise;
 }
 
-// ── Smart Board Kiosk Toggle (§3.1, §5) ──
+// ── Smart Board Kiosk Toggle ──
 var isBoardMode = false;
 function toggleBoardMode(forcedState) {
   if (typeof forcedState === 'boolean') {
@@ -426,7 +426,7 @@ document.addEventListener('DOMContentLoaded', function () {
     history.replaceState({}, '', 'index.html');
   }
 
-  // Phase T3: If student has a trusted device session, attempt silent refresh before prompting for login
+
   var currentToken = sessionStorage.getItem('eams_token');
   var logoutReason = params.get('logout');
   if (!currentToken && !logoutReason && typeof window.DeviceKey === 'object' && typeof window.DeviceKey.trySessionRefresh === 'function') {
@@ -507,13 +507,13 @@ function hideMsgToast() {
     .then(function (d) {
       if (!d) return;
 
-      // 1. Maintenance Check
+      // Maintenance Check
       if (d.maintenance && d.maintenance.active) {
         var notice = document.getElementById('maint-notice');
         if (notice) notice.style.display = 'block';
       }
 
-      // 2. Active Broadcast Banner
+      // Active Broadcast Banner
       if (d.broadcast && d.broadcast.systemBannerActive && d.broadcast.systemBannerMessage) {
         var bannerBox = document.getElementById('login-broadcast-banner');
         if (!bannerBox) {
@@ -538,7 +538,7 @@ function hideMsgToast() {
         }
       }
 
-      // 3. Environment & Geolocation Settings
+      // Environment & Geolocation Settings
       window._eamsIsDev = !!(d.isDev || (d.security && d.security.isDev));
       window._eamsLocDisabled = !!(d.security && d.security.loginLocationRequired === false);
       if (window._eamsIsDev || window._eamsLocDisabled) {
@@ -558,7 +558,7 @@ function escapeHtml(str) {
   return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
-// ── Unified Single-Call Sign In (§3.5, S3.1, S3.2) ──
+// ── Unified Single-Call Sign In ──
 var signingIn = false;
 
 async function doSignIn() {
@@ -782,7 +782,7 @@ async function startDeviceRegistrationFlow(regData) {
       throw new Error('Device key cryptographic module is not loaded');
     }
 
-    // 1. Generate / retrieve non-extractable key
+    // Generate / retrieve non-extractable key
     var keyEntry = await window.DeviceKey.initOrGetDeviceKey(regData.student.trackId);
     var installId = window.DeviceKey.getOrCreateInstallId();
     var fingerprintHash = await window.DeviceKey.getFingerprintHash();
@@ -792,7 +792,7 @@ async function startDeviceRegistrationFlow(regData) {
     var statusMsg = document.getElementById('reg-status-msg');
     if (statusMsg) statusMsg.textContent = 'Submitting device public key…';
 
-    // 2. Submit public key to /api/devices/register/key
+    // Submit public key to /api/devices/register/key
     var res = await fetch('/api/devices/register/key', {
       method: 'POST',
       headers: {
@@ -813,7 +813,7 @@ async function startDeviceRegistrationFlow(regData) {
       throw new Error(data.error || 'Failed to register device profile');
     }
 
-    // 3. Show 6-digit verification code on student screen (§5)
+    // Show 6-digit verification code on student screen
     var verifyCode = data.verifyCode;
     var expiresInSec = data.expiresInSec || 300;
 
@@ -865,7 +865,7 @@ async function startDeviceRegistrationFlow(regData) {
       if (timerEl) timerEl.textContent = mins + ':' + secs;
     }, 1000);
 
-    // Poll verification status every 2.5s (§5: advisor types 6-digit code -> device TRUSTED)
+    // Poll verification status every 2.5s (advisor types 6-digit code -> device TRUSTED)
     var pollTimer = setInterval(async function () {
       try {
         var statusRes = await fetch('/api/devices/register/status?_t=' + Date.now(), {
@@ -990,7 +990,7 @@ function handleLoginResponse(data) {
   if (returnUrl) {
     sessionStorage.removeItem('eams_return_url');
     sessionStorage.removeItem('eams_verify_return');
-    // §3.8: admin.html and teacher.html don't keep next (open default landing page)
+    // admin.html and teacher.html don't keep next (open default landing page)
     var cleanReturn = returnUrl.split('?')[0].replace(/^\//, '');
     if (cleanReturn === 'admin.html' || cleanReturn === 'teacher.html') {
       // Discard and proceed to server redirectTo below
@@ -1025,7 +1025,7 @@ function handleLoginResponse(data) {
     }
   }
 
-  // Follow server-determined redirectTo (§3.3 & §3.5)
+  // Follow server-determined redirectTo
   var targetUrl = data.redirectTo || data.redirectUrl;
   if (targetUrl) {
     if (targetUrl.startsWith('/')) targetUrl = targetUrl.slice(1);
@@ -1115,7 +1115,7 @@ document.addEventListener('keydown', function (e) {
 })();
 
 // ══════════════════════════════════════════════════════════════════════════════
-//  INITIAL SETUP BOOTSTRAP WIZARD (Phase R3 / §9)
+//  INITIAL SETUP BOOTSTRAP WIZARD
 // ══════════════════════════════════════════════════════════════════════════════
 var _bootstrapState = {
   step: 1,

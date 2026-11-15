@@ -1,13 +1,12 @@
 /**
  * public/js/pages/timetable/share.module.js
- *
- * Timetable Sharing Module (Timetable v3 - Phase 5):
- * - Three share levels: View, Fill, Edit (Section 7.1)
+ * Timetable Sharing Module (Timetable v3 - ):
+ * - Three share levels: View, Fill, Edit
  * - Share workspace / class with supporting or programme departments (D7, D21, D22)
- * - Fillable slots and reserve-for-dept tiles (Section 7.2)
- * - Shared-with-me drawer & workspace launcher (Section 7.3)
- * - Staff Assignment panel: Live cross-workspace teacher matrix (Section 7.3)
- * - Active shares management: Change level and revoke actions (Section 7.2)
+ * - Fillable slots and reserve-for-dept tiles
+ * - Shared-with-me drawer & workspace launcher
+ * - Staff Assignment panel: Live cross-workspace teacher matrix
+ * - Active shares management: Change level and revoke actions
  * - Zero localStorage / non-auth sessionStorage usage
  */
 

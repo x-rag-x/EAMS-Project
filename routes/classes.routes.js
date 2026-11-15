@@ -407,7 +407,7 @@ router.put('/:id/advisor', authMiddleware, requirePage('admin', 'assign', { tab:
     const className = cls.name;
     const prevAdvisorName = cls.advisorTeacherName || 'None';
 
-    // 1. Remove Class Advisor specials from any teacher currently assigned to this class
+    // Remove Class Advisor specials from any teacher currently assigned to this class
     const prevTeachers = await M.Teacher.find({
       $or: [
         { 'specials.key': className },

@@ -38,7 +38,7 @@ function getPortalUrl(req) {
   return `${protocol}://${host}/index.html`;
 }
 
-// ── 1. RESOLVE SKIPPED ROWS (PERSIST DONE TICKS) ──
+// ── RESOLVE SKIPPED ROWS (PERSIST DONE TICKS) ──
 router.post('/batches/:id/resolve-skipped', authMiddleware, requirePage('bulk', 'create'), loadBatch('ownerOrSudo'), async (req, res) => {
   try {
     const doneRows = req.body.doneRows || req.body.resolved || [];
@@ -88,7 +88,7 @@ router.post('/batches/:id/resolve-skipped', authMiddleware, requirePage('bulk', 
   }
 });
 
-// ── 2. FORWARD TO SUDO ADMIN FOR INITIAL APPROVAL ──
+// ── FORWARD TO SUDO ADMIN FOR INITIAL APPROVAL ──
 router.post('/batches/:id/forward-sudo', authMiddleware, requirePage('bulk', 'create'), loadBatch('ownerOrSudo'), async (req, res) => {
   try {
     const batch = req.batch;
@@ -152,7 +152,7 @@ router.post('/batches/:id/forward-sudo', authMiddleware, requirePage('bulk', 'cr
   }
 });
 
-// ── 3. SUDO ADMIN INITIAL APPROVAL ──
+// ── SUDO ADMIN INITIAL APPROVAL ──
 router.post('/batches/:id/approve-initial', authMiddleware, requirePage('bulk', 'approve'), loadBatch('sudo'), async (req, res) => {
   try {
     const batch = req.batch;
@@ -195,7 +195,7 @@ router.post('/batches/:id/approve-initial', authMiddleware, requirePage('bulk', 
   }
 });
 
-// ── 4. SUDO ADMIN REJECT BATCH ──
+// ── SUDO ADMIN REJECT BATCH ──
 router.post(['/batches/:id/reject', '/batches/:id/reject-initial'], authMiddleware, requirePage('bulk', 'approve'), loadBatch('sudo'), async (req, res) => {
   try {
     if (typeof req.body.reason !== 'string') {
@@ -245,7 +245,7 @@ router.post(['/batches/:id/reject', '/batches/:id/reject-initial'], authMiddlewa
   }
 });
 
-// ── 5. VERIFY INDIVIDUAL ENTRY (WITH 500/24h LIMIT & EMAIL DISPATCH) ──
+// ── VERIFY INDIVIDUAL ENTRY (WITH 500/24h LIMIT & EMAIL DISPATCH) ──
 router.post('/batches/:id/verify-entry', authMiddleware, requirePage('bulk', 'create'), loadBatch('ownerOrSudo'), async (req, res) => {
   try {
     const batch = req.batch;
@@ -329,7 +329,7 @@ router.post('/batches/:id/verify-entry', authMiddleware, requirePage('bulk', 'cr
       entry.data.password = generateTempPassword(batch.type);
     }
 
-    // Send Credentials Email only if not sent yet or explicit resend requested (A14)
+    // Send Credentials Email only if not sent yet or explicit resend requested
     const recipientEmail = entry.data.email;
     const recipientName = entry.data.fullName || entry.data.name;
     const username = entry.data.username;
@@ -436,7 +436,7 @@ router.post('/batches/:id/verify-entry', authMiddleware, requirePage('bulk', 'cr
   }
 });
 
-// ── 6. VERIFY ALL REMAINING ENTRIES (WITH 500/24h LIMIT) ──
+// ── VERIFY ALL REMAINING ENTRIES (WITH 500/24h LIMIT) ──
 router.post('/batches/:id/verify-all', authMiddleware, requirePage('bulk', 'create'), loadBatch('ownerOrSudo'), async (req, res) => {
   try {
     const batch = req.batch;
@@ -561,7 +561,7 @@ router.post('/batches/:id/verify-all', authMiddleware, requirePage('bulk', 'crea
   }
 });
 
-// ── 7. DEV BYPASS VERIFY (DEVELOPMENT ONLY - A15) ──
+// ── DEV BYPASS VERIFY (DEVELOPMENT ONLY - A15) ──
 router.post('/batches/:id/dev-bypass-verify', authMiddleware, requirePage('bulk', 'create'), loadBatch('ownerOrSudo'), async (req, res) => {
   try {
     const isDev = process.env.NODE_ENV === 'development' || cfg.NODE_ENV === 'development';
@@ -620,7 +620,7 @@ router.post('/batches/:id/dev-bypass-verify', authMiddleware, requirePage('bulk'
   }
 });
 
-// ── 8. SUBMIT FOR FINAL APPROVAL ──
+// ── SUBMIT FOR FINAL APPROVAL ──
 router.post('/batches/:id/submit-final', authMiddleware, requirePage('bulk', 'create'), loadBatch('ownerOrSudo'), async (req, res) => {
   try {
     const batch = req.batch;
@@ -654,7 +654,7 @@ router.post('/batches/:id/submit-final', authMiddleware, requirePage('bulk', 'cr
   }
 });
 
-// ── 9. SUDO APPROVE FINAL & COMMIT TO DATABASE ──
+// ── SUDO APPROVE FINAL & COMMIT TO DATABASE ──
 router.post('/batches/:id/approve-final', authMiddleware, requirePage('bulk', 'approve'), loadBatch('sudo'), async (req, res) => {
   try {
     const batch = req.batch;
@@ -685,7 +685,7 @@ router.post('/batches/:id/approve-final', authMiddleware, requirePage('bulk', 'a
       });
     }
 
-    // Modern 202 Accepted Async Job (§8.5)
+    // Modern 202 Accepted Async Job
     await transition(batch, 'committing', {
       user: req.user,
       from: ['pending_final_approval', 'verified_all'],
@@ -727,7 +727,7 @@ router.post('/batches/:id/approve-final', authMiddleware, requirePage('bulk', 'a
   }
 });
 
-// ── 10. RETRY BACKUP TO GOOGLE DRIVE ONLY ──
+// ── RETRY BACKUP TO GOOGLE DRIVE ONLY ──
 router.post('/batches/:id/retry-backup', authMiddleware, requirePage('bulk', 'create'), loadBatch('sudo'), async (req, res) => {
   try {
     const { retryBackupOnly } = require('../../services/bulk/commit');

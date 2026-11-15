@@ -1,12 +1,11 @@
 /**
  * public/js/modules/approvals.module.js
- * EAMS Timetable v3 — HOD Review Portal, Approvals Console & Stale Merge Dialog (Phase 6)
- *
+ * EAMS Timetable v3 — HOD Review Portal, Approvals Console & Stale Merge Dialog
  * Implements:
- * 1. HOD Review Banner with Draft Health Gauge
- * 2. Sticky Decision Bar (Approve & Deploy 🚀, Schedule Go-Live, Reject with Remarks)
- * 3. Per-slot HOD Remarks
- * 4. Stale-Draft 3-Way Merge Alert Banner & Resolution Dialog (Auto, Keep Mine, Take Prod)
+ * HOD Review Banner with Draft Health Gauge
+ * Sticky Decision Bar (Approve & Deploy 🚀, Schedule Go-Live, Reject with Remarks)
+ * Per-slot HOD Remarks
+ * Stale-Draft 3-Way Merge Alert Banner & Resolution Dialog (Auto, Keep Mine, Take Prod)
  */
 
 (function (window) {

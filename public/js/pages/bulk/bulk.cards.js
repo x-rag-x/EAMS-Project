@@ -141,7 +141,7 @@
     root.XLSX.writeFile(wb, 'EAMS_' + type + '_template.xlsx');
   }
 
-  // 1. TYPE PICKER CARD / HERO
+  // TYPE PICKER CARD / HERO
   registerCard('type', {
     key: function (ctx) {
       var selectedType = (ctx.msg && ctx.msg.payload && ctx.msg.payload.type) || (ctx.batch && ctx.batch.type);
@@ -194,7 +194,7 @@
       return html;
     },
     bind: function (el, ctx) {
-      // Event delegation is handled once on #chat-transcript in bulk.transcript.init()
+      // Event delegation is handled once on #chat-transcript in bulk.transcript.init
     }
   });
 
@@ -262,7 +262,7 @@
     return DEFAULT_SCHEMAS[type] || [];
   }
 
-  // 2. COLUMN REFERENCE CARD
+  // COLUMN REFERENCE CARD
   registerCard('column-ref', {
     downloadTemplate: downloadTemplate,
     resolveSchemaCols: resolveSchemaCols,
@@ -341,7 +341,7 @@
     }
   });
 
-  // 3. UPLOAD CARD
+  // UPLOAD CARD
   registerCard('upload', {
     key: function (ctx) {
       return (ctx.batch ? ctx.batch.status : 'up-draft');
@@ -473,7 +473,7 @@
     }
   });
 
-  // 4. PROGRESS CARD
+  // PROGRESS CARD
   registerCard('progress', {
     key: function (ctx) {
       var p = ctx.progress || (ctx.batch ? ctx.batch.progress : null);
@@ -541,7 +541,7 @@
     bind: function (el, ctx) {}
   });
 
-  // 5. SUMMARY CARD
+  // SUMMARY CARD
   registerCard('summary', {
     key: function (ctx) {
       var b = ctx.batch || {};
@@ -751,7 +751,7 @@
     }
   });
 
-  // 6. SUDO REVIEW CARD
+  // SUDO REVIEW CARD
   registerCard('sudo-review', {
     key: function (ctx) {
       var b = ctx.batch || {};
@@ -848,7 +848,7 @@
     }
   });
 
-  // 7. VERIFY CARD
+  // VERIFY CARD
   registerCard('verify', {
     key: function (ctx) {
       var b = ctx.batch || {};
@@ -997,7 +997,7 @@
     }
   });
 
-  // 8. FINAL APPROVAL & COMMIT CARD
+  // FINAL APPROVAL & COMMIT CARD
   registerCard('final', {
     key: function (ctx) {
       var b = ctx.batch || {};
@@ -1091,7 +1091,7 @@
     }
   });
 
-  // 9. COMPLETE CARD
+  // COMPLETE CARD
   registerCard('complete', {
     key: function (ctx) {
       var b = ctx.batch || {};
@@ -1146,7 +1146,7 @@
     }
   });
 
-  // 10. ERROR & REJECTED CARDS
+  // ERROR & REJECTED CARDS
   registerCard('error', {
     key: function (ctx) {
       var b = ctx.batch || {};

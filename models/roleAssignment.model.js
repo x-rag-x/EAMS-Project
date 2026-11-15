@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 
 /**
- * RoleAssignment Model (§4.5, R4.1)
+ * RoleAssignment Model
  * Persistent record of all assigned executive roles and responsibilities.
  * Rows are never deleted: ending a role sets active: false, to: Date, and unsets slotKey/holderKey.
  */

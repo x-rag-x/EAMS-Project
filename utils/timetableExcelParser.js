@@ -1,6 +1,5 @@
 /**
  * utils/timetableExcelParser.js
- *
  * Core Excel Parser for EAMS Timetable Import (Feature #1).
  * Parses departmental workbooks (.xlsx) with heterogeneous sheets,
  * extracting multi-section timetable grids, metadata headers, period alignments,
@@ -110,11 +109,11 @@ function extractSectionMetadata(worksheet, anchorRow, anchorCol, initialCellText
     advisorRaw: ''
   };
 
-  // 1. Initial attempt from anchor cell text
+  // Initial attempt from anchor cell text
   const secDirectMatch = initialCellText.match(/Section\s*[:\-]?\s*([A-Za-z0-9\+\-]+)/i);
   if (secDirectMatch) meta.section = secDirectMatch[1].trim().toUpperCase();
 
-  // 2. Scan window from 4 rows above anchor to 2 rows below
+  // Scan window from 4 rows above anchor to 2 rows below
   const minRow = Math.max(1, anchorRow - 4);
   const maxRow = Math.min(worksheet.rowCount, anchorRow + 2);
 
@@ -437,7 +436,6 @@ function parseCourseLegend(worksheet, startRow, nextAnchorRow) {
 
 /**
  * Main Entry Point: Parse complete workbook buffer into structured section timetables.
- *
  * @param {Buffer} fileBuffer - The binary Excel file buffer
  * @param {Object} options - Optional config (e.g. deptId, fileName)
  * @returns {Promise<Object>} Structured parsed timetable payload
@@ -467,16 +465,16 @@ async function parseTimetableWorkbook(fileBuffer, options = {}) {
       const anchor = anchors[aIdx];
       const nextAnchorRow = aIdx + 1 < anchors.length ? anchors[aIdx + 1].rowNumber : -1;
 
-      // 1. Extract metadata
+      // Extract metadata
       const meta = extractSectionMetadata(worksheet, anchor.rowNumber, anchor.colNumber, anchor.cellText);
 
-      // 2. Identify period header
+      // Identify period header
       const { headerRowNumber, periods } = findPeriodHeaderRow(worksheet, anchor.rowNumber);
 
-      // 3. Parse Monday-Saturday grid
+      // Parse Monday-Saturday grid
       const { slots, lastGridRow, dayCount } = parseDayGrid(worksheet, headerRowNumber, periods);
 
-      // 4. Parse Course Legend table
+      // Parse Course Legend table
       const legend = parseCourseLegend(worksheet, lastGridRow + 1, nextAnchorRow);
 
       if (slots.length === 0 && legend.length === 0) {

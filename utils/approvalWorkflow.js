@@ -17,7 +17,6 @@ const WORKFLOW_STAGES = {
 
 /**
  * Resolve the effective approver for a stage, accounting for active Acting Roles.
- *
  * @param {Object} params
  * @param {string} params.stage - 'advisor' | 'mentor' | 'hod' | 'principal'
  * @param {string} params.targetKey - classId for advisor, deptCode for HOD
@@ -91,7 +90,6 @@ async function recordApprovalHistory({
 /**
  * Advance workflow to next stage, with automatic stage merge.
  * If the next stage approver is identical to the current actor, merges stages.
- *
  * @param {Object} params
  * @param {string} params.requestType - 'student_leave' | 'od' | 'faculty_leave'
  * @param {string} params.currentStage - 'mentor' | 'advisor' | 'hod'
@@ -143,7 +141,6 @@ function getNextWorkflowStage({
 
 /**
  * Check if a request has breached reminder (24h) or escalation (48h) SLA.
- *
  * @param {Date|string} lastActionAt
  * @param {number} [remindHours=24]
  * @param {number} [escalateHours=48]

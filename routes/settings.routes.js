@@ -12,7 +12,7 @@ const { DEFAULT_SETTINGS_MAP } = require('../config/defaultSettings');
 const { getSetting, getSettings, invalidateSettingsCache } = require('../utils/settingsCache');
 const { getStartOfInstitutionDaySync, getEndOfInstitutionDaySync } = require('../utils/institutionTime');
 
-// GET /api/settings/public — Public endpoint for pre-auth status & portal availability (§S7 allow-list)
+// GET /api/settings/public — Public endpoint for pre-auth status & portal availability
 router.get('/public', publicSettingsLimiter, async (req, res) => {
   try {
     const settingsMap = await getSettings(['pages', 'maintenance', 'institution', 'broadcast', 'security']);
@@ -47,7 +47,7 @@ router.get('/public', publicSettingsLimiter, async (req, res) => {
   }
 });
 
-// GET /api/settings/teacher-portal — Authenticated endpoint returning effective teacher portal policies (§S7, §8)
+// GET /api/settings/teacher-portal — Authenticated endpoint returning effective teacher portal policies
 router.get('/teacher-portal', authMiddleware, requireRole('teacher', 'admin', 'hod', 'principal'), async (req, res) => {
   try {
     const settingsMap = await getSettings(['attendance', 'academic', 'models', 'controller', 'institution', 'teachers', 'security']);
@@ -145,7 +145,7 @@ router.get('/teacher-portal', authMiddleware, requireRole('teacher', 'admin', 'h
 });
 
 
-// GET /api/settings/student-portal — Policy & limits driving the student portal (§8, B2)
+// GET /api/settings/student-portal — Policy & limits driving the student portal
 router.get('/student-portal', authMiddleware, async (req, res) => {
   try {
     const settingsMap = await getSettings([

@@ -30,7 +30,7 @@ async function getInstitutionTimezone() {
   } catch (err) {
     cachedTimezone = 'Asia/Kolkata';
   }
-  cacheExpiresAt = now + 60000; // 60 second cache
+  cacheExpiresAt = now + 60000; // second cache
   return cachedTimezone;
 }
 
@@ -76,7 +76,7 @@ async function nowParts(inputDate = new Date()) {
 
 /**
  * Get "today" date string (YYYY-MM-DD) in institution timezone.
- * Use this instead of `new Date().toISOString().split('T')[0]` which uses UTC.
+ * Use this instead of `new Date.toISOString.split('T')[0]` which uses UTC.
  * @returns {Promise<string>}
  */
 async function todayInInstitutionTz() {

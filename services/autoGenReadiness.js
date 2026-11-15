@@ -4,7 +4,6 @@ const { getLabWindows } = require('./clashDetector');
 
 /**
  * Evaluates auto-generation readiness for a department/batch or single class.
- *
  * @param {Object} params
  * @param {string|ObjectId} params.deptId
  * @param {string} params.batch
@@ -42,7 +41,7 @@ async function checkAutoGenReadiness({ deptId, batch, classId, saturdayMode = 's
       };
     }
 
-    // 1. Check SemesterSubjectSet
+    // Check SemesterSubjectSet
     let setQuery = {};
     if (batch && String(batch).trim() !== '' && String(batch).trim() !== 'undefined') {
       setQuery.batch = String(batch).trim();
@@ -74,7 +73,7 @@ async function checkAutoGenReadiness({ deptId, batch, classId, saturdayMode = 's
         feasibility.hasLockedSubjectSet = true;
       }
 
-      // 2. Check target slots and blend allocation
+      // Check target slots and blend allocation
       const subjects = Array.isArray(subjectSet.subjects) ? subjectSet.subjects : [];
       if (!subjects.length) {
         blockers.push({
@@ -118,7 +117,7 @@ async function checkAutoGenReadiness({ deptId, batch, classId, saturdayMode = 's
       }
     }
 
-    // 3. Check Target Class / Sections
+    // Check Target Class / Sections
     const { normalizeYearRange } = require('../utils/yearFormat');
     let classes = [];
     if (classId) {
@@ -155,7 +154,7 @@ async function checkAutoGenReadiness({ deptId, batch, classId, saturdayMode = 's
       });
     }
 
-    // 4. Check Class Advisor & Curriculum Assignments per class
+    // Check Class Advisor & Curriculum Assignments per class
     for (const cls of classes) {
       let advisorTeacherId = cls.advisorTeacherId || cls.advisorId || null;
       let advisorTeacherName = cls.advisorTeacherName || cls.advisor || cls.incharge || cls.classAdvisor || '';
@@ -219,7 +218,7 @@ async function checkAutoGenReadiness({ deptId, batch, classId, saturdayMode = 's
       }
     }
 
-    // 5. Check Lab Rooms available
+    // Check Lab Rooms available
     const labRooms = await M.Room.find({ category: 'Lab', status: { $ne: 'Inactive' } }).lean();
     if (!labRooms.length && feasibility.totalLabSubjects > 0) {
       blockers.push({
@@ -228,7 +227,7 @@ async function checkAutoGenReadiness({ deptId, batch, classId, saturdayMode = 's
       });
     }
 
-    // 6. Check Lab Windows Feasibility
+    // Check Lab Windows Feasibility
     const sampleClassId = classId || (classes[0] && classes[0]._id);
     const labWindows = await getLabWindows(sampleClassId);
     const cleanPerDay = (labWindows.clean || []).length;
@@ -244,7 +243,7 @@ async function checkAutoGenReadiness({ deptId, batch, classId, saturdayMode = 's
       });
     }
 
-    // 7. Check Workload Policy
+    // Check Workload Policy
     if (deptId) {
       const policy = await M.WorkloadPolicy.findOne({ deptId }).lean();
       if (!policy) {

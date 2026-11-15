@@ -1,8 +1,6 @@
 /**
  * services/subAdminExpiryService.js
- *
- * Nightly Job: Grant Expiry & Expiry Reminders (§10, R7.5)
- *
+ * Nightly Job: Grant Expiry & Expiry Reminders
  * Requirements:
  * - Active between validFrom and validTo
  * - 2 days before end: reminder notification
@@ -33,7 +31,7 @@ async function runNightlyGrantExpiryJob() {
   let expiredRequestsCount = 0;
 
   try {
-    // 1. Process Teachers with sub-admin grants
+    // Process Teachers with sub-admin grants
     const teachers = await M.Teacher.find({
       $or: [
         { 'pageRights.accessRole': 'subAdmin' },
@@ -109,7 +107,7 @@ async function runNightlyGrantExpiryJob() {
       }
     }
 
-    // 2. Expire pending AccessRequests whose validTo has elapsed
+    // Expire pending AccessRequests whose validTo has elapsed
     const pendingRequests = await M.AccessRequest.find({ status: 'pending' });
     for (const req of pendingRequests) {
       const allGrantsLapsed = (req.grants || []).every(g => g.validTo && new Date(g.validTo) <= now);

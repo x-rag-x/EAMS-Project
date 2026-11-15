@@ -3,7 +3,7 @@ const M = require('../models');
 const { getSettings } = require('./settingsCache');
 
 /**
- * Session Inactivity & Expiry Monitor (§3.10, S7.4)
+ * Session Inactivity & Expiry Monitor
  * Executes atomic updateMany sweeps per role directly on M.LoginSession without document loading.
  * Preserves 15-day student-device sessions (sessionClass === 'student-device').
  * Synchronizes User.online and legacy LoginHistory when sessions are deactivated.
@@ -17,7 +17,7 @@ function startSessionMonitor() {
     try {
       const now = new Date();
 
-      // Fetch dynamic security settings from cached source of truth (§3.9, F17)
+      // Fetch dynamic security settings from cached source of truth
       const secSettings = await getSettings(['security']);
       const security = secSettings?.security || {};
       const isSessionTimeoutEnabled = security.sessionTimeout !== false;
@@ -28,7 +28,7 @@ function startSessionMonitor() {
       const studentMins = Number(security.studentInactivityMins || globalTimeoutMins);
       const boardMins = Number(security.boardInactivityMins || globalTimeoutMins);
 
-      // Perform atomic updateMany per role on LoginSession without loading documents (§3.10, S7.4)
+      // Perform atomic updateMany per role on LoginSession without loading documents
       const sweepPromises = isSessionTimeoutEnabled ? [
         // Admin sessions inactive sweep
         M.LoginSession.updateMany(

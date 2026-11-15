@@ -3,7 +3,7 @@ const M = require('../models');
 const { logAction } = require('./logAction');
 
 /**
- * Super Admin default template grants per §4.4
+ * Super Admin default template grants
  */
 function getSuperAdminGrants(deptId, deptName) {
   return [
@@ -48,7 +48,7 @@ function getSuperAdminGrants(deptId, deptName) {
       deptId: deptId ? new mongoose.Types.ObjectId(deptId) : null,
       dept: deptName || '',
       actions: ['view', 'create'],
-      enabled: false // disabled by default per §4.4
+      enabled: false // disabled by default
     }
   ];
 }
@@ -436,7 +436,7 @@ async function applyProjections(assignment, scopeDoc, session) {
 }
 
 /**
- * Assigns or replaces an executive role (§4.5, §7.8)
+ * Assigns or replaces an executive role
  */
 async function assignRole({
   role,
@@ -467,7 +467,7 @@ async function assignRole({
     throw err;
   }
 
-  // 1. Fetch and validate target teacher
+  // Fetch and validate target teacher
   const teacher = await M.Teacher.findById(teacherId);
   if (!teacher) {
     const err = new Error('Target faculty member not found.');
@@ -476,7 +476,7 @@ async function assignRole({
     throw err;
   }
 
-  // 2. Validate scope and cross-department rules
+  // Validate scope and cross-department rules
   let resolvedDeptId = null;
   let scopeType = 'institution';
   let scopeDoc = null;
@@ -492,7 +492,7 @@ async function assignRole({
     }
     resolvedDeptId = scopeDoc._id;
 
-    // Cross-department check (§7.8 rule 2)
+    // Cross-department check
     const teacherDeptId = teacher.deptId ? String(teacher.deptId) : null;
     const teacherDeptName = (teacher.department || '').trim().toLowerCase();
     const targetDeptId = String(scopeDoc._id);
@@ -505,7 +505,7 @@ async function assignRole({
       throw err;
     }
 
-    // Sudo Admins cannot be made Super Admin (§7.8 rule 6)
+    // Sudo Admins cannot be made Super Admin
     if (role === 'superAdmin') {
       const isSudo = teacher.pageRights?.accessRole === 'sudoAdmin' ||
         (teacher.pageRights?.grants || []).some(g => g.scope === 'institution' && g.accessRole === 'sudoAdmin');
@@ -545,7 +545,7 @@ async function assignRole({
       throw err;
     }
 
-    // Girls block warden gender requirement (§7.7, §7.8)
+    // Girls block warden gender requirement
     const hostelGender = scopeDoc.hostelId?.gender || '';
     if (hostelGender === 'girls') {
       const teacherGender = (teacher.gender || '').toLowerCase();
@@ -558,7 +558,7 @@ async function assignRole({
     }
   }
 
-  // 2b. Mutual Exclusivity between Primary and Secondary Roles
+  // Mutual Exclusivity between Primary and Secondary Roles
   if (role === 'secondaryHod') {
     const activePrimaryHod = await M.RoleAssignment.findOne({ deptId: resolvedDeptId, role: 'hod', active: true });
     if (activePrimaryHod && String(activePrimaryHod.teacherId) === String(teacher._id)) {
@@ -609,7 +609,7 @@ async function assignRole({
     }
   }
 
-  // 3. Concurrency / Stale validation (§7.8 rule 4)
+  // Concurrency / Stale validation
   const { slotKey, holderKey } = getRoleKeys(role, scopeId, teacher._id);
   const currentAssignment = slotKey ? await M.RoleAssignment.findOne({ slotKey, active: true }) : null;
 
@@ -632,7 +632,7 @@ async function assignRole({
     }
   }
 
-  // 4. Execution inside transaction (with standalone fallback)
+  // Execution inside transaction (with standalone fallback)
   let dbSession = null;
   try {
     dbSession = await mongoose.startSession();
@@ -771,7 +771,7 @@ async function assignRole({
 }
 
 /**
- * Ends an active executive role (§4.5, §7.8)
+ * Ends an active executive role
  */
 async function endRole({
   role,
@@ -780,7 +780,7 @@ async function endRole({
   actor,
   reason = 'Concluded'
 }) {
-  // Last active Sudo Admin cannot be demoted (§7.8 rule 7)
+  // Last active Sudo Admin cannot be demoted
   if (role === 'sudoAdmin') {
     const sudoCount = await M.RoleAssignment.countDocuments({ role: 'sudoAdmin', active: true });
     if (sudoCount <= 1) {

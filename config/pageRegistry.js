@@ -1,6 +1,5 @@
 /**
  * config/pageRegistry.js
- * 
  * Source-of-truth for registered pages, valid tabs, and allowed actions in EAMS.
  * Used by server-side authorization gates (requirePage, auth.routes.js) and served
  * to client-side Guard (GET /api/auth/access).
@@ -216,7 +215,7 @@ function buildPagesDictionary(userDoc, access) {
   const isStudent = role === 'student' || access.kind === 'student';
   const isBoard = role === 'board' || access.kind === 'board';
 
-  // 1. Student identity
+  // Student identity
   if (isStudent) {
     pages.student = {
       module: '*',
@@ -235,7 +234,7 @@ function buildPagesDictionary(userDoc, access) {
     return pages;
   }
 
-  // 2. Board identity
+  // Board identity
   if (isBoard) {
     pages.board = {
       module: '*',
@@ -251,7 +250,7 @@ function buildPagesDictionary(userDoc, access) {
   const userDeptId = userDoc?.deptId || userDoc?.departmentId || null;
   const flags = access.flags || {};
 
-  // 3. Sudo Admin identity (all pages with all actions)
+  // Sudo Admin identity (all pages with all actions)
   if (flags.isSudo || access.isSudoAdmin || access.tier === 'sudoAdmin') {
     for (const key of PAGE_KEYS) {
       const reg = PAGE_REGISTRY[key];
@@ -294,7 +293,7 @@ function buildPagesDictionary(userDoc, access) {
     return pages;
   }
 
-  // 4. Super Admin identity (Template grants from role_access_plan.md §4.4)
+  // Super Admin identity (Template grants from role_access_plan.md)
   if (flags.isSuper || access.isSuperAdmin || access.tier === 'superAdmin') {
     pages.admin = {
       module: '-depts,-logs',
@@ -356,7 +355,7 @@ function buildPagesDictionary(userDoc, access) {
     }
   }
 
-  // 5. Explicit Page Rights / Grants (Sub-Admin or additional grants)
+  // Explicit Page Rights / Grants (Sub-Admin or additional grants)
   const activeGrants = Array.isArray(access.pageRights)
     ? access.pageRights
     : (Array.isArray(userDoc?.pageRights) ? userDoc.pageRights : (userDoc?.pageRights?.grants || []));
@@ -390,7 +389,7 @@ function buildPagesDictionary(userDoc, access) {
     }
   }
 
-  // 6. Implicit staff pages
+  // Implicit staff pages
   // All staff can open Teacher Portal & Selector Hub
   pages.teacher = {
     module: '*',

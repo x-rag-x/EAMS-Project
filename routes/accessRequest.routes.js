@@ -1,7 +1,6 @@
 /**
  * routes/accessRequest.routes.js
- *
- * Full Sub-Admin Lifecycle: Access Requests & Approval Workflows (§4.6, §10, §11, R7.1, R7.4)
+ * Full Sub-Admin Lifecycle: Access Requests & Approval Workflows
  */
 
 const express = require('express');
@@ -37,13 +36,13 @@ async function isHodOfDept(user, deptId) {
   const userDeptId = String(user.deptId || user.access?.pages?.admin?.deptId || '');
   const teacherId = user.roleDocId || user._id;
 
-  // 1. Direct user flags
+  // Direct user flags
   const isHodFlag = Boolean(user.isHod || user.access?.flags?.isHod);
   if (isHodFlag && userDeptId === targetDeptId) {
     return true;
   }
 
-  // 2. Department document hodId check
+  // Department document hodId check
   try {
     const dept = await M.Department.findById(targetDeptId).lean();
     if (dept && dept.hodId && String(dept.hodId) === String(teacherId)) {
@@ -51,7 +50,7 @@ async function isHodOfDept(user, deptId) {
     }
   } catch (_) {}
 
-  // 3. Active RoleAssignment for hod
+  // Active RoleAssignment for hod
   try {
     const roleAssign = await M.RoleAssignment.findOne({
       deptId: targetDeptId,
@@ -62,7 +61,7 @@ async function isHodOfDept(user, deptId) {
     if (roleAssign) return true;
   } catch (_) {}
 
-  // 4. Active ActingRole for hod
+  // Active ActingRole for hod
   try {
     if (M.ActingRole) {
       const acting = await M.ActingRole.findOne({
@@ -80,7 +79,7 @@ async function isHodOfDept(user, deptId) {
 
 /**
  * GET /api/access-requests
- * Query access requests with role-aware scoping (§10, §11)
+ * Query access requests with role-aware scoping
  * - Sudo Admin: sees all
  * - HOD: sees own department or requested by self
  * - Super Admin: sees own department or requested by self
@@ -142,7 +141,7 @@ router.get('/', authMiddleware, async (req, res) => {
 
 /**
  * POST /api/access-requests
- * Create a new access request (§8, §10, R6.3, R7.3)
+ * Create a new access request
  * Both Super Admin and Sudo Admin can create sub-admin requests.
  * Workflow: Enters pending_hod -> HOD approves -> pending_sudo -> Sudo confirms.
  */
@@ -166,7 +165,7 @@ router.post('/', authMiddleware, async (req, res) => {
       return res.status(404).json({ error: 'Target faculty member not found', code: 'TEACHER_NOT_FOUND' });
     }
 
-    // Super Admin Scope Enforcement (§10)
+    // Super Admin Scope Enforcement
     if (!isSudo && isSuper) {
       if (callerDeptId && String(targetTeacher.deptId) !== String(callerDeptId)) {
         return res.status(403).json({
@@ -351,7 +350,7 @@ router.post('/', authMiddleware, async (req, res) => {
 
 /**
  * POST /api/access-requests/:id/hod-approve
- * Department HOD reviews and endorses sub-admin request (§10, R7.4)
+ * Department HOD reviews and endorses sub-admin request
  * Moves request to pending_sudo for final Sudo confirmation.
  */
 router.post('/:id/hod-approve', authMiddleware, async (req, res) => {
@@ -437,7 +436,7 @@ router.post('/:id/hod-approve', authMiddleware, async (req, res) => {
 
 /**
  * POST /api/access-requests/:id/hod-deny
- * Department HOD rejects sub-admin request (§10, R7.4)
+ * Department HOD rejects sub-admin request
  */
 router.post('/:id/hod-deny', authMiddleware, async (req, res) => {
   try {
@@ -529,7 +528,7 @@ router.post('/:id/hod-deny', authMiddleware, async (req, res) => {
 
 /**
  * POST /api/access-requests/:id/approve
- * Sudo Admin approves the request and provisions grants (§10, R7.4)
+ * Sudo Admin approves the request and provisions grants
  * Final confirmation: transitions status to approved.
  */
 router.post('/:id/approve', authMiddleware, async (req, res) => {
@@ -667,7 +666,7 @@ router.post('/:id/approve', authMiddleware, async (req, res) => {
 
 /**
  * POST /api/access-requests/:id/approve-with-changes
- * Sudo Admin approves with customized pages / dates / actions (§10, R7.4)
+ * Sudo Admin approves with customized pages / dates / actions
  */
 router.post('/:id/approve-with-changes', authMiddleware, async (req, res) => {
   try {
@@ -802,7 +801,7 @@ router.post('/:id/approve-with-changes', authMiddleware, async (req, res) => {
 
 /**
  * POST /api/access-requests/:id/deny
- * Sudo Admin denies request (§10, R7.4)
+ * Sudo Admin denies request
  */
 router.post('/:id/deny', authMiddleware, async (req, res) => {
   try {
@@ -887,7 +886,7 @@ router.post('/:id/deny', authMiddleware, async (req, res) => {
 
 /**
  * POST /api/access-requests/:id/withdraw
- * Requester withdraws pending request (§10, R7.4)
+ * Requester withdraws pending request
  */
 router.post('/:id/withdraw', authMiddleware, async (req, res) => {
   try {

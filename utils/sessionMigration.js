@@ -1,6 +1,5 @@
 /**
  * utils/sessionMigration.js — S7.6 One-Off / Startup Copy of Active Sessions
- *
  * Ensures all currently active sessions recorded in LoginHistory
  * are synchronized into the standalone LoginSession collection without disrupting users.
  */

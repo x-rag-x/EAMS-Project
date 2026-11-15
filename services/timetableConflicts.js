@@ -1,6 +1,5 @@
 /**
  * services/timetableConflicts.js
- *
  * Conflict Engine v2 for EAMS Timetable v3 (Section 8):
  * - Compares clock-time intervals and entity IDs, not period numbers and strings (F8 fix).
  * - Multi-timing sets (SET_1 vs SET_2) back-to-back periods (e.g. Set 1 P6 vs Set 2 P6) no longer clash.
@@ -159,7 +158,7 @@ async function resolveTimingSets() {
 function matchTimingSetForClass(cls, timingSets) {
   if (!timingSets || !timingSets.length) return DEFAULT_TIMING_SETS[0];
 
-  // 1. Explicit timingSetCode or timingSetId on class
+  // Explicit timingSetCode or timingSetId on class
   if (cls?.timingSetCode) {
     const direct = timingSets.find(ts => ts.code === cls.timingSetCode);
     if (direct) return direct;
@@ -169,7 +168,7 @@ function matchTimingSetForClass(cls, timingSets) {
     if (direct) return direct;
   }
 
-  // 2. Class year match
+  // Class year match
   const yr = String(cls?.year || '').trim().toUpperCase();
   if (yr) {
     const match = timingSets.find(ts => {
@@ -179,7 +178,7 @@ function matchTimingSetForClass(cls, timingSets) {
     if (match) return match;
   }
 
-  // 3. Name heuristics
+  // Name heuristics
   const name = String(cls?.name || '').toUpperCase();
   if (/\b(II|III|2ND|3RD|Y2|Y3)\b/i.test(name)) {
     const s2 = timingSets.find(ts => ts.code === 'SET_2');
@@ -197,7 +196,6 @@ function matchTimingSetForClass(cls, timingSets) {
 
 /**
  * Detects conflicts across Layers L0, L1, and L2 with clock-time precision.
- *
  * @param {Object} params
  * @param {string|ObjectId} params.workspaceId - Target workspace
  * @param {Array<string|ObjectId>} [params.classIds] - Optional class filter
@@ -213,7 +211,7 @@ async function detectConflictsV2({
 } = {}) {
   const conflicts = [];
 
-  // 1. Load Workspace
+  // Load Workspace
   let ws = null;
   if (workspaceId && M.TimetableWorkspace) {
     try {
@@ -238,7 +236,7 @@ async function detectConflictsV2({
 
   const timingSets = await resolveTimingSets();
 
-  // 2. Resolve Active Classes in Workspace
+  // Resolve Active Classes in Workspace
   const filterClassIds = (Array.isArray(classIds) ? classIds : [classIds])
     .filter(Boolean)
     .map(String);
@@ -314,7 +312,7 @@ async function detectConflictsV2({
     } catch (_) {}
   }
 
-  // 3. Assemble Workspace Draft Slots (Layer L0 items)
+  // Assemble Workspace Draft Slots (Layer L0 items)
   // Maps classId -> Array<{ slot, interval, classDoc, timingSet }>
   const l0ItemsByClass = new Map();
   const allL0Items = [];
@@ -383,7 +381,7 @@ async function detectConflictsV2({
     l0ItemsByClass.set(cId, classItems);
   }
 
-  // 4. Run Single-Slot Checks (Checks 3–7, 9)
+  // Run Single-Slot Checks (Checks 3–7, 9)
   for (const item of allL0Items) {
     const { slot, interval, classDoc, className, classId, timingSet } = item;
 
@@ -655,14 +653,14 @@ async function detectConflictsV2({
     }
   }
 
-  // 5. LAYER L0: Cross-Slot Checks within Workspace
+  // LAYER L0: Cross-Slot Checks within Workspace
   for (let i = 0; i < allL0Items.length; i++) {
     for (let j = i + 1; j < allL0Items.length; j++) {
       evaluateSlotPair(allL0Items[i], allL0Items[j], 'L0');
     }
   }
 
-  // 6. LAYER L1: Production Head of Classes NOT in this Workspace
+  // LAYER L1: Production Head of Classes NOT in this Workspace
   const excludedClassIds = new Set(targetClassList);
   let prodSections = [];
   try {
@@ -720,7 +718,7 @@ async function detectConflictsV2({
     }
   }
 
-  // 7. LAYER L2: Class Drafts in Other Open Workspaces
+  // LAYER L2: Class Drafts in Other Open Workspaces
   if (ws && M.TimetableWorkspace) {
     let otherWorkspaces = [];
     try {

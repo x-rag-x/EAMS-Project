@@ -19,7 +19,7 @@
 
   function resolveBatchYear(batchStr, opt) {
     if (!batchStr) return '';
-    // 1. Direct dataset or attribute on option element
+    // Direct dataset or attribute on option element
     if (opt) {
       if (opt.dataset && opt.dataset.year) return opt.dataset.year;
       if (opt.dataset && opt.dataset.badge && opt.dataset.badge !== 'Batch') return opt.dataset.badge;
@@ -27,13 +27,13 @@
       if (attrYr && attrYr !== 'Batch') return attrYr;
     }
 
-    // 2. Global helper function if defined on window/page
+    // Global helper function if defined on window/page
     if (typeof global.getBatchYearLevel === 'function') {
       var byFn = global.getBatchYearLevel(batchStr);
       if (byFn) return byFn;
     }
 
-    // 3. In-memory academic years data from Manage Page / Admin Page API cache
+    // In-memory academic years data from Manage Page / Admin Page API cache
     var yearsData = (typeof YEAR_CONFIG !== 'undefined' && Array.isArray(YEAR_CONFIG.yearsData)) ? YEAR_CONFIG.yearsData :
                     (typeof global.yearsData !== 'undefined' && Array.isArray(global.yearsData)) ? global.yearsData :
                     SearchableDropdown._yearsData;
@@ -62,7 +62,7 @@
       }
     }
 
-    // 4. Mathematical calculation with reference to academic year
+    // Mathematical calculation with reference to academic year
     var acadStr = currentAcadYear;
     if (!acadStr && Array.isArray(yearsData) && yearsData.length) {
       var r = yearsData.find(function(y) { return y.isCurrent; }) || yearsData[0];
@@ -88,7 +88,7 @@
       }
     }
 
-    // 5. Lazy-fetch Manage Page API (/api/year) if not in memory
+    // Lazy-fetch Manage Page API (/api/year) if not in memory
     if (!SearchableDropdown._yearsData && !SearchableDropdown._fetchingYears) {
       SearchableDropdown._fetchingYears = true;
       try {
@@ -278,7 +278,7 @@
       data.icon = 'building2';
       var dCode = '';
 
-      // 1. Check data-badge or data-code attribute on option
+      // Check data-badge or data-code attribute on option
       if (attrBadge) {
         dCode = normalizeDeptCode(attrBadge);
       }
@@ -286,7 +286,7 @@
         dCode = normalizeDeptCode(opt.dataset.code);
       }
 
-      // 2. Check DB lookup by option value (department ObjectId or code)
+      // Check DB lookup by option value (department ObjectId or code)
       if (!dCode && val) {
         try {
           var depts = (typeof DB !== 'undefined' && DB.get) ? (DB.get('depts') || DB.get('departments') || []) : [];
@@ -307,7 +307,7 @@
         } catch (e) {}
       }
 
-      // 3. Handle rawText with "CODE - Name" or "Name - CODE"
+      // Handle rawText with "CODE - Name" or "Name - CODE"
       if (rawText.includes(' - ')) {
         var deptParts = rawText.split(' - ');
         var p0 = deptParts[0].trim();
@@ -330,7 +330,7 @@
         }
       }
 
-      // 4. Fallback to normalizeDeptCode on title or rawText
+      // Fallback to normalizeDeptCode on title or rawText
       if (!dCode) {
         dCode = normalizeDeptCode(data.title || rawText);
       }
