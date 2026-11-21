@@ -27,6 +27,7 @@ function escapeCsv(val) {
 // ── POST /api/participation/log — Log Participation (No-OD Events, ) ──
 router.post('/log', async (req, res) => {
   try {
+
     const isStudent = req.user.role === 'student';
     let student = null;
 
@@ -156,6 +157,7 @@ router.post('/log', async (req, res) => {
 // ── GET /api/participation/me — Student's Full Participation Profile ──
 router.get('/me', async (req, res) => {
   try {
+
     const studentTrackId = req.user.trackId;
     const activities = await M.ODRequest.find({ studentTrackId }).sort({ createdAt: -1 }).lean();
 
@@ -203,6 +205,7 @@ router.get('/me', async (req, res) => {
 // ── GET /api/participation/student/:trackId — View Any Student's Profile ──
 router.get('/student/:trackId', async (req, res) => {
   try {
+
     const trackId = sanitizeToString(req.params.trackId);
     const student = await M.Student.findOne({ trackId }).lean();
     if (!student) return res.status(404).json({ error: 'Student not found' });
@@ -330,6 +333,7 @@ router.get('/student/:trackId', async (req, res) => {
 // ── GET /api/participation/events — Academic Event Registry with Stats ──
 router.get('/events', async (req, res) => {
   try {
+
     const q = sanitizeToString(req.query.q);
     const filter = {};
     if (q) {
@@ -358,6 +362,7 @@ router.get('/events', async (req, res) => {
 // ── GET /api/participation/events/:id — Single Event Details with Participants ──
 router.get('/events/:id', async (req, res) => {
   try {
+
     const id = req.params.id;
     const query = mongoose.isValidObjectId(id) ? { $or: [{ _id: id }, { eventId: id }] } : { eventId: id };
     const event = await M.AcademicEvent.findOne(query).lean();
@@ -376,9 +381,14 @@ router.get('/events/:id', async (req, res) => {
 // ── GET /api/participation/tracker — Command Centre Data (C8 Tab for HOD/Principal) ──
 router.get('/tracker', async (req, res) => {
   try {
+
+    if (req.user.role === 'student') {
+      return res.status(403).json({ error: 'Access denied: Students are not authorized to view the participation tracker' });
+    }
+
     const userRole = req.user.role;
-    const isPrincipal = req.user.isPrincipal || userRole === 'principal' || isSudo(req);
-    const isHod = req.user.isHod || userRole === 'hod';
+    const isPrincipal = Boolean(req.user?.isPrincipal || userRole === 'principal' || req.access?.flags?.isPrincipal || isSudo(req));
+    const isHod = Boolean(req.user?.isHod || userRole === 'hod' || req.access?.flags?.isHod || (Array.isArray(req.user?.specials) && req.user.specials.some(s => s?.option === 'isHod')));
 
     // Department scope
     const filter = {};
@@ -537,6 +547,10 @@ router.get('/tracker', async (req, res) => {
 // ── GET /api/participation/tracker/export.csv — Accreditation Export ──
 router.get('/tracker/export.csv', async (req, res) => {
   try {
+    if (req.user.role === 'student') {
+      return res.status(403).json({ error: 'Access denied: Students are not authorized to export participation tracker' });
+    }
+
     const isPrincipal = req.user.isPrincipal || req.user.role === 'principal' || isSudoAdmin(req.user);
     const isHod = req.user.isHod || req.user.role === 'hod';
 
@@ -619,9 +633,14 @@ router.get('/tracker/export.csv', async (req, res) => {
 // ── GET /api/participation/score — Live Score Computation ──
 router.get('/score', async (req, res) => {
   try {
-    const studentTrackId = sanitizeToString(req.query.studentTrackId) || req.user.trackId;
+
+    let studentTrackId = sanitizeToString(req.query.studentTrackId) || req.user.trackId;
+    if (req.user.role === 'student') {
+      studentTrackId = req.user.trackId;
+    }
     let draft = {};
     if (req.query.draft) {
+    
       try {
         draft = JSON.parse(req.query.draft);
       } catch (e) {

@@ -347,6 +347,32 @@ router.get('/detail/:id', authMiddleware, logsAdminOnly, requirePage('logs', 'vi
   }
 });
 
+// POST /api/logs — Persist client-reported audit/activity log
+router.post('/', authMiddleware, async (req, res) => {
+  try {
+    const { action, details, category, module: mod, severity, subType } = req.body || {};
+    const safeAction = sanitizeToString(action) || 'Client Action';
+    const safeDetails = sanitizeToString(details) || '';
+    const safeCat = sanitizeToString(category) || 'general';
+    const safeMod = sanitizeToString(mod) || 'client';
+
+    await logAction({
+      req,
+      user: req.user,
+      action: safeAction,
+      details: safeDetails,
+      category: safeCat,
+      module: safeMod,
+      subType: sanitizeToString(subType) || undefined,
+      severity: severity || 'info'
+    });
+
+    res.json({ ok: true, message: 'Log recorded successfully' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // POST /api/logs/page-access — Track client page access
 router.post('/page-access', authMiddleware, async (req, res) => {
   try {
@@ -461,36 +487,22 @@ router.post('/export', authMiddleware, logsAdminOnly, requirePage('logs', 'expor
   }
 });
 
-// DELETE /api/logs/all
-router.delete('/all', authMiddleware, requirePage('logs', 'delete'), async (req, res) => {
-  try {
-    await M.Log.deleteMany({});
-    await logAction(
-      req.user.trackId || req.user._id,
-      req.user.name,
-      req.user.role,
-      'Logs Cleared',
-      'All audit logs purged by administrator',
-      'settings',
-      'critical',
-      req.ip,
-      req.user.sessionId,
-      { module: 'settings', subType: 'danger', trackId: req.user.trackId }
-    );
-    res.json({ deleted: true });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+// DELETE /api/logs/all - Permanently disabled: audit logs are tamper-resistant and append-only (N23)
+router.delete('/all', authMiddleware, async (req, res) => {
+  res.set('Allow', 'GET, POST');
+  return res.status(405).json({
+    error: 'Audit logs are tamper-resistant and append-only. Bulk log deletion is permanently disabled (N23).',
+    appendOnly: true
+  });
 });
 
-// DELETE /api/logs/:id
-router.delete('/:id', authMiddleware, requirePage('logs', 'delete'), async (req, res) => {
-  try {
-    await M.Log.findByIdAndDelete(req.params.id);
-    res.json({ deleted: true });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+// DELETE /api/logs/:id - Permanently disabled: audit logs are tamper-resistant and append-only (N23)
+router.delete('/:id', authMiddleware, async (req, res) => {
+  res.set('Allow', 'GET, POST');
+  return res.status(405).json({
+    error: 'Audit logs are tamper-resistant and append-only. Log deletion is permanently disabled (N23).',
+    appendOnly: true
+  });
 });
 
 module.exports = router;

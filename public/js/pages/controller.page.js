@@ -530,7 +530,7 @@ function loadSectionData(pageId, tabId) {
       if (tabId === 'overview') {
         loadDashboardData();
       } else if (tabId === 'alerts') {
-        loadLiveAlertsRail();
+        loadLiveAlerts();
       } else {
         reloadLiveBoardData();
       }
@@ -5669,6 +5669,8 @@ window.generateTodaySessions = generateTodaySessions;
 window.confirmDeclareHoliday = confirmDeclareHoliday;
 window.confirmExtendAttendanceLock = confirmExtendAttendanceLock;
 window.loadLiveAlerts = loadLiveAlerts;
+var loadLiveAlertsRail = loadLiveAlerts;
+window.loadLiveAlertsRail = loadLiveAlerts;
 window.ackAlert = ackAlert;
 window.resolveAlert = resolveAlert;
 window.nudgeTeacherSession = nudgeTeacherSession;

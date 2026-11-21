@@ -14,6 +14,7 @@ const { normalizeYearRange, toBatchTrackId, buildStudentTrackId } = require('../
 const { sanitizeFullName, splitFirstLastName } = require('../../utils/nameFormat');
 const { logAction } = require('../../utils/logAction');
 const crypto = require('crypto');
+const { sendWelcomeCredentialsMail } = require('../../utils/mailer');
 const { notifySudoOnForward, notifySudoOnSubmitFinal, notifyUploaderOnDecision } = require('../../services/bulk/notifications');
 
 function generateTempPassword(role) {
@@ -347,7 +348,7 @@ router.post('/batches/:id/verify-entry', authMiddleware, requirePage('bulk', 'cr
         username,
         password,
         role: batch.type === 'teacher' ? 'teacher' : 'student',
-        institutionName: 'EAMS Institution',
+        institutionName: 'Muster Institution',
         portalUrl
       });
       entry.emailSent = Boolean(emailResult.sent && !emailResult.simulated);
@@ -478,7 +479,7 @@ router.post('/batches/:id/verify-all', authMiddleware, requirePage('bulk', 'crea
             username: entry.data.username,
             password: entry.data.password,
             role: batch.type === 'teacher' ? 'teacher' : 'student',
-            institutionName: 'EAMS Institution',
+            institutionName: 'Muster Institution',
             portalUrl
           });
           if (emailResult.sent && !emailResult.simulated) emailsDispatched++;

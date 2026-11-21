@@ -1,3 +1,4 @@
+const fs = require('fs');
 const crypto = require('crypto');
 const M = require('../models');
 const { getSettings } = require('./settingsCache');

@@ -3,7 +3,7 @@ const router = express.Router();
 const mongoose = require('mongoose');
 const M = require('../models');
 const { authMiddleware } = require('../middleware/auth');
-const { sanitizeToString } = require('../utils/sanitizeQuery');
+const { sanitizeToString, escapeRegex } = require('../utils/sanitizeQuery');
 const { getSettings } = require('../utils/settingsCache');
 const { getNextRequestId } = require('../utils/requestIds');
 const { resolveStageApprover, recordApprovalHistory } = require('../utils/approvalWorkflow');
@@ -57,9 +57,83 @@ router.get('/me', async (req, res) => {
   }
 });
 
+// ── Approver Authorization Check ──
+async function canAuthorizeLeaveDecision(req, request) {
+  if (!req || !req.user) return false;
+  if (req.user.role === 'student') return false;
+
+  // Sudo Admin / Admin / Principal have institution-wide authority
+  if (req.user.isSudoAdmin || req.user.isPrincipal || req.user.role === 'principal' || req.user.role === 'admin') {
+    return true;
+  }
+
+  const userTrackId = req.user.trackId;
+  const userIdStr = String(req.user._id || req.user.teacherId || '');
+
+  // 1. Direct match on request advisor trackId / advisorId
+  if (userTrackId && request.advisorTrackId && userTrackId === request.advisorTrackId) {
+    return true;
+  }
+  if (userIdStr && request.advisorId && userIdStr === String(request.advisorId)) {
+    return true;
+  }
+
+  // 2. Department HOD check
+  if (req.user.isHod || req.user.role === 'hod') {
+    const userDeptId = String(req.scope?.deptId || req.user.deptId || req.user.departmentId || '');
+    const userDeptName = String(req.scope?.deptName || req.user.department || req.user.deptName || '').trim().toLowerCase();
+    const reqDeptId = String(request.deptId || '');
+    const reqDeptName = String(request.deptName || '').trim().toLowerCase();
+
+    if ((userDeptId && reqDeptId && userDeptId === reqDeptId) ||
+        (userDeptName && reqDeptName && userDeptName === reqDeptName)) {
+      return true;
+    }
+  }
+
+  // 3. Class document check (primary or secondary advisor)
+  if (request.classId) {
+    try {
+      const cls = await M.Class.findById(request.classId).select('advisorTeacherId advisorTeacherTrackId secondaryAdvisorTeacherId secondaryAdvisorTeacherTrackId deptId').lean();
+      if (cls) {
+        if (cls.advisorTeacherTrackId && userTrackId && cls.advisorTeacherTrackId === userTrackId) return true;
+        if (cls.advisorTeacherId && userIdStr && String(cls.advisorTeacherId) === userIdStr) return true;
+        if (cls.secondaryAdvisorTeacherTrackId && userTrackId && cls.secondaryAdvisorTeacherTrackId === userTrackId) return true;
+        if (cls.secondaryAdvisorTeacherId && userIdStr && String(cls.secondaryAdvisorTeacherId) === userIdStr) return true;
+
+        if ((req.user.isHod || req.user.role === 'hod') && cls.deptId) {
+          const userDeptId = String(req.scope?.deptId || req.user.deptId || req.user.departmentId || '');
+          if (userDeptId && String(cls.deptId) === userDeptId) return true;
+        }
+      }
+    } catch (_) {}
+
+    // 4. Acting role check (active acting advisor for this class)
+    try {
+      const resolved = await resolveStageApprover({
+        stage: 'advisor',
+        targetKey: String(request.classId),
+        nominalApproverTrackId: request.advisorTrackId
+      });
+      if (resolved && resolved.approverTrackId && userTrackId && resolved.approverTrackId === userTrackId) {
+        return true;
+      }
+    } catch (_) {}
+  }
+
+  return false;
+}
+
+function getLeaveActorRole(req) {
+  if (req.user?.isPrincipal || req.user?.role === 'principal') return 'principal';
+  if (req.user?.isHod || req.user?.role === 'hod') return 'hod';
+  return 'advisor';
+}
+
 // ── Helpers for permit/reject/return actions ──
 async function executePermitLeave(request, req, remarks) {
   const previousStatus = request.status;
+  const actorRole = getLeaveActorRole(req);
   request.status = 'Approved';
   request.advisorStatus = 'Approved';
   request.advisorRemarks = remarks || '';
@@ -74,9 +148,8 @@ async function executePermitLeave(request, req, remarks) {
     dates: request.dates,
     periodNumbers: request.periods,
     actorTrackId: req.user.trackId,
-    actorRole: 'advisor'
+    actorRole
   });
-
 
   handleLeaveApprovalReversal(request.studentId, request.dates).catch(err => {
     console.warn('[Trust Leave Reversal Warn]:', err.message);
@@ -87,7 +160,7 @@ async function executePermitLeave(request, req, remarks) {
     requestType: 'student_leave',
     actorId: req.user.trackId,
     actorName: req.user.fullName || req.user.name || '',
-    actorRole: 'advisor',
+    actorRole,
     action: 'permitted',
     comment: remarks || '',
     previousState: previousStatus,
@@ -99,6 +172,7 @@ async function executePermitLeave(request, req, remarks) {
 
 async function executeRejectLeave(request, req, reason) {
   const previousStatus = request.status;
+  const actorRole = getLeaveActorRole(req);
   request.status = 'Rejected';
   request.advisorStatus = 'Rejected';
   request.advisorRemarks = reason;
@@ -110,7 +184,7 @@ async function executeRejectLeave(request, req, reason) {
     requestType: 'student_leave',
     actorId: req.user.trackId,
     actorName: req.user.fullName || req.user.name || '',
-    actorRole: 'advisor',
+    actorRole,
     action: 'rejected',
     comment: reason,
     previousState: previousStatus,
@@ -122,6 +196,7 @@ async function executeRejectLeave(request, req, reason) {
 
 async function executeReturnLeave(request, req, remarks) {
   const previousStatus = request.status;
+  const actorRole = getLeaveActorRole(req);
   request.status = 'Returned';
   request.advisorStatus = 'Returned';
   request.advisorRemarks = remarks;
@@ -133,7 +208,7 @@ async function executeReturnLeave(request, req, remarks) {
     requestType: 'student_leave',
     actorId: req.user.trackId,
     actorName: req.user.fullName || req.user.name || '',
-    actorRole: 'advisor',
+    actorRole,
     action: 'returned',
     comment: remarks,
     previousState: previousStatus,
@@ -199,7 +274,8 @@ router.get('/history', async (req, res) => {
       }
 
       // If user is HOD, also include their department requests
-      if (userRole === 'hod' && req.user.deptId) {
+      const isHodUserVal = Boolean(req.user?.isHod || userRole === 'hod' || req.access?.flags?.isHod || (Array.isArray(req.user?.specials) && req.user.specials.some(s => s?.option === 'isHod')));
+      if (isHodUserVal && (req.user?.deptId || req.scope?.deptId)) {
         orConditions.push({ deptId: req.user.deptId });
       }
 
@@ -225,7 +301,7 @@ router.get('/history', async (req, res) => {
     const finalQuery = Object.assign({}, scopeQuery);
     const statusParam = sanitizeToString(req.query.status);
     if (statusParam && statusParam.toLowerCase() !== 'all') {
-      finalQuery.status = new RegExp(`^${statusParam}$`, 'i');
+      finalQuery.status = new RegExp('^' + escapeRegex(statusParam) + '$', 'i');
     }
 
     const fromDate = sanitizeToString(req.query.from);
@@ -239,7 +315,7 @@ router.get('/history', async (req, res) => {
 
     const search = sanitizeToString(req.query.search);
     if (search) {
-      const sReg = new RegExp(search, 'i');
+      const sReg = new RegExp(escapeRegex(search), 'i');
       finalQuery.$and = finalQuery.$and || [];
       finalQuery.$and.push({
         $or: [
@@ -669,6 +745,14 @@ router.post('/:id/permit', async (req, res) => {
       return res.status(404).json({ error: 'Leave request not found' });
     }
 
+    if (request.status !== 'Pending') {
+      return res.status(400).json({ error: `Cannot permit leave request in '${request.status}' status` });
+    }
+
+    if (!await canAuthorizeLeaveDecision(req, request)) {
+      return res.status(403).json({ error: 'Access denied: You are not authorized to permit this leave request' });
+    }
+
     const remarks = sanitizeToString(req.body.remarks) || '';
     const updated = await executePermitLeave(request, req, remarks);
 
@@ -693,6 +777,14 @@ router.post('/:id/reject', async (req, res) => {
     const request = await M.StudentLeaveRequest.findOne(query);
     if (!request) {
       return res.status(404).json({ error: 'Leave request not found' });
+    }
+
+    if (request.status !== 'Pending') {
+      return res.status(400).json({ error: `Cannot reject leave request in '${request.status}' status` });
+    }
+
+    if (!await canAuthorizeLeaveDecision(req, request)) {
+      return res.status(403).json({ error: 'Access denied: You are not authorized to reject this leave request' });
     }
 
     const reason = sanitizeToString(req.body.reason || req.body.remarks);
@@ -720,6 +812,14 @@ router.post('/:id/return', async (req, res) => {
       return res.status(404).json({ error: 'Leave request not found' });
     }
 
+    if (request.status !== 'Pending') {
+      return res.status(400).json({ error: `Cannot return leave request in '${request.status}' status` });
+    }
+
+    if (!await canAuthorizeLeaveDecision(req, request)) {
+      return res.status(403).json({ error: 'Access denied: You are not authorized to return this leave request' });
+    }
+
     const remarks = sanitizeToString(req.body.remarks || req.body.reason);
     if (!remarks) {
       return res.status(400).json({ error: 'Correction instructions are required' });
@@ -743,6 +843,14 @@ router.post('/:id/status', async (req, res) => {
     const request = await M.StudentLeaveRequest.findOne(query);
     if (!request) {
       return res.status(404).json({ error: 'Leave request not found' });
+    }
+
+    if (request.status !== 'Pending') {
+      return res.status(400).json({ error: `Cannot update leave request in '${request.status}' status` });
+    }
+
+    if (!await canAuthorizeLeaveDecision(req, request)) {
+      return res.status(403).json({ error: 'Access denied: You are not authorized to update this leave request' });
     }
 
     const targetStatus = sanitizeToString(req.body.status || req.body.action || '');
@@ -900,6 +1008,14 @@ router.post('/:id/override-period', async (req, res) => {
     const request = await M.StudentLeaveRequest.findOne(query);
     if (!request) {
       return res.status(404).json({ error: 'Leave request not found' });
+    }
+
+    if (request.status !== 'Approved') {
+      return res.status(400).json({ error: 'Period override can only be performed on approved leave requests' });
+    }
+
+    if (!await canAuthorizeLeaveDecision(req, request)) {
+      return res.status(403).json({ error: 'Access denied: You are not authorized to override periods for this leave request' });
     }
 
     const dateStr = sanitizeToString(req.body.date);

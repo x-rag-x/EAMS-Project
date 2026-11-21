@@ -1,5 +1,5 @@
 /**
- * public/tt-sw.js
+ * public/js/tt-sw.js  (served via /tt-sw.js route with Service-Worker-Allowed header)
  * EAMS Timetable v3 — Service Worker App Shell & Offline Asset Cache
  *
  * Implements:
@@ -12,7 +12,7 @@
 
 'use strict';
 
-const CACHE_VERSION = 'tt-shell-v1.0.1';
+const CACHE_VERSION = 'tt-shell-v1.0.2';
 const PRECACHE_ASSETS = [
   '/timetable.html',
   '/css/base.css',
@@ -28,6 +28,7 @@ const PRECACHE_ASSETS = [
   '/js/core/tabWorkspace.js',
   '/js/core/icons.js',
   '/js/core/icons.timetable.js',
+  '/js/shared/ttBlocks.shared.js',
   '/js/shared/ttConflicts.shared.js',
   '/js/modules/net.module.js',
   '/js/modules/offline.module.js',

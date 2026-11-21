@@ -265,14 +265,9 @@ router.post('/login', loginLimiter, loginUsernameLimiter, async (req, res) => {
         deviceId: req.body.identifier?.trim().toUpperCase() || req.body.username?.trim().toUpperCase() || identifier.toUpperCase(),
       }).lean().maxTimeMS(4000);
 
-      if (!boardDoc || !boardDoc.boardApiKey || boardDoc.boardApiKey !== password.trim()) {
-        await bcrypt.compare(password, DUMMY_HASH);
-        setImmediate(() => {
-          if (!isDev) recordFailedAttempt(identifier, deviceId, clientDetails.ip).catch(() => {});
-          logAction('SYSTEM', 'Smart Board Gateway', 'system', 'Board Login Failed', `Invalid credentials for device "${identifier}"`, 'security', 'warning', clientDetails.ip, '', { module: 'system', subType: 'auth-fail', deviceId: identifier }).catch(() => {});
-        });
-        return res.status(401).json({ error: 'Invalid credentials', code: 'INVALID_CREDENTIALS' });
-      }
+      // Only authenticate as board if record exists and API key matches;
+      // otherwise fall through to human identity path so accounts starting with tr- or sb- can log in (Checklist B6)
+      if (boardDoc && boardDoc.boardApiKey && boardDoc.boardApiKey === password.trim()) {
 
       const settingsMap = await getSettings(['models']);
       if (settingsMap?.models?.modelSmartBoards === false) {
@@ -426,6 +421,7 @@ router.post('/login', loginLimiter, loginUsernameLimiter, async (req, res) => {
           roomId: boardDoc.roomId,
         },
       });
+      }
     }
 
     // ═══════════════════════════════════════════
@@ -1314,7 +1310,7 @@ router.post('/login', loginLimiter, loginUsernameLimiter, async (req, res) => {
       ]).catch(err => console.error('[login post]', err));
     });
   } catch (err) {
-    console.error('[EAMS Login Exception]:', err);
+    console.error('[Muster Login Exception]:', err);
     res.status(500).json({ error: 'Login failed, try again' });
   }
 });
@@ -1846,7 +1842,7 @@ router.post('/dev-login', async (req, res) => {
       ).catch(e => console.error('[dev-login logAction]', e.message));
     });
   } catch (err) {
-    console.error('[EAMS Dev Login Exception]:', err);
+    console.error('[Muster Dev Login Exception]:', err);
     res.status(500).json({ error: 'Dev login failed' });
   }
 });
@@ -2191,7 +2187,7 @@ router.post('/change-password', authLimiter, authMiddleware, async (req, res) =>
     // Validate password strength against security policy
     const secSettings = await M.Settings.findOne({ key: 'security' });
     const requireStrong = secSettings?.value?.requireStrongPassword !== false;
-    const validation = validatePassword(newPassword, requireStrong);
+    const validation = validatePassword(newPassword, requireStrong, user.username);
     if (!validation.isValid) {
       return res.status(400).json({ error: validation.error });
     }
@@ -2274,12 +2270,10 @@ router.post('/report-unknown', authLimiter, authMiddleware, async (req, res) => 
       { module: 'system', subType: 'security', trackId: req.user.trackId }
     );
 
-    // Reset password to random string and require password change
+    // Flag account as requiring mandatory password change without discarding credentials (Checklist S16)
     const model = getRoleModel(req.user.role);
     const userDoc = await model.findOne({ username: req.user.username });
     if (userDoc) {
-      const tempPw = crypto.randomBytes(6).toString('hex');
-      userDoc.password = await bcrypt.hash(tempPw, cfg.BCRYPT_ROUNDS);
       userDoc.mustChangePassword = true;
       await userDoc.save();
     }

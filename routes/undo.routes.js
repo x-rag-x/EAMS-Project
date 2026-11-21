@@ -1,3 +1,4 @@
+const { escapeRegex } = require('../utils/sanitizeQuery');
 const express = require('express');
 const router = express.Router();
 const M = require('../models');
@@ -212,7 +213,7 @@ router.get('/', authMiddleware, requirePage('control', 'view'), async (req, res)
     // Category filter
     const category = (req.query.category || req.query.collection || '').toLowerCase().trim();
     if (category && category !== 'all') {
-      filter.collectionName = new RegExp(`^${category}`, 'i');
+      filter.collectionName = new RegExp(`^${escapeRegex(category)}`, 'i');
     }
 
     // Search query
@@ -389,7 +390,7 @@ router.delete('/bulk', authMiddleware, requirePage('control', 'delete'), bulkDel
 const emptyBinHandler = async (req, res) => {
   try {
     const category = (req.query.category || req.body?.category || '').trim();
-    const filter = category && category !== 'all' ? { collectionName: new RegExp(`^${category}`, 'i') } : {};
+    const filter = category && category !== 'all' ? { collectionName: new RegExp(`^${escapeRegex(category)}`, 'i') } : {};
 
     const items = await M.UndoLog.find(filter).lean();
     const count = items.length;

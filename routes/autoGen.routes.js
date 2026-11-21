@@ -2,12 +2,13 @@ const express = require('express');
 const router = express.Router();
 const M = require('../models');
 const { authMiddleware } = require('../middleware/auth');
-const { isSudo, isSudoAdmin } = require('../utils/access');
+const { isSudo, isSudoAdmin, hasPageRight } = require('../utils/access');
 const { logAction, getNextLogTrackId } = require('../utils/logAction');
-const { sanitizeToString } = require('../utils/sanitizeQuery');
+const { sanitizeToString, escapeRegex } = require('../utils/sanitizeQuery');
 const { normalizeYearRange } = require('../utils/yearFormat');
 const { checkAutoGenReadiness } = require('../services/autoGenReadiness');
 const { AutoGenEngine } = require('../services/autoGenEngine');
+const TTBlocks = require('../utils/spanBlocks');
 const { proposeAllocations, lockAllocations } = require('../services/staffAllocator');
 
 /**
@@ -38,7 +39,7 @@ router.get('/readiness', authMiddleware, async (req, res) => {
       if (mongoose.Types.ObjectId.isValid(rawDept)) {
         deptId = rawDept;
       } else {
-        const dDoc = await M.Department.findOne({ code: new RegExp('^' + rawDept.trim() + '$', 'i') }).lean();
+        const dDoc = await M.Department.findOne({ code: new RegExp('^' + escapeRegex(rawDept.trim()) + '$', 'i') }).lean();
         if (dDoc) deptId = dDoc._id;
       }
     }
@@ -450,7 +451,8 @@ router.post('/keep', authMiddleware, async (req, res) => {
 
     // A. Whole Batch mode: apply across all classes
     if (run.scope === 'batch' && targetVersion.batchGrids) {
-      for (const [cId, grid] of Object.entries(targetVersion.batchGrids)) {
+      for (const [cId, rawGrid] of Object.entries(targetVersion.batchGrids)) {
+        const grid = TTBlocks.blocksOf(rawGrid);
         let template = await M.SemesterTemplate.findOne({ classId: cId, status: 'draft' });
         if (!template) {
           template = new M.SemesterTemplate({
@@ -494,10 +496,10 @@ router.post('/keep', authMiddleware, async (req, res) => {
             status: 'draft',
             version: 1,
             versionName: `Auto-Gen Dev (Score ${targetVersion.score})`,
-            grid: targetVersion.grid
+            grid: TTBlocks.blocksOf(targetVersion.grid)
           });
         } else {
-          template.grid = targetVersion.grid;
+          template.grid = TTBlocks.blocksOf(targetVersion.grid);
           template.versionName = `Auto-Gen Dev (Score ${targetVersion.score})`;
         }
         await template.save();
@@ -511,7 +513,7 @@ router.post('/keep', authMiddleware, async (req, res) => {
           versionName: `Auto-Gen v${versionIndex + 1} (Score ${targetVersion.score})`,
           label: `Auto-Gen Candidate ${versionIndex + 1}`,
           changeSummary: `Applied Auto-Gen candidate with score ${targetVersion.score}`,
-          snapshot: targetVersion.grid,
+          snapshot: TTBlocks.blocksOf(targetVersion.grid),
           status: 'draft',
           verificationStatus: 'none',
           savedBy: req.user.name || req.user.username
@@ -598,9 +600,9 @@ router.get('/run/:runId/diff', authMiddleware, async (req, res) => {
     const classId = req.query.classId || run.targetClassId;
     let candidateSlots = [];
     if (run.scope === 'batch' && version.batchGrids && classId) {
-      candidateSlots = version.batchGrids[String(classId)] || [];
+      candidateSlots = TTBlocks.blocksOf(version.batchGrids[String(classId)] || []);
     } else {
-      candidateSlots = version.grid || [];
+      candidateSlots = TTBlocks.blocksOf(version.grid || []);
     }
 
     // Fetch active production template
@@ -608,7 +610,7 @@ router.get('/run/:runId/diff', authMiddleware, async (req, res) => {
     if (classId) {
       const prodTemplate = await M.SemesterTemplate.findOne({ classId, status: 'published' }).lean();
       if (prodTemplate && Array.isArray(prodTemplate.grid)) {
-        prodSlots = prodTemplate.grid;
+        prodSlots = TTBlocks.blocksOf(prodTemplate.grid);
       }
     }
 
@@ -672,11 +674,13 @@ router.get('/run/:runId/diff', authMiddleware, async (req, res) => {
 const _activeCardsMap = new Map();
 
 router.get('/run/:runId/conflicts', authMiddleware, async (req, res) => {
+  if (!isTtcOrAdmin(req)) return res.status(403).json({ error: 'Access denied: Timetable coordinator or admin role required' });
   const cards = _activeCardsMap.get(req.params.runId) || [];
   return res.json({ ok: true, data: cards });
 });
 
 router.post('/run/:runId/accept', authMiddleware, async (req, res) => {
+  if (!isTtcOrAdmin(req)) return res.status(403).json({ error: 'Access denied: Timetable coordinator or admin role required' });
   const { cardId } = req.body;
   const cards = _activeCardsMap.get(req.params.runId) || [];
   const card = cards.find(c => c.cardId === cardId);
@@ -693,6 +697,7 @@ router.post('/run/:runId/accept', authMiddleware, async (req, res) => {
 });
 
 router.post('/run/:runId/deny', authMiddleware, async (req, res) => {
+  if (!isTtcOrAdmin(req)) return res.status(403).json({ error: 'Access denied: Timetable coordinator or admin role required' });
   const { cardId } = req.body;
   const cards = _activeCardsMap.get(req.params.runId) || [];
   const card = cards.find(c => c.cardId === cardId);
@@ -709,6 +714,7 @@ router.post('/run/:runId/deny', authMiddleware, async (req, res) => {
 });
 
 router.post('/run/:runId/undo', authMiddleware, async (req, res) => {
+  if (!isTtcOrAdmin(req)) return res.status(403).json({ error: 'Access denied: Timetable coordinator or admin role required' });
   const cards = _activeCardsMap.get(req.params.runId) || [];
   if (cards.length) cards[cards.length - 1].status = 'pending';
   return res.json({ ok: true, message: 'Card action undone' });
@@ -822,4 +828,4 @@ router.get('/coverage', authMiddleware, async (req, res) => {
   }
 });
 
-module.exports = router;
+module.exports = router;

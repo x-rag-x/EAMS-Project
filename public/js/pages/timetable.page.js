@@ -201,22 +201,22 @@ function openUserProfile() {
 
 function updateDocumentTitle() {
   const titles = {
-    production: 'Production · Timetable | EAMS',
-    editor: 'Draft Editor · Timetable | EAMS',
-    workload: 'Faculty Workload & Schedule · Timetable | EAMS',
-    faculty: 'Faculty Workload & Schedule · Timetable | EAMS',
-    free: 'Free Slots Finder · Timetable | EAMS',
-    rooms: 'Room Allocations · Timetable | EAMS',
-    overview: 'Department Overview · Timetable | EAMS',
-    exports: 'Export Center · Timetable | EAMS',
-    approvals: 'Conflict & Approvals · Timetable | EAMS',
-    presets: 'Layout Presets · Timetable | EAMS',
-    history: 'Version History · Timetable | EAMS',
-    attendance: 'Attendance Insights · Timetable | EAMS',
-    subjects: 'Subjects Curriculum · Timetable | EAMS',
-    dashboard: 'Operations Dashboard · Timetable | EAMS'
+    production: 'Production · Timetable | Muster',
+    editor: 'Draft Editor · Timetable | Muster',
+    workload: 'Faculty Workload & Schedule · Timetable | Muster',
+    faculty: 'Faculty Workload & Schedule · Timetable | Muster',
+    free: 'Free Slots Finder · Timetable | Muster',
+    rooms: 'Room Allocations · Timetable | Muster',
+    overview: 'Department Overview · Timetable | Muster',
+    exports: 'Export Center · Timetable | Muster',
+    approvals: 'Conflict & Approvals · Timetable | Muster',
+    presets: 'Layout Presets · Timetable | Muster',
+    history: 'Version History · Timetable | Muster',
+    attendance: 'Attendance Insights · Timetable | Muster',
+    subjects: 'Subjects Curriculum · Timetable | Muster',
+    dashboard: 'Operations Dashboard · Timetable | Muster'
   };
-  document.title = titles[state.view] || 'Timetable Workspace · EAMS';
+  document.title = titles[state.view] || 'Timetable Workspace · Muster';
 }
 
 // ── Application State ──
@@ -1704,9 +1704,20 @@ async function loadSubstitutionsAndLeaves() {
   }
 }
 
+// Collapse any stored shape (blocks, root+continuation cells, legacy mixes) to one entry per
+// session before the editor sees it. Falls back to the raw data if the shared module is missing.
+function collapseBlocks(input) {
+  try {
+    if (window.TTBlocks) return window.TTBlocks.blocksOf(input);
+  } catch (e) { console.warn('TTBlocks collapse failed:', e.message); }
+  return null;
+}
+
 function flattenSlots(slotsObj) {
   const entries = [];
   if (!slotsObj || typeof slotsObj !== 'object') return entries;
+  const collapsed = collapseBlocks(slotsObj);
+  if (collapsed) slotsObj = collapsed.reduce((m, b) => { m[`${b.day}_${b.period}`] = b; return m; }, {});
   Object.keys(slotsObj).forEach(key => {
     const slot = slotsObj[key];
     if (!slot) return;
@@ -1742,6 +1753,7 @@ function flattenSlots(slotsObj) {
 
 function flattenGrid(gridArray) {
   if (!Array.isArray(gridArray)) return [];
+  gridArray = collapseBlocks(gridArray) || gridArray;
   return gridArray
     .filter(slot => slot && !slot.isSpanContinuation && !(Number(slot.spanIndex) > 0))
     .map(slot => {
@@ -1787,7 +1799,10 @@ function entriesToGrid(entries) {
       room: e.room,
       roomId: e.roomId || null,
       isLab,
-      span: Number(e.duration || e.span || 1),
+      span: Math.max(1, Number(e.duration || e.span || 1)),
+      spanRootPeriod: parseInt(String(e.period || 'P1').replace(/\D/g, ''), 10) || 1,
+      spanIndex: 0,
+      isSpanContinuation: false,
       type,
       combinedWith,
       primaryClassId: e.primaryClassId || undefined,
@@ -11848,7 +11863,7 @@ async function renderConflictSuggestions(slots, conflictDay, conflictPeriod, tea
         if (!sl || !sl.teacher) return;
         const d = sl.day || k.split('_')[0];
         const pStr = String(sl.period !== undefined && sl.period !== null ? sl.period : '');
-        const pCode = pStr ? (pStr.startsWith('P') ? pStr : `P${pStr}`) : (key.split('_')[1] ? (key.split('_')[1].startsWith('P') ? key.split('_')[1] : `P${key.split('_')[1]}`) : 'P1');
+        const pCode = pStr ? (pStr.startsWith('P') ? pStr : `P${pStr}`) : (k.split('_')[1] ? (k.split('_')[1].startsWith('P') ? k.split('_')[1] : `P${k.split('_')[1]}`) : 'P1');
         const pNum = parseInt(pCode.replace(/\D/g, ''), 10) || null;
         if (d === conflictDay && pNum === conflictPNum) {
           occupiedTeachersOnSlot.add(sl.teacher.trim().toLowerCase());
@@ -13286,13 +13301,13 @@ function exportCurrent() {
   const isDev = state.env === 'development';
   const watermark = isDev
     ? [
-        `"EAMS TIMETABLE EXPORT — [DRAFT / UNFINALIZED]"`,
+        `"MUSTER TIMETABLE EXPORT — [DRAFT / UNFINALIZED]"`,
         `"Section: ${state.filterSection || 'All'} | Environment: DEVELOPMENT | Generated: ${new Date().toLocaleString()}"`,
         `"Data Source: ${state.devSource === 'production' ? 'Production Fallback' : 'Development Draft'}"`,
         `""`
       ]
     : [
-        `"EAMS TIMETABLE EXPORT — [OFFICIAL LIVE PRODUCTION]"`,
+        `"MUSTER TIMETABLE EXPORT — [OFFICIAL LIVE PRODUCTION]"`,
         `"Section: ${state.filterSection || 'All'} | Environment: PRODUCTION | Generated: ${new Date().toLocaleString()}"`,
         `"Data Source: Live Published Timetable"`,
         `""`
@@ -13319,7 +13334,7 @@ function exportCurrent() {
   const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
   const link = document.createElement('a');
   link.href = url;
-  link.download = `EAMS-Timetable-${state.filterSection || 'All'}${isDev ? '_DRAFT_' : '_LIVE_'}${todayIST()}.csv`;
+  link.download = `Muster-Timetable-${state.filterSection || 'All'}${isDev ? '_DRAFT_' : '_LIVE_'}${todayIST()}.csv`;
   link.click();
   URL.revokeObjectURL(url);
   notify(`${entries.length} timetable records exported to CSV.`, 'success');
@@ -13342,7 +13357,7 @@ function exportCurrentExcel() {
     '.lab-slot { background-color: #fff3e0; color: #e65100; font-weight: bold; }' +
     '.theory-slot { background-color: #e8f5e9; color: #1b5e20; font-weight: bold; }' +
     '</style></head><body><table>' +
-    '<tr><td colspan="' + (PERIODS.length + 1) + '" class="header-title">EAMS Academic Timetable · Section: ' + esc(secName) + ' (' + (state.env === 'development' ? 'DRAFT' : 'LIVE PRODUCTION') + ')</td></tr>' +
+    '<tr><td colspan="' + (PERIODS.length + 1) + '" class="header-title">Muster Academic Timetable · Section: ' + esc(secName) + ' (' + (state.env === 'development' ? 'DRAFT' : 'LIVE PRODUCTION') + ')</td></tr>' +
     '<tr><td colspan="' + (PERIODS.length + 1) + '" class="sub-title">Exported on ' + new Date().toLocaleString() + '</td></tr>' +
     '<tr><td></td></tr>' +
     '<tr><th>Day / Period</th>' +
@@ -13374,7 +13389,7 @@ function exportCurrentExcel() {
   });
 
   html += '</table></body></html>';
-  downloadBlob(html, `EAMS-Timetable-${secName}-${state.env === 'development' ? 'DRAFT_' : 'LIVE_'}${todayIST()}.xls`, 'application/vnd.ms-excel;charset=utf-8');
+  downloadBlob(html, `Muster-Timetable-${secName}-${state.env === 'development' ? 'DRAFT_' : 'LIVE_'}${todayIST()}.xls`, 'application/vnd.ms-excel;charset=utf-8');
   notify(`Excel timetable downloaded for ${secName}`, 'success');
 }
 
@@ -13398,7 +13413,7 @@ function exportAllSectionsCSV() {
     ].map(v => `"${String(v || '').replace(/"/g, '""')}"`));
   });
   const csv = rows.map(r => r.join(',')).join('\r\n');
-  downloadBlob(csv, `EAMS-All-Sections-Master-Timetable-${state.env === 'development' ? 'DRAFT_' : 'LIVE_'}${todayIST()}.csv`, 'text/csv;charset=utf-8');
+  downloadBlob(csv, `Muster-All-Sections-Master-Timetable-${state.env === 'development' ? 'DRAFT_' : 'LIVE_'}${todayIST()}.csv`, 'text/csv;charset=utf-8');
   notify(`${all.length} records exported for all sections.`, 'success');
 }
 
@@ -13424,12 +13439,12 @@ function exportWorkloadCSV() {
   const isDev = state.env === 'development';
   const watermark = isDev
     ? [
-        `"EAMS FACULTY WORKLOAD REPORT — [DRAFT / UNFINALIZED]"`,
+        `"MUSTER FACULTY WORKLOAD REPORT — [DRAFT / UNFINALIZED]"`,
         `"Environment: DEVELOPMENT | Generated: ${new Date().toLocaleString()}"`,
         `""`
       ]
     : [
-        `"EAMS FACULTY WORKLOAD REPORT — [OFFICIAL LIVE PRODUCTION]"`,
+        `"MUSTER FACULTY WORKLOAD REPORT — [OFFICIAL LIVE PRODUCTION]"`,
         `"Environment: PRODUCTION | Generated: ${new Date().toLocaleString()}"`,
         `""`
       ];
@@ -13471,12 +13486,12 @@ function exportSubjectDistributionCSV() {
   const isDev = state.env === 'development';
   const watermark = isDev
     ? [
-        `"EAMS SUBJECT DISTRIBUTION REPORT — [DRAFT / UNFINALIZED]"`,
+        `"MUSTER SUBJECT DISTRIBUTION REPORT — [DRAFT / UNFINALIZED]"`,
         `"Environment: DEVELOPMENT | Generated: ${new Date().toLocaleString()}"`,
         `""`
       ]
     : [
-        `"EAMS SUBJECT DISTRIBUTION REPORT — [OFFICIAL LIVE PRODUCTION]"`,
+        `"MUSTER SUBJECT DISTRIBUTION REPORT — [OFFICIAL LIVE PRODUCTION]"`,
         `"Environment: PRODUCTION | Generated: ${new Date().toLocaleString()}"`,
         `""`
       ];
@@ -13541,12 +13556,12 @@ function exportRoomUtilizationCSV() {
   const isDev = state.env === 'development';
   const watermark = isDev
     ? [
-        `"EAMS ROOM UTILIZATION REPORT — [DRAFT / UNFINALIZED]"`,
+        `"MUSTER ROOM UTILIZATION REPORT — [DRAFT / UNFINALIZED]"`,
         `"Environment: DEVELOPMENT | Generated: ${new Date().toLocaleString()}"`,
         `""`
       ]
     : [
-        `"EAMS ROOM UTILIZATION REPORT — [OFFICIAL LIVE PRODUCTION]"`,
+        `"MUSTER ROOM UTILIZATION REPORT — [OFFICIAL LIVE PRODUCTION]"`,
         `"Environment: PRODUCTION | Generated: ${new Date().toLocaleString()}"`,
         `""`
       ];
@@ -17624,7 +17639,7 @@ async function viewHoursCoverage() {
                  'Horizon: ' + d.instructionalWeeks + ' weeks (' + d.instructionalDays + ' instructional days)\n'];
 
     (d.subjectsCoverage || []).forEach(function(s) {
-      lines.push('• ' + s.subjectName + ' (' + s.type + '): ' + s.weeklyPeriods + ' hrs/wk → Projected ' + s.projectedSemesterPeriods + '/' + s.requiredPeriods + ' hrs (' + s.coveragePercentage + '% - ' + s.status + ')');
+      lines.push('• ' + escapeHtml(s.subjectName) + ' (' + escapeHtml(s.type) + '): ' + s.weeklyPeriods + ' hrs/wk → Projected ' + s.projectedSemesterPeriods + '/' + s.requiredPeriods + ' hrs (' + s.coveragePercentage + '% - ' + s.status + ')');
     });
 
     alert(lines.join('\n'));
@@ -17649,7 +17664,7 @@ async function viewHallShiftsInbox() {
 
     var lines = ['ACTIVE HALL SHIFTS INBOX (' + shifts.length + ' conflict(s)):\n'];
     shifts.forEach(function(s, idx) {
-      lines.push((idx + 1) + '. ' + s.className + ' on ' + s.date + ' (' + s.session + ')');
+      lines.push((idx + 1) + '. ' + escapeHtml(s.className) + ' on ' + escapeHtml(s.date) + ' (' + escapeHtml(s.session) + ')');
       lines.push('   Current Hall: ' + s.currentHall);
       var sugg = (s.suggestedHalls || []).map(function(h) { return h.hallName + ' (cap ' + h.capacity + ')'; }).join(', ');
       lines.push('   Suggested Relocation: ' + (sugg || 'Pending assignment'));

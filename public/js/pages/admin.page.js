@@ -299,7 +299,7 @@ function bootApp() {
 
   // ── Loader message sequence
   var LOADER_STEPS = [
-    { t: 0, msg: 'Initializing EAMS…' },
+    { t: 0, msg: 'Initializing Muster…' },
     { t: 150, msg: 'Connecting to Database…' },
     { t: 300, msg: 'Fetching Counts & Config…' },
     { t: 500, msg: 'Almost ready…' },
@@ -509,7 +509,7 @@ function updateStructureUrlParams(params) {
     }
     window.history.replaceState(null, '', url);
   } catch (e) {
-    console.warn('[EAMS] Failed to update URL params:', e);
+    console.warn('[Muster] Failed to update URL params:', e);
   }
 }
 
@@ -535,7 +535,7 @@ function _restoreClassAndSubjectFromUrl() {
       }
     }
   } catch (e) {
-    console.warn('[EAMS] Failed to restore modal from URL:', e);
+    console.warn('[Muster] Failed to restore modal from URL:', e);
   }
 }
 
@@ -1260,9 +1260,9 @@ function genDeptRpt() {
       var pct = total > 0 ? ((g.totalPresent / total) * 100).toFixed(1) : '0.0';
       return '<tr>'
         + '<td>' + (index + 1) + '</td>'
-        + '<td>' + g.className + '</td>'
-        + '<td>' + g.subjectName + '</td>'
-        + '<td>' + g.deptName + '</td>'
+        + '<td>' + escapeHtml(g.className) + '</td>'
+        + '<td>' + escapeHtml(g.subjectName) + '</td>'
+        + '<td>' + escapeHtml(g.deptName) + '</td>'
         + '<td>' + g.sessions + '</td>'
         + '<td>' + g.totalPresent + '</td>'
         + '<td>' + g.totalAbsent + '</td>'
@@ -1272,7 +1272,7 @@ function genDeptRpt() {
 
     tbody.innerHTML = rowsHtml;
   }).catch(function (err) {
-    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:24px;color:var(--red);">Error loading report: ' + (err.message || 'unknown error') + '</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:24px;color:var(--red);">Error loading report: ' + escapeHtml(err.message || 'unknown error') + '</td></tr>';
   });
 }
 
@@ -1437,16 +1437,16 @@ function genStuRpt() {
       var pct = total > 0 ? ((stat.present / total) * 100).toFixed(1) : '0.0';
       return '<tr>'
         + '<td>' + (index + 1) + '</td>'
-        + '<td class="b">' + stat.name + '</td>'
-        + '<td>' + stat.regNo + '</td>'
-        + '<td>' + stat.deptName + '</td>'
+        + '<td class="b">' + escapeHtml(stat.name) + '</td>'
+        + '<td>' + escapeHtml(stat.regNo) + '</td>'
+        + '<td>' + escapeHtml(stat.deptName) + '</td>'
         + '<td class="b" style="color: ' + (parseFloat(pct) >= 75 ? 'var(--gD)' : 'var(--red)') + '">' + pct + '%</td>'
         + '</tr>';
     }).join('');
 
     tbody.innerHTML = rowsHtml;
   }).catch(function (err) {
-    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:24px;color:var(--red);">Error loading report: ' + (err.message || 'unknown error') + '</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:24px;color:var(--red);">Error loading report: ' + escapeHtml(err.message || 'unknown error') + '</td></tr>';
   });
 }
 
@@ -1621,10 +1621,10 @@ function renderDeferredDashboard() {
         }
         listEl.innerHTML = list.slice(0, 6).map(function (s) {
           return '<div class="def-item">'
-            + '<div class="def-av">' + (s.name ? s.name[0] : '?') + '</div>'
+            + '<div class="def-av">' + escapeHtml(s.name ? s.name[0] : '?') + '</div>'
             + '<div style="flex:1;min-width:0;">'
-            + '<div class="def-name">' + s.name + '</div>'
-            + '<div class="def-cls">' + (s.className || '—') + '</div>'
+            + '<div class="def-name">' + escapeHtml(s.name) + '</div>'
+            + '<div class="def-cls">' + escapeHtml(s.className || '—') + '</div>'
             + '</div>'
             + '<div class="def-pct-badge">' + s.pct + '%</div>'
             + '</div>';
@@ -1969,7 +1969,7 @@ function markNotificationRead(id) {
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + tok },
         body: JSON.stringify({ read: true, status: newStatus })
       }).catch(function (err) {
-        console.warn('[EAMS] Failed to persist notification read:', err);
+        console.warn('[Muster] Failed to persist notification read:', err);
       });
     }
   }
@@ -1998,7 +1998,7 @@ function clearAllNotifications() {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + tok }
     }).catch(function (err) {
-      console.warn('[EAMS] Failed to persist read-all notifications:', err);
+      console.warn('[Muster] Failed to persist read-all notifications:', err);
     });
   }
 }
@@ -2128,9 +2128,7 @@ var notifyTarget = null;
 function openNotifyModal(teacherId, teacherName, subjectName, className) {
   notifyTarget = { tid: teacherId, tname: teacherName };
   document.getElementById('notify-sub').textContent = 'To: ' + teacherName;
-  document.getElementById('notify-msg').value =
-    'Dear ' + teacherName + ',\n\nThis is a reminder to mark attendance for '
-    + subjectName + ' (' + className + ') for the missing days this week.\n\nRegards,\nAdministrator';
+  document.getElementById('notify-msg').value = 'Dear ' + teacherName + ',\n\nThis is a reminder to mark attendance for ' + subjectName + ' (' + className + ') for the missing days this week.\n\nRegards,\nAdministrator';
   openModal_('m-notify');
 }
 
@@ -2282,7 +2280,7 @@ function populateChartFilters() {
   var fSubjEl = document.getElementById('f-subj');
   if (fSubjEl) {
     fSubjEl.innerHTML = '<option value="">All</option>'
-      + subjects.map(function (s) { return '<option value="' + s._id + '">' + s.name + '</option>'; }).join('');
+      + subjects.map(function (s) { return '<option value="' + escapeHtml(s._id) + '">' + escapeHtml(s.name) + '</option>'; }).join('');
   }
 
   setWeekRange('this');
@@ -2614,7 +2612,7 @@ function renderDepartments() {
     });
     var teacherCount = isUsersLoaded ? deptTeachers.length : '<re-icon icon="hourglass"></re-icon>';
 
-    var deptDesc = dept.description || (isSupporting ? 'Teaches courses to programme departments' : 'Runs its own classes and student batches');
+    var deptDesc = dept.description || (isSupporting ? 'Teaches courses to programme depts' : 'Runs its own classes and student batches');
 
     var heroHtml = '';
     if (isSupporting) {
@@ -2693,9 +2691,7 @@ function renderDepartments() {
   }).join('');
 }
 var rdepts = renderDepartments; // alias
-// Wrap dept mutations to auto-update badges
-var _origRenderDepts = renderDepartments;
-renderDepartments = function () { _origRenderDepts(); };
+
 
 function openDeptAssignHod(deptId) {
   if (!deptId) return;
@@ -5619,7 +5615,7 @@ function openClassModal(classId, initialTab) {
         }
       }
     }).catch(function (err) {
-      console.warn('[EAMS] Failed to fetch teachers for class modal:', err);
+      console.warn('[Muster] Failed to fetch teachers for class modal:', err);
     });
   }
 
@@ -6665,7 +6661,7 @@ function saveClassSubjAssignments() {
       });
     })
     .catch(function (err) {
-      console.error('[EAMS Save Class Assignments Error]:', err);
+      console.error('[Muster Save Class Assignments Error]:', err);
       dbToast('Save failed: ' + (err.message || 'Network error'), 'error');
     });
 }
@@ -6722,7 +6718,7 @@ function openClassAssignModal(classId) {
       }
     })
     .catch(function (err) {
-      console.error('[EAMS Class Assign Staff Load Error]:', err);
+      console.error('[Muster Class Assign Staff Load Error]:', err);
       if (tbody) tbody.innerHTML = '';
       addClassAssignRow();
     });
@@ -7096,7 +7092,7 @@ function openSubjectModal(subjectId, initialTab) {
       _renderUnifiedOverview(subj, existing);
     })
     .catch(function (err) {
-      console.error('[EAMS Assign Staff Load Error]:', err);
+      console.error('[Muster Assign Staff Load Error]:', err);
       var oldSels = tbody.querySelectorAll('select');
       if (typeof SearchableDropdown !== 'undefined') {
         oldSels.forEach(function (sel) {
@@ -8721,7 +8717,7 @@ function refreshStudentList() {
       dbToast('Student list refreshed', 'success');
     })
     .catch(function (err) {
-      console.warn('[EAMS] Failed to refresh student list:', err);
+      console.warn('[Muster] Failed to refresh student list:', err);
       dbToast('Failed to refresh student list', 'warn');
     })
     .finally(function () {
@@ -9157,7 +9153,7 @@ function openStuDetail(studentId, preferredTab) {
       }
     })
     .catch(function (err) {
-      console.warn('[EAMS] Failed to fetch full student details:', err);
+      console.warn('[Muster] Failed to fetch full student details:', err);
     });
 }
 window.openStuDetail = openStuDetail;
@@ -9185,7 +9181,7 @@ function deleteStuFromDetail() {
   var sid = _currentDetailStudentId;
   var name = _currentDetailStudent.fullName || _currentDetailStudent.name || 'this student';
   var regNo = _currentDetailStudent.registerNo || _currentDetailStudent.regNo || '';
-  var label = name + (regNo ? ' (' + regNo + ')' : '');
+  var label = escapeHtml(name) + (regNo ? ' (' + escapeHtml(regNo) + ')' : '');
 
   if (!confirm('Are you sure you want to permanently delete ' + label + '?\n\nThis will remove student records and revoke system access.')) {
     return;
@@ -9198,7 +9194,7 @@ function deleteStuFromDetail() {
       else if (typeof fetchStudentsData === 'function') fetchStudentsData();
     })
     .catch(function (err) {
-      console.error('[EAMS] Failed to delete student:', err);
+      console.error('[Muster] Failed to delete student:', err);
     });
 }
 window.deleteStuFromDetail = deleteStuFromDetail;
@@ -10729,7 +10725,7 @@ function updateStuClassList(preserveClassId) {
     clsEl.innerHTML = '<option value="">— ' + (batch ? 'No classes for batch ' + batch : 'Select batch first') + ' —</option>';
   } else {
     clsEl.innerHTML = '<option value="">— Select —</option>'
-      + filtered.map(function (c) { return '<option value="' + c._id + '">' + c.name + (c.section ? ' (' + c.section + ')' : '') + '</option>'; }).join('');
+      + filtered.map(function (c) { return '<option value="' + escapeHtml(c._id) + '">' + escapeHtml(c.name) + (c.section ? ' (' + escapeHtml(c.section) + ')' : '') + '</option>'; }).join('');
   }
 
   if (preserveClassId && filtered.some(function (c) { return String(c._id) === String(preserveClassId); })) {
@@ -10947,7 +10943,7 @@ function updateEditClassList(preserveClassId) {
     clsEl.innerHTML = '<option value="">— ' + (batch ? 'No classes for batch ' + batch : 'Select batch first') + ' —</option>';
   } else {
     clsEl.innerHTML = '<option value="">— Select —</option>'
-      + filtered.map(function (c) { return '<option value="' + c._id + '">' + c.name + '</option>'; }).join('');
+      + filtered.map(function (c) { return '<option value="' + escapeHtml(c._id) + '">' + escapeHtml(c.name) + '</option>'; }).join('');
   }
 
   if (preserveClassId && filtered.some(function (c) { return c._id === preserveClassId; })) {
@@ -13395,7 +13391,7 @@ function oaat() {
       }
     })
     .catch(function (err) {
-      console.error('[EAMS Teacher Assign Load Error]:', err);
+      console.error('[Muster Teacher Assign Load Error]:', err);
       if (tbody) tbody.innerHTML = '';
       addTeacherAssignRow();
     });
@@ -13489,7 +13485,7 @@ function saveTeacherAssignments() {
       });
     })
     .catch(function (err) {
-      console.error('[EAMS Save Teacher Assignments Error]:', err);
+      console.error('[Muster Save Teacher Assignments Error]:', err);
       dbToast('Save failed: ' + (err.message || 'Network error'), 'error');
     });
 }
@@ -13678,7 +13674,7 @@ function _loadFacilityRooms() {
     _populateFacilityRoomDropdowns();
     return _facilityRooms;
   }).catch(function (err) {
-    console.warn('[EAMS] Failed to fetch facility rooms for admin dropdowns:', err);
+    console.warn('[Muster] Failed to fetch facility rooms for admin dropdowns:', err);
     return [];
   });
 }
@@ -13938,7 +13934,7 @@ initDB();
   try {
     bootApp();
   } catch (err) {
-    console.error('[EAMS] bootApp() threw before loader gate was set up:', err);
+    console.error('[Muster] bootApp() threw before loader gate was set up:', err);
     _loaderActive = false;
     var loaderEl = document.getElementById('page-loader');
     if (loaderEl) loaderEl.style.display = 'none';
@@ -14216,7 +14212,7 @@ function syncFromAPI(collection, apiPath) {
   return fetch('/api' + apiPath, { headers: { 'Authorization': 'Bearer ' + tok } })
     .then(function (r) {
       if (r.status === 401) {
-        console.warn('[EAMS] syncFromAPI got 401 on ' + apiPath + ' — redirecting to login');
+        console.warn('[Muster] syncFromAPI got 401 on ' + apiPath + ' — redirecting to login');
         sessionStorage.removeItem('eams_token');
         sessionStorage.removeItem('eams_user');
         window.location.href = 'index.html';
@@ -14230,10 +14226,10 @@ function syncFromAPI(collection, apiPath) {
         DB.set(collection, arr);
         return arr;
       }
-      console.warn('[EAMS] syncFromAPI unexpected response for ' + apiPath + ':', data);
+      console.warn('[Muster] syncFromAPI unexpected response for ' + apiPath + ':', data);
       return [];
     }).catch(function (err) {
-      console.error('[EAMS] syncFromAPI fetch error for ' + apiPath + ':', err);
+      console.error('[Muster] syncFromAPI fetch error for ' + apiPath + ':', err);
       return [];
     });
 }
@@ -14331,7 +14327,7 @@ function syncAllFromDB(cb, onProgress) {
     dbToast('Synced from Database', 'success');
     if (cb) cb();
   }).catch(function (err) {
-    console.error('[EAMS] syncAllFromDB failed:', err);
+    console.error('[Muster] syncAllFromDB failed:', err);
     dbToast('Sync failed', 'error');
     if (cb) cb();
   });
@@ -14783,10 +14779,10 @@ window.addEventListener('load', function () {
       }
       if (pub.institution) {
         var shortN = pub.institution.institutionShort || 'SIET';
-        document.title = 'EAMS – Admin Dashboard | ' + shortN;
+        document.title = 'Muster – Admin Dashboard | ' + shortN;
         var logoEl = document.querySelector('.sb-brand');
         if (logoEl && pub.institution.institutionName) {
-          logoEl.innerHTML = (pub.institution.institutionShort || 'EAMS') + ' Admin';
+          logoEl.innerHTML = (pub.institution.institutionShort || 'Muster') + ' Admin';
         }
       }
       if (pub.models) {
@@ -15619,7 +15615,7 @@ function exportAdminGrievancesCSV() {
   var encodedUri = encodeURI(csvContent);
   var link = document.createElement('a');
   link.setAttribute('href', encodedUri);
-  link.setAttribute('download', 'eams_grievances_' + todayIST() + '.csv');
+  link.setAttribute('download', 'muster_grievances_' + todayIST() + '.csv');
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);

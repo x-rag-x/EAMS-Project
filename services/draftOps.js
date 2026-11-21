@@ -15,6 +15,7 @@
 const mongoose = require('mongoose');
 const M = require('../models');
 const { validateSlotRoom } = require('./roomEligibility');
+const TTBlocks = require('../utils/spanBlocks');
 
 /**
  * Normalizes a slot key into canonical "Day_Period" format (e.g. "Monday_1")
@@ -187,7 +188,8 @@ async function applyDraftOps(draftRef, ops, actor = {}) {
 
     // Per-Cell Concurrency Control (baseRev validation, bypassed on force push)
     if (!op.force && baseRev !== undefined && baseRev !== null && Number(baseRev) !== currentRev) {
-      const currentSlot = (draftClass.grid || []).find(s => normalizeSlotKey(s.day, s.period) === slotKey) || null;
+      const [cDay, cPeriod] = String(slotKey).split('_');
+      const currentSlot = TTBlocks.blockAt(TTBlocks.blocksOf(draftClass.grid || []), cDay, cPeriod) || null;
       results.push({
         clientOpId,
         status: 'conflict',
@@ -198,14 +200,15 @@ async function applyDraftOps(draftRef, ops, actor = {}) {
       continue;
     }
 
-    // Apply Slot Delta
-    const grid = draftClass.grid || [];
-    const existingSlotIndex = grid.findIndex(s => normalizeSlotKey(s.day, s.period) === slotKey);
-    const beforeSlot = existingSlotIndex >= 0 ? { ...grid[existingSlotIndex].toObject?.() || grid[existingSlotIndex] } : null;
+    // Apply Slot Delta on whole blocks: the slot key may name any period of a lab or double.
+    let grid = TTBlocks.blocksOf(draftClass.grid || []);
+    const [keyDay, keyPeriod] = String(slotKey).split('_');
+    const existingBlock = TTBlocks.blockAt(grid, keyDay, keyPeriod);
+    const beforeSlot = existingBlock ? { ...existingBlock } : null;
 
     if (type === 'slot.clear') {
-      if (existingSlotIndex >= 0) {
-        grid.splice(existingSlotIndex, 1);
+      if (existingBlock) {
+        grid = TTBlocks.removeAt(grid, keyDay, keyPeriod).blocks;
         currentVersion.stats.removed++;
       }
     } else if (type === 'slot.set' || type === 'restore' || type === 'merge') {
@@ -219,11 +222,15 @@ async function applyDraftOps(draftRef, ops, actor = {}) {
             throw err;
           }
         }
-        if (existingSlotIndex >= 0) {
-          grid[existingSlotIndex] = after;
+        const placed = TTBlocks.place(grid, {
+          ...after,
+          day: after.day || keyDay,
+          period: after.period !== undefined && after.period !== null ? after.period : keyPeriod
+        });
+        grid = placed.blocks;
+        if (existingBlock || placed.replaced.length) {
           currentVersion.stats.changed++;
         } else {
-          grid.push(after);
           currentVersion.stats.added++;
         }
       }
@@ -311,7 +318,7 @@ async function getDraftSnapshot(draftId, workspaceId) {
   const slotRevs = {};
 
   for (const dc of draftClasses) {
-    classes[String(dc.classId)] = dc.grid || [];
+    classes[String(dc.classId)] = TTBlocks.blocksOf(dc.grid || []);
     slotRevs[String(dc.classId)] = dc.slotRevs || {};
   }
 
@@ -459,8 +466,9 @@ async function restoreDraftVersion(draftRef, versionId, options = {}, actor = {}
   const forwardOps = [];
 
   if (scope === 'slot' && classId && slotKey) {
-    const classGrid = targetSnapshot[String(classId)] || [];
-    const targetSlot = classGrid.find(s => normalizeSlotKey(s.day, s.period) === slotKey) || null;
+    const classGrid = TTBlocks.blocksOf(targetSnapshot[String(classId)] || []);
+    const [rDay, rPeriod] = String(slotKey).split('_');
+    const targetSlot = TTBlocks.blockAt(classGrid, rDay, rPeriod) || null;
     forwardOps.push({
       clientOpId: `rst_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
       classId,
@@ -479,10 +487,10 @@ async function restoreDraftVersion(draftRef, versionId, options = {}, actor = {}
 
     // Find slots to set or clear
     const targetSlotMap = new Map();
-    targetGrid.forEach(s => targetSlotMap.set(normalizeSlotKey(s.day, s.period), s));
+    TTBlocks.blocksOf(targetGrid).forEach(s => targetSlotMap.set(normalizeSlotKey(s.day, s.period), s));
 
     const currentSlotMap = new Map();
-    currentGrid.forEach(s => currentSlotMap.set(normalizeSlotKey(s.day, s.period), s));
+    TTBlocks.blocksOf(currentGrid).forEach(s => currentSlotMap.set(normalizeSlotKey(s.day, s.period), s));
 
     // Slots present in target
     for (const [sk, targetSlot] of targetSlotMap.entries()) {
@@ -519,10 +527,10 @@ async function restoreDraftVersion(draftRef, versionId, options = {}, actor = {}
       const currentGrid = currentClassDraft?.grid || [];
 
       const targetSlotMap = new Map();
-      targetGrid.forEach(s => targetSlotMap.set(normalizeSlotKey(s.day, s.period), s));
+      TTBlocks.blocksOf(targetGrid).forEach(s => targetSlotMap.set(normalizeSlotKey(s.day, s.period), s));
 
       const currentSlotMap = new Map();
-      currentGrid.forEach(s => currentSlotMap.set(normalizeSlotKey(s.day, s.period), s));
+      TTBlocks.blocksOf(currentGrid).forEach(s => currentSlotMap.set(normalizeSlotKey(s.day, s.period), s));
 
       for (const [sk, targetSlot] of targetSlotMap.entries()) {
         forwardOps.push({
@@ -549,6 +557,10 @@ async function restoreDraftVersion(draftRef, versionId, options = {}, actor = {}
       }
     }
   }
+
+  // Clears first, then restores: with block ops, clearing a period after a restored lab was placed
+  // over it would remove the lab that was just restored.
+  forwardOps.sort((a, b) => (a.type === 'slot.clear' ? 0 : 1) - (b.type === 'slot.clear' ? 0 : 1));
 
   // Execute restore forward operations
   const result = await applyDraftOps(draftRef, forwardOps, {

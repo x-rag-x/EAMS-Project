@@ -14,9 +14,25 @@ const { invalidateSettingsCache } = require('../utils/settingsCache');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 100 * 1024 * 1024 } });
+const os = require('os');
+const uploadDir = path.join(os.tmpdir(), 'eams-uploads');
+if (!fs.existsSync(uploadDir)) {
+  try { fs.mkdirSync(uploadDir, { recursive: true }); } catch (e) {}
+}
+const diskUpload = multer({
+  dest: uploadDir,
+  limits: { fileSize: 100 * 1024 * 1024 }
+});
+
 const { isSudoAdmin } = require('../utils/access');
 const { createFullBackup, inspectBackupArchive, executeBackupRestore } = require('../services/backupRestoreService');
+
+function requireSudoAdmin(req, res, next) {
+  if (req.access?.flags?.isSudo || isSudoAdmin(req.user)) {
+    return next();
+  }
+  return res.status(403).json({ error: 'Access denied: Restore from backup is strictly restricted to Sudo Admin.' });
+}
 
 // POST /api/system/backup - Create full database snapshot backup with AES-256-GCM encryption, GDrive upload, and Sudo Admin mail
 router.post('/backup', authMiddleware, requirePage('control', 'create', { tab: 'backup' }), criticalDeleteLimiter, checkModuleGuard('modelBackup', 'Database Backup'), async (req, res) => {
@@ -61,36 +77,35 @@ router.get('/backup/history', authMiddleware, requirePage('control', 'view', { t
 });
 
 // POST /api/system/restore/inspect - Upload encrypted ZIP and inspect conflicts (Sudo Admin only)
-router.post('/restore/inspect', authMiddleware, upload.single('backupFile'), async (req, res) => {
+router.post('/restore/inspect', authMiddleware, requireSudoAdmin, diskUpload.single('backupFile'), async (req, res) => {
+  let tempFilePath = null;
   try {
-    if (!isSudoAdmin(req.user)) {
-      return res.status(403).json({ error: 'Access denied: Restore from backup is strictly restricted to Sudo Admin.' });
-    }
-
-    if (!req.file || !req.file.buffer) {
+    if (!req.file || !req.file.path) {
       return res.status(400).json({ error: 'No backup archive uploaded. Please select a genuine .zip backup file.' });
     }
-
+    tempFilePath = req.file.path;
     const backupPassword = sanitizeToString(req.body.backupPassword || '');
-    const report = await inspectBackupArchive(req.file.buffer, backupPassword);
+    const fileBuffer = await fs.promises.readFile(tempFilePath);
+    const report = await inspectBackupArchive(fileBuffer, backupPassword);
     res.json(report);
   } catch (err) {
     console.error('[Restore Inspect Error]:', err);
     res.status(400).json({ error: err.message || 'Failed to inspect backup file' });
+  } finally {
+    if (tempFilePath) {
+      fs.promises.unlink(tempFilePath).catch(() => {});
+    }
   }
 });
 
 // POST /api/system/restore/execute - Execute restoration with conflict resolution strategy (Sudo Admin only)
-router.post('/restore/execute', authMiddleware, upload.single('backupFile'), async (req, res) => {
+router.post('/restore/execute', authMiddleware, requireSudoAdmin, diskUpload.single('backupFile'), async (req, res) => {
+  let tempFilePath = null;
   try {
-    if (!isSudoAdmin(req.user)) {
-      return res.status(403).json({ error: 'Access denied: Restore from backup is strictly restricted to Sudo Admin.' });
-    }
-
-    if (!req.file || !req.file.buffer) {
+    if (!req.file || !req.file.path) {
       return res.status(400).json({ error: 'No backup archive uploaded.' });
     }
-
+    tempFilePath = req.file.path;
     const backupPassword = sanitizeToString(req.body.backupPassword || '');
     const strategy = sanitizeToString(req.body.strategy || 'overwrite');
     let selectedCollections = [];
@@ -104,8 +119,9 @@ router.post('/restore/execute', authMiddleware, upload.single('backupFile'), asy
       }
     }
 
+    const fileBuffer = await fs.promises.readFile(tempFilePath);
     const result = await executeBackupRestore({
-      zipBuffer: req.file.buffer,
+      zipBuffer: fileBuffer,
       backupPassword,
       strategy,
       selectedCollections,
@@ -117,6 +133,10 @@ router.post('/restore/execute', authMiddleware, upload.single('backupFile'), asy
   } catch (err) {
     console.error('[Restore Execute Error]:', err);
     res.status(500).json({ error: err.message || 'Failed to execute restoration' });
+  } finally {
+    if (tempFilePath) {
+      fs.promises.unlink(tempFilePath).catch(() => {});
+    }
   }
 });
 

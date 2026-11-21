@@ -17,6 +17,7 @@
 const mongoose = require('mongoose');
 const M = require('../models');
 const { diffGrids } = require('./timetableDiff');
+const TTBlocks = require('../utils/spanBlocks');
 const { invalidateProductionCache } = require('../utils/teacherSchedule');
 const bellScheduler = require('./bellScheduler');
 const { logAction } = require('../utils/logAction');
@@ -28,50 +29,10 @@ const { detectConflictsV2 } = require('./timetableConflicts');
  * Convert a timetable grid array into a SectionTimetable.slots object
  */
 function gridToSlotsObj(grid = [], className = '') {
-  const slots = {};
-  if (!Array.isArray(grid)) return slots;
-
-  for (const item of grid) {
-    if (!item || !item.day || item.period === undefined || item.period === null) continue;
-    const startPeriod = typeof item.period === 'number'
-      ? item.period
-      : (parseInt(String(item.period).replace(/\D/g, ''), 10) || 1);
-    const span = Math.max(1, Number(item.span || item.duration || 1));
-    const isLab = Boolean(item.isLab ?? (item.type === 'Lab' || span > 1));
-    const combinedWith = Array.isArray(item.combinedWith)
-      ? item.combinedWith.filter(Boolean)
-      : (item.combinedWith ? [String(item.combinedWith)] : []);
-    const type = item.type || (isLab ? 'Lab' : (combinedWith.length > 0 ? 'Combined' : 'Theory'));
-
-    for (let offset = 0; offset < span; offset++) {
-      const currentPeriod = startPeriod + offset;
-      const key = `${item.day}_${currentPeriod}`;
-      slots[key] = {
-        day: item.day,
-        period: currentPeriod,
-        subject: item.subject || '',
-        subjectId: item.subjectId || null,
-        subjectCode: item.subjectCode || '',
-        teacher: item.teacher || '',
-        teacherId: item.teacherId || null,
-        teacherTrackId: item.teacherTrackId || '',
-        room: item.room || '',
-        roomId: item.roomId || undefined,
-        span,
-        spanRootPeriod: startPeriod,
-        spanIndex: offset,
-        isSpanContinuation: offset > 0,
-        isLab,
-        type,
-        combinedWith,
-        state: item.state || '',
-        activityId: item.activityId || null,
-        activityLabel: item.activityLabel || '',
-        combinedGroupId: item.combinedGroupId || null
-      };
-    }
-  }
-  return slots;
+  // One expansion for every writer: collapses first, so continuation cells already in the grid are
+  // never expanded a second time (the old loop turned a P7 lab into P7-P9 plus P8-P10 plus P9-P11)
+  // and a double is never marked as a lab.
+  return TTBlocks.toSlotsObj(grid);
 }
 
 /**
@@ -149,18 +110,18 @@ async function executeDeployPipeline(commitIdOrDoc, options = {}) {
   for (const cId of commit.classIds) {
     const sId = String(cId);
     if (classGrids[sId]) {
-      resolvedClassGrids.set(sId, classGrids[sId]);
+      resolvedClassGrids.set(sId, TTBlocks.blocksOf(classGrids[sId]));
     } else if (commit.workspaceId && M.WorkspaceClassDraft) {
       const draft = await M.WorkspaceClassDraft.findOne({ workspaceId: commit.workspaceId, classId: cId }).lean();
-      if (draft && draft.grid) resolvedClassGrids.set(sId, draft.grid);
+      if (draft && draft.grid) resolvedClassGrids.set(sId, TTBlocks.blocksOf(draft.grid));
     } else {
       // Fallback: check SemesterTemplate or existing SectionTimetable
       const tmpl = await M.SemesterTemplate.findOne({ classId: cId, status: { $in: ['approved', 'published', 'draft'] } }).sort({ updatedAt: -1 }).lean();
       if (tmpl && tmpl.grid) {
-        resolvedClassGrids.set(sId, tmpl.grid);
+        resolvedClassGrids.set(sId, TTBlocks.blocksOf(tmpl.grid));
       } else {
         const sec = await M.SectionTimetable.findOne({ classId: cId }).lean();
-        resolvedClassGrids.set(sId, Object.values(sec?.slots || {}));
+        resolvedClassGrids.set(sId, TTBlocks.blocksOf(sec?.slots || {}));
       }
     }
   }
@@ -265,7 +226,7 @@ async function executeDeployPipeline(commitIdOrDoc, options = {}) {
       const newVersion = oldVersion + 1;
 
       const slotsObj = gridToSlotsObj(grid, className);
-      const diffResult = diffGrids(Object.values(currentSec?.slots || {}), grid);
+      const diffResult = diffGrids(currentSec?.slots || {}, grid);
 
       // Update SectionTimetable Head
       await M.SectionTimetable.findOneAndUpdate(
@@ -1037,7 +998,7 @@ async function retryStage(deployRunId, stageKey, actor = {}) {
         if (tmpl?.grid) grid = tmpl.grid;
       } catch (_) {}
     }
-    if (grid) resolvedClassGrids.set(String(cId), grid);
+    if (grid) resolvedClassGrids.set(String(cId), TTBlocks.blocksOf(grid));
   }
 
   switch (Number(stageKey)) {

@@ -353,7 +353,7 @@ function fetchPortalStatus() {
       if (pub) {
         if (pub.institution) {
           var shortN = pub.institution.institutionShort || '';
-          document.title = 'Workspace Hub' + (shortN ? (' · ' + shortN) : ' · EAMS');
+          document.title = 'Workspace Hub' + (shortN ? (' · ' + shortN) : ' · Muster');
           if (pub.institution.institutionName) {
             var sub = document.getElementById('sel-inst-sub');
             if (sub) sub.textContent = pub.institution.institutionName;

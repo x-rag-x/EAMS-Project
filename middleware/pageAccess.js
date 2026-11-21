@@ -157,27 +157,34 @@ function requirePage(page, action = 'view', opts = {}) {
  *  - Department scope: `{ [fieldName]: deptId }`
  */
 function scopeFilter(req, fieldName = 'deptId') {
-  if (!req || !req.scope || req.scope.type === 'institution') {
+  if (isSudo(req) || (req && req.scope && req.scope.type === 'institution')) {
     return {};
   }
-  if (req.scope.type === 'department' && req.scope.deptId) {
+  if (req && req.scope && req.scope.type === 'department' && req.scope.deptId) {
     return { [fieldName]: req.scope.deptId };
   }
-  return {};
+  // Fail-closed default: match 0 records when missing scope or missing deptId on department scope
+  return { _id: null };
 }
 
 /**
  * assertInScope(req, targetDeptId)
  * Verifies that a target department is within the caller's allowed scope.
- *  - Institution scope: returns true
+ *  - Sudo or Institution scope: returns true
  *  - Department scope: returns true if targetDeptId matches req.scope.deptId or req.scope.deptName, false otherwise.
  */
 function assertInScope(req, targetDeptId) {
-  if (!req || !req.scope || req.scope.type === 'institution') {
+  if (isSudo(req)) {
+    return true;
+  }
+  if (!req || !req.scope) {
+    return false;
+  }
+  if (req.scope.type === 'institution') {
     return true;
   }
   if (!targetDeptId) return false;
-  const userDeptId = String(req.scope.deptId || req.access?.pages?.admin?.deptId || req.access?.pages?.timetable?.deptId || req.user?.deptId || req.user?.departmentId || '');
+  const userDeptId = String(req.scope.deptId || req.access?.pages?.admin?.deptId || req.access?.pages?.timetable?.deptId || req.user?.deptId || req.user?.departmentId || '').trim();
   const userDeptName = String(req.scope.deptName || req.access?.pages?.admin?.dept || req.access?.pages?.timetable?.dept || req.user?.department || req.user?.deptName || req.user?.TTdeptName || '').trim().toLowerCase();
   const target = String(targetDeptId._id || targetDeptId).trim();
   if (userDeptId && userDeptId === target) {

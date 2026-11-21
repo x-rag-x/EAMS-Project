@@ -48,7 +48,7 @@ document.addEventListener('DOMContentLoaded', async function () {
 });
 
 function applyTimetableExportLock() {
-  document.title = 'EAMS – Timetable Export Center';
+  document.title = 'Muster – Timetable Export Center';
   window.isTimetableScoped = true;
 
   // Hide non-TT sidebar items

@@ -12,21 +12,15 @@ const KEY = cfg.LOG_ENCRYPTION_KEY ? crypto.createHash('sha256').update(cfg.LOG_
 function encryptLog(data) {
   if (data === null || data === undefined || data === '') return '';
   if (!KEY) {
-    console.error('[logCrypto] Encryption failed: LOG_ENCRYPTION_KEY environment variable is not defined.');
-    return typeof data === 'string' ? data : JSON.stringify(data);
+    throw new Error('[logCrypto] Encryption failed: LOG_ENCRYPTION_KEY environment variable is not defined.');
   }
-  try {
-    const str = typeof data === 'string' ? data : JSON.stringify(data);
-    const iv = crypto.randomBytes(12);
-    const cipher = crypto.createCipheriv(ALGORITHM, KEY, iv);
-    let encrypted = cipher.update(str, 'utf8', 'hex');
-    encrypted += cipher.final('hex');
-    const authTag = cipher.getAuthTag().toString('hex');
-    return `${iv.toString('hex')}:${authTag}:${encrypted}`;
-  } catch (err) {
-    console.error('[logCrypto] Encryption error:', err.message);
-    return typeof data === 'string' ? data : JSON.stringify(data);
-  }
+  const str = typeof data === 'string' ? data : JSON.stringify(data);
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv(ALGORITHM, KEY, iv);
+  let encrypted = cipher.update(str, 'utf8', 'hex');
+  encrypted += cipher.final('hex');
+  const authTag = cipher.getAuthTag().toString('hex');
+  return `${iv.toString('hex')}:${authTag}:${encrypted}`;
 }
 
 /**

@@ -23,6 +23,64 @@ const { executeAutoMerge, executeResolveMerge, executeKeepMine, executeTakeProdu
 const { resolveHodTeacher } = require('../utils/timetableResolver');
 const { generateLinkCode, computeSlotHash } = require('../services/shareCrypto');
 const { broadcastToDraft, emitAccessRevoked } = require('../services/timetable.socket');
+const TTBlocks = require('../utils/spanBlocks');
+
+/**
+ * Keeps combined sessions identical in every member class of this workspace (rulebook PER-6).
+ * The source class's owned combined blocks are written into each member draft as whole blocks;
+ * copies of sessions the source has since moved, removed or un-combined are cleared.
+ * Member classes that are not in this workspace are returned in `missing` so the editor can
+ * say so (they must be added before the push, rulebook PUB-9).
+ */
+async function syncWorkspaceCombined(workspaceId, sourceClassId, sourceBlocks, actor = {}) {
+  const report = { updated: [], missing: [], replaced: [] };
+  try {
+    const drafts = await M.WorkspaceClassDraft.find({ workspaceId });
+    if (!drafts.length) return report;
+    const classIds = drafts.map(d => d.classId).concat([sourceClassId]);
+    const classDocs = await M.Class.find({ _id: { $in: classIds } }).select('name').lean();
+    const nameById = new Map(classDocs.map(c => [String(c._id), c.name || '']));
+    const sourceName = nameById.get(String(sourceClassId)) || '';
+    if (!sourceName) return report;
+
+    const draftByName = new Map();
+    drafts.forEach(d => {
+      const n = (d.className || nameById.get(String(d.classId)) || '').trim().toLowerCase();
+      if (n) draftByName.set(n, d);
+    });
+
+    const partners = TTBlocks.combinedPartners(sourceBlocks, sourceName, sourceClassId);
+    partners.forEach(n => {
+      if (!draftByName.has(String(n).trim().toLowerCase())) report.missing.push(n);
+    });
+
+    for (const d of drafts) {
+      if (String(d.classId) === String(sourceClassId)) continue;
+      const targetName = d.className || nameById.get(String(d.classId)) || '';
+      const before = TTBlocks.blocksOf(d.grid || []);
+      const holdsCopy = before.some(b => !TTBlocks.ownedBy(b, sourceName, sourceClassId));
+      const incoming = TTBlocks.combinedBlocksFor(sourceBlocks, sourceName, sourceClassId, targetName);
+      if (!incoming.length && !holdsCopy) continue;
+
+      const applied = TTBlocks.applyCombined(before, incoming, sourceName, sourceClassId);
+      const sameAsBefore = JSON.stringify(TTBlocks.toCells(before)) === JSON.stringify(TTBlocks.toCells(applied.blocks));
+      if (sameAsBefore) continue;
+
+      d.grid = applied.blocks.map(sanitizeSlot).filter(Boolean);
+      d.revision = (d.revision || 1) + 1;
+      d.updatedBy = actor._id || d.updatedBy;
+      d.updatedByName = actor.name ? `${actor.name} (combined sync)` : d.updatedByName;
+      d.updatedAt = new Date();
+      d.markModified('grid');
+      await d.save();
+      report.updated.push(targetName);
+      applied.replaced.forEach(r => report.replaced.push({ className: targetName, day: r.day, period: r.period, span: r.span, subject: r.subject || '' }));
+    }
+  } catch (err) {
+    console.warn('[syncWorkspaceCombined error]:', err.message);
+  }
+  return report;
+}
 
 function escapeHtml(str) {
   return String(str || '')
@@ -282,8 +340,8 @@ async function resolveCallerContext(req) {
   if (!deptId && deptName) {
     const dept = await M.Department.findOne({
       $or: [
-        { name: new RegExp(`^${deptName}$`, 'i') },
-        { code: new RegExp(`^${deptName}$`, 'i') }
+        { name: new RegExp('^' + escapeRegex(deptName) + '$', 'i') },
+        { code: new RegExp('^' + escapeRegex(deptName) + '$', 'i') }
       ]
     }).select('_id name code').lean();
     if (dept) {
@@ -328,7 +386,7 @@ function sanitizeSlot(s) {
   if (!s || typeof s !== 'object') return null;
   return {
     day:                String(s.day || ''),
-    period:             Number(s.period) || 1,
+    period:             TTBlocks.toPeriod(s.period) || 1,
     span:               Math.max(1, Number(s.span) || 1),
     spanRootPeriod:     s.spanRootPeriod !== undefined ? Number(s.spanRootPeriod) : null,
     spanIndex:          Number(s.spanIndex) || 0,
@@ -1516,6 +1574,40 @@ router.post('/workspaces/:id/archive', authMiddleware, denySudoAndPrincipal, req
   }
 });
 
+router.post('/workspaces/:id/unarchive', authMiddleware, denySudoAndPrincipal, requireManager, async (req, res) => {
+  try {
+    const ws = await M.TimetableWorkspace.findById(req.params.id);
+    if (!ws) return res.status(404).json({ error: 'Workspace not found' });
+
+    const caller = await resolveCallerContext(req);
+    if (caller.deptId && ws.deptId && String(ws.deptId) !== String(caller.deptId)) {
+      return res.status(403).json({ error: 'Only the workspace owner department can unarchive the workspace' });
+    }
+
+    ws.status = 'active';
+    ws.archivedAt = null;
+    ws.archivedBy = null;
+    ws.lastActivityAt = new Date();
+    await ws.save();
+
+    invalidateEffectiveCache(ws._id);
+
+    await logAction({
+      req,
+      user: req.user,
+      action: 'workspace-unarchive',
+      details: `Unarchived workspace ${ws.trackId} (${ws.name})`,
+      category: 'data',
+      module: 'timetable',
+      subType: 'workspace-unarchive'
+    });
+
+    res.json({ ok: true, workspace: ws });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 router.post('/workspaces/:id/duplicate', authMiddleware, denySudoAndPrincipal, requireManager, async (req, res) => {
   try {
     const sourceWs = await M.TimetableWorkspace.findById(req.params.id).lean();
@@ -1715,8 +1807,8 @@ router.post('/workspaces/:id/submit', authMiddleware, denySudoAndPrincipal, requ
       const draft = drafts.find(d => String(d.classId) === String(cId));
       const cls = clsMap.get(String(cId));
       const sec = secMap.get(String(cId));
-      const prodSlots = sec ? (Array.isArray(sec.slots) ? sec.slots : Object.values(sec.slots)) : [];
-      const draftGrid = draft ? draft.grid : [];
+      const prodSlots = sec ? TTBlocks.blocksOf(sec.slots) : [];
+      const draftGrid = draft ? TTBlocks.blocksOf(draft.grid || []) : [];
       const diffResult = diffGrids(prodSlots, draftGrid);
 
       await M.TimetableCommitClass.create({
@@ -1832,7 +1924,7 @@ router.get('/workspaces/:id/classes/:classId/merge-status', authMiddleware, asyn
         classId
       }).lean();
       const baseGrid = commitClass ? commitClass.grid : [];
-      const headGrid = sec?.slots ? (Array.isArray(sec.slots) ? sec.slots : Object.values(sec.slots)) : [];
+      const headGrid = sec?.slots ? TTBlocks.blocksOf(sec.slots) : [];
       diff = diffGrids(baseGrid, headGrid);
     }
 
@@ -1902,12 +1994,18 @@ router.get('/workspaces/:id/classes/:classId', authMiddleware, requireWorkspaceA
     const sec = await M.SectionTimetable.findOne({ classId: req.params.classId }).select('headTrackId headSeq').lean();
     const isStale = Boolean(sec && sec.headTrackId && draft.baseTrackId && sec.headTrackId !== draft.baseTrackId);
 
+    // Always hand the editor clean blocks, whatever older code stored. Anything that could not be
+    // repaired safely is listed in blockIssues so the editor can show it instead of hiding it.
+    const { blocks, issues } = TTBlocks.toBlocks(draft.grid || []);
+    draft.grid = blocks;
+
     res.json({
       ok: true,
       draft,
       isStale,
       currentHeadTrackId: sec?.headTrackId || null,
-      conflicts: []
+      conflicts: [],
+      blockIssues: TTBlocks.conflictsOnly(issues)
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -1981,39 +2079,36 @@ router.patch('/workspaces/:id/classes/:classId/slots', authMiddleware, denySudoA
       ? req.body.ops
       : (req.body.op ? [{ op: req.body.op, slot: req.body.slot, from: req.body.from, to: req.body.to }] : []);
 
-    let workingGrid = [...(draft.grid || [])];
+    // Every op works on whole blocks: a lab or double is set, cleared and moved as one piece,
+    // never one period at a time (the old per-cell ops left continuation periods behind).
+    let workingGrid = TTBlocks.blocksOf(draft.grid || []);
+    const replaced = [];
 
     for (const op of ops) {
       if (op.op === 'set' && op.slot) {
         const cleanSlot = sanitizeSlot(op.slot);
         if (cleanSlot) {
-          const idx = workingGrid.findIndex(g => g.day === cleanSlot.day && g.period === cleanSlot.period);
-          if (idx >= 0) {
-            workingGrid[idx] = cleanSlot;
-          } else {
-            workingGrid.push(cleanSlot);
-          }
+          const r = TTBlocks.place(workingGrid, cleanSlot);
+          workingGrid = r.blocks;
+          replaced.push(...r.replaced.map(b => ({ day: b.day, period: b.period, span: b.span, subject: b.subject || '' })));
         }
       } else if (op.op === 'clear' && op.slot) {
-        const targetDay = String(op.slot.day);
-        const targetPeriod = Number(op.slot.period);
-        workingGrid = workingGrid.filter(g => !(g.day === targetDay && g.period === targetPeriod));
+        workingGrid = TTBlocks.removeAt(workingGrid, String(op.slot.day), Number(op.slot.period)).blocks;
       } else if (op.op === 'move' && op.from && op.to) {
-        const fromDay = String(op.from.day);
-        const fromPeriod = Number(op.from.period);
-        const toDay = String(op.to.day);
-        const toPeriod = Number(op.to.period);
-
-        const slot = workingGrid.find(g => g.day === fromDay && g.period === fromPeriod);
-        if (slot) {
-          slot.day = toDay;
-          slot.period = toPeriod;
-          if (slot.spanRootPeriod) slot.spanRootPeriod = toPeriod;
+        const r = TTBlocks.move(
+          workingGrid,
+          { day: String(op.from.day), period: Number(op.from.period) },
+          { day: String(op.to.day), period: Number(op.to.period) }
+        );
+        if (!r.ok) {
+          // Nothing is saved: a refused move must not leave half a block behind.
+          return res.status(409).json({ error: r.message, code: r.code, currentRevision: draft.revision });
         }
+        workingGrid = r.blocks;
       }
     }
 
-    draft.grid = workingGrid;
+    draft.grid = workingGrid.map(sanitizeSlot).filter(Boolean);
     draft.revision += 1;
     draft.updatedBy = req.user._id;
     draft.updatedByName = req.user.name || '';
@@ -2023,13 +2118,16 @@ router.patch('/workspaces/:id/classes/:classId/slots', authMiddleware, denySudoA
     await M.TimetableWorkspace.findByIdAndUpdate(id, { lastActivityAt: new Date() });
     invalidateEffectiveCache(id);
 
+    const combined = await syncWorkspaceCombined(id, classId, TTBlocks.blocksOf(draft.grid), req.user);
     const liveConflicts = await detectConflictsV2({ workspaceId: id, classIds: [classId] });
 
     res.json({
       ok: true,
       revision: draft.revision,
       grid: draft.grid,
-      conflicts: liveConflicts
+      conflicts: liveConflicts,
+      replaced,
+      combined
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -2102,7 +2200,10 @@ router.put('/workspaces/:id/classes/:classId/grid', authMiddleware, denySudoAndP
     }
 
     const rawGrid = Array.isArray(req.body.grid) ? req.body.grid : [];
-    const sanitizedGrid = rawGrid.map(sanitizeSlot).filter(Boolean);
+    // Store one entry per session (block form). Continuation cells sent by any client are folded
+    // into their block; anything that still overlaps is reported back instead of saved twice.
+    const { blocks: savedBlocks, issues: gridIssues } = TTBlocks.toBlocks(rawGrid.map(sanitizeSlot).filter(Boolean));
+    const sanitizedGrid = savedBlocks.map(sanitizeSlot).filter(Boolean);
 
     draft.grid = sanitizedGrid;
     draft.revision += 1;
@@ -2114,13 +2215,16 @@ router.put('/workspaces/:id/classes/:classId/grid', authMiddleware, denySudoAndP
     await M.TimetableWorkspace.findByIdAndUpdate(id, { lastActivityAt: new Date() });
     invalidateEffectiveCache(id);
 
+    const combined = await syncWorkspaceCombined(id, classId, savedBlocks, req.user);
     const liveConflicts = await detectConflictsV2({ workspaceId: id, classIds: [classId] });
 
     res.json({
       ok: true,
       revision: draft.revision,
       grid: draft.grid,
-      conflicts: liveConflicts
+      conflicts: liveConflicts,
+      blockIssues: TTBlocks.conflictsOnly(gridIssues),
+      combined
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -2206,7 +2310,8 @@ router.patch('/workspaces/:id/classes/:classId/fill', authMiddleware, denySudoAn
       return res.status(400).json({ error: 'No fill items provided' });
     }
 
-    let workingGrid = [...(draft.grid || [])];
+    // Blocks, so filling any period of a lab or double fills the whole session.
+    let workingGrid = TTBlocks.blocksOf(draft.grid || []);
 
     // Pre-load department's teachers and subjects for Rule 3 verification
     let deptTeacherIds = new Set();
@@ -2249,7 +2354,8 @@ router.patch('/workspaces/:id/classes/:classId/fill', authMiddleware, denySudoAn
       const period = Number(item.period);
       if (!day || isNaN(period)) continue;
 
-      const idx = workingGrid.findIndex(g => g.day === day && g.period === period);
+      const hostBlock = TTBlocks.blockAt(workingGrid, day, period);
+      const idx = hostBlock ? workingGrid.indexOf(hostBlock) : -1;
       if (idx === -1) {
         return res.status(400).json({ error: `Slot on ${day} Period ${period} does not exist in draft` });
       }
@@ -2416,8 +2522,7 @@ router.post('/workspaces/:id/classes/:classId/slots/reserve', authMiddleware, de
     const pNum = Number(period);
     const spanNum = Math.max(1, Number(span) || 1);
 
-    let workingGrid = [...(draft.grid || [])];
-    const idx = workingGrid.findIndex(g => g.day === day && g.period === pNum);
+    let workingGrid = TTBlocks.blocksOf(draft.grid || []);
 
     const reservedSlot = {
       day: String(day),
@@ -2438,13 +2543,10 @@ router.post('/workspaces/:id/classes/:classId/slots/reserve', authMiddleware, de
       note: note || ''
     };
 
-    if (idx >= 0) {
-      workingGrid[idx] = reservedSlot;
-    } else {
-      workingGrid.push(reservedSlot);
-    }
+    // Reserving a 2- or 3-period range replaces every session it covers, not only the first period.
+    workingGrid = TTBlocks.place(workingGrid, reservedSlot).blocks;
 
-    draft.grid = workingGrid;
+    draft.grid = workingGrid.map(sanitizeSlot).filter(Boolean);
     draft.revision += 1;
     draft.updatedBy = req.user._id;
     draft.updatedByName = req.user.name || '';

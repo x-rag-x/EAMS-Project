@@ -107,7 +107,7 @@
         toast.className = toast.className.replace('show', '').trim();
       }, 4500);
     } else {
-      console.warn('[EAMS Guard]:', msg);
+      console.warn('[Muster Guard]:', msg);
     }
   }
 
@@ -453,9 +453,9 @@
         // Check if accessVersion changed (grant edited, revoked, or expired)
         if (data.accessVersion !== undefined && self.currentAccessVersion !== null) {
           if (data.accessVersion !== self.currentAccessVersion) {
-            console.log('[EAMS Guard]: Access version changed (' + self.currentAccessVersion + ' -> ' + data.accessVersion + '). Refreshing access...');
+            console.log('[Muster Guard]: Access version changed (' + self.currentAccessVersion + ' -> ' + data.accessVersion + '). Refreshing access...');
             self.refreshAccess().catch(function (err) {
-              console.error('[EAMS Guard Refresh Error]:', err);
+              console.error('[Muster Guard Refresh Error]:', err);
             });
           }
         }
@@ -653,7 +653,7 @@
           return;
         }
         if (err.message !== 'Unauthorized') {
-          console.error('[EAMS Guard Init Error]:', err);
+          console.error('[Muster Guard Init Error]:', err);
           // Allow existing fallback if DB offline
           showNotificationToast('Connection issue while verifying access permissions. Retrying...', 'warn');
           setTimeout(function () {

@@ -15,9 +15,9 @@ function sendError(res, err, status = 500, fallbackMessage) {
   const statusCode = Number(status) || 500;
 
   if (statusCode >= 500) {
-    console.error(`[EAMS API Error] [ReqID: ${reqId}]:`, err);
+    console.error(`[Muster API Error] [ReqID: ${reqId}]:`, err);
   } else {
-    console.warn(`[EAMS Client Error] [ReqID: ${reqId}] (${statusCode}):`, (err && err.message) || err);
+    console.warn(`[Muster Client Error] [ReqID: ${reqId}] (${statusCode}):`, (err && err.message) || err);
   }
 
   if (res && res.headersSent) {

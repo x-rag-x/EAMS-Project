@@ -1546,10 +1546,10 @@ router.get('/faculty', async (req, res) => {
     if (deptId) filter.deptId = deptId;
     if (search) {
       filter.$or = [
-        { fullName: new RegExp(search, 'i') },
-        { employeeNo: new RegExp(search, 'i') },
-        { designation: new RegExp(search, 'i') },
-        { username: new RegExp(search, 'i') }
+        { fullName: new RegExp(escapeRegex(search), 'i') },
+        { employeeNo: new RegExp(escapeRegex(search), 'i') },
+        { designation: new RegExp(escapeRegex(search), 'i') },
+        { username: new RegExp(escapeRegex(search), 'i') }
       ];
     }
 
@@ -1641,9 +1641,10 @@ router.get('/students', async (req, res) => {
     if (search) {
       const escaped = escapeRegex(search);
       filter.$or = [
-        { fullName: new RegExp(escaped, 'i') },
-        { registerNo: new RegExp(escaped, 'i') },
-        { username: new RegExp(escaped, 'i') }
+        { fullName: new RegExp(escapeRegex(search), 'i') },
+        { employeeNo: new RegExp(escapeRegex(search), 'i') },
+        { designation: new RegExp(escapeRegex(search), 'i') },
+        { username: new RegExp(escapeRegex(search), 'i') }
       ];
     }
 
@@ -1974,9 +1975,9 @@ router.post('/students/warning-letter', async (req, res) => {
       refNo,
       date: dateStr,
       letterhead: {
-        institution: 'ELECTRONIC ATTENDANCE MANAGEMENT SYSTEM (EAMS)',
+        institution: 'MUSTER ATTENDANCE MANAGEMENT SYSTEM',
         tagline: 'Office of the Controller of Examinations & Academic Affairs',
-        contact: 'academic-controller@eams.edu'
+        contact: 'academic-controller@muster.edu'
       },
       student: {
         name: student.fullName || student.name,
@@ -3489,10 +3490,10 @@ router.get('/inbox', async (req, res) => {
         classOr.push({ deptId: deptIdTarget });
       }
       if (deptCodesTarget.length) {
-        classOr.push({ deptCode: { $in: deptCodesTarget.map(c => new RegExp(`^${c}$`, 'i')) } });
+        classOr.push({ deptCode: { $in: deptCodesTarget.map(c => new RegExp('^' + escapeRegex(c) + '$', 'i')) } });
       }
       if (ctx.deptName) {
-        classOr.push({ department: new RegExp(`^${ctx.deptName}$`, 'i') });
+        classOr.push({ department: new RegExp('^' + escapeRegex(ctx.deptName) + '$', 'i') });
       }
       let cIds = [];
       if (classOr.length) {

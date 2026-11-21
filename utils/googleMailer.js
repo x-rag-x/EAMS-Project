@@ -103,7 +103,7 @@ function buildBackupEmailHtml({
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>EAMS Backup Notification</title>
+  <title>Muster Backup Notification</title>
 </head>
 <body style="margin:0;padding:24px 12px;background-color:#f1f5f9;font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,Roboto,Helvetica,Arial,sans-serif;color:#0f172a;">
   <div style="max-width:620px;margin:0 auto;background:#ffffff;border-radius:18px;border:1px solid #cbd5e1;overflow:hidden;box-shadow:0 10px 25px -5px rgba(0,0,0,0.06),0 8px 10px -6px rgba(0,0,0,0.04);">
@@ -113,7 +113,7 @@ function buildBackupEmailHtml({
       <div style="display:inline-block;background:rgba(255,255,255,0.18);padding:6px 14px;border-radius:20px;font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-bottom:10px;">
         Institutional Core Security
       </div>
-      <h1 style="margin:0;font-size:22px;font-weight:800;letter-spacing:-0.4px;">EAMS Database Snapshot Created</h1>
+      <h1 style="margin:0;font-size:22px;font-weight:800;letter-spacing:-0.4px;">Muster Database Snapshot Created</h1>
       <p style="margin:8px 0 0;font-size:13.5px;opacity:0.92;">Google Drive Cloud Backup &amp; Verification Report</p>
     </div>
 
@@ -123,7 +123,7 @@ function buildBackupEmailHtml({
       <!-- Greeting & Notice -->
       <div style="font-size:15px;line-height:1.6;margin-bottom:20px;">
         Hello <strong>${recipientName || 'Sudo Administrator'}</strong>,<br>
-        A complete, encrypted snapshot of the <strong>Electronic Attendance Management System (EAMS)</strong> database has been successfully compiled and uploaded to institutional Google Drive storage.
+        A complete, encrypted snapshot of the <strong>Muster Attendance Management System</strong> database has been successfully compiled and uploaded to institutional Google Drive storage.
       </div>
 
       <!-- Main Action Call To Action -->
@@ -217,7 +217,7 @@ function buildBackupEmailHtml({
 
     <!-- Footer -->
     <div style="background:#f8fafc;padding:18px 24px;border-top:1px solid #e2e8f0;text-align:center;font-size:11.5px;color:#64748b;">
-      Electronic Attendance Management System (EAMS) &bull; Automated Security Dispatch<br>
+      Muster Attendance Management System &bull; Automated Security Dispatch<br>
       If you did not authorize this backup request, please review your administrator sessions immediately.
     </div>
 
@@ -248,7 +248,7 @@ async function sendBackupNotificationMail({
     return { sent: false, error: 'No valid recipient email provided' };
   }
 
-  const subject = `🔒 EAMS System Backup Snapshot [${backupId}] – Google Drive Link`;
+  const subject = `🔒 Muster System Backup Snapshot [${backupId}] – Google Drive Link`;
   const htmlContent = buildBackupEmailHtml({
     recipientName,
     backupId,
@@ -266,7 +266,7 @@ async function sendBackupNotificationMail({
   if (accessToken) {
     try {
       const senderEmail = process.env.GMAIL_SENDER_EMAIL || 'emas.project.siet@gmail.com';
-      const fromAddr = `EAMS Institutional Core <${senderEmail}>`;
+      const fromAddr = `Muster Institutional Core <${senderEmail}>`;
       const rawMessage = [
         `From: ${fromAddr}`,
         `To: ${recipient}`,

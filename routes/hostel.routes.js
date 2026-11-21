@@ -396,7 +396,8 @@ router.post('/allocations', async (req, res) => {
 // Warden: List Allocations (e.g. pending approvals)
 router.get('/allocations', async (req, res) => {
   try {
-    const { status = 'pending', blockId } = req.query;
+    const status = sanitizeToString(req.query.status) || 'pending';
+    const blockId = sanitizeToString(req.query.blockId);
     const filter = {};
     if (status) filter.status = status;
 
@@ -576,6 +577,10 @@ router.post('/allocations/move', async (req, res) => {
 // Get or Prepare Tonight's Roll Call for Warden's Block
 router.get('/rollcalls/today', async (req, res) => {
   try {
+    if (!req.hostelScope.isWarden && !req.hostelScope.isAdmin && !req.hostelScope.isPrincipal) {
+      return res.status(403).json({ error: 'Access denied: Only Wardens, Principals, or Administrators may access this hostel resource' });
+    }
+
     const today = getTodayIST();
     let { blockId } = req.query;
 
@@ -763,7 +768,12 @@ router.post('/rollcalls/:id/close', async (req, res) => {
     }).select('studentTrackId').lean();
 
     const spotCheckCount = 5;
-    const shuffled = qrAttendees.sort(() => 0.5 - Math.random());
+    // Unbiased Fisher-Yates shuffle using crypto.randomInt (Checklist B14)
+    const shuffled = [...qrAttendees];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = crypto.randomInt(0, i + 1);
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
     const selectedSpotChecks = shuffled.slice(0, spotCheckCount).map(a => a.studentTrackId);
 
     if (selectedSpotChecks.length) {
@@ -1404,7 +1414,8 @@ router.post('/leaves', async (req, res) => {
 // List Leaves
 router.get('/leaves', async (req, res) => {
   try {
-    const { status, studentTrackId } = req.query;
+    const status = sanitizeToString(req.query.status);
+    const studentTrackId = sanitizeToString(req.query.studentTrackId);
     const filter = {};
     if (status) filter.status = status;
     if (studentTrackId) filter.studentTrackId = studentTrackId;
@@ -1480,13 +1491,24 @@ router.post('/leaves/:id/reject', async (req, res) => {
 // Night Report (07:00 summary)
 router.get('/reports/night', async (req, res) => {
   try {
-    const date = req.query.date || getTodayIST();
-    const { blockId } = req.query;
+    if (!req.hostelScope.isWarden && !req.hostelScope.isAdmin && !req.hostelScope.isPrincipal) {
+      return res.status(403).json({ error: 'Access denied: Only Wardens, Principals, or Administrators may access this hostel resource' });
+    }
+
+    const date = sanitizeToString(req.query.date) || getTodayIST();
+    const blockId = sanitizeToString(req.query.blockId);
 
     const query = { date };
-    if (blockId) query.blockId = blockId;
+    if (blockId) {
+      query.blockId = blockId;
+    } else if (req.hostelScope.isWarden && !req.hostelScope.isAdmin && !req.hostelScope.isPrincipal) {
+      query.blockId = { $in: req.hostelScope.assignedBlockIds };
+    }
 
-    const rollCalls = await M.RollCall.find(query).populate('blockId').lean();
+    const rollCalls = await M.RollCall.find(query).populate({
+      path: 'blockId',
+      populate: { path: 'hostelId' }
+    }).lean();
     const reports = [];
 
     for (const rc of rollCalls) {
@@ -1520,6 +1542,10 @@ router.get('/reports/night', async (req, res) => {
 // Controller / Principal Hostel Snapshot
 router.get('/summary', async (req, res) => {
   try {
+    if (!req.hostelScope.isWarden && !req.hostelScope.isAdmin && !req.hostelScope.isPrincipal) {
+      return res.status(403).json({ error: 'Access denied: Only Wardens, Principals, or Administrators may access this hostel resource' });
+    }
+
     const today = getTodayIST();
     const hostels = await M.Hostel.find().lean();
     const summary = [];
@@ -1575,6 +1601,10 @@ router.get('/summary', async (req, res) => {
 // Cross-checks endpoint
 router.get('/cross-checks', async (req, res) => {
   try {
+    if (!req.hostelScope.isWarden && !req.hostelScope.isAdmin && !req.hostelScope.isPrincipal) {
+      return res.status(403).json({ error: 'Access denied: Only Wardens, Principals, or Administrators may access this hostel resource' });
+    }
+
     const date = req.query.date || getTodayIST();
     const alerts = await runHostelCrossChecks(date);
     return res.json({ ok: true, data: alerts });

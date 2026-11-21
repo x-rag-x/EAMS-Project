@@ -97,10 +97,9 @@ async function computeStudentAttendance(studentTrackId, targetClassId) {
       }
     }
 
-    // Default to 100% if no classes have been held yet
-    const overallPercentage = totalHeld > 0
-      ? Math.round((totalAttended / totalHeld) * 100)
-      : 100;
+    // Default to 0% if no classes have been held yet (B33)
+    const { calculateAttendancePct } = require('./attendanceCalc');
+    const overallPercentage = calculateAttendancePct(totalAttended, totalHeld);
 
     const records = Object.values(subjectStats).map(st => ({
       ...st,

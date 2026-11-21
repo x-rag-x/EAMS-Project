@@ -1,17 +1,18 @@
 /**
  * utils/googleDrive.js
- * Integrates with Google Drive CLI / API to upload encrypted EAMS backup archives,
+ * Integrates with Google Drive CLI / API to upload encrypted Muster backup archives,
  * student OD evidence files, and generate shareable web access links.
  */
 
-const { exec } = require('child_process');
+const { execFile } = require('child_process');
 const path = require('path');
 const os = require('os');
 const fs = require('fs');
 const crypto = require('crypto');
+const cfg = require('../config');
 
-const BACKUP_FOLDER_ID = process.env.GDRIVE_BACKUP_FOLDER_ID || '10b4EV1DJ-ASRugnLjdIhjjuxeoZkPaUJ';
-const BULK_BACKUP_FOLDER_ID = process.env.GDRIVE_BULK_FOLDER_ID || '1A05LHiBo_Nj0iglj0kY9iNEcq_FR3UOL';
+const BACKUP_FOLDER_ID = cfg.GDRIVE_BACKUP_FOLDER_ID || process.env.GDRIVE_BACKUP_FOLDER_ID || '';
+const BULK_BACKUP_FOLDER_ID = cfg.GDRIVE_BULK_FOLDER_ID || process.env.GDRIVE_BULK_FOLDER_ID || '';
 
 /**
  * Finds the gdrive command path.
@@ -19,7 +20,7 @@ const BULK_BACKUP_FOLDER_ID = process.env.GDRIVE_BULK_FOLDER_ID || '1A05LHiBo_Nj
 function getGdriveCmd() {
   const customCmd = path.join(os.homedir(), '.gemini', 'antigravity', 'bin', 'gdrive.cmd');
   if (fs.existsSync(customCmd)) {
-    return `"${customCmd}"`;
+    return customCmd;
   }
   return 'gdrive';
 }
@@ -165,16 +166,17 @@ async function uploadFileToDrive(localFilePath, options = {}) {
   const gdrive = getGdriveCmd();
 
   return new Promise((resolve) => {
-    const parentFlag = folderId ? `--parent ${folderId}` : '';
-    const cmd = `${gdrive} mutate upload "${localFilePath}" ${parentFlag}`;
+    const args = ['mutate', 'upload', localFilePath];
+    if (folderId) {
+      args.push('--parent', folderId);
+    }
 
-    exec(cmd, { timeout: 120000 }, (err, stdout, stderr) => {
+    execFile(gdrive, args, { timeout: 120000, shell: false }, (err, stdout, stderr) => {
       if (err) {
         console.warn('[GoogleDrive] Upload command error:', err.message, stderr);
         // Try fallback without parent flag if folder fails
         if (folderId) {
-          const fallbackCmd = `${gdrive} mutate upload "${localFilePath}"`;
-          return exec(fallbackCmd, { timeout: 120000 }, (fbErr, fbStdout, fbStderr) => {
+          return execFile(gdrive, ['mutate', 'upload', localFilePath], { timeout: 120000, shell: false }, (fbErr, fbStdout, fbStderr) => {
             if (fbErr) {
               return resolve({
                 success: false,

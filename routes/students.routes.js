@@ -401,6 +401,8 @@ router.get('/exam-search', authMiddleware, async (req, res) => {
       className: s.class
     }));
 
+    delete mapped.password;
+    delete mapped.passwordHistory;
     res.json(mapped);
   } catch (err) {
     return sendError(res, err, 500, 'Failed to process student request');
@@ -429,6 +431,34 @@ router.get('/:id', authMiddleware, async (req, res) => {
         .lean();
     }
     if (!student) return res.status(404).json({ error: 'Student not found' });
+
+    // Authorization & IDOR Guard
+    if (req.user.role === 'student') {
+      const isSelf = Boolean(
+        (student.trackId && req.user.trackId && student.trackId === req.user.trackId) ||
+        (student.registerNo && req.user.registerNo && student.registerNo === req.user.registerNo) ||
+        (req.user._id && String(student._id) === String(req.user._id))
+      );
+      if (!isSelf) {
+        return res.status(403).json({ error: 'Access denied: You may only view your own student profile' });
+      }
+    } else if (!isSudo(req) && !isSudoAdmin(req.user) && !hasInstitutionReach(req.user) && req.user.role !== 'admin' && req.user.role !== 'principal' && !req.user.isPrincipal) {
+      const studentDeptId = student.deptId && student.deptId._id ? student.deptId._id : student.deptId;
+      const inDeptScope = assertInScope(req, studentDeptId || student.department);
+      if (!inDeptScope) {
+        const rawClassId = student.classId && student.classId._id ? student.classId._id : student.classId;
+        let isClassStaff = false;
+        if (rawClassId && req.user.trackId) {
+          const cls = await M.Class.findById(rawClassId).select('advisorTeacherTrackId secondaryAdvisorTeacherTrackId').lean();
+          if (cls && (cls.advisorTeacherTrackId === req.user.trackId || cls.secondaryAdvisorTeacherTrackId === req.user.trackId)) {
+            isClassStaff = true;
+          }
+        }
+        if (!isClassStaff) {
+          return res.status(403).json({ error: 'Access denied: Student is outside your assigned department or class scope' });
+        }
+      }
+    }
 
     const shadow = await M.User.findOne({
       $or: [
@@ -746,7 +776,7 @@ router.get('/:id', authMiddleware, async (req, res) => {
         }))
       };
     } catch (err) {
-      console.warn('[EAMS] Subsystem enrichment warning:', err.message);
+      console.warn('[Muster] Subsystem enrichment warning:', err.message);
     }
 
     const mapped = {
@@ -790,6 +820,8 @@ router.get('/:id', authMiddleware, async (req, res) => {
       status: shadow ? shadow.status : 'active'
     };
 
+    delete mapped.password;
+    delete mapped.passwordHistory;
     res.json(mapped);
   } catch (err) {
     return sendError(res, err, 500, 'Failed to process student request');

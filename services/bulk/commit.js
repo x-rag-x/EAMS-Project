@@ -2,6 +2,7 @@ const JSZip = require('jszip');
 const bcrypt = require('@node-rs/bcrypt');
 const M = require('../../models');
 const cfg = require('../../config');
+const countService = require('../countService');
 const { createTracker } = require('./progress');
 const { transition } = require('./stateMachine');
 const { postMessage } = require('./messages');

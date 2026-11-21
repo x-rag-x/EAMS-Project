@@ -9,7 +9,7 @@ const express = require('express');
 const router = express.Router();
 const mongoose = require('mongoose');
 const M = require('../models');
-const { authMiddleware, requirePage, isSudo } = require('../middleware/auth');
+const { authMiddleware, requirePage, isSudo, assertInScope, scopeFilter } = require('../middleware/auth');
 const { logAction } = require('../utils/logAction');
 const { sanitizeToObjectId } = require('../utils/sanitizeQuery');
 const { parseAllowedTabs } = require('../config/pageRegistry');
@@ -34,6 +34,7 @@ router.get('/', authMiddleware, requirePage('manage', 'view', { tab: 'settings' 
     const seenTeacherIds = new Set();
 
     for (const t of teachers) {
+      if (!assertInScope(req, t.deptId || t.department)) continue;
       const isSudoUser = t.pageRights?.accessRole === 'sudoAdmin' || (Array.isArray(t.specials) && t.specials.some(s => s && s.option === 'isAdmin'));
       const grants = (Array.isArray(t.pageRights?.grants) ? t.pageRights.grants : []).filter(g => g && g.enabled !== false && (g.page === 'manage' || g.page === '*'));
 
@@ -107,6 +108,10 @@ router.post('/', authMiddleware, requirePage('manage', 'edit', { tab: 'settings'
     const teacher = await M.Teacher.findById(tId);
     if (!teacher) {
       return res.status(404).json({ error: 'Faculty member not found' });
+    }
+
+    if (!assertInScope(req, teacher.deptId || teacher.department)) {
+      return res.status(403).json({ error: 'Access denied: faculty member is outside your department scope' });
     }
 
     const selectedPerms = Array.isArray(permissions) && permissions.length > 0
@@ -207,6 +212,10 @@ router.delete('/:id', authMiddleware, requirePage('manage', 'edit', { tab: 'sett
 
     if (!teacher) {
       return res.status(404).json({ error: 'Manage portal admin record not found' });
+    }
+
+    if (!assertInScope(req, teacher.deptId || teacher.department)) {
+      return res.status(403).json({ error: 'Access denied: faculty member is outside your department scope' });
     }
 
     const isTargetSudo = teacher.pageRights?.accessRole === 'sudoAdmin' || (Array.isArray(teacher.specials) && teacher.specials.some(s => s && s.option === 'isAdmin'));

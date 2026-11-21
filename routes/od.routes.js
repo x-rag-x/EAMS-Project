@@ -222,7 +222,7 @@ router.post('/', odCreateLimiter, async (req, res) => {
       return res.status(400).json({ error: 'Event name, dates, and faculty mentor are required' });
     }
 
-    // Verify mentor is active EAMS faculty
+    // Verify mentor is active Muster faculty
     const mentorTrack = sanitizeToString(mentorTrackId);
     const mentor = await M.Teacher.findOne({
       $or: [
@@ -232,7 +232,7 @@ router.post('/', odCreateLimiter, async (req, res) => {
     }, 'trackId fullName name deptId deptCode').lean();
 
     if (!mentor) {
-      return res.status(400).json({ error: 'Selected mentor is not recognized as active EAMS faculty' });
+      return res.status(400).json({ error: 'Selected mentor is not recognized as active Muster faculty' });
     }
 
     const cov = sanitizeToString(coverage) || 'full_day';
@@ -614,7 +614,7 @@ router.get('/students-search', studentSearchLimiter, async (req, res) => {
 
 // Helper to determine if a user has review/view permissions for an OD request
 function canReviewOd(user, request) {
-  if (!user) return false;
+  if (!user || !request) return false;
   if (user.role === 'student') return false;
 
   // Principal, Sudo, Super Admin, and Admin have institution-wide review scope
@@ -651,7 +651,100 @@ function canReviewOd(user, request) {
     ) {
       return true;
     }
+    const uDeptId = String(user.deptId || '');
+    const rDeptId = String(request.deptId || '');
+    if (uDeptId && rDeptId && uDeptId === rDeptId) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+// Helper to verify if user is authorized approver for the current OD stage
+async function isStageApprover(user, request, stage) {
+  if (!user || !request) return false;
+  if (user.role === 'student') return false;
+
+  // Principal / Sudo Admin / Admin can approve any stage
+  if (
+    user.isPrincipal ||
+    user.role === 'principal' ||
+    user.isAdmin ||
+    user.isSudoAdmin ||
+    user.role === 'admin'
+  ) {
     return true;
+  }
+
+  const userTrackId = user.trackId || '';
+  const currentStage = (stage || request.currentStage || '').toLowerCase();
+
+  // HOD stage: caller must be HOD of the department
+  if (currentStage === 'hod') {
+    if (user.isHod || user.role === 'hod') {
+      const uDeptCode = String(user.deptCode || user.department || '').trim().toUpperCase();
+      const rDeptCode = String(request.deptCode || '').trim().toUpperCase();
+      const uDeptId = String(user.deptId || user.departmentId || '');
+      const rDeptId = String(request.deptId || '');
+      if ((uDeptId && rDeptId && uDeptId === rDeptId) || (uDeptCode && rDeptCode && uDeptCode === rDeptCode)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  // Advisor stage: caller must be assigned advisor, class advisor, or department HOD
+  if (currentStage === 'advisor') {
+    if (userTrackId && request.advisorTrackId && userTrackId === request.advisorTrackId) {
+      return true;
+    }
+    if (request.classId) {
+      try {
+        const cls = await M.Class.findById(request.classId).select('advisorTeacherTrackId secondaryAdvisorTeacherTrackId advisorTeacherId secondaryAdvisorTeacherId deptId').lean();
+        if (cls) {
+          if (cls.advisorTeacherTrackId && userTrackId && cls.advisorTeacherTrackId === userTrackId) return true;
+          if (cls.secondaryAdvisorTeacherTrackId && userTrackId && cls.secondaryAdvisorTeacherTrackId === userTrackId) return true;
+          if (user._id && cls.advisorTeacherId && String(cls.advisorTeacherId) === String(user._id)) return true;
+          if (user._id && cls.secondaryAdvisorTeacherId && String(cls.secondaryAdvisorTeacherId) === String(user._id)) return true;
+          if ((user.isHod || user.role === 'hod') && cls.deptId && String(user.deptId) === String(cls.deptId)) return true;
+        }
+      } catch (_) {}
+    }
+    if (user.isHod || user.role === 'hod') {
+      const uDeptId = String(user.deptId || '');
+      const rDeptId = String(request.deptId || '');
+      if (uDeptId && rDeptId && uDeptId === rDeptId) return true;
+    }
+    return false;
+  }
+
+  // Mentor stage: caller must be assigned mentor, class advisor, or department HOD
+  if (currentStage === 'mentor') {
+    if (userTrackId && request.mentorTrackId && userTrackId === request.mentorTrackId) {
+      return true;
+    }
+    if (userTrackId && request.advisorTrackId && userTrackId === request.advisorTrackId) {
+      return true;
+    }
+    if (user.isHod || user.role === 'hod') {
+      const uDeptId = String(user.deptId || '');
+      const rDeptId = String(request.deptId || '');
+      if (uDeptId && rDeptId && uDeptId === rDeptId) return true;
+    }
+    return false;
+  }
+
+  // Fallback for non-staged decisions (e.g. general reject/return by assigned approver)
+  if (!currentStage || currentStage === 'pending') {
+    if (userTrackId && (userTrackId === request.advisorTrackId || userTrackId === request.mentorTrackId)) {
+      return true;
+    }
+    if (user.isHod || user.role === 'hod') {
+      const uDeptId = String(user.deptId || '');
+      const rDeptId = String(request.deptId || '');
+      if (uDeptId && rDeptId && uDeptId === rDeptId) return true;
+    }
   }
 
   return false;
@@ -723,6 +816,10 @@ router.post('/:id/approve', async (req, res) => {
     if (!od) return res.status(404).json({ error: 'OD request not found' });
     if (od.status !== 'pending') {
       return res.status(400).json({ error: `Cannot approve request with status '${od.status}'` });
+    }
+
+    if (!canReviewOd(req.user, od) || !(await isStageApprover(req.user, od, od.currentStage))) {
+      return res.status(403).json({ error: `Access denied: You are not authorized to approve the '${od.currentStage}' stage for this OD request` });
     }
 
     const currentStage = od.currentStage;
@@ -849,6 +946,13 @@ router.post('/:id/reject', async (req, res) => {
 
     const od = await M.ODRequest.findOne(query);
     if (!od) return res.status(404).json({ error: 'OD request not found' });
+    if (od.status !== 'pending') {
+      return res.status(400).json({ error: `Cannot reject request with status '${od.status}'` });
+    }
+
+    if (!canReviewOd(req.user, od) || !(await isStageApprover(req.user, od, od.currentStage))) {
+      return res.status(403).json({ error: 'Access denied: You are not authorized to reject this OD request' });
+    }
 
     const reason = sanitizeToString(req.body.reason || req.body.remarks);
     if (!reason) return res.status(400).json({ error: 'Rejection reason is required' });
@@ -896,6 +1000,13 @@ router.post('/:id/return', async (req, res) => {
 
     const od = await M.ODRequest.findOne(query);
     if (!od) return res.status(404).json({ error: 'OD request not found' });
+    if (od.status !== 'pending') {
+      return res.status(400).json({ error: `Cannot return request with status '${od.status}'` });
+    }
+
+    if (!canReviewOd(req.user, od) || !(await isStageApprover(req.user, od, od.currentStage))) {
+      return res.status(403).json({ error: 'Access denied: You are not authorized to return this OD request' });
+    }
 
     const remarks = sanitizeToString(req.body.remarks || req.body.reason);
     if (!remarks) return res.status(400).json({ error: 'Remarks required for return' });
@@ -930,6 +1041,13 @@ router.post('/:id/request-principal', async (req, res) => {
 
     const od = await M.ODRequest.findOne(query);
     if (!od) return res.status(404).json({ error: 'OD request not found' });
+    if (od.status !== 'pending') {
+      return res.status(400).json({ error: `Cannot request principal approval for request with status '${od.status}'` });
+    }
+
+    if (!canReviewOd(req.user, od) || !(await isStageApprover(req.user, od, od.currentStage))) {
+      return res.status(403).json({ error: 'Access denied: You are not authorized to request Principal approval for this OD request' });
+    }
 
     od.requestPrincipal = true;
     await od.save();
@@ -1577,6 +1695,17 @@ router.post('/:id/verify', async (req, res) => {
 
     const od = await M.ODRequest.findOne(query);
     if (!od) return res.status(404).json({ error: 'OD request not found' });
+
+    if (['rejected', 'cancelled'].includes(od.status)) {
+      return res.status(400).json({ error: `Cannot verify OD request with status '${od.status}'` });
+    }
+
+    const isApproverOrAdmin = ['admin', 'principal'].includes(req.user.role) || req.user.isPrincipal || req.user.isAdmin || req.user.isSudoAdmin ||
+      (req.user.trackId && (req.user.trackId === od.advisorTrackId || req.user.trackId === od.mentorTrackId)) ||
+      (req.user.isHod && (String(req.user.deptId) === String(od.deptId) || req.user.department === od.deptCode));
+    if (!isApproverOrAdmin) {
+      return res.status(403).json({ error: 'Access denied: Only the assigned Class Advisor, Mentor, HOD, or Administrator may verify OD outcomes' });
+    }
 
     const status = sanitizeToString(req.body.status) || 'verified'; // 'verified' | 'invalid' | 'needs_correction'
     const comment = sanitizeToString(req.body.comment) || '';

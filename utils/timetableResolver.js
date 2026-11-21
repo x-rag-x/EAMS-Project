@@ -6,6 +6,7 @@
  */
 
 const M = require('../models');
+const TTBlocks = require('./spanBlocks');
 const { nowParts, getUtcDayBounds, todayInInstitutionTz } = require('./institutionTime');
 
 const DAY_FULL = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -258,7 +259,8 @@ async function getPublishedTemplateSlot(roomId, hallNo, dayName, periodNumber) {
     try {
       const secTt = await M.SectionTimetable.findOne({ classId: linkedClass._id }).lean();
       if (secTt && secTt.slots) {
-        const secSlots = Object.values(secTt.slots).filter(s => s && s.day === dayName);
+        // Whole blocks: a continuation cell carrying the block's span used to "cover" periods past the block.
+        const secSlots = TTBlocks.blocksOf(secTt.slots).filter(s => s && s.day === dayName);
         const slot = secSlots.find(s => slotCoversPeriod(s, periodNumber) && slotMatchesRoom(s, roomId, hallNo, linkedClass, secTt.classId));
         if (slot) {
           return {
@@ -598,7 +600,7 @@ async function resolveRoomDaySchedule(roomId, dateStr = null) {
 
     // Try SectionTimetable Head (production timetable for linked class)
     if (!baseSlot && secTt?.slots) {
-      const secSlots = Object.values(secTt.slots).filter(s => s && s.day === dayNameFromDate);
+      const secSlots = TTBlocks.blocksOf(secTt.slots).filter(s => s && s.day === dayNameFromDate);
       const slot = secSlots.find(s => slotCoversPeriod(s, periodNum) && slotMatchesRoom(s, roomId, hallNo, linkedClass, secTt.classId));
       if (slot) {
         classDoc = linkedClass;
@@ -1012,7 +1014,7 @@ async function resolveClassDaySchedule(classId, dateStr = null, dateBounds = nul
     if (resolvedSlots.size === 0) {
       const secDoc = await M.SectionTimetable.findOne({ classId: cId }).lean();
       if (secDoc && secDoc.slots && typeof secDoc.slots === 'object') {
-        Object.entries(secDoc.slots).forEach(([k, raw]) => {
+        Object.entries(TTBlocks.toSlotsObj(secDoc.slots)).forEach(([k, raw]) => {
           if (!raw) return;
           const sDay = raw.day ? String(raw.day).trim().toLowerCase() : '';
           if (sDay === dayName.toLowerCase() || sDay === dayAbbr.toLowerCase()) {

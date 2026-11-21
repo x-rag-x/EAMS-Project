@@ -40,7 +40,7 @@ async function sendWelcomeCredentialsMail({
   username,
   password,
   role = 'student',
-  institutionName = 'EAMS Institution',
+  institutionName = 'Muster Institution',
   portalUrl = ''
 }) {
   if (!to || !to.includes('@')) {
@@ -62,7 +62,7 @@ async function sendWelcomeCredentialsMail({
     loginUrl = `http://${loginUrl}`;
   }
 
-  const subject = `Welcome to EAMS – Your ${roleLabel} Account & Credentials`;
+  const subject = `Welcome to Muster – Your ${roleLabel} Account & Credentials`;
 
   const htmlContent = `
 <!DOCTYPE html>
@@ -92,12 +92,12 @@ async function sendWelcomeCredentialsMail({
   <div class="card">
     <div class="header">
       <h1>${institutionName}</h1>
-      <p>Electronic Attendance Management System (EAMS)</p>
+      <p>Muster Attendance Management System</p>
     </div>
     <div class="body">
       <div class="greeting">Hello, ${fullName}!</div>
       <div class="intro">
-        Your institutional profile has been verified and registered on <b>EAMS</b> as a <b>${roleLabel}</b>.
+        Your institutional profile has been verified and registered on <b>Muster</b> as a <b>${roleLabel}</b>.
         You can now access digital attendance tracking, timetable schedules, session records, and institutional tools.
       </div>
 
@@ -121,7 +121,7 @@ async function sendWelcomeCredentialsMail({
           <tr>
             <td align="center" style="border-radius:24px;background:#1b5e20;">
               <a href="${loginUrl}" target="_blank" rel="noopener noreferrer" style="display:inline-block;padding:14px 34px;font-family:'Segoe UI',Arial,sans-serif;font-size:14.5px;color:#ffffff !important;font-weight:700;text-decoration:none;border-radius:24px;background-color:#1b5e20;border:1px solid #1b5e20;cursor:pointer;line-height:1.2;">
-                <span style="color:#ffffff !important;text-decoration:none;">Sign in to EAMS Portal &rarr;</span>
+                <span style="color:#ffffff !important;text-decoration:none;">Sign in to Muster Portal &rarr;</span>
               </a>
             </td>
           </tr>
@@ -137,7 +137,7 @@ async function sendWelcomeCredentialsMail({
       </div>
     </div>
     <div class="footer">
-      This is an automated notification from ${institutionName} EAMS.<br>
+      This is an automated notification from ${institutionName} Muster.<br>
       If you did not expect this message, please contact your departmental administrator.
     </div>
   </div>
@@ -148,7 +148,7 @@ async function sendWelcomeCredentialsMail({
   const textContent = `
 Hello ${fullName},
 
-Welcome to ${institutionName} Electronic Attendance Management System (EAMS).
+Welcome to ${institutionName} Muster Attendance Management System.
 Your account (${roleLabel}) has been verified.
 
 Your Login Credentials:
@@ -165,7 +165,7 @@ Please change your password upon first login.
     const accessToken = await getGmailAccessToken();
     if (accessToken) {
       const senderEmail = process.env.GMAIL_SENDER_EMAIL || 'emas.project.siet@gmail.com';
-      const fromAddr = `EAMS Institutional Core <${senderEmail}>`;
+      const fromAddr = `Muster Institutional Core <${senderEmail}>`;
       const rawMessage = [
         `From: ${fromAddr}`,
         `To: ${to}`,
@@ -204,7 +204,7 @@ Please change your password upon first login.
 
   if (transporter) {
     try {
-      const fromAddr = process.env.SMTP_FROM || `EAMS Notifications <noreply@${process.env.SMTP_HOST || 'eams.edu'}>`;
+      const fromAddr = process.env.SMTP_FROM || `Muster Notifications <noreply@${process.env.SMTP_HOST || 'muster.edu'}>`;
       const info = await transporter.sendMail({
         from: fromAddr,
         to,
@@ -252,7 +252,7 @@ async function sendGenericMail({
     const accessToken = await getGmailAccessToken();
     if (accessToken) {
       const senderEmail = process.env.GMAIL_SENDER_EMAIL || 'emas.project.siet@gmail.com';
-      const fromAddr = `EAMS Institutional Core <${senderEmail}>`;
+      const fromAddr = `Muster Institutional Core <${senderEmail}>`;
       const rawMessage = [
         `From: ${fromAddr}`,
         `To: ${to}`,
@@ -290,7 +290,7 @@ async function sendGenericMail({
   const transporter = getTransporter();
   if (transporter) {
     try {
-      const fromAddr = process.env.SMTP_FROM || `EAMS Notifications <noreply@${process.env.SMTP_HOST || 'eams.edu'}>`;
+      const fromAddr = process.env.SMTP_FROM || `Muster Notifications <noreply@${process.env.SMTP_HOST || 'muster.edu'}>`;
       const info = await transporter.sendMail({
         from: fromAddr,
         to,

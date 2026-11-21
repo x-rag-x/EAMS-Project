@@ -54,7 +54,7 @@ LoginHistorySchema.index({ trackId: 1, "history.sessionId": 1 });
 LoginHistorySchema.index({ "history.sessionId": 1 });
 
 const NotificationSchema = new mongoose.Schema({
-  type:          { type: String, enum: ['request','error','info','attendance-alert','leave-request','leave-approval','leave-rejection','trust-dispute','timetable-verification','timetable-conflict','timetable-share','timetable-deploy','timetable-approval','timetable-subjectset-request'], default: 'request' },
+  type:          { type: String, enum: ['request','error','info','attendance-alert','leave-request','leave-approval','leave-rejection','trust-dispute','timetable-verification','timetable-conflict','timetable-share','timetable-deploy','timetable-approval','timetable-subjectset-request','acting-role-active','substitution-expired','od-reminder','system-alert'], default: 'request' },
   from:          { type: String, required: true },
   fromRole:      { type: String, default: 'Teacher' },
   toTeacherId:   { type: mongoose.Schema.Types.ObjectId, ref: 'Teacher', default: null },
@@ -212,6 +212,7 @@ const LiveSessionSchema = new mongoose.Schema({
     time:      { type: Date, default: Date.now },
     ip:        { type: String },
     deviceId:  { type: String, default: '' },
+    idempotencyKey: { type: String, default: null },
     source:    { type: String, enum: ['code', 'qr', 'passcode'], default: 'code' },
     status:    { type: String, enum: ['pending', 'completed'], default: 'completed' },
     security: {

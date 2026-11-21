@@ -30,7 +30,7 @@
   let boardToken = sessionStorage.getItem('eams_board_token') || localStorage.getItem('eams_board_token') || '';
 
   if (!boardApiKey && !boardToken) {
-    console.warn('[EAMS Smart Board Security]: No board credentials. Opening setup modal.');
+    console.warn('[Muster Smart Board Security]: No board credentials. Opening setup modal.');
     setTimeout(() => {
       if (window.openSetupModal) window.openSetupModal();
     }, 500);
@@ -939,7 +939,7 @@ ws.onopen = function () {
   // ── Initialize ──
   checkBoardPairingStatus();
   connectWebSocket();
-  logDiag(`EAMS Smart Board initialized for device: ${deviceId}`);
+  logDiag(`Muster Smart Board initialized for device: ${deviceId}`);
 
   // If unprovisioned device, open setup modal automatically
   if (!deviceId || (!boardApiKey && !boardToken)) {

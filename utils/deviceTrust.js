@@ -5,7 +5,7 @@ const { isCampusIpAllowed } = require('./ipCheck');
 
 /**
  * utils/deviceTrust.js
- * Implements EAMS Attendance Gate & Trust Engine:
+ * Implements Muster Attendance Gate & Trust Engine:
  * Verifies non-extractable WebCrypto ECDSA P-256 signatures over mark tokens.
  * Compares browser install ID and stable hardware fingerprint signals.
  * Calculates frozen Device Score (0–50) weights.

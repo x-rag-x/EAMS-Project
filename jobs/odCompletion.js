@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const M = require('../models');
 const { getTodayIST } = require('../middleware/scope');
 const { getSettings } = require('../utils/settingsCache');
@@ -136,6 +137,35 @@ async function runODCompletionJob() {
   };
 }
 
+let odInterval = null;
+
+function startJob(intervalMs = 60 * 60 * 1000) {
+  if (odInterval) return;
+  // Run on startup
+  if (mongoose.connection && mongoose.connection.readyState === 1) {
+    runODCompletionJob().catch(err => {
+      console.warn('[OD Completion Job Initial Run Error]:', err.message);
+    });
+  }
+  odInterval = setInterval(() => {
+    if (mongoose.connection && mongoose.connection.readyState === 1) {
+      runODCompletionJob().catch(err => {
+        console.warn('[OD Completion Job Periodic Error]:', err.message);
+      });
+    }
+  }, intervalMs);
+  if (odInterval.unref) odInterval.unref();
+}
+
+function stopJob() {
+  if (odInterval) {
+    clearInterval(odInterval);
+    odInterval = null;
+  }
+}
+
 module.exports = {
-  runODCompletionJob
+  runODCompletionJob,
+  startJob,
+  stopJob
 };

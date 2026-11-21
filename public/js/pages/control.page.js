@@ -1544,7 +1544,7 @@ function exportDataSecure(type) {
       var a = document.createElement("a");
       a.href = url;
       a.download =
-        "eams_export_" +
+        "muster_export_" +
         type +
         "_" +
         todayIST() +
@@ -1834,23 +1834,7 @@ function clearErrorLogs() {
     },
   });
 }
-function deleteSingleErrorLog(id, btn) {
-  if (btn) btn.disabled = true;
-  apiCall("DELETE", "/logs/" + id)
-    .then(function (d) {
-      if (d && d.deleted) {
-        showToast("Log entry deleted");
-        loadHealth();
-      } else {
-        showToast("Delete failed");
-        if (btn) btn.disabled = false;
-      }
-    })
-    .catch(function () {
-      showToast("Delete failed");
-      if (btn) btn.disabled = false;
-    });
-}
+
 // Extended confirm — supports custom onConfirm callback
 function openConfirmEx(cfg) {
   currentAction = "__custom__";
@@ -3898,7 +3882,7 @@ function ugExportCSV() {
   var encodedUri = encodeURI(csvContent);
   var link = document.createElement("a");
   link.setAttribute("href", encodedUri);
-  link.setAttribute("download", "eams_" + role + "_full_export_" + todayIST() + ".csv");
+  link.setAttribute("download", "muster_" + role + "_full_export_" + todayIST() + ".csv");
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
@@ -4399,23 +4383,6 @@ function formatEta(ms) {
     }
   }, 1300);
 })();
-// Errors mode toggling
-var _errorsMode = "n";
-var _errorsN = 20;
-function setErrorsMode(mode) {
-  _errorsMode = mode;
-
-  document
-    .getElementById("err-btn-week")
-    ?.classList.toggle("active", mode === "week");
-
-  document
-    .getElementById("err-btn-n")
-    ?.classList.toggle("active", mode === "n");
-
-  loadHealth();
-}
-
 // Delete All Adder
 function openDeleteAdderModal() {
   document.querySelectorAll(".adder-chk").forEach(function (c) {
@@ -4515,7 +4482,7 @@ function loadActiveBroadcastStatus() {
       }
       if (pub.institution) {
         var shortN = pub.institution.institutionShort || '';
-        document.title = shortN ? ('EAMS – Control Center | ' + shortN) : 'EAMS – Control Center';
+        document.title = shortN ? ('Muster – Control Center | ' + shortN) : 'Muster – Control Center';
       }
     }).catch(function () { });
 

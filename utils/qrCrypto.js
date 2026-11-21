@@ -2,12 +2,9 @@ const crypto = require('crypto');
 const cfg = require('../config');
 
 const ALGORITHM = 'aes-256-gcm';
-const RAW_KEY = cfg.LOG_ENCRYPTION_KEY || process.env.LOG_ENCRYPTION_KEY;
+const RAW_KEY = process.env.QR_ENCRYPTION_KEY || cfg.QRID_ENCRYPTION_KEY || process.env.QRID_ENCRYPTION_KEY || (cfg.LOG_ENCRYPTION_KEY ? crypto.createHmac('sha256', 'eams-qr-dedicated-key-salt').update(cfg.LOG_ENCRYPTION_KEY).digest() : null);
 if (!RAW_KEY) {
-  throw new Error('[FATAL] LOG_ENCRYPTION_KEY environment variable must be set. Refusing to start with no log encryption key.');
-}
-if (cfg.JWT_SECRET && RAW_KEY === cfg.JWT_SECRET) {
-  console.warn('[SECURITY WARNING] LOG_ENCRYPTION_KEY is identical to JWT_SECRET. Using separate keys is strongly recommended.');
+  throw new Error('[FATAL] Dedicated QR encryption key (QRID_ENCRYPTION_KEY / QR_ENCRYPTION_KEY) must be configured.');
 }
 const KEY = crypto.createHash('sha256').update(RAW_KEY).digest();
 
@@ -19,18 +16,13 @@ const DEFAULT_GRACE_PERIOD_SEC = 2;
  */
 function encryptQrPayload(text) {
   if (!text) return '';
-  try {
-    const str = String(text);
-    const iv = crypto.randomBytes(12);
-    const cipher = crypto.createCipheriv(ALGORITHM, KEY, iv);
-    let encrypted = cipher.update(str, 'utf8', 'hex');
-    encrypted += cipher.final('hex');
-    const authTag = cipher.getAuthTag().toString('hex');
-    return `${iv.toString('hex')}.${authTag}.${encrypted}`;
-  } catch (err) {
-    console.error('[qrCrypto] Encryption error:', err.message);
-    return Buffer.from(text).toString('hex');
-  }
+  const str = String(text);
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv(ALGORITHM, KEY, iv);
+  let encrypted = cipher.update(str, 'utf8', 'hex');
+  encrypted += cipher.final('hex');
+  const authTag = cipher.getAuthTag().toString('hex');
+  return `${iv.toString('hex')}.${authTag}.${encrypted}`;
 }
 
 /**
@@ -48,8 +40,7 @@ function decryptQrPayload(cipherText) {
       decrypted += decipher.final('utf8');
       return decrypted;
     }
-    // Fallback if plain hex
-    return Buffer.from(cipherText, 'hex').toString('utf8');
+    return '';
   } catch (err) {
     return '';
   }
@@ -206,15 +197,7 @@ function decryptWithAes(cipherText, keyBuffer) {
       decrypted += decipher.final('utf8');
       return decrypted;
     }
-    // Legacy CBC fallback (2 parts: ivHex.encHex)
-    if (parts.length === 2) {
-      const [ivHex, encHex] = parts;
-      const iv = Buffer.from(ivHex, 'hex');
-      const decipher = crypto.createDecipheriv('aes-256-cbc', keyBuffer, iv);
-      let decrypted = decipher.update(encHex, 'hex', 'utf8');
-      decrypted += decipher.final('utf8');
-      return decrypted;
-    }
+    // Legacy unauthenticated CBC decryption removed for cryptographic integrity
     return '';
   } catch (err) {
     return '';

@@ -3,7 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>EAMS Smart Board Kiosk</title>
+  <title>Muster Smart Board Kiosk</title>
+  <link rel="icon" type="image/png" href="assets/logo.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,400;0,500;1,400&family=Poppins:wght@300;400;500;600;700;800&family=Playfair+Display:wght@600;700;800&display=swap" rel="stylesheet">
@@ -18,7 +19,7 @@
   <div class="fs-launch-overlay" id="fsLaunchOverlay" onclick="enterKioskFullscreen()">
     <div class="fs-launch-card">
       <div class="fs-launch-icon">🌿</div>
-      <div class="fs-launch-title">EAMS Smart Board Kiosk</div>
+      <div class="fs-launch-title">Muster Smart Board Kiosk</div>
       <div class="fs-launch-sub">Touch or click anywhere to launch into auto full-screen display</div>
       <button type="button" class="fs-launch-btn"><re-icon icon="fullscreen" size="14"></re-icon> Launch Fullscreen</button>
     </div>
@@ -29,7 +30,7 @@
     <div class="pairing-code-card">
       <div class="pairing-icon"><re-icon icon="tv"></re-icon></div>
       <div class="pairing-title">Connect Smart Board Display</div>
-      <div class="pairing-sub">Enter this 6-digit code in EAMS Admin &rsaquo; Campus Facilities &rsaquo; Link Board</div>
+      <div class="pairing-sub">Enter this 6-digit code in Muster Admin &rsaquo; Campus Facilities &rsaquo; Link Board</div>
       
       <div class="pairing-code-box">
         <span class="pairing-code-digit" id="pcd-0">-</span>
@@ -61,7 +62,7 @@
         <div class="brand-pill">
           <span class="brand-icon">🌿</span>
           <div>
-            <div class="brand-title">EAMS Smart Board</div>
+            <div class="brand-title">Muster Smart Board</div>
             <div class="brand-campus">Autonomous Classroom Display</div>
           </div>
         </div>
@@ -167,7 +168,7 @@
           </div>
 
           <div style="display: flex; justify-content: space-between; align-items: center;">
-            <span class="plan3-tag"><re-icon icon="bolt"></re-icon> EAMS Plan 3 Attendance Ready</span>
+            <span class="plan3-tag"><re-icon icon="bolt"></re-icon> Muster Plan 3 Attendance Ready</span>
             <span style="font-size: 11px; font-family: var(--font-mono); color: var(--text-dim);" id="deviceTag">DEV: --</span>
           </div>
         </div>
@@ -257,7 +258,7 @@
       <div class="modal-hd">
         <div>
           <div class="modal-title"><re-icon icon="tv" size="18"></re-icon> Smart Board Pairing</div>
-          <div class="modal-sub">Authenticate this display with the EAMS Autonomous Gateway</div>
+          <div class="modal-sub">Authenticate this display with the Muster Autonomous Gateway</div>
         </div>
         <div class="modal-close" onclick="closeSetupModal()"><re-icon icon="x" size="18"></re-icon></div>
       </div>

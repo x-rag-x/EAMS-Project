@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+const mongoose = require('mongoose');
 const bcrypt = require('@node-rs/bcrypt');
 const M = require('../models');
 const { authMiddleware, getRoleModel } = require('../middleware/auth');
@@ -140,6 +141,7 @@ router.put('/me', authMiddleware, async (req, res) => {
       'isWarden', 'isExamCoordinator', 'isPlacementCoord',
       'isClassRep', 'active', 'failedLogins', 'lockedUntil', 'loginCount', 'firstLogin',
       'lastLogin', 'mustChangePassword', 'password', 'username',
+      'department', 'dept', 'deptId', 'departmentId',
     ];
 
     const updates = { ...req.body };
@@ -155,8 +157,10 @@ router.put('/me', authMiddleware, async (req, res) => {
     if (req.user.role === 'teacher' || isSudo(req)) {
       if (updates.employeeNo !== undefined) user.employeeNo = updates.employeeNo;
       if (updates.empId !== undefined) user.employeeNo = updates.empId;
-      if (updates.department !== undefined) user.department = updates.department;
-      if (updates.dept !== undefined) user.department = updates.dept;
+      if (isSudo(req)) {
+        if (updates.department !== undefined) user.department = updates.department;
+        if (updates.dept !== undefined) user.department = updates.dept;
+      }
       if (req.user.role === 'teacher') {
         if (updates.designation !== undefined) user.designation = updates.designation;
         if (updates.desig !== undefined) user.designation = updates.desig;

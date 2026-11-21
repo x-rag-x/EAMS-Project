@@ -1,6 +1,13 @@
 // Database and server runtime configuration
 
 require('dotenv').config();
+const crypto = require('crypto');
+
+// Treat development as an explicit opt-in; default to production
+const isExplicitDev = process.env.NODE_ENV === 'development';
+const isTest = process.env.NODE_ENV === 'test';
+const nodeEnv = (isExplicitDev || isTest) ? (process.env.NODE_ENV) : (process.env.NODE_ENV || 'production');
+process.env.NODE_ENV = nodeEnv;
 
 // Mandatory security and connection invariants: refuse to start if any core secret/connection is missing
 const REQUIRED_ENV_VARS = [
@@ -18,16 +25,32 @@ if (missingEnvVars.length > 0) {
   throw new Error(errorMsg);
 }
 
-// Treat development as an explicit opt-in; default to production
-const isExplicitDev = process.env.NODE_ENV === 'development';
-const nodeEnv = isExplicitDev ? 'development' : (process.env.NODE_ENV || 'production');
-process.env.NODE_ENV = nodeEnv;
+// Check for insecure defaults when in production (S11, S20, S14)
+if (nodeEnv === 'production') {
+  const INSECURE_DEFAULTS = new Set([
+    'dev-secret', 'secret', 'changeme', 'password', 'default', '123456', 'admin', 'jwt-secret', 'eams-admin@123'
+  ]);
+  const secretsToCheck = ['JWT_SECRET', 'LOG_ENCRYPTION_KEY', 'QRID_ENCRYPTION_KEY', 'SID_ENCRYPTION_KEY'];
+  for (const sName of secretsToCheck) {
+    const val = (process.env[sName] || '').trim().toLowerCase();
+    if (INSECURE_DEFAULTS.has(val)) {
+      const errorMsg = `[FATAL] Insecure default detected for ${sName} in production mode. Refusing to start server.`;
+      console.error(errorMsg);
+      throw new Error(errorMsg);
+    }
+  }
+}
 
-
+// N22: Remove the published fallback timetable share secret ('dev-secret-tt-links')
 let ttLinkSecret = process.env.TT_LINK_SECRET;
 if (!ttLinkSecret || !ttLinkSecret.trim()) {
-  console.warn('[SECURITY WARNING] TT_LINK_SECRET is not set in environment. Using ephemeral fallback secret.');
-  ttLinkSecret = (process.env.JWT_SECRET || 'dev-secret') + '-tt-links';
+  if (process.env.STRICT_PRODUCTION_SECRETS === 'true') {
+    const errorMsg = '[FATAL] TT_LINK_SECRET must be explicitly configured.';
+    console.error(errorMsg);
+    throw new Error(errorMsg);
+  }
+  // Cryptographically strong random secret instead of published fallback
+  ttLinkSecret = crypto.randomBytes(32).toString('hex');
 }
 
 module.exports = {
@@ -50,7 +73,7 @@ module.exports = {
   JWT_SECRET:         process.env.JWT_SECRET,
   BOARD_JWT_SECRET:   process.env.BOARD_JWT_SECRET || (process.env.JWT_SECRET + '-board'),
   JWT_EXPIRES_IN:     process.env.JWT_EXPIRES_IN || '24h',
-  BCRYPT_ROUNDS:      parseInt(process.env.BCRYPT_ROUNDS) || 10,
+  BCRYPT_ROUNDS:      parseInt(process.env.BCRYPT_ROUNDS, 10) || 10,
   LOG_ENCRYPTION_KEY: process.env.LOG_ENCRYPTION_KEY,
 
   // Allowed cross-origin resource sharing origins
@@ -58,6 +81,8 @@ module.exports = {
 
   // Production domain for QR code generation (use in production, localhost in dev)
   PRODUCTION_DOMAIN: process.env.PRODUCTION_DOMAIN || '',
+  GDRIVE_BACKUP_FOLDER_ID: process.env.GDRIVE_BACKUP_FOLDER_ID || '',
+  GDRIVE_BULK_FOLDER_ID: process.env.GDRIVE_BULK_FOLDER_ID || '',
   QRID_ENCRYPTION_KEY: process.env.QRID_ENCRYPTION_KEY,
   SID_ENCRYPTION_KEY: process.env.SID_ENCRYPTION_KEY,
   TT_LINK_SECRET: ttLinkSecret,

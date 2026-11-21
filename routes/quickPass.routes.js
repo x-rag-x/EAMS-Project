@@ -81,7 +81,8 @@ router.post('/start', authMiddleware, checkLiveSessionGuard, async (req, res) =>
     const initialCode = generate12CharCode();
     const now = new Date();
     const expiresAt = new Date(now.getTime() + rotationTimeSec * 1000);
-    const sessionTrackId = 'QP_' + Math.random().toString(36).substr(2, 9).toUpperCase();
+    const { generateSessionTrackId } = require('../utils/codeGenerator');
+    const sessionTrackId = generateSessionTrackId('QP');
 
     const session = await M.QuickPassSession.create({
       sessionTrackId,

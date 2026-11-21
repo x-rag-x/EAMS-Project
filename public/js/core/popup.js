@@ -39,7 +39,7 @@
     if (!bg && document.body) {
       bg = document.createElement('div');
       bg.id = 'eams-popup-window-bg';
-      bg.className = 'modal-bg eams-popup-bg';
+      bg.className = 'modal-bg muster-popup-bg eams-popup-bg';
       bg.style.zIndex = '12000';
       bg.setAttribute('role', 'dialog');
       bg.setAttribute('aria-modal', 'true');
@@ -172,7 +172,7 @@
 
       var bg = _ensurePopupDom();
       if (!bg) {
-        console.warn('[EAMS Popup]: Document body not ready. Message:', opts.message);
+        console.warn('[Muster Popup]: Document body not ready. Message:', opts.message);
         resolve(opts.isPrompt ? null : true);
         return;
       }
@@ -401,17 +401,17 @@
   // Permanently prevents ugly native browser alert, confirm, prompt dialogs
   // across the entire application, redirecting all calls to EAMS Special Modal Popups.
   global.alert = function (message, title) {
-    console.warn('[EAMS UI]: Native alert() intercepted. Displaying special popup window.');
+    console.warn('[Muster UI]: Native alert() intercepted. Displaying special popup window.');
     return (global.showPopup || showPopup)(String(message), title || 'Notification', 'info');
   };
 
   global.confirm = function (message, title) {
-    console.warn('[EAMS UI]: Native confirm() intercepted. Displaying special popup confirmation window.');
+    console.warn('[Muster UI]: Native confirm() intercepted. Displaying special popup confirmation window.');
     return (global.showConfirm || showConfirm)(String(message), title || 'Confirm Action');
   };
 
   global.prompt = function (message, defaultValue, title) {
-    console.warn('[EAMS UI]: Native prompt() intercepted. Displaying special popup prompt window.');
+    console.warn('[Muster UI]: Native prompt() intercepted. Displaying special popup prompt window.');
     return (global.showPrompt || showPrompt)(String(message), defaultValue, title || 'Input Required');
   };
 
@@ -431,7 +431,7 @@
 
   global.closePopup = closePopup;
 
-  global.EAMSPopup = {
+  global.MusterPopup = global.EAMSPopup = {
     show: showPopup,
     alert: showModalAlert,
     confirm: showConfirm,

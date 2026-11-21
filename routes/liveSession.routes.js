@@ -216,17 +216,55 @@ router.post('/mark', authMiddleware, liveSessionMarkIpLimiter, liveSessionMarkLi
       return res.status(400).json({ error: 'This session does not accept passcode submissions. Please scan the live QR code.' });
     }
 
+    // N16, L3: Server-side verify student enrollment/class membership against the session
+    const studentClassId = student.classId || student.class;
+    const sessionClassId = String(session.classId);
+    let isEnrolledInSessionClass = studentClassId && (
+      String(studentClassId) === sessionClassId ||
+      (student.class && String(student.class) === sessionClassId)
+    );
+    if (!isEnrolledInSessionClass && studentClassId) {
+      const cls = await M.Class.findOne({
+        $or: [
+          ...(mongoose.isValidObjectId(studentClassId) ? [{ _id: studentClassId }] : []),
+          { classTrackId: studentClassId },
+          { name: studentClassId }
+        ]
+      }).lean();
+      if (cls && (String(cls._id) === sessionClassId || cls.classTrackId === sessionClassId)) {
+        isEnrolledInSessionClass = true;
+      }
+    }
+    if (!isEnrolledInSessionClass) {
+      return res.status(403).json({ error: 'You are not enrolled in the class for this attendance session.' });
+    }
+
+    // C16: Idempotency Key Check
+    const idempotencyKey = String(req.body.idempotencyKey || req.headers['idempotency-key'] || '').trim();
+    if (idempotencyKey) {
+      const existingByKey = session.markedStudents.find(st => st.idempotencyKey === idempotencyKey);
+      if (existingByKey) {
+        return res.json({
+          success: true,
+          message: 'Attendance already marked (idempotent retry).',
+          alreadyMarked: true,
+          status: existingByKey.status,
+          security: existingByKey.security
+        });
+      }
+    }
+
     // Device identification and proxy check
     const deviceAlreadyUsed = session.markedStudents.some(
-      s => (s.deviceId === effectiveDeviceId || (deviceProof?.installId && s.security?.deviceTrackId === deviceProof.installId)) &&
-      String(s.studentId) !== String(student._id) &&
-      s.status === 'completed'
+      st => (st.deviceId === effectiveDeviceId || (deviceProof?.installId && st.security?.deviceTrackId === deviceProof.installId)) &&
+      String(st.studentId) !== String(student._id) &&
+      st.status === 'completed'
     );
     if (deviceAlreadyUsed) {
       return res.status(403).json({ error: 'This physical device was already used by another student for this session.' });
     }
 
-    // IP Check using shared CIDR-aware helper
+    // IP Check using shared CIDR-aware helper (L3: empty allowed list must not allow everyone)
     const settings = await M.Settings.findOne({ key: 'college_ips' }).lean();
     const allowedIps = settings ? settings.value : [];
     if (!isCampusIpAllowed(req.ip, allowedIps)) {
@@ -239,20 +277,58 @@ router.post('/mark', authMiddleware, liveSessionMarkIpLimiter, liveSessionMarkLi
     }
 
     // Already marked?
-    const alreadyMarked = session.markedStudents.some(s => String(s.studentId) === String(student._id));
-    if (alreadyMarked) return res.json({ success: true, message: 'Already marked' });
+    const alreadyMarked = session.markedStudents.some(st => String(st.studentId) === String(student._id));
+    if (alreadyMarked) return res.json({ success: true, message: 'Already marked', alreadyMarked: true });
 
-    // Evaluate Device Trust & Risk Gate
+    // Location verification on server (N16, L4): remove hardcoded bypasses
+    const attSettingsDoc = await M.Settings.findOne({ key: 'attendance' }).lean();
+    const attSettings = attSettingsDoc?.value || {};
+    const enforceGeofence = attSettings.enforceAttendanceGeofence !== false;
+    const maxRadiusM = Number(session.maxRadiusMeters) || Number(attSettings.classroomRadiusM) || 200;
+    const maxAccuracyM = Number(attSettings.attendanceMaxAccuracyM) || 150;
+
+    let isClassroomRadiusOk = true;
+    let isLocationOk = true;
+
+    const latNum = latitude !== undefined && latitude !== null ? Number(latitude) : null;
+    const lonNum = longitude !== undefined && longitude !== null ? Number(longitude) : null;
+    const accNum = accuracy !== undefined && accuracy !== null ? Number(accuracy) : null;
+
+    if (enforceGeofence) {
+      if (latNum === null || lonNum === null || isNaN(latNum) || isNaN(lonNum)) {
+        isLocationOk = false;
+        isClassroomRadiusOk = false;
+      } else if (accNum !== null && !isNaN(accNum) && accNum > maxAccuracyM) {
+        isLocationOk = false;
+        isClassroomRadiusOk = false;
+      } else if (session.latitude !== null && session.latitude !== undefined && session.longitude !== null && session.longitude !== undefined) {
+        // Haversine distance calculation in meters
+        const R = 6371000;
+        const dLat = (Number(session.latitude) - latNum) * Math.PI / 180;
+        const dLon = (Number(session.longitude) - lonNum) * Math.PI / 180;
+        const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+          Math.cos(latNum * Math.PI / 180) * Math.cos(Number(session.latitude) * Math.PI / 180) *
+          Math.sin(dLon / 2) * Math.sin(dLon / 2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        const dist = R * c;
+        if (dist > maxRadiusM) {
+          isClassroomRadiusOk = false;
+          isLocationOk = false;
+        }
+      }
+    }
+
+    // Evaluate Device Trust & Risk Gate with computed server verification
     const trustEval = await evaluateDeviceTrust({
       student,
       deviceProof,
       payload: { sessionId: session.trackId || String(session._id), passcode: cleanPasscode },
       location: {
-        latitude: latitude !== undefined ? Number(latitude) : undefined,
-        longitude: longitude !== undefined ? Number(longitude) : undefined,
-        accuracy: accuracy !== undefined ? Number(accuracy) : undefined,
-        isClassroomRadiusOk: true,
-        locationOk: true
+        latitude: latNum !== null ? latNum : undefined,
+        longitude: lonNum !== null ? lonNum : undefined,
+        accuracy: accNum !== null ? accNum : undefined,
+        isClassroomRadiusOk,
+        locationOk: isLocationOk
       },
       ip: req.ip,
       deviceId: effectiveDeviceId
@@ -269,17 +345,45 @@ router.post('/mark', authMiddleware, liveSessionMarkIpLimiter, liveSessionMarkLi
 
     const markStatus = trustEval.requiresTeacherVerification ? 'pending' : 'completed';
 
-    session.markedStudents.push({
+    // Atomic write (C15, N16) using updateOne with $ne condition to avoid double-marking race conditions
+    const markRecord = {
       studentId: student._id,
-      regNo: student.registerNo || student.regNo,
+      regNo: student.registerNo || student.regNo || '',
       time: new Date(),
       ip: req.ip,
       deviceId: effectiveDeviceId,
       source: 'passcode',
       status: markStatus,
+      idempotencyKey: idempotencyKey || undefined,
       security: trustEval.security
-    });
-    await session.save();
+    };
+
+    const updateFilter = {
+      _id: session._id,
+      active: true,
+      'markedStudents.studentId': { $ne: student._id }
+    };
+    if (idempotencyKey) {
+      updateFilter['markedStudents.idempotencyKey'] = { $ne: idempotencyKey };
+    }
+
+    const updateResult = await M.LiveSession.updateOne(
+      updateFilter,
+      { $push: { markedStudents: markRecord } }
+    );
+
+    if (updateResult.matchedCount === 0 || updateResult.modifiedCount === 0) {
+      const freshSession = await M.LiveSession.findById(session._id).lean();
+      if (freshSession) {
+        const alreadyMarkedNow = freshSession.markedStudents.some(
+          st => String(st.studentId) === String(student._id) || (idempotencyKey && st.idempotencyKey === idempotencyKey)
+        );
+        if (alreadyMarkedNow) {
+          return res.json({ success: true, message: 'Already marked', alreadyMarked: true });
+        }
+      }
+      return res.status(409).json({ error: 'Failed to record attendance. Session may be inactive or already marked.' });
+    }
 
     res.json({
       success: true,

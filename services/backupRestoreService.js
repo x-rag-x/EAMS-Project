@@ -237,7 +237,7 @@ async function createFullBackup({ user, ip, userAgent, clientDeviceInfo = {} }) 
   const zip = new JSZip();
   const manifest = {
     backupId,
-    app: 'EAMS',
+    app: 'Muster',
     version: '2.3',
     algorithm: 'AES-256-GCM',
     kdf: 'PBKDF2-SHA256-100K',
@@ -250,25 +250,25 @@ async function createFullBackup({ user, ip, userAgent, clientDeviceInfo = {} }) 
     authTag: encryptedPayload.authTag
   };
 
-  zip.file('manifest.eams', JSON.stringify(manifest, null, 2));
-  zip.file('data.eams', encryptedPayload.ciphertext);
+  zip.file('manifest.muster', JSON.stringify(manifest, null, 2));
+  zip.file('data.muster', encryptedPayload.ciphertext);
   zip.file(
     'README.txt',
     [
       '====================================================================',
-      'ELECTRONIC ATTENDANCE MANAGEMENT SYSTEM (EAMS) — ENCRYPTED BACKUP',
+      'MUSTER ATTENDANCE MANAGEMENT SYSTEM — ENCRYPTED BACKUP',
       '====================================================================',
       `Backup ID:     ${backupId}`,
       `Created At:    ${timestamp.toISOString()}`,
       `Total Records: ${totalDocs}`,
       '',
       'SECURITY NOTICE:',
-      'All database collections in data.eams are encrypted using AES-256-GCM',
+      'All database collections in data.muster are encrypted using AES-256-GCM',
       'authenticated encryption. External archivers (WinRAR, 7-Zip, etc.) cannot',
       'read or alter the underlying database records.',
       '',
       'RESTORE INSTRUCTIONS:',
-      '1. Open the EAMS administrative portal.',
+      '1. Open the Muster administrative portal.',
       '2. Navigate to Bulk Upload -> Restore from Backup tab (Sudo Admin only).',
       '3. Upload this .zip file to inspect conflicts and execute restoration.',
       '===================================================================='
@@ -391,11 +391,11 @@ async function inspectBackupArchive(zipBuffer, backupPassword = '') {
     throw new Error('Invalid archive: Provided file is not a valid ZIP file.');
   }
 
-  const manifestFile = zip.file('manifest.eams');
-  const dataFile = zip.file('data.eams');
+  const manifestFile = zip.file('manifest.muster') || zip.file('manifest.eams');
+  const dataFile = zip.file('data.muster') || zip.file('data.eams');
 
   if (!manifestFile || !dataFile) {
-    throw new Error('Unrecognized archive: Missing manifest.eams or data.eams. Ensure you upload a genuine EAMS backup.');
+    throw new Error('Unrecognized archive: Missing manifest or data file. Ensure you upload a genuine Muster backup.');
   }
 
   let manifest;
@@ -697,10 +697,10 @@ async function executeBackupRestore({
     throw new Error('Invalid archive: Uploaded file is not a valid ZIP file.');
   }
 
-  const manifestFile = zip.file('manifest.eams');
-  const dataFile = zip.file('data.eams');
+  const manifestFile = zip.file('manifest.muster') || zip.file('manifest.eams');
+  const dataFile = zip.file('data.muster') || zip.file('data.eams');
   if (!manifestFile || !dataFile) {
-    throw new Error('Unrecognized archive: Missing EAMS envelope files (manifest.eams or data.eams).');
+    throw new Error('Unrecognized archive: Missing Muster envelope files (manifest.muster or data.muster).');
   }
 
   let manifest;

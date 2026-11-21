@@ -36,6 +36,7 @@ const {
 const { getEligibleRooms, checkRoomEligibility } = require('../services/roomEligibility');
 const { computeRowsHash, syncClassSubjectSet, verifySubjectSetGate } = require('../services/subjectSetService');
 const { resolveHodTeacher } = require('../utils/timetableResolver');
+const TTBlocks = require('../utils/spanBlocks');
 
 // ── Default institutional timing sets (seeded on first request) ──
 
@@ -89,7 +90,7 @@ const TIMING_SEED = [
 
 // ── Authorization helpers ──
 
-function canManage(req) {
+function canViewTimetable(req) {
   const u = req.user;
   if (!u) return false;
   if (isSudo(req || u)) return true;
@@ -97,6 +98,18 @@ function canManage(req) {
   if (Array.isArray(u.specials) && u.specials.some(s => s && (s.option === 'isHod' || s.option === 'isTimeTableCoordinator' || s.option === 'isPrincipal') && s.value !== false)) return true;
   if (req.access?.pages?.timetable || req.access?.pages?.rooms) return true;
   if (hasPageRight(u, 'timetable', 'view')) return true;
+  return false;
+}
+
+function canManage(req) {
+  const u = req.user;
+  if (!u) return false;
+  if (isSudo(req || u)) return true;
+  if (u.isHod === true || u.isTimeTableCoordinator === true || u.isPrincipal === true) return true;
+  if (Array.isArray(u.specials) && u.specials.some(s => s && (s.option === 'isHod' || s.option === 'isTimeTableCoordinator' || s.option === 'isPrincipal') && s.value !== false)) return true;
+  // S8: View-only right must NOT grant management/edit rights
+  if (req.access?.pages?.timetable?.actions?.some(a => ['edit', 'create', 'publish', 'delete'].includes(a))) return true;
+  if (hasPageRight(u, 'timetable', 'edit') || hasPageRight(u, 'timetable', 'create')) return true;
   return false;
 }
 
@@ -266,51 +279,8 @@ async function getAllActiveDevTemplates(academicYears = []) {
 }
 
 function gridToSlotsObj(grid = [], className = '') {
-  const slots = {};
-  if (!Array.isArray(grid)) return slots;
-
-  for (const item of grid) {
-    if (!item || !item.day || item.period === undefined || item.period === null) continue;
-    if (item.isSpanContinuation || (Number(item.spanIndex) > 0)) continue;
-    const startPeriod = typeof item.period === 'number' ? item.period : (parseInt(String(item.period).replace(/^P/i, ''), 10) || 1);
-    const span = Math.max(1, Number(item.span || item.duration || 1));
-
-    const isLab = Boolean(item.isLab ?? (item.type === 'Lab' || span > 1));
-    const combinedWith = Array.isArray(item.combinedWith)
-      ? item.combinedWith.filter(Boolean)
-      : (item.combinedWith ? [String(item.combinedWith)] : []);
-    const type = item.type || (isLab ? 'Lab' : (combinedWith.length > 0 ? 'Combined' : 'Theory'));
-
-    for (let offset = 0; offset < span; offset++) {
-      const currentPeriod = startPeriod + offset;
-      const key = `${item.day}_${currentPeriod}`;
-
-      slots[key] = {
-        day: item.day,
-        period: currentPeriod,
-        subject: item.subject || '',
-        subjectId: item.subjectId || null,
-        teacher: item.teacher || '',
-        teacherId: item.teacherId || null,
-        teacherTrackId: item.teacherTrackId || '',
-        room: item.room || '',
-        roomId: item.roomId || undefined,
-        span,
-        spanRootPeriod: startPeriod,
-        spanIndex: offset,
-        isSpanContinuation: offset > 0,
-        isLab,
-        type,
-        combinedWith,
-        state: item.state || '',
-        activityId: item.activityId || null,
-        activityLabel: item.activityLabel || '',
-        primaryClassId: item.primaryClassId || undefined,
-        primaryClassName: item.primaryClassName || undefined
-      };
-    }
-  }
-  return slots;
+  // Collapse, then expand once: safe whether the grid holds blocks, cells, or a legacy mix.
+  return TTBlocks.toSlotsObj(grid);
 }
 
 function isLabText(text) {
@@ -324,96 +294,22 @@ function isLabText(text) {
 function normalizeGridSlots(rawSlots = []) {
   if (!Array.isArray(rawSlots)) return [];
 
-  // Identify root keys to avoid double-expanding if continuations are already present
-  const validSlots = rawSlots.filter(Boolean);
-  const rootKeys = new Set();
-  for (const s of validSlots) {
-    if (!s.isSpanContinuation && !(Number(s.spanIndex) > 0)) {
-      const p = typeof s.period === 'number' ? s.period : (parseInt(String(s.period).replace(/\D/g, ''), 10) || 1);
-      rootKeys.add(`${s.day}_${s.spanRootPeriod || p}`);
-    }
-  }
-
-  const result = [];
-
-  for (const slot of validSlots) {
-    const isCont = Boolean(slot.isSpanContinuation || (Number(slot.spanIndex) > 0));
-    const rootPeriodCandidate = slot.spanRootPeriod || slot.period;
-    if (isCont && rootKeys.has(`${slot.day}_${rootPeriodCandidate}`)) {
-      // Root exists and will expand this period, skip to avoid double expansion
-      continue;
-    }
-
-    let periodNum = slot.period;
-    if (typeof periodNum === 'string') {
-      periodNum = parseInt(periodNum.replace(/\D/g, ''), 10) || 1;
-    } else if (typeof periodNum !== 'number') {
-      periodNum = 1;
-    }
-
-    const span = Math.max(1, Number(slot.span ?? slot.duration ?? 1) || 1);
-    const isLab = Boolean(slot.isLab === true || slot.type === 'Lab' || isLabText(slot.subject));
-    const combinedWith = Array.isArray(slot.combinedWith)
-      ? slot.combinedWith.filter(Boolean)
-      : (slot.combinedWith ? [String(slot.combinedWith)] : []);
-    const type = slot.type || (isLab ? 'Lab' : (combinedWith.length > 0 ? 'Combined' : 'Theory'));
-
-    const baseData = {
-      day: slot.day,
-      subject: slot.subject || '',
-      teacher: slot.teacher || '',
-      room: slot.room || '',
-      isLab,
+  // Lab detection keeps the old subject-name check, then the block engine collapses any mix of
+  // roots and continuation cells and expands it exactly once (root + flagged continuations).
+  const prepared = rawSlots.filter(Boolean).map(slot => {
+    const plain = typeof slot.toObject === 'function' ? slot.toObject() : slot;
+    const span = Math.max(1, Number(plain.span ?? plain.duration ?? 1) || 1);
+    const explicitLab = plain.isLab === true || plain.type === 'Lab' || isLabText(plain.subject);
+    return {
+      ...plain,
+      period: TTBlocks.toPeriod(plain.period) || 1,
       span,
-      type,
-      combinedWith,
-      state: slot.state || slot.comment || '',
-      ...(slot.assignmentId ? { assignmentId: slot.assignmentId } : {}),
-      ...(slot.teacherId ? { teacherId: slot.teacherId } : {}),
-      ...(slot.teacherTrackId ? { teacherTrackId: slot.teacherTrackId } : {}),
-      ...(slot.subjectId ? { subjectId: slot.subjectId } : {}),
-      ...(slot.roomId ? { roomId: slot.roomId } : {}),
-      ...(slot.activityId ? { activityId: slot.activityId } : {}),
-      ...(slot.activityLabel ? { activityLabel: slot.activityLabel } : {}),
-      ...(slot.primaryClassId ? { primaryClassId: slot.primaryClassId } : {}),
-      ...(slot.primaryClassName ? { primaryClassName: slot.primaryClassName } : {})
+      isLab: explicitLab || (plain.isLab !== false && span >= 3),
+      state: plain.state || plain.comment || ''
     };
+  });
 
-    // If this slot was an orphan continuation whose root was missing, emit as standalone slot
-    if (isCont && !rootKeys.has(`${slot.day}_${rootPeriodCandidate}`)) {
-      result.push({
-        ...baseData,
-        period: periodNum,
-        span: 1,
-        spanRootPeriod: periodNum,
-        spanIndex: 0,
-        isSpanContinuation: false
-      });
-      continue;
-    }
-
-    // Emit root slot
-    result.push({
-      ...baseData,
-      period: periodNum,
-      spanRootPeriod: periodNum,
-      spanIndex: 0,
-      isSpanContinuation: false
-    });
-
-    // Emit continuation slots for multi-period slots
-    for (let offset = 1; offset < span; offset++) {
-      result.push({
-        ...baseData,
-        period: periodNum + offset,
-        spanRootPeriod: periodNum,
-        spanIndex: offset,
-        isSpanContinuation: true
-      });
-    }
-  }
-
-  return result;
+  return TTBlocks.toCells(prepared);
 }
 
 function buildOverrideSlot(data = {}) {
@@ -809,6 +705,13 @@ async function detectConflicts(slots, classId, ignoreId, env = 'development') {
   const conflicts = [];
   if (!Array.isArray(slots) || slots.length === 0) return conflicts;
 
+  // Resolve current class document for name comparison (Checklist B20)
+  let currentClassDoc = null;
+  if (classId) {
+    try { currentClassDoc = await M.Class.findById(classId).lean(); } catch (_) {}
+  }
+  const currentClassName = currentClassDoc?.name || '';
+
   // Cross-check within the submitted batch
   for (let i = 0; i < slots.length; i++) {
     const a = slots[i];
@@ -861,13 +764,6 @@ async function detectConflicts(slots, classId, ignoreId, env = 'development') {
   const targetStatuses = env === 'production'
     ? ['published']
     : ['draft', 'pending_approval', 'published'];
-
-  // Resolve current class document for name comparison
-  let currentClassDoc = null;
-  if (classId) {
-    try { currentClassDoc = await M.Class.findById(classId).lean(); } catch (_) {}
-  }
-  const currentClassName = currentClassDoc?.name || '';
 
   // Cross-check against existing DB records (all classes — institution-wide)
   for (const slot of slots) {
@@ -1103,7 +999,7 @@ router.post('/boards/auth/handshake', boardHandshakeLimiter, async (req, res) =>
         ip,
         ipType,
         detectedAt: now,
-        userAgent: req.headers['user-agent'] || 'EAMS-Board-Handshake'
+        userAgent: req.headers['user-agent'] || 'Muster-Board-Handshake'
       });
       if (board.ipHistory.length > 20) board.ipHistory = board.ipHistory.slice(0, 20);
     }
@@ -1216,8 +1112,8 @@ router.get('/boards/:id/context', async (req, res) => {
   }
 });
 
-// GET /boards/pairing-code — Get or generate 6-digit pairing code for an unlinked board
-router.get('/boards/pairing-code', async (req, res) => {
+// GET /boards/pairing-code — Get 6-digit pairing code for an unlinked board (Checklist S10 & A6)
+router.get('/boards/pairing-code', boardHandshakeLimiter, async (req, res) => {
   try {
     const deviceId = (req.query.device || req.query.deviceId || '').trim().toUpperCase();
     if (!deviceId) {
@@ -1226,12 +1122,7 @@ router.get('/boards/pairing-code', async (req, res) => {
 
     let board = await M.SmartBoard.findOne({ deviceId });
     if (!board) {
-      board = await M.SmartBoard.create({
-        boardName: `Smart Board (${deviceId})`,
-        deviceId,
-        status: 'Active',
-        connectionStatus: 'Disconnected'
-      });
+      return res.status(404).json({ error: 'Smart board not registered. Please register the board from the management portal first.' });
     }
 
     // If board is already linked to a room, do NOT show a pairing code ("only unlinked boards")
@@ -1260,7 +1151,8 @@ router.get('/boards/pairing-code', async (req, res) => {
     let expiresAt = board.pairingCodeExpiresAt;
 
     if (!code || !expiresAt || new Date(expiresAt) <= now) {
-      code = Math.floor(100000 + Math.random() * 900000).toString();
+      const { generateNumericCode } = require('../utils/codeGenerator');
+      code = generateNumericCode(6);
       expiresAt = new Date(Date.now() + 5 * 60 * 1000);
       board.pairingCode = code;
       board.pairingCodeExpiresAt = expiresAt;
@@ -1339,13 +1231,21 @@ router.get('/', async (req, res) => {
   }
 });
 
+const ALLOWED_TIMETABLE_FIELDS = [
+  'classId', 'className', 'subjectId', 'subjectName', 'activityId', 'activityLabel', 'day', 'start', 'end'
+];
+
 router.post('/', requireManager, async (req, res) => {
   try {
+    const safeData = {};
+    for (const f of ALLOWED_TIMETABLE_FIELDS) {
+      if (req.body && req.body[f] !== undefined) safeData[f] = req.body[f];
+    }
     // trackId is required by the schema but the teacher portal never had it
     // client-side (sent undefined → every create failed validation). Stamp it
     // from the authenticated user, like teacherName.
     const slot = await M.Timetable.create({
-      ...req.body,
+      ...safeData,
       trackId: req.user.trackId,
       teacherId: req.user._id,
       teacherName: req.user.name
@@ -1353,7 +1253,7 @@ router.post('/', requireManager, async (req, res) => {
     await logAction(
       req.user.trackId || req.user._id, req.user.name, req.user.role,
       'Timetable Slot Added',
-      `${req.body.day} ${req.body.start} - ${req.body.subjectName || ''}`,
+      `${slot.day} ${slot.start} - ${slot.subjectName || ''}`,
       'data', 'info', req.ip, req.user.sessionId,
       { module: 'timetable', subType: 'entry-create', changes: { before: null, after: slot.toObject() } }
     );
@@ -1365,8 +1265,12 @@ router.post('/', requireManager, async (req, res) => {
 
 router.put('/:id', requireManager, async (req, res) => {
   try {
+    const safeData = {};
+    for (const f of ALLOWED_TIMETABLE_FIELDS) {
+      if (req.body && req.body[f] !== undefined) safeData[f] = req.body[f];
+    }
     const before = await M.Timetable.findById(req.params.id).lean();
-    const slot = await M.Timetable.findByIdAndUpdate(req.params.id, req.body, { returnDocument: 'after' });
+    const slot = await M.Timetable.findByIdAndUpdate(req.params.id, safeData, { returnDocument: 'after' });
     if (!slot) return res.status(404).json({ error: 'Timetable slot not found' });
     await logAction(
       req.user.trackId || req.user._id, req.user.name, req.user.role,
@@ -1425,15 +1329,23 @@ router.get('/slot-source', requireDevAccess, async (req, res) => {
 // ── External combined slots resolver ──
 
 async function mergeExternalCombinedSlots(classId, className, baseSlotsObj, env = 'development') {
-  const merged = { ...(baseSlotsObj || {}) };
+  // Shows combined sessions that other classes own in this class's view. Works on whole blocks:
+  // the old version expanded every continuation cell again, so a P7-P9 combined lab spilled into
+  // P10 and P11, and a combined double was shown as a lab.
+  let blocks = TTBlocks.blocksOf(baseSlotsObj || {});
   try {
-    if (!className) return merged;
-    const cNameLower = className.trim().toLowerCase();
+    if (!className) return TTBlocks.toSlotsObj(blocks);
     const targetStatuses = env === 'development'
       ? ['draft', 'pending_approval', 'approved', 'published']
       : ['published'];
 
-    // Check SemesterTemplates of other classes
+    const addFrom = (ownerId, ownerName, source) => {
+      TTBlocks.combinedBlocksFor(TTBlocks.blocksOf(source), ownerName, ownerId, className).forEach(b => {
+        // The class's own saved session wins; the shared one is shown only where the class is free.
+        if (!blocks.some(x => TTBlocks.overlaps(x, b))) blocks.push(b);
+      });
+    };
+
     const otherTemplates = await M.SemesterTemplate.find({
       classId: { $ne: classId },
       status: { $in: targetStatuses },
@@ -1441,87 +1353,20 @@ async function mergeExternalCombinedSlots(classId, className, baseSlotsObj, env 
     }).populate('classId', 'name').lean();
 
     otherTemplates.forEach(t => {
-      const primaryName = t.classId?.name || t.className || 'Primary Class';
-      const primaryId = t.classId?._id || t.classId;
-      (t.grid || []).forEach(slot => {
-        if (slot && Array.isArray(slot.combinedWith) && slot.combinedWith.some(cn => cn && cn.trim().toLowerCase() === cNameLower)) {
-          const startPeriod = typeof slot.period === 'number' ? slot.period : (parseInt(String(slot.period).replace(/\D/g, ''), 10) || 1);
-          const span = Math.max(1, Number(slot.span || slot.duration || 1));
-          const allComb = [primaryName, ...slot.combinedWith];
-          const otherSections = allComb.filter(c => c && c.trim().toLowerCase() !== cNameLower);
-
-          for (let offset = 0; offset < span; offset++) {
-            const currentPeriod = startPeriod + offset;
-            const key = `${slot.day}_${currentPeriod}`;
-            if (!merged[key]) {
-              merged[key] = {
-                day: slot.day,
-                period: currentPeriod,
-                subject: slot.subject || '',
-                teacher: slot.teacher || '',
-                room: slot.room || '',
-                span,
-                spanRootPeriod: startPeriod,
-                spanIndex: offset,
-                isSpanContinuation: offset > 0,
-                isLab: Boolean(slot.isLab || span > 1),
-                type: 'Combined',
-                combinedWith: otherSections,
-                primaryClassId: primaryId,
-                primaryClassName: primaryName,
-                state: slot.state || ''
-              };
-            }
-          }
-        }
-      });
+      addFrom(t.classId?._id || t.classId, t.classId?.name || t.className || 'Primary Class', t.grid || []);
     });
 
-    // Check SectionTimetables of other classes
     const otherSectionTTs = await M.SectionTimetable.find({
       classId: { $ne: classId }
     }).populate('classId', 'name').lean();
 
     otherSectionTTs.forEach(st => {
-      const primaryName = st.className || st.classId?.name || 'Primary Class';
-      const primaryId = st.classId?._id || st.classId;
-      Object.values(st.slots || {}).forEach(slot => {
-        if (slot && Array.isArray(slot.combinedWith) && slot.combinedWith.some(cn => cn && cn.trim().toLowerCase() === cNameLower)) {
-          const startPeriod = typeof slot.period === 'number' ? slot.period : (parseInt(String(slot.period).replace(/\D/g, ''), 10) || 1);
-          const span = Math.max(1, Number(slot.span || slot.duration || 1));
-          const allComb = [primaryName, ...slot.combinedWith];
-          const otherSections = allComb.filter(c => c && c.trim().toLowerCase() !== cNameLower);
-
-          for (let offset = 0; offset < span; offset++) {
-            const currentPeriod = startPeriod + offset;
-            const key = `${slot.day}_${currentPeriod}`;
-            if (!merged[key]) {
-              merged[key] = {
-                day: slot.day,
-                period: currentPeriod,
-                subject: slot.subject || '',
-                teacher: slot.teacher || '',
-                room: slot.room || '',
-                span,
-                spanRootPeriod: startPeriod,
-                spanIndex: offset,
-                isSpanContinuation: offset > 0,
-                isLab: Boolean(slot.isLab || span > 1),
-                type: 'Combined',
-                combinedWith: otherSections,
-                primaryClassId: primaryId,
-                primaryClassName: primaryName,
-                state: slot.state || ''
-              };
-            }
-          }
-        }
-      });
+      addFrom(st.classId?._id || st.classId, st.className || st.classId?.name || 'Primary Class', st.slots || {});
     });
   } catch (err) {
     console.warn('[mergeExternalCombinedSlots error]:', err.message);
   }
-  return merged;
+  return TTBlocks.toSlotsObj(blocks);
 }
 
 // ── Section timetable (production & development view) ──
@@ -3571,7 +3416,7 @@ router.post('/rooms/:id/alternative', requireManager, async (req, res) => {
 // GET /boards — List registered smart boards with building and room populate
 router.get('/boards', async (req, res) => {
   try {
-    const isMgr = canManage(req);
+    const isSudoUser = req.user && (isSudoAdmin(req.user) || (typeof isSudo === 'function' && isSudo(req)));
     const boards = await M.SmartBoard.find()
       .populate('buildingId')
       .populate({ path: 'roomId', populate: { path: 'buildingId' } })
@@ -3579,12 +3424,8 @@ router.get('/boards', async (req, res) => {
 
     const result = [];
     for (const b of boards) {
-      if (!b.boardApiKey) {
-        b.boardApiKey = generateBoardApiKey();
-        await M.SmartBoard.updateOne({ _id: b._id }, { $set: { boardApiKey: b.boardApiKey } });
-      }
       const bObj = b.toObject();
-      if (!isMgr) {
+      if (!isSudoUser) {
         delete bObj.boardApiKey;
       }
       result.push(bObj);
@@ -3598,19 +3439,14 @@ router.get('/boards', async (req, res) => {
 // GET /boards/:id — Single board with complete assignment history
 router.get('/boards/:id', async (req, res) => {
   try {
-    const isMgr = canManage(req);
+    const isSudoUser = req.user && (isSudoAdmin(req.user) || (typeof isSudo === 'function' && isSudo(req)));
     const board = await M.SmartBoard.findById(req.params.id)
       .populate('buildingId')
       .populate('roomId');
     if (!board) return res.status(404).json({ error: 'Smart board not found' });
 
-    if (!board.boardApiKey) {
-      board.boardApiKey = generateBoardApiKey();
-      await M.SmartBoard.updateOne({ _id: board._id }, { $set: { boardApiKey: board.boardApiKey } });
-    }
-
     const bObj = board.toObject();
-    if (!isMgr) {
+    if (!isSudoUser) {
       delete bObj.boardApiKey;
     }
     res.json({ ok: true, data: bObj, ...bObj });
@@ -3620,7 +3456,7 @@ router.get('/boards/:id', async (req, res) => {
 });
 
 // POST /boards — Register a new smart board with room assignment
-router.post('/boards', requireManager, async (req, res) => {
+router.post('/boards', authMiddleware, requireManager, boardHandshakeLimiter, async (req, res) => {
   try {
     const { boardName, deviceId, buildingId, roomId, status, firmwareVersion } = req.body;
     if (!boardName || boardName.trim().length < 2) {
@@ -3738,8 +3574,11 @@ router.post('/boards', requireManager, async (req, res) => {
 });
 
 // POST /boards/:id/token/regenerate — Rotate device secret key (Admin only)
-router.post('/boards/:id/token/regenerate', requireManager, async (req, res) => {
+router.post('/boards/:id/token/regenerate', authMiddleware, requireManager, async (req, res) => {
   try {
+    if (!isSudoAdmin(req.user) && !(typeof isSudo === 'function' && isSudo(req))) {
+      return res.status(403).json({ error: 'Access denied: Only Sudo Admin may rotate Smart Board management keys' });
+    }
     const board = await M.SmartBoard.findById(req.params.id);
     if (!board) return res.status(404).json({ error: 'Smart board not found' });
     const newKey = generateBoardApiKey();
@@ -3748,7 +3587,8 @@ router.post('/boards/:id/token/regenerate', requireManager, async (req, res) => 
 
     try {
       const { pushContextToRoomBoards } = require('../services/board.socket');
-      pushContextToRoomBoards(room._id).catch(() => {});
+      const targetRoomId = board.roomId || board.room;
+      if (targetRoomId) pushContextToRoomBoards(targetRoomId).catch(() => {});
     } catch (e) {}
 
     await logAction(
@@ -3767,6 +3607,9 @@ router.post('/boards/:id/token/regenerate', requireManager, async (req, res) => 
 // PATCH & PUT /boards/:id/password — Update smart board login password / device key (Admin only)
 async function updateBoardPasswordHandler(req, res) {
   try {
+    if (!isSudoAdmin(req.user) && !(typeof isSudo === 'function' && isSudo(req))) {
+      return res.status(403).json({ error: 'Access denied: Only Sudo Admin may update Smart Board passwords' });
+    }
     const board = await M.SmartBoard.findById(req.params.id);
     if (!board) return res.status(404).json({ error: 'Smart board not found' });
 
@@ -4372,7 +4215,12 @@ router.post('/layout-presets/:id/apply', requireManager, async (req, res) => {
 
 router.put('/layout-presets/:id', requireManager, async (req, res) => {
   try {
-    const preset = await M.LayoutPreset.findByIdAndUpdate(req.params.id, req.body, { returnDocument: 'after' });
+    const allowed = ['name', 'description', 'periods', 'days', 'timings', 'isDefault', 'active'];
+    const safeData = {};
+    for (const key of allowed) {
+      if (req.body && req.body[key] !== undefined) safeData[key] = req.body[key];
+    }
+    const preset = await M.LayoutPreset.findByIdAndUpdate(req.params.id, safeData, { returnDocument: 'after' });
     if (!preset) return res.status(404).json({ error: 'Preset not found' });
     res.json(preset);
   } catch (err) {
@@ -5092,78 +4940,64 @@ async function syncClassAssignmentsFromSlots(classId, slots, reqUser) {
 // ── Auto-sync combined class slots across participating sections ──
 
 async function syncCombinedSlotsAcrossClasses(sourceClassId, sourceClassName, normalizedSlots, env = 'development', user = null) {
+  // Pushes the source class's combined sessions into every member class as whole blocks.
+  // Fixes over the old version:
+  //  - continuation cells are no longer copied as separate 3-period roots (the lab spilled over),
+  //  - a combined block replaces everything it covers in the member, not just its first period,
+  //  - sessions the source moved, removed or un-combined are cleared from former members,
+  //  - only sessions the source owns are sent, so members saving in turn do not swap ownership.
   try {
-    const combinedSlots = (normalizedSlots || []).filter(s =>
-      s && (s.type === 'Combined' || (Array.isArray(s.combinedWith) && s.combinedWith.length > 0))
-    );
-
-    // Get all classes in the system
     const allClasses = await M.Class.find().lean();
     const classByName = new Map();
     const classById = new Map();
     allClasses.forEach(c => {
-      classByName.set(c.name.trim().toLowerCase(), c);
+      if (c.name) classByName.set(c.name.trim().toLowerCase(), c);
       classById.set(String(c._id), c);
     });
 
     const sourceCls = classById.get(String(sourceClassId)) || { name: sourceClassName, _id: sourceClassId };
+    const sourceName = sourceCls.name || sourceClassName;
+    const sourceBlocks = TTBlocks.blocksOf(normalizedSlots || []);
 
-    // Group combined slots by target class
-    const slotsByTargetClassId = new Map();
-
-    combinedSlots.forEach(s => {
-      const allSections = [sourceCls.name, ...(s.combinedWith || [])];
-      (s.combinedWith || []).forEach(targetName => {
-        if (!targetName) return;
-        const targetCls = classByName.get(targetName.trim().toLowerCase());
-        if (!targetCls || String(targetCls._id) === String(sourceClassId)) return;
-        const tid = String(targetCls._id);
-        if (!slotsByTargetClassId.has(tid)) {
-          slotsByTargetClassId.set(tid, { targetCls, slots: [] });
-        }
-        const otherSections = allSections.filter(n => n.trim().toLowerCase() !== targetCls.name.trim().toLowerCase());
-        slotsByTargetClassId.get(tid).slots.push({
-          ...s,
-          type: 'Combined',
-          combinedWith: otherSections,
-          primaryClassId: sourceClassId,
-          primaryClassName: sourceCls.name
-        });
-      });
+    // Members now, plus classes that still hold a copy from an earlier save.
+    const targetIds = new Set();
+    TTBlocks.combinedPartners(sourceBlocks, sourceName, sourceClassId).forEach(n => {
+      const c = classByName.get(String(n).trim().toLowerCase());
+      if (c && String(c._id) !== String(sourceClassId)) targetIds.add(String(c._id));
     });
+    const holderQuery = {
+      classId: { $ne: sourceClassId },
+      $or: [{ 'grid.primaryClassId': sourceClassId }, { 'grid.primaryClassName': sourceName }]
+    };
+    if (env === 'production') {
+      (await M.SemesterTemplate.find({ ...holderQuery, status: 'published' }).select('classId').lean())
+        .forEach(t => targetIds.add(String(t.classId)));
+      (await M.SectionTimetable.find({ classId: { $ne: sourceClassId } }).select('classId slots').lean())
+        .forEach(st => {
+          const holds = Object.values(st.slots || {}).some(x => x && (
+            (x.primaryClassId && String(x.primaryClassId) === String(sourceClassId))
+            || (x.primaryClassName && x.primaryClassName === sourceName)));
+          if (holds) targetIds.add(String(st.classId));
+        });
+    } else {
+      (await M.SemesterTemplate.find({ ...holderQuery, status: 'draft' }).select('classId').lean())
+        .forEach(t => targetIds.add(String(t.classId)));
+    }
 
-    for (const [targetClassId, { targetCls, slots }] of slotsByTargetClassId.entries()) {
+    for (const targetClassId of targetIds) {
+      const targetCls = classById.get(targetClassId);
+      if (!targetCls) continue;
       const tCId = sanitizeToObjectId(targetClassId);
+      const incoming = TTBlocks.combinedBlocksFor(sourceBlocks, sourceName, sourceClassId, targetCls.name);
 
       if (env === 'production') {
-        const targetSec = await M.SectionTimetable.findOne({ classId: tCId });
-        const existingSlots = targetSec?.slots || {};
-        slots.forEach(s => {
-          const key = `${s.day}_${s.period}`;
-          existingSlots[key] = {
-            day: s.day,
-            period: s.period,
-            subject: s.subject || '',
-            subjectId: s.subjectId || null,
-            teacher: s.teacher || '',
-            teacherId: s.teacherId || null,
-            teacherTrackId: s.teacherTrackId || '',
-            room: s.room || '',
-            roomId: s.roomId || undefined,
-            span: s.span || 1,
-            isLab: Boolean(s.isLab),
-            type: 'Combined',
-            combinedWith: s.combinedWith || [],
-            primaryClassId: sourceClassId,
-            primaryClassName: sourceCls.name,
-            state: s.state || ''
-          };
-        });
+        const targetSec = await M.SectionTimetable.findOne({ classId: tCId }).lean();
+        const applied = TTBlocks.applyCombined(targetSec?.slots || {}, incoming, sourceName, sourceClassId);
 
         await M.SectionTimetable.findOneAndUpdate(
           { classId: tCId },
           {
-            slots: existingSlots,
+            slots: TTBlocks.toSlotsObj(applied.blocks),
             className: targetCls.name,
             updatedBy: user?.name || 'System Sync',
             ...(targetCls.deptId ? { deptId: targetCls.deptId, deptName: targetCls.deptName } : {})
@@ -5171,41 +5005,33 @@ async function syncCombinedSlotsAcrossClasses(sourceClassId, sourceClassName, no
           { upsert: true }
         );
 
-        let targetTmpl = await M.SemesterTemplate.findOne({ classId: tCId, status: 'published' });
+        const targetTmpl = await M.SemesterTemplate.findOne({ classId: tCId, status: 'published' });
         if (targetTmpl) {
-          const currentGrid = (targetTmpl.grid || []).filter(g =>
-            !slots.some(s => s.day === g.day && s.period === g.period)
-          );
-          currentGrid.push(...slots);
-          targetTmpl.grid = currentGrid;
+          targetTmpl.grid = TTBlocks.toCells(TTBlocks.applyCombined(targetTmpl.grid || [], incoming, sourceName, sourceClassId).blocks);
           await targetTmpl.save();
-        } else {
+        } else if (incoming.length) {
           await M.SemesterTemplate.create({
             classId: tCId,
             status: 'published',
             version: 1,
             versionName: 'Live Combined Schedule',
-            grid: slots,
+            grid: TTBlocks.toCells(incoming),
             publishedAt: new Date(),
             publishedBy: user?.name || 'System Sync'
           });
         }
       } else {
-        let draftTmpl = await M.SemesterTemplate.findOne({ classId: tCId, status: 'draft' });
+        const draftTmpl = await M.SemesterTemplate.findOne({ classId: tCId, status: 'draft' });
         if (draftTmpl) {
-          const currentGrid = (draftTmpl.grid || []).filter(g =>
-            !slots.some(s => s.day === g.day && s.period === g.period)
-          );
-          currentGrid.push(...slots);
-          draftTmpl.grid = currentGrid;
+          draftTmpl.grid = TTBlocks.toCells(TTBlocks.applyCombined(draftTmpl.grid || [], incoming, sourceName, sourceClassId).blocks);
           await draftTmpl.save();
-        } else {
+        } else if (incoming.length) {
           await M.SemesterTemplate.create({
             classId: tCId,
             status: 'draft',
             version: 1,
             versionName: 'Draft v1 (Combined)',
-            grid: slots
+            grid: TTBlocks.toCells(incoming)
           });
         }
       }
@@ -6200,12 +6026,21 @@ router.get('/substitutions', async (req, res) => {
   }
 });
 
-router.post('/substitutions', async (req, res) => {
+router.post('/substitutions', authMiddleware, async (req, res) => {
   try {
+    if (req.user.role !== 'teacher' && req.user.role !== 'admin' && !canManage(req)) {
+      return res.status(403).json({ error: 'Access denied: Faculty or Timetable Coordinator role required' });
+    }
+    const allowedFields = ['classId', 'className', 'subjectId', 'subjectName', 'date', 'period', 'periodNumber', 'slot', 'reason', 'proposedTeacherId', 'proposedTeacherName', 'day', 'deptId'];
+    const safePayload = {};
+    for (const key of allowedFields) {
+      if (req.body[key] !== undefined) safePayload[key] = req.body[key];
+    }
     const sub = await M.SubstitutionRequest.create({
-      ...req.body,
+      ...safePayload,
+      status: 'pending',
       teacherId: req.user._id,
-      teacherName: req.user.name
+      teacherName: req.user.name || req.user.fullName
     });
     res.status(201).json(sub);
   } catch (err) {
@@ -6569,6 +6404,7 @@ router.get('/substitutions-and-leaves', async (req, res) => {
     const dateStr = date || await todayInInstitutionTz();
     const [tYear, tMonth, tDay] = dateStr.split('-').map(Number);
     const startOfDay = new Date(Date.UTC(tYear, tMonth - 1, tDay, 0, 0, 0, 0));
+    const targetDate = startOfDay;
     const endOfDay = new Date(Date.UTC(tYear, tMonth - 1, tDay, 23, 59, 59, 999));
 
     let targetClassId = null;

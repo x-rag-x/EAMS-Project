@@ -142,8 +142,17 @@ function setChip(state, accuracy, extraMsg) {
     text.textContent = window._eamsIsDev ? 'Location check disabled (Dev mode)' : (window._eamsLocDisabled ? 'Location optional' : 'Location required for security');
     if (actionBtn) actionBtn.style.display = 'none';
     if (drawer) drawer.style.display = 'none';
+  } else if (state === 'prompt') {
+    // Location has not been requested yet. The browser prompt only appears when Allow is clicked.
+    text.textContent = "Location confirms you're on campus.";
+    if (actionBtn) {
+      actionBtn.innerHTML = '<re-icon icon="map-pin" size="14"></re-icon>Allow';
+      actionBtn.onclick = function () { prefetchLocation(true, true); };
+      actionBtn.style.display = '';
+    }
+    if (drawer) drawer.style.display = 'none';
   } else if (state === 'requesting') {
-    text.textContent = 'Acquiring location…';
+    text.textContent = extraMsg || 'Acquiring location…';
     if (actionBtn) actionBtn.style.display = 'none';
     if (drawer) drawer.style.display = 'none';
   } else if (state === 'ready') {
@@ -216,9 +225,9 @@ function getLocationFast() {
     });
 }
 
-function prefetchLocation(force) {
+function prefetchLocation(force, fromAllowClick) {
   if (locPromise && !force) return locPromise;
-  setChip('requesting');
+  setChip('requesting', null, fromAllowClick ? "Waiting for you to answer the browser's location prompt" : null);
   locPromise = getLocationFast().then(
     function (p) {
       locState = { s: 'ready', p: p, code: null, at: Date.now() };
@@ -274,11 +283,11 @@ function toggleBoardMode(forcedState) {
     if (heading) heading.textContent = 'Sign In';
     if (lblU) lblU.textContent = 'Username';
     if (inpU) {
-      inpU.placeholder = 'Enter username';
+      inpU.placeholder = 'Roll number or staff ID';
       if (inpU.value.toUpperCase().startsWith('SB-') || inpU.value.toUpperCase().startsWith('TR-')) inpU.value = '';
     }
     if (lblP) lblP.textContent = 'Password';
-    if (inpP) inpP.placeholder = 'Enter password';
+    if (inpP) inpP.placeholder = 'Your password';
     if (lbnTxt) lbnTxt.textContent = 'Sign In';
     if (sbToggleTxt) sbToggleTxt.textContent = 'Smart Board Kiosk Sign In';
     if (chipWrap) chipWrap.style.display = '';
@@ -290,8 +299,9 @@ function toggleBoardMode(forcedState) {
 document.addEventListener('DOMContentLoaded', function () {
   window._eamsLoginTiming.mark('load');
 
-  // Immediately prefetch location on load for all logins
-  try { prefetchLocation(); } catch (e) {}
+  // Do NOT request location on load or on focus: the browser prompt is only
+  // triggered by the Allow button (or by Sign In if Allow was never clicked).
+  setChip('prompt');
 
   var firstFocusRecorded = false;
   function handleFirstFocus() {
@@ -299,7 +309,6 @@ document.addEventListener('DOMContentLoaded', function () {
       firstFocusRecorded = true;
       window._eamsLoginTiming.mark('first focus');
     }
-    prefetchLocation();
   }
 
   var uInp = document.getElementById('lu');
@@ -530,9 +539,11 @@ function hideMsgToast() {
 
       if (d.institution) {
         if (d.institution.institutionShort) {
-          document.title = 'EAMS – Sign In | ' + d.institution.institutionShort;
+          document.title = 'Muster – Sign In | ' + d.institution.institutionShort;
         }
-        if (d.institution.institutionName) {
+        // The API falls back to "EAMS" when no institution name is configured;
+        // keep the product name "Muster" in that case and show real names as-is.
+        if (d.institution.institutionName && d.institution.institutionName !== 'EAMS') {
           var lb = document.getElementById('login-inst-name') || document.querySelector('.lb');
           if (lb) lb.textContent = d.institution.institutionName;
         }
@@ -767,7 +778,7 @@ async function startDeviceRegistrationFlow(regData) {
       ${pwaStatus.needsHomeScreen ? `
         <div style="background:#fffbeb;border:1px solid #fef3c7;border-radius:10px;padding:12px;text-align:left;font-size:12px;color:#92400e;margin-bottom:16px;line-height:1.5;">
           <b><re-icon icon="alert-triangle"></re-icon> iPhone Safari Notice:</b><br>
-          To prevent iOS Safari from clearing registered device keys after 7 days, please tap <b>Share &rarr; Add to Home Screen</b> first, then open EAMS from your Home Screen.
+          To prevent iOS Safari from clearing registered device keys after 7 days, please tap <b>Share &rarr; Add to Home Screen</b> first, then open Muster from your Home Screen.
         </div>
       ` : ''}
       <div id="reg-status-spinner" style="display:flex;align-items:center;justify-content:center;gap:10px;font-size:13px;color:var(--td,#475569);margin:16px 0;">
@@ -1090,9 +1101,81 @@ function togglePw(inputId, btn) {
   var show = inp.type === 'password';
   inp.type = show ? 'text' : 'password';
 
-  btn.innerHTML = show ? '<re-icon icon="eye-off"></re-icon>' : '<re-icon icon="eye"></re-icon>';
+  // Design's eye / eye-slash icons. A fresh svg with class "ico" replays the pop (login.css)
+  var svgOpen = '<svg class="pw-ico ico" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">';
+  btn.innerHTML = show
+    ? svgOpen + '<path d="M3 3l18 18"></path><path d="M10.6 5.1A10.7 10.7 0 0 1 12 5c6.4 0 10 7 10 7a17.6 17.6 0 0 1-3.2 4.1M6.6 6.6C3.9 8.4 2 12 2 12s3.6 7 10 7a9.7 9.7 0 0 0 5.4-1.6"></path><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"></path></svg>'
+    : svgOpen + '<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"></path><circle cx="12" cy="12" r="3"></circle></svg>';
   btn.title = show ? 'Hide password' : 'Show password';
+  btn.setAttribute('aria-label', btn.title);
+  btn.setAttribute('aria-pressed', show ? 'true' : 'false');
 }
+
+// ── Desktop sign-in motion: typing headline + Sign In pointer light ──
+// Runs at parse time (this script is at the end of <body>) so the headline
+// starts empty before first paint. Visuals are scoped to ≥ 901px in login.css.
+(function initSignInMotion() {
+  var FULL = "You're here.\nThat counts.";
+  var TYPE_SPEED_MS = 50;
+  var START_DELAY_MS = 1000;
+  var stage = document.querySelector('.lp');
+  var typedEl = document.getElementById('lp-typed');
+  var caretEl = document.getElementById('lp-caret');
+  var ledeEl = document.getElementById('lp-lede');
+  var reduce = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+
+  // wait/done: blinking caret · typing: solid caret · rest: caret faded out
+  function setPhase(phase) {
+    if (caretEl) {
+      caretEl.className = 'lp-caret' +
+        ((phase === 'wait' || phase === 'done') ? ' blink' : '') +
+        (phase === 'rest' ? ' gone' : '');
+    }
+    if (ledeEl) ledeEl.classList.toggle('show', phase === 'done' || phase === 'rest');
+  }
+
+  if (typedEl) {
+    if (reduce) {
+      typedEl.innerHTML = FULL.replace(/\n/g, '<br>');
+      setPhase('done');
+    } else {
+      typedEl.textContent = '';
+      setPhase('wait');
+      var t = START_DELAY_MS;
+      for (var i = 1; i <= FULL.length; i++) {
+        var ch = FULL[i - 1];
+        t += TYPE_SPEED_MS + (ch === ' ' ? 25 : 0) + Math.round(Math.random() * 30);
+        (function (n, at) {
+          setTimeout(function () {
+            typedEl.innerHTML = escapeHtml(FULL.slice(0, n)).replace(/\n/g, '<br>');
+            if (n === 1) setPhase('typing');
+          }, at);
+        })(i, t);
+        if (ch === '.' && i < FULL.length) t += 380; // beat between sentences
+      }
+      setTimeout(function () { setPhase('done'); }, t + 150);
+      setTimeout(function () { setPhase('rest'); }, t + 3600);
+    }
+  }
+
+  // After the staggered entrance (last item ends ≈ 2.2s), stop it replaying
+  // when the form is hidden and re-shown (e.g. after device registration).
+  if (stage) {
+    if (reduce) stage.classList.add('lp-settled');
+    else setTimeout(function () { stage.classList.add('lp-settled'); }, 2400);
+  }
+
+  // Bound to the button element itself: resetSignInUI() rewrites its innerHTML.
+  var signInBtn = document.getElementById('lbn');
+  if (signInBtn) {
+    signInBtn.addEventListener('pointermove', function (e) {
+      var r = signInBtn.getBoundingClientRect();
+      var k = r.width ? signInBtn.offsetWidth / r.width : 1; // undo the hover scale
+      signInBtn.style.setProperty('--mx', ((e.clientX - r.left) * k) + 'px');
+      signInBtn.style.setProperty('--my', ((e.clientY - r.top) * k) + 'px');
+    });
+  }
+})();
 
 document.addEventListener('contextmenu', function (e) { e.preventDefault(); });
 document.addEventListener('keydown', function (e) {

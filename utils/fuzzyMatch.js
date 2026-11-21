@@ -1,6 +1,6 @@
 /**
  * utils/fuzzyMatch.js
- * Zero-dependency entity resolution & fuzzy matching engine for EAMS Timetable Import.
+ * Zero-dependency entity resolution & fuzzy matching engine for Muster Timetable Import.
  * Resolves course codes, teacher names, special activities, and room numbers
  * using normalized Levenshtein distance, token overlap, institutional designation stripping,
  * and course legend cross-referencing.

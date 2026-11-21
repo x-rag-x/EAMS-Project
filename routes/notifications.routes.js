@@ -87,6 +87,80 @@ router.post('/', authMiddleware, async (req, res) => {
       return res.status(403).json({ error: 'Students cannot send notifications directly to the admin queue.' });
     }
 
+    // N21: Allow-list notification types and priorities by sender role
+    const requestedType = String(req.body.type || 'request').trim();
+    const requestedPriority = String(req.body.priority || 'Normal').trim();
+
+    if (req.user.role === 'student') {
+      const STUDENT_ALLOWED_TYPES = ['request', 'info'];
+      if (!STUDENT_ALLOWED_TYPES.includes(requestedType)) {
+        return res.status(403).json({
+          error: `Students are only permitted to send notification types: ${STUDENT_ALLOWED_TYPES.join(', ')}.`
+        });
+      }
+      if (requestedPriority === 'Urgent') {
+        return res.status(403).json({
+          error: 'Students cannot set Urgent notification priority.'
+        });
+      }
+
+      if (isToTeacher) {
+        let student = null;
+        if (req.user.trackId) student = await M.Student.findOne({ trackId: req.user.trackId }).lean();
+        if (!student && req.user.username) student = await M.Student.findOne({ username: req.user.username }).lean();
+        if (!student && req.user._id) student = await M.Student.findById(req.user._id).lean();
+
+        if (student) {
+          const studentClassId = student.classId || student.class;
+          const cls = await M.Class.findOne({
+            $or: [
+              ...(studentClassId && String(studentClassId).length === 24 ? [{ _id: studentClassId }] : []),
+              { classTrackId: studentClassId },
+              { name: studentClassId }
+            ]
+          }).lean();
+
+          if (cls) {
+            const targetTeacherId = req.body.toTeacherId ? String(req.body.toTeacherId) : null;
+            const targetTeacherTrackId = req.body.toTeacherTrackId ? String(req.body.toTeacherTrackId) : null;
+
+            const authorizedAdvisorIds = [
+              cls.advisorTeacherId ? String(cls.advisorTeacherId) : null,
+              cls.secondaryAdvisorTeacherId ? String(cls.secondaryAdvisorTeacherId) : null,
+              cls.advisorTeacherTrackId || null,
+              cls.secondaryAdvisorTeacherTrackId || null
+            ].filter(Boolean);
+
+            let isAuthorizedStaff = (targetTeacherId && authorizedAdvisorIds.includes(targetTeacherId)) ||
+                                   (targetTeacherTrackId && authorizedAdvisorIds.includes(targetTeacherTrackId));
+
+            if (!isAuthorizedStaff) {
+              const assignmentQuery = [
+                { classId: cls._id },
+                ...(cls.classTrackId ? [{ classId: cls.classTrackId }] : [])
+              ];
+              const teacherQuery = [];
+              if (targetTeacherId) teacherQuery.push({ teacherId: targetTeacherId });
+              if (targetTeacherTrackId) teacherQuery.push({ teacherTrackId: targetTeacherTrackId });
+
+              if (teacherQuery.length > 0) {
+                const assigned = await M.Assignment.findOne({
+                  $and: [{ $or: assignmentQuery }, { $or: teacherQuery }]
+                }).lean();
+                if (assigned) isAuthorizedStaff = true;
+              }
+            }
+
+            if (!isAuthorizedStaff) {
+              return res.status(403).json({
+                error: 'Students may only send notifications to authorized staff (such as their assigned class advisor).'
+              });
+            }
+          }
+        }
+      }
+    }
+
     const notif = await M.Notification.create({
       type:          req.body.type || 'request',
       from:          req.user.name || req.user.username,   // forced from JWT

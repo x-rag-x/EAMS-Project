@@ -1,3 +1,72 @@
+## 🔹 `v2.6.0` — 21 November 2026 *(Muster Rebranding & Security Hardening)*
+
+###  `Improved Secuirty of the application and renamed ('Named') it to **Muster**`
+
+### 🏷️ Application Rebranding — Muster
+- **Muster Identity Refresh** — Renamed application from EAMS to Muster across all layers. A brand new Application name `Muster`.
+- **Logo & Favicon Integration** — Integrated new `public/assets/logo.png` and linked `<link rel="icon">` across all public HTML headers.
+
+### 🏷️ Application Rebranding — Muster
+- **Platform-Wide Rebranding** — Renamed the system from EAMS to **Muster** across the entire application. Updated page titles, brand headers, sidebar navigation, loading screens, and metadata across all 19 HTML pages.
+- **Brand Identity & Favicon** — Integrated the new `public/assets/logo.png` asset and linked `<link rel="icon">` across all HTML headers.
+- **Dual Session Token Support** — Added backward-compatible token handling for both `muster_token` and `eams_token` so active user sessions are not dropped.
+- **Export & Backup Compatibility** — Rebranded all generated Excel and PDF report headers. Backup archives now create `manifest.muster` and `data.muster` while preserving support to restore older `.eams` archives.
+- **Popup Subsystem** — Exported `global.MusterPopup` alongside `global.EAMSPopup` in `public/js/core/popup.js`.
+
+### 🛡️ Access Control & Authorization
+- **Leave & On-Duty Approval Gates** — Closed self-approval vulnerabilities. Student leave and on-duty (OD) approval endpoints now strictly verify that the caller is the assigned class advisor, department HoD, or an in-scope admin using `canReviewOd`.
+- **Fail-Closed Department Scoping** — Updated `middleware/pageAccess.js` (`assertInScope`, `scopeFilter`) to fail closed whenever department scope is missing, preventing accidental cross-department data exposure.
+- **Role Hierarchy Protection** — Department admins are blocked from modifying or resetting credentials of higher-privilege accounts (Sudo Admin, Principal, or HoD).
+- **Data Privacy & Directory Boundaries** — Restricted full student and teacher profiles to authorized administrators. General student directories and hostel night reports are protected, with female hostel data restricted to female wardens.
+- **Evidence Access Security** — Uploaded medical proof and leave evidence files in `routes/files.routes.js` are now strictly locked to the designated request approvers.
+- **Timetable View vs. Edit Separation** — Decoupled view rights from editing permissions. Faculty with view-only rights can no longer modify slots, manage smart-board keys, or resolve conflict cards.
+
+### 🔒 Security, Injection Defense & Hardening
+- **NoSQL Query Injection Prevention** — Sanitized incoming `req.query` parameters across 48 query sites using `sanitizeToString`, blocking MongoDB operator injection (`$ne`, `$gt`).
+- **Safe Regex Handling** — Escaped dynamic user text before compiling into `new RegExp()` across search endpoints to prevent denial-of-service crashes.
+- **Upload Memory Protection** — Enforced Sudo Admin permission checks before buffering 100 MB restore files in memory, streaming authorized uploads directly to disk.
+- **Student Profile Lock** — Blocked student self-modification of registered institutional names and email addresses in `PUT /api/users/:id`.
+- **Rate Limiting & Password Hardening** — Implemented per-user rate limiters across write endpoints. Passwords now reject common defaults and username fragments, with a 72-byte ceiling for bcrypt compatibility, and default passwords have been removed from configurations and UI placeholders.
+
+### 📱 Classroom Attendance & Session Integrity
+- **Atomic Attendance Marking** — Converted attendance writes to atomic MongoDB update operations (`updateOne` with `$ne` and `$push`) to eliminate race conditions and prevent double-marking under slow connections.
+- **Network Retry Idempotency** — Added idempotency key verification across attendance, leave, and on-duty submission endpoints so repeated submissions on unstable networks do not create duplicates.
+- **Passcode Attendance Verification** — Verified student class membership against active session data and enforced server-side location checks in `routes/liveSession.routes.js`.
+- **Decoupled Cryptographic Secrets** — Assigned dedicated, independent secret keys for rotating QR codes (`TT_LINK_SECRET`, AES-256-GCM), eliminating hardcoded fallbacks and legacy unauthenticated decryption.
+- **Cryptographic Random Generation** — Replaced pseudo-random number generators with `crypto.randomInt` for session codes, OTPs, and hardware pairing PINs.
+- **Session Revocation on Password Change** — Automatically revokes all existing `LoginSession` documents when an account password is changed.
+
+### ⚡ Timetable Workspace & Web Performance
+- **Service Worker Scope Resolution** — Corrected service worker registration to `/tt-sw.js` to match the Express route delivering the `Service-Worker-Allowed: /` header.
+- **Non-Blocking Page Scripts** — Added `defer` attributes across 25 render-blocking scripts in `public/timetable.html`, allowing assets to download in parallel and speeding up timetable load times.
+- **WebSocket Ticket Authentication** — Enforced ticket validation on `/ws/timetable` connections to prevent unauthorized room joins.
+
+### 🐛 Bug Fixes & System Stability
+- **Centralized Async Error Handling** — Wrapped asynchronous routes in `asyncHandler` with centralized Express error middleware, preventing unhandled promise rejection process crashes and suppressing internal error leaks.
+- **Emergency Leave Infinite Loop Fix** — Fixed a recursive redispatch loop in `POST /api/leave/faculty/emergency` that caused the server to hang.
+- **Undefined Variable Crash Fixes** — Resolved multiple runtime crashes across modules:
+  - Fixed undefined `sec` in `routes/settings.routes.js` when loading student portal security settings.
+  - Added missing `mongoose` import in `routes/profile.routes.js` for teacher profiles.
+  - Added missing `countService` in bulk commit routes and `sendWelcomeCredentialsMail` in bulk review.
+  - Fixed undefined `targetDate` in timetable substitution handlers and resolved undefined variables in tab-closing handlers.
+- **Attendance Calculation Bounds** — Fixed edge-case calculations in `attendanceMath` (0/0 attendance no longer returns 100%, percentages are clamped between 0–100%, and removed `Infinity` calculations).
+- **IPv6 Campus Subnet Matching** — Upgraded `utils/ipCheck.js` using Node.js `net.BlockList` for accurate IPv6 campus network range evaluation.
+- **Code Cleanup** — Removed the unmounted 1,520-line `routes/bulkImport.routes.js` file, pruned duplicate helper functions, and deleted stale backup files.
+
+### 🧪 Test Suite & Server Operations
+- **Master Test Runner** — Restored the native test suite runner (`node tests/index.js`), achieving 100% pass rates across all test suites.
+- **ESLint CI Standards** — Configured `eslint.config.js` enforcing zero `no-undef`, `no-dupe-keys`, and `no-unreachable` code errors.
+- **Process Lifecycle & Health Checks** — Implemented graceful shutdown on `SIGTERM` and `SIGINT` to allow in-flight requests to complete cleanly, and added public `/health` endpoints for monitoring.
+
+### `Total 145 Files changed and updated in v2.5.4`
+
+---
+## 🔹 `v2.5.3` — 15 November 2026 *(Code Fixes)*
+
+Bugs and code fixes.
+
+---
+
 ## 🔹 `v2.5.2` — 11 November 2026 *(Admin Redesign & Feature Hardening)*
 
 ### 🎨 Admin Portal — UI Redesign

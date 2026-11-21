@@ -81,10 +81,38 @@ async function runJob() {
   }
 }
 
+let ttVersionInterval = null;
+
+function startJob(intervalMs = 5 * 60 * 1000) {
+  if (ttVersionInterval) return;
+  if (mongoose.connection && mongoose.connection.readyState === 1) {
+    runJob().catch(err => {
+      console.warn('[Timetable Version Close Initial Run Error]:', err.message);
+    });
+  }
+  ttVersionInterval = setInterval(() => {
+    if (mongoose.connection && mongoose.connection.readyState === 1) {
+      runJob().catch(err => {
+        console.warn('[Timetable Version Close Periodic Error]:', err.message);
+      });
+    }
+  }, intervalMs);
+  if (ttVersionInterval.unref) ttVersionInterval.unref();
+}
+
+function stopJob() {
+  if (ttVersionInterval) {
+    clearInterval(ttVersionInterval);
+    ttVersionInterval = null;
+  }
+}
+
 module.exports = {
   closeExpiredDraftVersions,
   pruneOldDraftOps,
-  runJob
+  runJob,
+  startJob,
+  stopJob
 };
 
 if (require.main === module) {

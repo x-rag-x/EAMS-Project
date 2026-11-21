@@ -1,6 +1,6 @@
 /**
  * utils/timetableExcelParser.js
- * Core Excel Parser for EAMS Timetable Import (Feature #1).
+ * Core Excel Parser for Muster Timetable Import (Feature #1).
  * Parses departmental workbooks (.xlsx) with heterogeneous sheets,
  * extracting multi-section timetable grids, metadata headers, period alignments,
  * merged lab spans, and course legend tables using ExcelJS.

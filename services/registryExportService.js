@@ -40,7 +40,7 @@ function colToLetter(colIndex) {
  */
 async function generateExcel(reg) {
   const wb = new ExcelJS.Workbook();
-  wb.creator = 'EAMS Attendance System';
+  wb.creator = 'Muster Attendance System';
   wb.created = new Date();
 
   const ws = wb.addWorksheet('Attendance Register', {
@@ -53,7 +53,7 @@ async function generateExcel(reg) {
 
   // Title Block (Rows 1-3)
   ws.mergeCells('A1:C1');
-  ws.getCell('A1').value = 'EAMS ATTENDANCE REGISTER';
+  ws.getCell('A1').value = 'MUSTER ATTENDANCE REGISTER';
   ws.getCell('A1').font = { size: 14, bold: true, color: { argb: 'FF0F172A' } };
 
   ws.mergeCells('A2:C2');
@@ -335,7 +335,7 @@ function generatePdf(reg) {
         if (bIdx > 0) doc.addPage();
 
         // Title Header
-        doc.fontSize(14).font('Helvetica-Bold').text('EAMS ATTENDANCE REGISTER', { align: 'center' });
+        doc.fontSize(14).font('Helvetica-Bold').text('MUSTER ATTENDANCE REGISTER', { align: 'center' });
         doc.fontSize(9).font('Helvetica').text(
           `Class: ${reg.class.name} (${reg.class.dept}) | Batch: ${reg.class.batch || '—'} | Sem: ${reg.class.sem || '—'} | Range: ${blockDays[0].date} to ${blockDays[blockDays.length - 1].date}`,
           { align: 'center' }

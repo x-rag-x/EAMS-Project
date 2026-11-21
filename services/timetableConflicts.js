@@ -17,6 +17,7 @@
 const crypto = require('crypto');
 const mongoose = require('mongoose');
 const M = require('../models');
+const TTBlocks = require('../utils/spanBlocks');
 const { resolveHodTeacher } = require('../utils/timetableResolver');
 const { checkRoomEligibility } = require('./roomEligibility');
 
@@ -354,6 +355,9 @@ async function detectConflictsV2({
     }
 
     if (!Array.isArray(grid)) continue;
+    // One item per session. Unflagged continuation cells used to be checked as extra 3-period
+    // sessions, so a single lab reported clashes with itself.
+    grid = TTBlocks.blocksOf(grid);
 
     const classDoc = classDocMap.get(cId) || { _id: cId, name: 'Class' };
     const timingSet = matchTimingSetForClass(classDoc, timingSets);
@@ -692,7 +696,7 @@ async function detectConflictsV2({
     if (!sec.slots) continue;
     const sClassDoc = otherClassMap.get(String(sec.classId)) || { _id: sec.classId, name: sec.className || 'Prod Class' };
     const timingSet = matchTimingSetForClass(sClassDoc, timingSets);
-    const slotsArr = Array.isArray(sec.slots) ? sec.slots : Object.values(sec.slots);
+    const slotsArr = TTBlocks.blocksOf(sec.slots);
 
     for (const rawSlot of slotsArr) {
       if (!rawSlot.day || !rawSlot.period) continue;

@@ -1,5 +1,5 @@
 /**
- * EAMS Institution Time Utilities
+ * Muster Institution Time Utilities
  * Centralized timezone-aware time/date helpers for the institution's configured timezone.
  * Replaces ad-hoc Date usage with consistent IST (Asia/Kolkata) defaults, configurable via settings.
  */

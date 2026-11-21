@@ -7,7 +7,7 @@ let _initialAlertTimeout = null;
 /**
  * Start periodic 60-second alert evaluation tick
  */
-function startAlertTick() {
+function startAlertTick(intervalMs = 60 * 1000) {
   if (alertInterval) return;
 
   const scheduleInitial = () => {
@@ -26,13 +26,13 @@ function startAlertTick() {
     mongoose.connection.once('connected', scheduleInitial);
   }
 
-  // Schedule every 60 seconds
+  // Schedule every intervalMs
   alertInterval = setInterval(() => {
     if (!mongoose.connection || mongoose.connection.readyState !== 1) return;
     evaluateLiveAlerts().catch(err => {
       console.warn('[Alert Tick Error]:', err.message);
     });
-  }, 60 * 1000);
+  }, intervalMs);
 
   if (alertInterval.unref) alertInterval.unref();
 }
@@ -50,5 +50,7 @@ function stopAlertTick() {
 
 module.exports = {
   startAlertTick,
-  stopAlertTick
+  stopAlertTick,
+  startJob: startAlertTick,
+  stopJob: stopAlertTick
 };

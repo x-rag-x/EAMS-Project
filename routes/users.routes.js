@@ -233,7 +233,13 @@ function isTargetAdminTier(targetRoleDoc, targetUser) {
     (targetUser && ['admin', 'sudo'].includes(targetUser.role)) ||
     target.username === 'admin' ||
     target.trackId === 'TR-ADMIN001' ||
-    (targetUser && (targetUser.username === 'admin' || targetUser.trackId === 'TR-ADMIN001'))
+    (targetUser && (targetUser.username === 'admin' || targetUser.trackId === 'TR-ADMIN001')) ||
+    hasSpecial(target, 'isHod') ||
+    target.isHod ||
+    (targetUser && (hasSpecial(targetUser, 'isHod') || targetUser.isHod)) ||
+    hasSpecial(target, 'isTimeTableCoordinator') ||
+    target.isTimeTableCoordinator ||
+    (targetUser && (hasSpecial(targetUser, 'isTimeTableCoordinator') || targetUser.isTimeTableCoordinator))
   );
 }
 
@@ -269,6 +275,15 @@ router.put('/:id', authMiddleware, async (req, res) => {
 
     if (isSelf) {
       // ── Self-edit branch ──
+      // N12, L6: Students are prohibited from changing institutional identity fields (name, email, regNo, deptId)
+      if (req.user.role === 'student') {
+        const hasIdentityChange = ['name', 'fullName', 'firstName', 'lastName', 'email', 'rollNumber', 'regNo', 'registerNo', 'deptId', 'department', 'class', 'classId'].some(f => req.body[f] !== undefined);
+        if (hasIdentityChange) {
+          return res.status(403).json({
+            error: 'Students are not permitted to modify institutional identity fields (name, email, rollNumber, regNo, deptId).'
+          });
+        }
+      }
       // Restrict strictly to allow-listed fields: name, email, password
       const { name, fullName, firstName, lastName, email, password, currentPassword } = req.body;
 

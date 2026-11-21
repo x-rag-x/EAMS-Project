@@ -5,7 +5,7 @@ const M = require('../models');
 const { authMiddleware } = require('../middleware/auth');
 const { isSudoAdmin } = require('../utils/access');
 const { logAction } = require('../utils/logAction');
-const { sanitizeToString } = require('../utils/sanitizeQuery');
+const { sanitizeToString, escapeRegex } = require('../utils/sanitizeQuery');
 const { checkModuleGuard } = require('../middleware/portalGuard');
 const { getSettings } = require('../utils/settingsCache');
 const {
@@ -555,6 +555,28 @@ router.put('/review/:id', authMiddleware, checkModuleGuard('modelLeave', 'Leave 
     const leaveReq = await M.LeaveRequest.findById(req.params.id);
     if (!leaveReq) return res.status(404).json({ error: 'Leave request not found' });
 
+    if (leaveReq.status !== 'Pending') {
+      return res.status(400).json({ error: 'Leave request is already ' + leaveReq.status + ' and cannot be reviewed again' });
+    }
+
+    // Verify approver authorization (Checklist N18)
+    const isGlobalAdmin = req.user.role === 'admin' || isSudoAdmin(req.user) || Boolean(req.access?.flags?.isSudo);
+    let isAuthorizedApprover = isGlobalAdmin;
+
+    if (!isAuthorizedApprover) {
+      const student = await M.Student.findById(leaveReq.studentId).lean();
+      if (student) {
+        const isAdvisor = (student.advisorId && String(student.advisorId) === String(req.user._id)) ||
+                          (student.advisorTrackId && student.advisorTrackId === req.user.trackId);
+        const isHod = (Boolean(req.access?.flags?.isHod) || req.user.isHod) && student.deptId && String(student.deptId) === String(req.user.deptId);
+        isAuthorizedApprover = isAdvisor || isHod;
+      }
+    }
+
+    if (!isAuthorizedApprover) {
+      return res.status(403).json({ error: 'Access denied: You are not authorized to review this student leave request' });
+    }
+
     leaveReq.status = action;
     leaveReq.reviewedBy = req.user.fullName || req.user.name || 'Class Advisor';
     leaveReq.reviewedAt = new Date();
@@ -679,6 +701,111 @@ const DAY_ABBR_MAP_LEAVE = {
 const DAY_FULL_MAP_LEAVE = {
   0: 'Sunday', 1: 'Monday', 2: 'Tuesday', 3: 'Wednesday', 4: 'Thursday', 5: 'Friday', 6: 'Saturday'
 };
+
+// GET /api/leave/substitutes/available — Find available faculty for a given date and period
+router.get('/substitutes/available', async (req, res) => {
+  try {
+    const dateStr = sanitizeToString(req.query.date) || await todayInInstitutionTz();
+    const periodNum = parseInt(req.query.periodNumber || req.query.period, 10);
+    if (!periodNum || isNaN(periodNum)) {
+      return res.status(400).json({ error: 'Valid periodNumber is required' });
+    }
+
+    const dateObj = new Date(dateStr + 'T00:00:00.000Z');
+    const daysOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const dayName = isNaN(dateObj.getTime()) ? 'Monday' : daysOfWeek[dateObj.getUTCDay()];
+
+    const callerTrackId = req.user?.trackId || '';
+    const teacherFilter = { status: { $ne: 'Inactive' } };
+    if (callerTrackId) {
+      teacherFilter.trackId = { $ne: callerTrackId };
+    }
+
+    const teachers = await M.Teacher.find(teacherFilter)
+      .select('_id trackId fullName department deptCode deptId')
+      .lean();
+
+    const leaves = await M.TeacherLeaveRequest.find({
+      status: 'Approved',
+      $or: [
+        { dates: dateStr },
+        { fromDate: { $lte: dateStr }, toDate: { $gte: dateStr } }
+      ]
+    }).select('teacherTrackId teacherId').lean();
+
+    const onLeaveSet = new Set();
+    leaves.forEach(l => {
+      if (l.teacherTrackId) onLeaveSet.add(l.teacherTrackId);
+      if (l.teacherId) onLeaveSet.add(String(l.teacherId));
+    });
+
+    const [templates, sectionTts, overrides] = await Promise.all([
+      M.SemesterTemplate.find({ status: 'published' }).lean(),
+      M.SectionTimetable.find().lean(),
+      M.Override.find({ date: dateStr }).lean()
+    ]);
+
+    const busyTeacherTrackIds = new Set();
+    const dailyWorkload = new Map();
+
+    function trackSlot(teacherId, trackId, slotPeriod, slotDay) {
+      const key = trackId || (teacherId ? String(teacherId) : null);
+      if (!key) return;
+      if (slotDay === dayName) {
+        dailyWorkload.set(key, (dailyWorkload.get(key) || 0) + 1);
+        if (Number(slotPeriod) === periodNum) {
+          busyTeacherTrackIds.add(key);
+        }
+      }
+    }
+
+    templates.forEach(tpl => {
+      (tpl.grid || []).forEach(slot => {
+        if (slot.day === dayName) {
+          trackSlot(slot.teacherId, slot.teacherTrackId, slot.period, slot.day);
+        }
+      });
+    });
+
+    sectionTts.forEach(st => {
+      (st.schedule || []).forEach(slot => {
+        if (slot.day === dayName) {
+          trackSlot(slot.teacherId, slot.teacherTrackId, slot.periodNumber || slot.period, slot.day);
+        }
+      });
+    });
+
+    overrides.forEach(ov => {
+      if (Number(ov.period) === periodNum) {
+        if (ov.type === 'substitute' && ov.substituteTeacher?.trackId) {
+          busyTeacherTrackIds.add(ov.substituteTeacher.trackId);
+        }
+      }
+    });
+
+    const availableTeachers = teachers
+      .filter(t => !onLeaveSet.has(t.trackId) && !busyTeacherTrackIds.has(t.trackId))
+      .map(t => ({
+        _id: t._id,
+        trackId: t.trackId,
+        name: t.fullName,
+        fullName: t.fullName,
+        deptCode: t.deptCode || '',
+        department: t.department || '',
+        workloadToday: dailyWorkload.get(t.trackId) || 0
+      }));
+
+    return res.json({
+      ok: true,
+      date: dateStr,
+      periodNumber: periodNum,
+      count: availableTeachers.length,
+      availableTeachers
+    });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
 
 // GET /api/leave/affected-slots — Auto-fetch scheduled slots requiring substitutes for date range
 router.get('/affected-slots', authMiddleware, async (req, res) => {
@@ -1041,7 +1168,7 @@ router.post('/teacher/apply', authMiddleware, checkModuleGuard('modelLeave', 'Le
       const deptFilters = [];
       if (teacher.deptId) deptFilters.push({ deptId: teacher.deptId });
       if (teacher.deptCode) deptFilters.push({ deptCode: teacher.deptCode });
-      if (teacher.department) deptFilters.push({ department: new RegExp(`^${teacher.department.trim()}$`, 'i') });
+      if (teacher.department) deptFilters.push({ department: new RegExp('^' + escapeRegex(teacher.department.trim()) + '$', 'i') });
       let hodTeacher = null;
       if (deptFilters.length > 0) {
         hodTeacher = await M.Teacher.findOne({
@@ -1397,8 +1524,7 @@ router.get('/balance', authMiddleware, async (req, res) => {
   }
 });
 
-// POST /api/leave/faculty — Apply for Faculty Leave (Wizard Step 4 submit or Step 2 draft)
-router.post('/faculty', authMiddleware, async (req, res) => {
+async function handleApplyFacultyLeave(req, res) {
   try {
     if (req.user.role !== 'teacher' && req.user.role !== 'admin') {
       return res.status(403).json({ error: 'Faculty members only' });
@@ -1665,7 +1791,7 @@ router.post('/faculty', authMiddleware, async (req, res) => {
         const deptFilters = [];
         if (teacher.deptId) deptFilters.push({ deptId: teacher.deptId });
         if (teacher.deptCode) deptFilters.push({ deptCode: teacher.deptCode });
-        if (teacher.department) deptFilters.push({ department: new RegExp(`^${teacher.department.trim()}$`, 'i') });
+        if (teacher.department) deptFilters.push({ department: new RegExp('^' + escapeRegex(teacher.department.trim()) + '$', 'i') });
         const hodTeacher = await M.Teacher.findOne({
           'specials.option': { $in: ['isHod', 'isHOD'] },
           $or: deptFilters
@@ -1715,11 +1841,16 @@ router.post('/faculty', authMiddleware, async (req, res) => {
       { requestId: leaveReq.requestId, daysCount, lopDays: lopSplit.lopDays }
     );
 
-    res.status(201).json({ ok: true, leaveRequest: leaveReq, lopSplit });
+    return res.status(201).json({ ok: true, leaveRequest: leaveReq, lopSplit });
   } catch (err) {
     console.error('Faculty leave application error:', err);
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message });
   }
+}
+
+// POST /api/leave/faculty — Apply for Faculty Leave (Wizard Step 4 submit or Step 2 draft)
+router.post('/faculty', authMiddleware, async (req, res) => {
+  return handleApplyFacultyLeave(req, res);
 });
 
 // GET /api/leave/faculty/pending — Get faculty leaves pending review for HOD or Principal
@@ -1965,6 +2096,16 @@ router.post('/faculty/:id/hod-permit', authMiddleware, async (req, res) => {
     });
 
     if (!leaveReq) return res.status(404).json({ error: 'Leave request not found' });
+
+    if ((Boolean(req.access?.flags?.isHod) || req.user.isHod) && !req.user.isAdmin && !isSudoAdmin(req.user) && !req.access?.flags?.isSudo) {
+      if (leaveReq.deptId && req.user.deptId && String(leaveReq.deptId) !== String(req.user.deptId)) {
+        return res.status(403).json({ error: 'Access denied: You can only review leave requests in your department' });
+      }
+      if (String(leaveReq.teacherId) === String(req.user._id) || (leaveReq.teacherTrackId && leaveReq.teacherTrackId === req.user.trackId)) {
+        return res.status(403).json({ error: 'Access denied: HODs cannot review their own leave requests' });
+      }
+    }
+
     if (!['pending_hod', 'Pending'].includes(leaveReq.status)) {
       return res.status(400).json({ error: `Cannot permit request in status: ${leaveReq.status}` });
     }
@@ -2038,6 +2179,19 @@ router.post('/faculty/:id/hod-reject', authMiddleware, async (req, res) => {
 
     if (!leaveReq) return res.status(404).json({ error: 'Leave request not found' });
 
+    if (req.user.isHod && !req.user.isAdmin && !isSudoAdmin(req.user)) {
+      if (leaveReq.deptId && req.user.deptId && String(leaveReq.deptId) !== String(req.user.deptId)) {
+        return res.status(403).json({ error: 'Access denied: You can only review leave requests in your department' });
+      }
+      if (String(leaveReq.teacherId) === String(req.user._id) || (leaveReq.teacherTrackId && leaveReq.teacherTrackId === req.user.trackId)) {
+        return res.status(403).json({ error: 'Access denied: HODs cannot review their own leave requests' });
+      }
+    }
+
+    if (!['pending_hod', 'Pending'].includes(leaveReq.status)) {
+      return res.status(400).json({ error: 'Cannot review request in status: ' + leaveReq.status });
+    }
+
     leaveReq.status = 'rejected';
     leaveReq.hodStatus = 'Rejected';
     leaveReq.hodReviewedBy = req.user.fullName || req.user.name;
@@ -2093,6 +2247,19 @@ router.post('/faculty/:id/hod-return', authMiddleware, async (req, res) => {
     });
 
     if (!leaveReq) return res.status(404).json({ error: 'Leave request not found' });
+
+    if (req.user.isHod && !req.user.isAdmin && !isSudoAdmin(req.user)) {
+      if (leaveReq.deptId && req.user.deptId && String(leaveReq.deptId) !== String(req.user.deptId)) {
+        return res.status(403).json({ error: 'Access denied: You can only review leave requests in your department' });
+      }
+      if (String(leaveReq.teacherId) === String(req.user._id) || (leaveReq.teacherTrackId && leaveReq.teacherTrackId === req.user.trackId)) {
+        return res.status(403).json({ error: 'Access denied: HODs cannot review their own leave requests' });
+      }
+    }
+
+    if (!['pending_hod', 'Pending'].includes(leaveReq.status)) {
+      return res.status(400).json({ error: 'Cannot return request in status: ' + leaveReq.status });
+    }
 
     leaveReq.status = 'returned';
     leaveReq.hodStatus = 'Returned';
@@ -2325,6 +2492,19 @@ router.post('/faculty/:id/principal-reject', authMiddleware, async (req, res) =>
 
     if (!leaveReq) return res.status(404).json({ error: 'Leave request not found' });
 
+    if (req.user.isHod && !req.user.isAdmin && !isSudoAdmin(req.user)) {
+      if (leaveReq.deptId && req.user.deptId && String(leaveReq.deptId) !== String(req.user.deptId)) {
+        return res.status(403).json({ error: 'Access denied: You can only review leave requests in your department' });
+      }
+      if (String(leaveReq.teacherId) === String(req.user._id) || (leaveReq.teacherTrackId && leaveReq.teacherTrackId === req.user.trackId)) {
+        return res.status(403).json({ error: 'Access denied: HODs cannot review their own leave requests' });
+      }
+    }
+
+    if (!['pending_hod', 'Pending'].includes(leaveReq.status)) {
+      return res.status(400).json({ error: 'Cannot review request in status: ' + leaveReq.status });
+    }
+
     leaveReq.status = 'rejected';
     leaveReq.principalStatus = 'Rejected';
     leaveReq.principalReviewedBy = req.user.fullName || req.user.name;
@@ -2373,7 +2553,7 @@ router.post('/faculty/:id/principal-reject', authMiddleware, async (req, res) =>
 // POST /api/leave/faculty/emergency — Fast-track Emergency Faculty Leave
 router.post('/faculty/emergency', authMiddleware, async (req, res) => {
   req.body.isEmergency = true;
-  return router.handle(req, res);
+  return handleApplyFacultyLeave(req, res);
 });
 
 // ─

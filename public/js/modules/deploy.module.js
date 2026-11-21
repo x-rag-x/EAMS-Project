@@ -7,6 +7,15 @@
 (function (window) {
   'use strict';
 
+  function escapeHtml(str) {
+    if (!str) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
   function getAuthToken() {
     try {
       if (typeof getToken === 'function') {
@@ -236,7 +245,7 @@
         if (!res.ok) throw new Error('Retry request failed');
         this._pollProgress();
       } catch (err) {
-        alert(`Failed to retry stage ${stageKey}: ${err.message}`);
+        alert(`Failed to retry stage ${stageKey}: ${escapeHtml(err.message)}`);
       }
     }
 

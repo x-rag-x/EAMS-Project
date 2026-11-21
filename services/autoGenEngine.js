@@ -366,7 +366,13 @@ class AutoGenEngine {
               roomId: labRoom._id,
               isLab: true,
               type: 'Lab',
+              // Root carries the block length; the other cells are flagged continuations so every
+              // reader folds them into one 3-period block (they were unflagged before, and the lab
+              // came back as P1-P3 plus two extra single periods).
               span: idx === 0 ? win.periods.length : 1,
+              spanRootPeriod: win.periods[0],
+              spanIndex: idx,
+              isSpanContinuation: idx > 0,
               placementReason: `Continuous 3-period lab block (${lab.name}) in ${labRoom.hallNo}`
             };
             classSlotsMap.set(`${labDay}_${p}`, slot);
@@ -405,9 +411,12 @@ class AutoGenEngine {
                 room: theoryRoom.hallNo,
                 roomId: theoryRoom._id,
                 type: 'Theory',
+                span: 2,
                 placementReason: `Theory double period (P${pair[0]}–P${pair[1]})`
               };
-              const s2 = { ...s1, period: pair[1] };
+              // The second period is a flagged continuation, so the double is saved as one
+              // 2-period block instead of two unrelated singles.
+              const s2 = { ...s1, period: pair[1], span: 1, spanRootPeriod: pair[0], spanIndex: 1, isSpanContinuation: true };
               classSlotsMap.set(k1, s1);
               classSlotsMap.set(k2, s2);
               ledger.commitSlot(s1, cls._id, this.batch);
@@ -587,6 +596,9 @@ class AutoGenEngine {
             isLab: true,
             type: 'Lab',
             span: idx === 0 ? win.periods.length : 1,
+            spanRootPeriod: win.periods[0],
+            spanIndex: idx,
+            isSpanContinuation: idx > 0,
             placementReason: `Continuous 3-period lab block (${lab.name}) without lunch crossing`
           });
         });
@@ -618,6 +630,7 @@ class AutoGenEngine {
             teacher: t.name,
             teacherId: t._id,
             type: 'Theory',
+            span: 2,
             placementReason: `Theory double period (P${pair[0]}–P${pair[1]}) on ${targetDay}`
           });
           gridMap.set(k2, {
@@ -628,6 +641,10 @@ class AutoGenEngine {
             teacher: t.name,
             teacherId: t._id,
             type: 'Theory',
+            span: 1,
+            spanRootPeriod: pair[0],
+            spanIndex: 1,
+            isSpanContinuation: true,
             placementReason: `Theory double period (P${pair[0]}–P${pair[1]}) on ${targetDay}`
           });
           subjectDoublePlaced.add(sub.name);

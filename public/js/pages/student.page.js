@@ -491,7 +491,7 @@ var _settingsPromise = fetch('/api/settings/public')
 
       var shortN = pub.institution.institutionShort || '';
 
-      document.title = shortN ? ('EAMS – Student | ' + shortN) : 'EAMS – Student';
+      document.title = shortN ? ('Muster – Student | ' + shortN) : 'Muster – Student';
 
     }
 

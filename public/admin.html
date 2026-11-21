@@ -4,7 +4,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>EAMS – Admin Dashboard</title>
+  <title>Muster – Admin Dashboard</title>
+  <link rel="icon" type="image/png" href="assets/logo.png">
   <link
     href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&family=Playfair+Display:wght@700&display=swap"
     rel="stylesheet">
@@ -20,13 +21,13 @@
 
   <!-- Page loader overlay shown until initial database sync completes -->
   <div id="page-loader">
-    <div class="loader-brand">🌿 EAMS Admin</div>
+    <div class="loader-brand">🌿 Muster Admin</div>
     <div class="three-body">
       <div class="three-body__dot"></div>
       <div class="three-body__dot"></div>
       <div class="three-body__dot"></div>
     </div>
-    <div class="loader-msg" id="loader-msg">Initializing EAMS…</div>
+    <div class="loader-msg" id="loader-msg">Initializing Muster…</div>
     <div class="loader-eta" id="loader-eta"></div>
     <div class="loader-steps">
       <div class="loader-step active" id="lstep-0"></div>
@@ -47,7 +48,7 @@
     <!-- SIDEBAR -->
     <nav class="sb">
       <div class="sb-logo">
-        <div class="sb-brand">EAMS Admin</div>
+        <div class="sb-brand">Muster Admin</div>
         <button class="btn-pri" onclick="refreshAll()">Refresh</button>
       </div>
 
@@ -3523,7 +3524,7 @@
               <select id="prin-teacher-select" class="fc" onchange="onPrinTeacherSelectChange(this.value)">
                 <option value="">Select Faculty Member…</option>
               </select>
-              <div style="font-size:11px;color:var(--tmu);margin-top:4px;">Institutional Requirement: Only registered EAMS faculty staff members can be appointed as College Principal.</div>
+              <div style="font-size:11px;color:var(--tmu);margin-top:4px;">Institutional Requirement: Only registered Muster faculty staff members can be appointed as College Principal.</div>
             </div>
 
             <!-- Selected Faculty Preview -->
@@ -3633,7 +3634,7 @@
           <div class="modal-hd" style="border-bottom:1px solid var(--bdr);padding-bottom:12px;">
             <div>
               <div class="modal-title" style="font-size:18px;font-weight:700;display:flex;align-items:center;gap:8px;">
-                <re-icon icon="sparkles" size="20" style="color:var(--pri);"></re-icon> EAMS Initial Setup Wizard
+                <re-icon icon="sparkles" size="20" style="color:var(--pri);"></re-icon> Muster Initial Setup Wizard
               </div>
               <div style="font-size:12px;color:var(--tmu);margin-top:4px;">
                 Complete the initial configuration before accessing the administration console.
@@ -3668,7 +3669,7 @@
               <div style="font-size:13px;font-weight:600;margin-bottom:12px;">Step 1: Change Default Sudo Admin Password</div>
               <div class="fg" style="margin-bottom:12px;">
                 <label class="fl">Current Password *</label>
-                <input type="password" id="bw-cur-pw" class="fc" placeholder="Current default password (e.g. EAMS-admin@123)">
+                <input type="password" id="bw-cur-pw" class="fc" placeholder="Current password">
               </div>
               <div class="fg" style="margin-bottom:12px;">
                 <label class="fl">New Password *</label>

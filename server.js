@@ -1,15 +1,25 @@
 const pkg = require('./package.json');
 console.log('\n  ┌─────────────────────────────────────────────────────────────┐');
-console.log(`  │   EAMS — Electronic Attendance Management System   v${pkg.version || '2.5.0'}   │`);
+console.log(`  │   Muster — Attendance Management System            v${pkg.version || '2.5.3'}   │`);
 console.log('  └─────────────────────────────────────────────────────────────┘\n');
 
+require('dotenv').config();
 const dns = require('dns');
 dns.setDefaultResultOrder('ipv4first');
-dns.setServers(['8.8.8.8', '8.8.4.4']);
-
-require('dotenv').config();
+if (process.env.FORCE_DNS === 'true') {
+  const servers = process.env.DNS_SERVERS
+    ? process.env.DNS_SERVERS.split(',').map(s => s.trim()).filter(Boolean)
+    : ['8.8.8.8', '8.8.4.4'];
+  try {
+    dns.setServers(servers);
+    console.log(`  [DNS] Forced DNS resolver → ${servers.join(', ')}`);
+  } catch (e) {
+    console.warn(`  [DNS] Failed to override DNS servers: ${e.message}`);
+  }
+}
 
 const express = require('express');
+const mongoose = require('mongoose');
 const helmet = require('helmet');
 const cors = require('cors');
 const crypto = require('crypto');
@@ -21,6 +31,18 @@ require('./config/db');
 require('./utils/serverState');
 
 const app = express();
+// Prevent NoSQL query-operator injection from nested query parameters (Checklist N10)
+app.set('query parser', 'simple');
+app.use((req, res, next) => {
+  if (req.query && typeof req.query === 'object') {
+    for (const key of Object.keys(req.query)) {
+      if (key.includes('$') || key.startsWith('.')) {
+        return res.status(400).json({ error: 'Invalid query parameter: operators are not allowed' });
+      }
+    }
+  }
+  next();
+});
 // Trust reverse proxy if explicitly enabled, running on Railway, or in production (unless explicitly false)
 const isBehindProxy = process.env.TRUST_PROXY === 'true' ||
   Boolean(process.env.RAILWAY_ENVIRONMENT) ||
@@ -87,43 +109,7 @@ app.use((req, res, next) => {
   next();
 });
 
-// Native Gzip Compression Middleware for Low-Bandwidth Networks
-app.use((req, res, next) => {
-  const enc = req.headers['accept-encoding'] || '';
-  if (!enc || req.method === 'HEAD') return next();
-
-  const originalSend = res.send;
-  res.send = function (body) {
-    if (res.headersSent) return originalSend.call(this, body);
-    if (res.getHeader('Content-Encoding') || res.getHeader('content-encoding')) {
-      return originalSend.call(this, body);
-    }
-
-    const ct = (res.getHeader('content-type') || '').toString();
-    const isCompressible = /json|text|javascript|css|xml|svg/i.test(ct) || (typeof body === 'string' && !ct);
-    if (!isCompressible) return originalSend.call(this, body);
-
-    let buf;
-    if (Buffer.isBuffer(body)) buf = body;
-    else if (typeof body === 'string') buf = Buffer.from(body);
-    else return originalSend.call(this, body);
-
-    if (buf.length < 512) return originalSend.call(this, body);
-
-    if (enc.includes('gzip')) {
-      zlib.gzip(buf, (err, gzipped) => {
-        if (err || !gzipped) return originalSend.call(res, body);
-        res.setHeader('Content-Encoding', 'gzip');
-        res.setHeader('Vary', 'Accept-Encoding');
-        res.removeHeader('Content-Length');
-        originalSend.call(res, gzipped);
-      });
-    } else {
-      return originalSend.call(this, body);
-    }
-  };
-  next();
-});
+// Single canonical compression layer active via compression() (Checklist B13)
 
 app.use(express.json({ limit: '1mb' }));
 app.use((err, req, res, next) => {
@@ -133,6 +119,21 @@ app.use((err, req, res, next) => {
   next(err);
 });
 const APP_VERSION = require('./package.json').version || '1.0.0';
+
+// Public Health & Operational Probes (Checklist R4)
+app.get('/healthz', (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  res.status(200).json({ ok: true, status: 'ok', uptime: process.uptime(), timestamp: new Date().toISOString() });
+});
+
+app.get('/readyz', (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  const isConnected = mongoose.connection && mongoose.connection.readyState === 1;
+  if (!isConnected) {
+    return res.status(503).json({ ok: false, status: 'not_ready', db: 'disconnected' });
+  }
+  res.status(200).json({ ok: true, status: 'ready', db: 'connected', version: APP_VERSION });
+});
 const globalBuildVersion = `${APP_VERSION}-${Date.now().toString(36)}`;
 const htmlCache = new Map();
 
@@ -245,9 +246,9 @@ app.use((req, res, next) => {
 const compression = require('compression');
 app.use(compression());
 
-// Immutable caching middleware for version-fingerprinted assets
+// Immutable caching middleware for version-fingerprinted assets (static only, Checklist N19)
 app.use((req, res, next) => {
-  if (req.query && req.query.v) {
+  if (!req.path.startsWith('/api') && req.query && req.query.v) {
     res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
   }
   next();
@@ -275,6 +276,17 @@ app.use(express.static(path.join(__dirname, 'public'), {
   lastModified: true
 }));
 
+const { writeRateLimiter } = require('./middleware/rateLimiter');
+app.use('/api', writeRateLimiter);
+
+// Prevent authenticated API responses from being publicly cached (Checklist N19)
+app.use('/api', (req, res, next) => {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  next();
+});
+
 app.use('/api', require('./routes/index'));
 
 // Forward direct /timetable API requests to index router (ensures resilience for both /api/timetable and /timetable)
@@ -294,7 +306,7 @@ function isTransientMongoError(err) {
 
 // Process-level handling: log and exit on unhandled rejections / uncaught exceptions (except transient Mongo drops)
 process.on('unhandledRejection', (reason) => {
-  console.error('[EAMS Unhandled Rejection]:', reason);
+  console.error('[Muster Unhandled Rejection]:', reason);
   if (isTransientMongoError(reason)) {
     return;
   }
@@ -302,7 +314,7 @@ process.on('unhandledRejection', (reason) => {
 });
 
 process.on('uncaughtException', (err) => {
-  console.error('[EAMS Uncaught Exception]:', err);
+  console.error('[Muster Uncaught Exception]:', err);
   if (isTransientMongoError(err)) {
     return;
   }
@@ -334,36 +346,31 @@ app.get(['/hod', '/hod.html'], (req, res) => {
   serveStampedHtml(path.join(__dirname, 'public', 'controller.html'), res);
 });
 
-// Global Express error handler
-app.use((err, req, res, next) => {
-  const reqId = req.id || 'N/A';
-  if (err.name === 'MongoServerSelectionError' || err.name === 'MongoNetworkError') {
-    return res.status(503).json({
-      error: 'Database connection temporarily interrupted. Please retry in a moment.',
-      dbOffline: true,
-      requestId: reqId
-    });
-  }
-  console.error(`[EAMS Express Error] [ReqID: ${reqId}]:`, err);
-  if (res.headersSent) {
-    return next(err);
-  }
-  const status = Number(err.status) || 500;
-  const isProd = cfg.NODE_ENV === 'production';
-  // Expose specific error messages only for client-side errors (4xx) or during non-production debugging
-  const errorMessage = (status < 500 || !isProd)
-    ? (err.message || 'Error processing request')
-    : 'An unexpected internal server error occurred. Please contact administrator.';
-  res.status(status).json({ error: errorMessage, requestId: reqId });
-});
+// Global Express error handler (N15, C5, S13, B11)
+const errorHandler = require('./middleware/errorHandler');
+app.use(errorHandler);
 
 // Start HTTP & WebSocket server listener
 const http = require('http');
 const server = http.createServer(app);
-const { initBoardSocket } = require('./services/board.socket');
-initBoardSocket(server);
-const { initTimetableSocket } = require('./services/timetable.socket');
-initTimetableSocket(server);
+// Unified WebSocket upgrade router (B10): single router for /ws/board, /ws/monitor, /ws/timetable; closes unknown paths
+const { initBoardSocket, handleBoardUpgrade } = require('./services/board.socket');
+initBoardSocket(server, { attachUpgrade: false });
+const { initTimetableSocket, handleTimetableUpgrade } = require('./services/timetable.socket');
+initTimetableSocket(server, { attachUpgrade: false });
+
+server.on('upgrade', (req, socket, head) => {
+  const pathname = (req.url || '').split('?')[0];
+
+  if (pathname === '/ws/board' || pathname === '/ws/monitor') {
+    handleBoardUpgrade(req, socket, head);
+  } else if (pathname === '/ws/timetable') {
+    handleTimetableUpgrade(req, socket, head);
+  } else {
+    socket.write('HTTP/1.1 404 Not Found\r\nConnection: close\r\nContent-Type: text/plain\r\n\r\nNot Found: Unrecognized WebSocket endpoint\r\n\r\n');
+    socket.destroy();
+  }
+});
 
 const { startBellScheduler } = require('./services/bellScheduler');
 startBellScheduler();
@@ -389,3 +396,53 @@ server.listen(PORT, () => {
 // Start Timetable Scheduled Go-Live Worker
 const { startTimetableGoLiveJob } = require('./jobs/timetableGoLive');
 startTimetableGoLiveJob();
+// Start 6 Standardized Background Workers (Checklist B2)
+const alertTick = require('./jobs/alertTick');
+const odCompletion = require('./jobs/odCompletion');
+const substitutionExpiry = require('./jobs/substitutionExpiry');
+const timetableVersionClose = require('./jobs/timetableVersionClose');
+const actingRoles = require('./jobs/actingRoles');
+const dayStart = require('./jobs/dayStart');
+
+alertTick.startJob(60 * 1000);
+odCompletion.startJob(60 * 60 * 1000);
+substitutionExpiry.startJob(15 * 60 * 1000);
+timetableVersionClose.startJob(5 * 60 * 1000);
+actingRoles.startJob(60 * 60 * 1000);
+dayStart.startJob(60 * 60 * 1000);
+
+// Graceful Shutdown Handler (Checklist R3)
+function gracefulShutdown(signal) {
+  console.log('[Server] Received ' + signal + '. Starting graceful shutdown...');
+
+  // Stop background jobs
+  try { alertTick.stopJob(); } catch (_) {}
+  try { odCompletion.stopJob(); } catch (_) {}
+  try { substitutionExpiry.stopJob(); } catch (_) {}
+  try { timetableVersionClose.stopJob(); } catch (_) {}
+  try { actingRoles.stopJob(); } catch (_) {}
+  try { dayStart.stopJob(); } catch (_) {}
+
+  // Stop HTTP server
+  server.close(async () => {
+    console.log('[Server] HTTP server closed.');
+    try {
+      if (mongoose.connection && mongoose.connection.readyState !== 0) {
+        await mongoose.connection.close(false);
+        console.log('[Server] MongoDB connection closed.');
+      }
+    } catch (err) {
+      console.error('[Server] Error closing MongoDB connection:', err.message);
+    }
+    process.exit(0);
+  });
+
+  // Force exit after 10s if connections fail to close
+  setTimeout(() => {
+    console.error('[Server] Graceful shutdown timed out. Forcing exit.');
+    process.exit(1);
+  }, 10000).unref();
+}
+
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));

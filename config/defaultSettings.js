@@ -331,7 +331,7 @@ const DEFAULT_SETTINGS_MAP = {
     value: {
       enabled:                  true,
       provider:                 'gmail_api',
-      senderName:               'EAMS Notifications',
+      senderName:               'Muster Notifications',
       senderEmail:              'no-reply@institution.edu',
       notifyWelcomeCredentials: true,
       notifyDefaulterAlerts:    true,

@@ -1,42 +1,111 @@
 body {
-  background: #7bbc7e;
-  align-items: center;
-  justify-content: center;
+  background: #0c3311;
   position: relative;
-  overflow: hidden;
+  overflow-x: hidden;
 }
 
-body::before {
-  content: '';
-  position: absolute;
-  top: -20%;
-  right: -10%;
-  width: 500px;
-  height: 500px;
-  background: rgba(27, 94, 32, .15);
-  border-radius: 50%;
+/* ── SPLIT "OPEN BOOK" STAGE (desktop) ── */
+.lp {
+  position: relative;
+  width: 100%;
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  background: #0c3311;
+  isolation: isolate;
 }
 
-body::after {
+.lp::before,
+.lp::after {
   content: '';
   position: absolute;
-  bottom: -15%;
-  left: -8%;
-  width: 400px;
-  height: 400px;
-  background: rgba(27, 94, 32, .12);
-  border-radius: 50%;
+  inset: 0;
+  z-index: -1;
+}
+
+.lp::before {
+  background: var(--gD);
+  clip-path: polygon(0 7.5%, 49% 32.75%, 49% 100%, 0 100%);
+}
+
+.lp::after {
+  background: var(--gLt);
+  clip-path: polygon(100% 7.5%, 51% 32.75%, 51% 100%, 100% 100%);
+}
+
+.lp-brand {
+  display: flex;
+  flex-direction: column;
+  padding: 150px 48px 34px 96px;
+  color: #fff;
+}
+
+.lp-pitch {
+  margin-top: 110px;
+  max-width: 520px;
+}
+
+.lp-headline {
+  margin: 0;
+  min-height: 2.2em; /* two lines reserved so the typing doesn't shift the lede */
+  font-size: clamp(44px, 5.3vw, 68px);
+  line-height: 1.25;
+  font-weight: 700;
+  letter-spacing: -2px;
+  white-space: pre-line;
+}
+
+/* Typing caret after the headline (aria-hidden; state set by login.page.js) */
+.lp-caret {
+  display: inline-block;
+  width: 6px;
+  height: .78em;
+  margin-left: 8px;
+  vertical-align: -.04em;
+  background: var(--gL);
+  border-radius: 2px;
+  transition: opacity .5s ease;
+}
+
+.lp-caret.blink {
+  animation: lpBlink 1.05s infinite;
+}
+
+.lp-caret.gone {
+  opacity: 0;
+}
+
+@keyframes lpBlink {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0; }
+}
+
+.lp-lede {
+  margin: 24px 0 0;
+  max-width: 420px;
+  font-size: 17px;
+  line-height: 1.6;
+  color: #cfe3d0;
+}
+
+.lp-version {
+  margin-top: auto;
+  padding-top: 24px;
+  font-size: 12.5px;
+  color: var(--gLr);
+}
+
+.lp-form {
+  display: flex;
+  align-items: center;
+  padding: 204px 96px 60px 155px;
 }
 
 .lc {
-  width: 420px;
-  background: var(--gLt);
-  border-radius: 30px;
-  box-shadow: 0 25px 60px rgba(0, 0, 0, .25);
-  padding: 44px 36px;
+  width: 100%;
+  max-width: 420px;
   position: relative;
-  overflow: hidden;
-  animation: lf .8s ease;
+  animation: lf .6s ease;
   z-index: 1;
 }
 
@@ -52,40 +121,33 @@ body::after {
   }
 }
 
-.lc::before {
-  content: '';
-  position: absolute;
-  top: -130px;
-  right: -130px;
-  width: 260px;
-  height: 260px;
-  background: var(--gD);
-  border-radius: 50%;
-}
-
-.lc::after {
-  content: '';
-  position: absolute;
-  bottom: -130px;
-  left: -100px;
-  width: 220px;
-  height: 220px;
-  background: var(--gD);
-  border-radius: 50%;
-}
-
 .ll {
-  text-align: center;
-  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
   position: relative;
   z-index: 1;
 }
 
+/* Logo mark from the sign-in design: white tile, green book, tick */
+.ll .lg {
+  width: 40px;
+  height: 40px;
+  flex: none;
+  display: block;
+}
+
+.lg-tile { fill: #fff; }
+.lg-l { fill: var(--gD); stroke: var(--gD); }
+.lg-r { fill: var(--gL); stroke: var(--gL); }
+.lg-ln { stroke: var(--gLr); }
+.lg-tick { stroke: #0c3311; }
+
 .lb {
-  font-family: 'Playfair Display', serif;
-  font-size: 18px;
+  font-size: 24px;
   font-weight: 700;
-  color: var(--gD);
+  letter-spacing: -.5px;
+  color: #fff;
   display: block;
 }
 
@@ -99,10 +161,20 @@ body::after {
 }
 
 .lh {
-  font-size: 22px;
+  font-size: 30px;
+  line-height: 1.2;
   font-weight: 700;
-  color: var(--td);
-  margin-bottom: 20px;
+  letter-spacing: -.8px;
+  color: var(--gD);
+  position: relative;
+  z-index: 1;
+}
+
+.lh-sub {
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--tmu);
+  margin: 4px 0 26px;
   position: relative;
   z-index: 1;
 }
@@ -182,6 +254,10 @@ body::after {
   transform: scale(.98);
 }
 
+.lbn:disabled {
+  cursor: not-allowed;
+}
+
 .spin {
   width: 14px;
   height: 14px;
@@ -224,6 +300,14 @@ body::after {
   color: var(--gD);
 }
 
+/* Eye / eye-slash icon from the sign-in design */
+.pw-eye .pw-ico {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  display: block;
+}
+
 body {
   -webkit-user-select: none;
   -moz-user-select: none;
@@ -238,12 +322,13 @@ body {
 }
 
 .loc-chip {
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 6px 14px;
-  border-radius: 20px;
-  font-size: 12px;
+  gap: 10px;
+  min-height: 42px;
+  padding: 5px 14px;
+  border-radius: 22px;
+  font-size: 12.5px;
   font-weight: 500;
   transition: all 0.25s ease;
   background: rgba(27, 94, 32, 0.06);
@@ -262,11 +347,7 @@ body {
 }
 
 .loc-chip-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 13px;
-  line-height: 1;
+  display: none;
 }
 
 .loc-chip-text {
@@ -284,6 +365,32 @@ body {
   cursor: pointer;
   padding: 0 4px;
   line-height: 1;
+  margin-left: auto;
+  flex: none;
+}
+
+/* Location not asked yet: the Allow button is the only thing that triggers the browser prompt */
+.loc-chip[data-state="prompt"] .loc-chip-dot {
+  background: #7c8f7c;
+}
+
+.loc-chip[data-state="prompt"] .loc-chip-action {
+  height: 32px;
+  padding: 0 16px 0 12px;
+  border-radius: 16px;
+  background: var(--gD);
+  color: #fff;
+  font-size: 12.5px;
+  font-weight: 600;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: background .2s;
+}
+
+.loc-chip[data-state="prompt"] .loc-chip-action:hover {
+  background: var(--gK);
 }
 
 .loc-chip[data-state="requesting"] {
@@ -911,3 +1018,312 @@ body {
 }
 
 
+
+/* ── NARROW SCREENS: stack brand over form (desktop split is ≥ 901px) ── */
+@media (max-width: 900px) {
+  .lp {
+    display: flex;
+    flex-direction: column;
+    background: var(--gD);
+  }
+
+  .lp::before {
+    display: none;
+  }
+
+  .lp::after {
+    display: none;
+  }
+
+  .lp-brand {
+    padding: 28px 24px 28px;
+  }
+
+  .lp-pitch {
+    display: block;
+    margin-top: 14px;
+    max-width: 100%;
+  }
+
+  .lp-pitch .lp-headline {
+    font-size: clamp(26px, 6.5vw, 36px);
+    line-height: 1.25;
+    letter-spacing: -1px;
+    min-height: auto;
+  }
+
+  .lp-pitch .lp-lede {
+    font-size: 14px;
+    line-height: 1.5;
+    margin: 8px 0 0;
+  }
+
+  .lp-version {
+    display: none;
+  }
+
+  .lp-form {
+    flex: 1;
+    padding: 32px 24px 40px;
+    background: var(--gLt);
+    border-radius: 28px 28px 0 0;
+    justify-content: center;
+  }
+
+  /* Logo tick on the Sign In button (phone only; removed from the desktop design).
+     Drawn in CSS so it survives the JS that swaps the button's innerHTML. */
+  .lbn::after {
+    content: '';
+    width: 6px;
+    height: 11px;
+    margin: -3px 0 0 2px;
+    border: solid currentColor;
+    border-width: 0 2.6px 2.6px 0;
+    transform: rotate(45deg);
+    flex-shrink: 0;
+  }
+
+  .lbn:disabled::after {
+    display: none;
+  }
+}
+
+/* ══════════════════════════════════════════════════════
+   DESKTOP SIGN-IN MOTION (≥ 901px; phone layout untouched)
+   Book opening, staggered rise, typing lede reveal,
+   password-eye hover/pop, Sign In pointer light.
+   ══════════════════════════════════════════════════════ */
+@keyframes lpOpenL {
+  from { opacity: 0; transform: perspective(1600px) rotateY(70deg); }
+  to { opacity: 1; transform: perspective(1600px) rotateY(0); }
+}
+
+@keyframes lpOpenR {
+  from { opacity: 0; transform: perspective(1600px) rotateY(-70deg); }
+  to { opacity: 1; transform: perspective(1600px) rotateY(0); }
+}
+
+@keyframes lpRise {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes lpFade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes lpDraw {
+  to { stroke-dashoffset: 0; }
+}
+
+@keyframes lpPop {
+  from { opacity: 0; transform: scale(.55) rotate(-25deg); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (min-width: 901px) {
+  /* Clip the pages while they swing open so they never cause scrollbars */
+  .lp {
+    overflow: hidden;
+  }
+
+  /* Book opening: each page hinges on the spine */
+  .lp::before {
+    transform-origin: 49% 50%;
+    animation: lpOpenL 1s cubic-bezier(.2, .8, .2, 1) backwards;
+  }
+
+  .lp::after {
+    transform-origin: 51% 50%;
+    animation: lpOpenR 1s cubic-bezier(.2, .8, .2, 1) .06s backwards;
+  }
+
+  /* Staggered rise replaces the single card entrance */
+  .lc {
+    animation: none;
+  }
+
+  .lp-brand .ll,
+  .lh,
+  .lh-sub,
+  .lf2,
+  .loc-chip-wrap,
+  .lbn-glow {
+    animation: lpRise .6s cubic-bezier(.2, .8, .2, 1) var(--d, 0s) backwards;
+  }
+
+  .lp-brand .ll { --d: .45s; }
+  .lh { --d: .75s; }
+  .lh-sub { --d: .83s; }
+  .lf2:first-child { --d: .91s; }
+  .lf2 + .lf2 { --d: .99s; }
+  .loc-chip-wrap { --d: 1.07s; }
+  .lbn-glow { --d: 1.15s; }
+
+  .lp-version {
+    animation: lpFade .8s ease 1.4s backwards;
+  }
+
+  .lp-brand .lb {
+    font-size: 26px;
+  }
+
+  /* Logo tick draws itself in after the logo rises */
+  .lg-tick {
+    stroke-dasharray: 30;
+    stroke-dashoffset: 30;
+    animation: lpDraw .5s cubic-bezier(.4, 0, .2, 1) .95s forwards;
+  }
+
+  /* Once the entrance has played, don't replay it when the form is re-shown */
+  .lp-settled .ll,
+  .lp-settled .lh,
+  .lp-settled .lh-sub,
+  .lp-settled .lf2,
+  .lp-settled .loc-chip-wrap,
+  .lp-settled .lbn-glow {
+    animation: none;
+  }
+
+  /* Supporting line appears once the headline finishes typing */
+  .lp-lede {
+    opacity: 0;
+    transform: translateY(10px);
+    transition: opacity .7s ease, transform .7s cubic-bezier(.2, .8, .2, 1);
+  }
+
+  .lp-lede.show {
+    opacity: 1;
+    transform: none;
+  }
+
+  /* Show/hide password */
+  .pw-eye {
+    right: -6px;
+    bottom: 3px;
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: color .2s ease, background .2s ease, transform .15s ease;
+  }
+
+  .pw-eye:hover {
+    color: var(--gD);
+    background: rgba(27, 94, 32, .09);
+  }
+
+  .pw-eye:active {
+    transform: scale(.9);
+  }
+
+  .pw-eye:focus-visible {
+    outline: 2px solid var(--gL);
+    outline-offset: 2px;
+  }
+
+  .pw-eye .pw-ico {
+    transition: transform .25s cubic-bezier(.2, .8, .2, 1);
+  }
+
+  .pw-eye:hover .pw-ico {
+    transform: scale(1.1);
+  }
+
+  /* Pop plays when togglePw() swaps in a fresh svg.ico */
+  .pw-eye .pw-ico.ico {
+    animation: lpPop .28s cubic-bezier(.2, .8, .2, 1);
+  }
+
+  /* Sign In: soft light + rim that follow the pointer (--mx/--my set by login.page.js) */
+  .lbn-glow {
+    --mx: 50%;
+    --my: 50%;
+    overflow: hidden;
+    isolation: isolate;
+    transition: box-shadow .3s ease, transform .25s cubic-bezier(.2, .8, .2, 1);
+  }
+
+  .lbn-glow::before,
+  .lbn-glow::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    border-radius: inherit;
+    opacity: 0;
+    transition: opacity .3s ease;
+    pointer-events: none;
+  }
+
+  .lbn-glow::before {
+    background: radial-gradient(170px circle at var(--mx) var(--my), rgba(255, 255, 255, .24), rgba(255, 255, 255, .07) 45%, transparent 72%);
+  }
+
+  .lbn-glow::after {
+    padding: 1.5px;
+    background: radial-gradient(110px circle at var(--mx) var(--my), rgba(255, 255, 255, .8), rgba(255, 255, 255, 0) 72%);
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    mask-composite: exclude;
+  }
+
+  .lbn-glow:not(:disabled):hover::before,
+  .lbn-glow:not(:disabled):hover::after {
+    opacity: 1;
+  }
+
+  .lbn-glow:not(:disabled):hover {
+    background: var(--gD);
+    transform: translateY(-3px) scale(1.015);
+    box-shadow: 0 12px 28px rgba(27, 94, 32, .34), 0 3px 8px rgba(27, 94, 32, .2);
+  }
+
+  .lbn-glow:not(:disabled):active {
+    transform: translateY(-1px) scale(.99);
+    box-shadow: 0 4px 12px rgba(27, 94, 32, .25);
+    transition-duration: .1s;
+  }
+
+  .lbn-glow:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px var(--gLt), 0 0 0 5px var(--gL);
+  }
+}
+
+@media (min-width: 901px) and (prefers-reduced-motion: reduce) {
+  .lp::before,
+  .lp::after,
+  .lp-brand .ll,
+  .lh,
+  .lh-sub,
+  .lf2,
+  .loc-chip-wrap,
+  .lbn-glow,
+  .lp-version,
+  .lp-caret.blink,
+  .pw-eye .pw-ico.ico {
+    animation: none;
+  }
+
+  .lg-tick {
+    animation: none;
+    stroke-dashoffset: 0;
+  }
+
+  .lp-lede {
+    transition: none;
+  }
+
+  .pw-eye:active,
+  .pw-eye:hover .pw-ico,
+  .lbn-glow:not(:disabled):hover,
+  .lbn-glow:not(:disabled):active {
+    transform: none;
+  }
+}

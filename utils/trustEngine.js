@@ -4,7 +4,7 @@ const { logAction } = require('./logAction');
 
 /**
  * utils/trustEngine.js
- * Electronic Attendance Management System (EAMS) - Trust Score Engine
+ * Muster Attendance Management System - Trust Score Engine
  * Manages immutable TrustEvent ledger operations, band computation, locks, and self-attendance gating.
  */
 

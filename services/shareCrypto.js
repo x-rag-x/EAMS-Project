@@ -50,7 +50,11 @@ function encodeBase32Crockford(buffer) {
 function generateLinkCode(trackId, epoch = 0, secret = null) {
   if (!trackId) throw new Error('trackId is required to generate link code');
 
-  const key = secret || process.env.TT_LINK_SECRET || 'eams-default-link-secret';
+  const cfg = require('../config');
+  const key = secret || cfg.TT_LINK_SECRET || process.env.TT_LINK_SECRET;
+  if (!key) {
+    throw new Error('TT_LINK_SECRET is required to generate link code');
+  }
   const hmac = crypto.createHmac('sha256', key);
   hmac.update(`${String(trackId).trim()}:${Number(epoch || 0)}`);
   const digest = hmac.digest();

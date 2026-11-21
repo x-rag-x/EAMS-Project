@@ -9,6 +9,15 @@
 (function (window) {
   'use strict';
 
+  function escapeHtml(str) {
+    if (!str) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
   class TimetableHistoryView {
     constructor(containerEl) {
       this.containerEl = typeof containerEl === 'string' ? document.querySelector(containerEl) : containerEl;
@@ -42,7 +51,7 @@
         this.render();
       } catch (err) {
         if (!this.isEmbedded) {
-          this.containerEl.innerHTML = `<div style="padding: 24px; color: #b91c1c; background: #fef2f2; border-radius: 8px;">Error loading history: ${err.message}</div>`;
+          this.containerEl.innerHTML = `<div style="padding: 24px; color: #b91c1c; background: #fef2f2; border-radius: 8px;">Error loading history: ${escapeHtml(err.message)}</div>`;
         } else {
           this.containerEl.style.display = 'none';
           this.containerEl.innerHTML = '';
@@ -309,7 +318,7 @@
         `;
         diffPanelEl.dataset.loaded = 'true';
       } catch (err) {
-        diffPanelEl.innerHTML = `<div style="font-size: 12px; color: #dc2626;">Failed to load diff: ${err.message}</div>`;
+        diffPanelEl.innerHTML = `<div style="font-size: 12px; color: #dc2626;">Failed to load diff: ${escapeHtml(err.message)}</div>`;
       }
     }
   }

@@ -1927,13 +1927,6 @@ var KEY_EXPLANATIONS = {
     "trueEffect": "Deleting classes, batches, or departments prompts for the administrator's password.",
     "falseEffect": "Deletions proceed with standard confirmation dialogs without requiring re-authentication."
   },
-  "requireHodApproval": {
-    "type": "boolean",
-    "name": "Require HOD Approval on Class Actions",
-    "desc": "Mandates formal HOD sign-off before class curriculum adjustments or cancellations take effect.",
-    "trueEffect": "Departmental schedule and section modifications mandate formal HOD electronic sign-off.",
-    "falseEffect": "Coordinators and instructors can publish class modifications directly without prior HOD sign-off."
-  },
   "modelSmartBoards": {
     "type": "boolean",
     "name": "Smart Classroom & Smart Board Sync",

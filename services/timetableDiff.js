@@ -5,6 +5,7 @@
  */
 
 const M = require('../models');
+const TTBlocks = require('../utils/spanBlocks');
 
 /**
  * Normalize an individual slot object
@@ -96,10 +97,12 @@ function getSlotChanges(before, after) {
  * @returns {Object} { added, removed, modified, unchangedCount, stats, teacherStats, roomStats }
  */
 function diffGrids(oldGrid = [], newGrid = [], options = {}) {
-  const oldNorm = (Array.isArray(oldGrid) ? oldGrid : Object.values(oldGrid || {}))
+  // Collapse both sides to blocks first: a production map holds continuation cells, and diffing
+  // those as roots reported every lab and double as several added/removed sessions.
+  const oldNorm = TTBlocks.blocksOf(oldGrid || [])
     .map(normalizeSlot)
     .filter(s => s && s.day);
-  const newNorm = (Array.isArray(newGrid) ? newGrid : Object.values(newGrid || {}))
+  const newNorm = TTBlocks.blocksOf(newGrid || [])
     .map(normalizeSlot)
     .filter(s => s && s.day);
 

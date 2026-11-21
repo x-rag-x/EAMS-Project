@@ -288,6 +288,31 @@ router.get('/:id', authMiddleware, async (req, res) => {
     const cleanFullName = sanitizeFullName(teacher.fullName || teacher.name || '');
     const nameSplit = splitFirstLastName(cleanFullName);
 
+    if (req.user.role === 'student') {
+      return res.json({
+        _id: teacher._id,
+        name: cleanFullName,
+        fullName: cleanFullName,
+        dept: teacher.department,
+        department: teacher.department,
+        deptCode: teacher.deptCode,
+        desig: teacher.designation,
+        designation: teacher.designation
+      });
+    }
+
+    const isCallerSudo = isSudo(req);
+    const hasAdminScope = req.access && (req.access.flags?.isSuper || req.access.pages?.admin || req.access.flags?.isHod);
+    if (!isCallerSudo && hasAdminScope && !assertInScope(req, teacher.deptId || teacher.department)) {
+      return res.status(403).json({ error: 'Access denied: cannot query teacher outside assigned department' });
+    }
+
+    const callerDeptId = (req.access?.pages?.admin?.deptId ? String(req.access.pages.admin.deptId) : '') || (req.user.deptId ? String(req.user.deptId) : '');
+    const callerDeptName = req.access?.pages?.admin?.dept || req.user.department || req.user.deptName || '';
+    const isSameDept = isCallerSudo ||
+      (callerDeptId && String(teacher.deptId) === callerDeptId) ||
+      (callerDeptName && teacher.department && String(teacher.department).toLowerCase().trim() === callerDeptName.toLowerCase().trim());
+
     res.json({
       _id: teacher._id,
       name: cleanFullName,
@@ -296,31 +321,31 @@ router.get('/:id', authMiddleware, async (req, res) => {
       lastName: (teacher.lastName !== undefined && teacher.lastName !== null && String(teacher.lastName).trim() !== '')
         ? sanitizeFullName(teacher.lastName)
         : nameSplit.lastName,
-      empId: teacher.employeeNo,
-      employeeNo: teacher.employeeNo,
+      empId: isSameDept ? teacher.employeeNo : '',
+      employeeNo: isSameDept ? teacher.employeeNo : '',
       dept: teacher.department,
       department: teacher.department,
       deptId: teacher.deptId,
       deptCode: teacher.deptCode,
       desig: teacher.designation,
       designation: teacher.designation,
-      email: teacher.email,
-      username: teacher.username,
+      email: isSameDept ? teacher.email : '',
+      username: isSameDept ? teacher.username : '',
       trackId: teacher.trackId,
       isHOD: isHodVal,
       isClassAdvisor: isClassAdvisorVal,
       isTimeTableCoordinator: isTTCoordVal,
       isPrincipal: isPrincipalVal,
-      specials: teacher.specials || [],
+      specials: isSameDept ? (teacher.specials || []) : [],
       isAdmin: hasSpecial(teacher, 'isAdmin') || isSudoAdminVal || isSuperAdminVal || isSubAdminVal,
       isSudoAdmin: isSudoAdminVal,
       isSuperAdmin: isSuperAdminVal,
       isSubAdmin: isSubAdminVal,
       adminTier: adminTier,
-      pageRights: teacher.pageRights,
+      pageRights: isSameDept ? teacher.pageRights : undefined,
       active: true,
       status: 'active',
-      mustChangePassword: teacher.mustChangePassword,
+      mustChangePassword: isSameDept ? teacher.mustChangePassword : undefined,
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -719,6 +744,20 @@ router.put('/:id', authMiddleware, requirePage('admin', 'edit', { tab: 'teachers
     }
 
     if (password) {
+      const isSelf = String(req.user._id) === String(teacher._id) || (req.user.trackId && req.user.trackId === teacher.trackId);
+      const isTargetHigher = isSudoAdmin(teacher) ||
+        isSuperAdmin(teacher) ||
+        hasSpecial(teacher, 'isPrincipal') ||
+        teacher.isPrincipal ||
+        hasSpecial(teacher, 'isHod') ||
+        teacher.isHod;
+      const isCallerPrivileged = isSudoAdmin(req.user) || isSuperAdmin(req.user);
+
+      if (!isSelf && isTargetHigher && !isCallerPrivileged) {
+        return res.status(403).json({
+          error: 'Access denied: Department administrators cannot reset passwords for higher-role accounts (Principal, Super Admin, or HOD)'
+        });
+      }
       teacher.password = await bcrypt.hash(password, cfg.BCRYPT_ROUNDS);
     }
 
@@ -820,6 +859,20 @@ router.delete('/:id', authMiddleware, requirePage('admin', 'delete', { tab: 'tea
 
     const guard = await assertNotLastSudoAdmin(teacher.trackId || teacher._id);
     if (!guard.allowed) return res.status(403).json({ error: guard.error });
+
+    const isTargetHigher = isSudoAdmin(teacher) ||
+      isSuperAdmin(teacher) ||
+      hasSpecial(teacher, 'isPrincipal') ||
+      teacher.isPrincipal ||
+      hasSpecial(teacher, 'isHod') ||
+      teacher.isHod;
+    const isCallerPrivileged = isSudoAdmin(req.user) || isSuperAdmin(req.user);
+
+    if (isTargetHigher && !isCallerPrivileged) {
+      return res.status(403).json({
+        error: 'Access denied: Department administrators cannot delete higher-role accounts (Principal, Super Admin, or HOD)'
+      });
+    }
     
     const snapshot = teacher.toObject();
     delete snapshot.password;

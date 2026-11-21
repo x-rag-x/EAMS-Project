@@ -25,7 +25,7 @@ router.get('/public', publicSettingsLimiter, async (req, res) => {
       maintenance: settingsMap.maintenance || DEFAULT_SETTINGS_MAP.maintenance.value,
       broadcast: settingsMap.broadcast || DEFAULT_SETTINGS_MAP.broadcast.value,
       institution: {
-        institutionName: inst.institutionName || 'EAMS',
+        institutionName: inst.institutionName || 'Muster',
         institutionShort: inst.institutionShort || '',
         logoUrl: inst.logoUrl || '',
       },
@@ -135,7 +135,7 @@ router.get('/teacher-portal', authMiddleware, requireRole('teacher', 'admin', 'h
         condonationBandPct: condonationBand
       },
       institution: {
-        institutionName: inst.institutionName || 'EAMS',
+        institutionName: inst.institutionName || 'Muster',
         institutionShort: inst.institutionShort || ''
       }
     });
@@ -151,6 +151,7 @@ router.get('/student-portal', authMiddleware, async (req, res) => {
     const settingsMap = await getSettings([
       'attendance',
       'academic',
+      'security',
       'studentLeave',
       'evidence',
       'od',
@@ -158,6 +159,7 @@ router.get('/student-portal', authMiddleware, async (req, res) => {
       'models',
       'trust'
     ]);
+    const sec = settingsMap.security || DEFAULT_SETTINGS_MAP.security?.value || {};
     const att = settingsMap.attendance || DEFAULT_SETTINGS_MAP.attendance?.value || {};
     const acad = settingsMap.academic || DEFAULT_SETTINGS_MAP.academic?.value || {};
     const leave = settingsMap.studentLeave || DEFAULT_SETTINGS_MAP.studentLeave?.value || {};

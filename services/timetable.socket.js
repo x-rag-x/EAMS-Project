@@ -23,25 +23,74 @@ const userSockets = new Map();
 
 let wssTimetable = null;
 
+function extractUpgradeToken(req) {
+  const parsedUrl = url.parse(req.url, true);
+  if (parsedUrl.query && parsedUrl.query.token) {
+    return parsedUrl.query.token;
+  }
+  const authHeader = req.headers['authorization'];
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    return authHeader.slice(7).trim();
+  }
+  if (req.headers.cookie) {
+    const cookies = req.headers.cookie.split(';');
+    for (const c of cookies) {
+      const [k, v] = c.trim().split('=');
+      if (k === 'token' || k === 'authToken' || k === 'jwt') {
+        return decodeURIComponent(v);
+      }
+    }
+  }
+  return null;
+}
+
 /**
  * Initializes Timetable Collaboration WebSocket Server.
  * @param {http.Server} httpServer
  */
-function initTimetableSocket(httpServer) {
+function handleTimetableUpgrade(req, socket, head) {
+  const pathname = url.parse(req.url).pathname;
+  if (pathname !== '/ws/timetable') {
+    return;
+  }
+
+  const token = extractUpgradeToken(req);
+  if (!token) {
+    socket.write('HTTP/1.1 401 Unauthorized\r\nConnection: close\r\nContent-Type: text/plain\r\n\r\nUnauthorized: Missing token');
+    socket.destroy();
+    return;
+  }
+
+  let decoded = null;
+  try {
+    decoded = jwt.verify(token, cfg.JWT_SECRET);
+  } catch (_) {
+    socket.write('HTTP/1.1 401 Unauthorized\r\nConnection: close\r\nContent-Type: text/plain\r\n\r\nUnauthorized: Invalid token');
+    socket.destroy();
+    return;
+  }
+
+  req.user = decoded;
+
+  wssTimetable.handleUpgrade(req, socket, head, (ws) => {
+    wssTimetable.emit('connection', ws, req);
+  });
+}
+
+function initTimetableSocket(httpServer, opts = {}) {
   if (wssTimetable) return;
 
   wssTimetable = new WebSocketServer({ noServer: true, maxPayload: 64 * 1024 });
 
-  httpServer.on('upgrade', (req, socket, head) => {
-    const pathname = url.parse(req.url).pathname;
-    if (pathname !== '/ws/timetable') {
-      return;
-    }
-
-    wssTimetable.handleUpgrade(req, socket, head, (ws) => {
-      wssTimetable.emit('connection', ws, req);
-    });
+  wssTimetable.on('error', (_err) => {
+    // Gracefully handle server-level WebSocket errors
   });
+
+  if (opts.attachUpgrade !== false && httpServer) {
+    httpServer.on('upgrade', (req, socket, head) => {
+      handleTimetableUpgrade(req, socket, head);
+    });
+  }
 
   wssTimetable.on('connection', (ws, req) => {
     handleConnection(ws, req);
@@ -58,6 +107,10 @@ function handleConnection(ws, req) {
 
   ws.isAlive = true;
   ws.on('pong', () => { ws.isAlive = true; });
+
+  ws.on('error', (_err) => {
+    // Gracefully handle socket error without allowing unhandled RangeError or socket drop to terminate Node.js process
+  });
 
   ws.on('message', (raw) => {
     try {
@@ -272,6 +325,7 @@ function emitAccessRevoked(userId, workspaceId) {
 
 module.exports = {
   initTimetableSocket,
+  handleTimetableUpgrade,
   broadcastToDraft,
   emitAccessRevoked
 };

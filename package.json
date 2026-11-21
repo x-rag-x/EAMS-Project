@@ -1,18 +1,20 @@
 {
-  "name": "eams",
-  "version": "2.5.2",
-  "description": "Electronic Attendance Management System",
+  "name": "muster",
+  "version": "2.5.3",
+  "description": "Muster Attendance Management System",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "node server.js",
+    "dev": "node server.js --dev",
     "test": "node tests/index.js",
     "setup": "node scripts/start.js",
     "cli": "node scripts/start.js",
     "memory": "node scripts/memory.js",
     "track:chat": "node scripts/track_chat.js",
     "end:chat": "node scripts/track_chat.js --auto-memory",
-    "check:xss": "node scripts/check-xss-patterns.js"
+    "check:xss": "node scripts/check-xss-patterns.js",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix"
   },
   "engines": {
     "node": ">=18.0.0"
@@ -35,6 +37,8 @@
     "ws": "^8.21.3"
   },
   "devDependencies": {
-    "@types/node": "^26.0.0"
+    "@types/node": "^26.0.0",
+    "eslint": "^10.15.0",
+    "globals": "^17.14.0"
   }
 }

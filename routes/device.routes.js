@@ -1,3 +1,4 @@
+const { escapeRegex } = require('../utils/sanitizeQuery');
 const express = require('express');
 const router = express.Router();
 const crypto = require('crypto');
@@ -591,8 +592,9 @@ router.post('/register/key', deviceClaimIpLimiter, async (req, res) => {
       });
     }
 
-    // Generate 6-digit numeric verification code
-    const verifyCode = Math.floor(100000 + Math.random() * 900000).toString();
+    // Generate 6-digit numeric verification code using crypto.randomInt (S11)
+    const { generateVerificationCode } = require('../utils/codeGenerator');
+    const verifyCode = generateVerificationCode();
     const verifyCodeHash = sha256(verifyCode);
     const verifyExpiresAt = new Date(Date.now() + 5 * 60 * 1000); // min
 
@@ -1141,7 +1143,7 @@ router.get('/', authMiddleware, async (req, res) => {
     if (studentId) query.studentId = studentId;
 
     if (search) {
-      const sRegex = new RegExp(search.trim(), 'i');
+      const sRegex = new RegExp(escapeRegex(search.trim()), 'i');
       query.$or = [
         { deviceTrackId: sRegex },
         { studentTrackId: sRegex },
@@ -1208,7 +1210,7 @@ router.get('/history', authMiddleware, async (req, res) => {
     if (kind) query.kind = kind;
 
     if (search) {
-      const sRegex = new RegExp(search.trim(), 'i');
+      const sRegex = new RegExp(escapeRegex(search.trim()), 'i');
       query.$or = [
         { ticketId: sRegex },
         { studentTrackId: sRegex },
@@ -1325,6 +1327,48 @@ router.post('/replacement-requests', authMiddleware, async (req, res) => {
   }
 });
 
+router.get('/pending', authMiddleware, async (req, res) => {
+  try {
+    const isSudoUser = isSudo(req);
+    const specials = Array.isArray(req.user?.specials) ? req.user.specials : [];
+    const isSuper = specials.some(s => s && s.option === 'isAdmin' && s.value !== false);
+    const isAdvisor = req.user?.role === 'teacher' && specials.some(s => s.option === 'isClassAdvisor');
+
+    const query = { status: { $in: ['PENDING_ADVISOR', 'PENDING_HOD', 'PENDING_SUPER', 'PENDING'] } };
+
+    if (!isSudoUser) {
+      if (isSuper && req.user?.deptId) {
+        query.deptId = req.user.deptId;
+      } else if (isAdvisor) {
+        const advSpecial = specials.find(s => s.option === 'ClassAdvisorTrackId');
+        if (advSpecial?.value) query.classId = advSpecial.value;
+      } else if (req.user?.role === 'student') {
+        query.studentId = req.user._id;
+      } else {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+    }
+
+    const requests = await M.DeviceReplacementRequest.find(query)
+      .populate('studentId', 'fullName registerNo username trackId class section')
+      .populate('deptId', 'name code')
+      .populate('classId', 'name batch section')
+      .sort({ createdAt: -1 })
+      .limit(100)
+      .lean();
+
+    return res.json({
+      ok: true,
+      count: requests.length,
+      tickets: requests,
+      devices: requests,
+      data: requests
+    });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 router.get('/replacement-requests', authMiddleware, async (req, res) => {
   try {
     const isSudoUser = isSudo(req);
@@ -1373,12 +1417,37 @@ router.get('/replacement-requests', authMiddleware, async (req, res) => {
 
 router.post('/replacement-requests/:id/forward', authMiddleware, async (req, res) => {
   try {
+    if (req.user.role !== 'teacher' && req.user.role !== 'admin' && !req.user.isAdmin) {
+      return res.status(403).json({ error: 'Access denied: Class advisor or admin authorization required' });
+    }
+
+    const idParam = req.params.id;
+    const isObjectId = /^[0-9a-fA-F]{24}$/.test(idParam);
     const reqDoc = await M.DeviceReplacementRequest.findOne({
-      $or: [{ requestId: req.params.id }, { _id: req.params.id }]
+      $or: [
+        { requestId: idParam },
+        ...(isObjectId ? [{ _id: idParam }] : [])
+      ]
     });
 
     if (!reqDoc) {
       return res.status(404).json({ error: 'Request not found' });
+    }
+
+    if (reqDoc.status !== 'PENDING_ADVISOR' && reqDoc.status !== 'pending') {
+      return res.status(400).json({ error: 'Request is not in pending advisor review state' });
+    }
+
+    if (req.user.role === 'teacher' && !req.user.isAdmin && !isSudo(req)) {
+      const student = await M.Student.findById(reqDoc.studentId).lean();
+      if (student) {
+        const isAdvisor = (student.advisorId && String(student.advisorId) === String(req.user._id)) ||
+                          (student.advisorTrackId && student.advisorTrackId === req.user.trackId);
+        const isDeptStaff = student.deptId && req.user.deptId && String(student.deptId) === String(req.user.deptId);
+        if (!isAdvisor && !isDeptStaff) {
+          return res.status(403).json({ error: 'Access denied: You are not authorized to forward requests for this student' });
+        }
+      }
     }
 
     const { note = '' } = req.body;

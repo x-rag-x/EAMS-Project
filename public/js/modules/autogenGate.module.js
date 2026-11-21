@@ -338,7 +338,7 @@
         close();
         ctx.onGrievanceSubmitted(json);
       } catch (err) {
-        if (window.toast) window.toast(`Error: ${err.message}`, 'error');
+        if (window.toast) window.toast(`Error: ${escapeHtml(err.message)}`, 'error');
       }
     });
 
@@ -371,7 +371,7 @@
       } catch (err) {
         confirmBtn.disabled = false;
         confirmBtn.innerHTML = `<span>Yes, Subject Set is Correct</span>`;
-        if (window.toast) window.toast(`Confirmation failed: ${err.message}`, 'error');
+        if (window.toast) window.toast(`Confirmation failed: ${escapeHtml(err.message)}`, 'error');
       }
     });
   }

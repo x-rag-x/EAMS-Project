@@ -74,7 +74,7 @@ async function api(url, options = {}) {
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
     if (res.status === 401) {
-      console.warn('[EAMS Auth]: Session invalid or token expired (401).');
+      console.warn('[Muster Auth]: Session invalid or token expired (401).');
     }
     throw new Error(data.error || 'Server error (' + res.status + ')');
   }
@@ -1805,37 +1805,7 @@ async function submitLinkBoard() {
   }
 }
 
-// ── SMART BOARD LOGS & TELEMETRY POPUP ──
-async function openBoardLogsModal(boardId) {
-  const modal = document.getElementById('modal-board-logs');
-  const content = document.getElementById('board-logs-content');
-  const metricsBox = document.getElementById('board-logs-metrics');
 
-  if (content) content.textContent = 'Fetching telemetry logs…';
-  if (modal) modal.classList.add('open');
-
-  try {
-    const data = await api(`/api/timetable/boards/${boardId}/telemetry`);
-    if (metricsBox) {
-      metricsBox.innerHTML = `
-        <div class="diag-item"><div class="diag-lbl">DEVICE ID</div><div class="diag-val">${esc(data.deviceId)}</div></div>
-        <div class="diag-item"><div class="diag-lbl">WS STATUS</div><div class="diag-val" style="color:var(--gD);">${esc(data.connectionStatus || 'ONLINE')}</div></div>
-        <div class="diag-item"><div class="diag-lbl">CURRENT IP</div><div class="diag-val"><code>${esc(data.currentIp || '192.168.10.15')}</code></div></div>
-        <div class="diag-item"><div class="diag-lbl">LAST SEEN</div><div class="diag-val">${data.lastSeenAt ? new Date(data.lastSeenAt).toLocaleTimeString() : 'Just now'}</div></div>`;
-    }
-
-    const logs = (data.ipHistory || []).map(h =>
-      `[${new Date(h.detectedAt || Date.now()).toLocaleTimeString()}] IP: ${h.ip || '192.168.10.15'} • Type: ${h.ipType || 'IPv4'} • Handshake Verified`
-    );
-    if (logs.length === 0) {
-      logs.push(`[${new Date().toLocaleTimeString()}] Device ${data.deviceId} connected and sending heartbeats (latency: 28ms).`);
-    }
-
-    if (content) content.innerHTML = logs.join('<br>');
-  } catch (err) {
-    if (content) content.textContent = 'Telemetry stream: Device operating normally. Heartbeat active.';
-  }
-}
 
 // ── SPECIAL HALL PRE-BOOKING POPUP (ZERO ALERT) ──
 function openPreBookModal(roomId) {

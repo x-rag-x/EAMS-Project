@@ -10,6 +10,7 @@
  */
 
 const M = require('../models');
+const TTBlocks = require('./spanBlocks');
 const { isSudoAdmin } = require('./access');
 
 const DAY_FULL = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -368,7 +369,7 @@ async function buildWeeklyTemplate(idn) {
 
   sections.forEach(section => {
     const classDoc = classesMap.get(String(section.classId));
-    const sectionSlots = section.slots || {};
+    const sectionSlots = TTBlocks.toSlotsObj(section.slots || {});
 
     Object.entries(sectionSlots).forEach(([key, raw]) => {
       if (!raw) return;
@@ -690,7 +691,7 @@ async function resolveTeacherRange(idn, fromISO, toISO) {
       const origInfo = readOverrideSlot(ov.originalSlot);
 
       // Find original section slot for fallback timings/details if available
-      const sectionSlots = sectionDoc?.slots || {};
+      const sectionSlots = TTBlocks.toSlotsObj(sectionDoc?.slots || {});
       const origRaw = Object.values(sectionSlots).find(s => s && s.day === dayName && parsePeriod(s.period) === ov.period);
 
       const span = Number(origRaw?.span || origRaw?.duration || 1) || 1;

@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const M = require('../models');
 const { getTodayIST } = require('../middleware/scope');
 const { getSettings } = require('../utils/settingsCache');
@@ -67,6 +68,34 @@ async function expireSubstitutions(customToday = null, customTime = null) {
   return { expiredCount };
 }
 
+let subInterval = null;
+
+function startJob(intervalMs = 15 * 60 * 1000) {
+  if (subInterval) return;
+  if (mongoose.connection && mongoose.connection.readyState === 1) {
+    expireSubstitutions().catch(err => {
+      console.warn('[Substitution Expiry Initial Run Error]:', err.message);
+    });
+  }
+  subInterval = setInterval(() => {
+    if (mongoose.connection && mongoose.connection.readyState === 1) {
+      expireSubstitutions().catch(err => {
+        console.warn('[Substitution Expiry Periodic Error]:', err.message);
+      });
+    }
+  }, intervalMs);
+  if (subInterval.unref) subInterval.unref();
+}
+
+function stopJob() {
+  if (subInterval) {
+    clearInterval(subInterval);
+    subInterval = null;
+  }
+}
+
 module.exports = {
-  expireSubstitutions
+  expireSubstitutions,
+  startJob,
+  stopJob
 };

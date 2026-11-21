@@ -61,6 +61,14 @@ var _memStore = {};
     return (typeof todayIST === 'function') ? todayIST() : localISO(new Date());
   }
 
+  function formatDateISO(d) {
+    if (!d) return '';
+    if (typeof d === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d)) return d;
+    var dt = (d instanceof Date && !isNaN(d.getTime())) ? d : new Date(d);
+    if (isNaN(dt.getTime())) return '';
+    return localISO(dt);
+  }
+
   // Bearer header for plain api calls — the API authenticates by
   // Authorization header only (cookies are never sent/read).
   function isSafeHttpsUrl(url) {
@@ -544,7 +552,7 @@ var _memStore = {};
   function syncMyStudents() {
     var tok = getToken();
     if (!tok) return Promise.resolve([]);
-    return api('/api/teacher/me/roster', {
+    return fetch('/api/teacher/me/roster', {
       headers: authHeaders()
     })
     .then(function(r) {
@@ -2208,6 +2216,7 @@ var _memStore = {};
   }
 
   async function openHodTimetableMatrixModal(id) {
+    var versionId = id;
     if (typeof showToast === 'function') showToast('Loading timetable matrix & diff…', 'info');
     try {
       var res = await api('GET', '/timetable/verification-requests/' + id + '/details');
@@ -9988,7 +9997,7 @@ window.addEventListener('load', function(){
 
     if (pub.institution) {
       var shortN = pub.institution.institutionShort || '';
-      document.title = shortN ? ('EAMS – Teacher | ' + shortN) : 'EAMS – Teacher Portal';
+      document.title = shortN ? ('Muster – Teacher | ' + shortN) : 'Muster – Teacher Portal';
       var brandEl = document.querySelector('.sb-brand');
       if (brandEl && pub.institution.institutionName) {
         brandEl.innerHTML = escapeHtml(pub.institution.institutionName) + '<small>Teacher Portal</small>';
@@ -10146,6 +10155,23 @@ var _currentAffectedSlots = [];
 var _targetSlotForSubstitute = null;
 var _tlCurrentSubTab = 'apps';
 var _hodPendingLeaves = [];
+
+function loadFacultyDepartmentsForFinder() {
+  var select = document.getElementById("fsf-dept");
+  if (!select) return;
+  api("/api/departments", { headers: authHeaders() })
+    .then(function(res) { return res.json(); })
+    .then(function(depts) {
+      if (!Array.isArray(depts) && depts && Array.isArray(depts.data)) depts = depts.data;
+      if (!Array.isArray(depts)) return;
+      var opts = '<option value="">All Departments</option>' + depts.map(function(d) {
+        var label = d.code ? (d.code + " - " + d.name) : d.name;
+        return "<option value=\"" + escapeHtml(d.code || d.name || d._id) + "\">" + escapeHtml(label) + "</option>";
+      }).join("");
+      select.innerHTML = opts;
+    })
+    .catch(function() {});
+}
 
 function initMyLeavesPage() {
   loadMyTeacherLeaves();

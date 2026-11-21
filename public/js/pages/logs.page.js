@@ -661,13 +661,13 @@ function openLogDetail(idOrTrackId) {
     .then(function (r) { return r.json(); })
     .then(function (log) {
       if (log.error) {
-        body.innerHTML = '<div style="color:var(--danger);padding:20px;">' + log.error + '</div>';
+        body.innerHTML = '<div style="color:var(--danger);padding:20px;">' + escapeHtml(log.error) + '</div>';
         return;
       }
       renderModalDetailContent(log);
     })
     .catch(function (err) {
-      body.innerHTML = '<div style="color:var(--danger);padding:20px;">Failed to load detail: ' + err.message + '</div>';
+      body.innerHTML = '<div style="color:var(--danger);padding:20px;">Failed to load detail: ' + escapeHtml(err && err.message ? err.message : 'Error') + '</div>';
     });
 }
 

@@ -1,10 +1,4 @@
-require('dotenv').config();
-
-const dns = require('dns');
-try {
-  dns.setDefaultResultOrder('ipv4first');
-  dns.setServers(['8.8.8.8', '8.8.4.4', '1.1.1.1']);
-} catch (e) {}
+const crypto = require('crypto');
 
 const mongoose = require('mongoose');
 const cfg = require('./index');
@@ -51,7 +45,7 @@ mongoose.connect(cfg.MONGO_URI, {
     await initAggregatedCounts();
     startSessionMonitor();
     console.log(`  [4/4] System State  →  Admin user verified · Default settings loaded · Telemetry synced`);
-    console.log(`\n  ✔ EAMS Server is ready for access → http://localhost:${process.env.PORT || cfg.PORT || 3000}\n`);
+    console.log(`\n  ✔ Muster Server is ready for access → http://localhost:${process.env.PORT || cfg.PORT || 3000}\n`);
   })
   .catch(err => { console.error('  [!] MongoDB error:', err.message); process.exit(1); });
 
@@ -129,7 +123,7 @@ async function seedSettings() {
     await logAction(
       null, 'SYSTEM', 'system',
       'Server Started',
-      'EAMS server started successfully.',
+      'Muster server started successfully.',
       'system', 'info', '127.0.0.1', '',
       { module: 'system', subType: 'action', trackId: 'TR-SYS-001' }
     );
@@ -149,8 +143,12 @@ async function seedSettings() {
       }
     }
     else {
-      const isDefault = !cfg.ADMIN_PASSWORD && !process.env.adminPassword;
-      const adminPass = cfg.ADMIN_PASSWORD || process.env.adminPassword || 'EAMS-admin@123';
+      let adminPass = cfg.ADMIN_PASSWORD || process.env.adminPassword;
+      const isDefault = !adminPass;
+      if (!adminPass) {
+        adminPass = crypto.randomBytes(12).toString('hex') + '!Aa1';
+        console.warn('   [BOOTSTRAP] No ADMIN_PASSWORD configured. Generated secure bootstrap password:', adminPass);
+      }
       const hash = await bcrypt.hash(adminPass, cfg.BCRYPT_ROUNDS);
       const now = new Date();
       await M.Teacher.create({

@@ -29,7 +29,7 @@ async function reverseGeocode(latitude, longitude) {
     const res = await fetch(url, {
       signal: controller.signal,
       headers: {
-        'User-Agent': 'EAMS-Attendance-System/1.0 (info@eams.local)'
+        'User-Agent': 'Muster-Attendance-System/1.0 (info@muster.local)'
       }
     });
     clearTimeout(timeoutId);

@@ -221,11 +221,57 @@ router.get('/:id', authMiddleware, fileStreamLimiter, async (req, res) => {
       return res.status(404).json({ error: 'File not found' });
     }
 
-    // Permission check: uploader, teacher, admin, advisor, HOD, principal can view
-    const isOwner = evidence.uploadedBy === req.user.trackId || evidence.uploadedBy === String(req.user._id);
-    const isPrivileged = isSudoAdmin(req.user) || req.user.role === 'teacher';
+    // Permission check: uploader, assigned approver (advisor, mentor, HOD), or admin/principal can view
+    const isOwner = Boolean(
+      (evidence.uploadedBy && req.user.trackId && evidence.uploadedBy === req.user.trackId) ||
+      (evidence.uploadedBy && req.user._id && evidence.uploadedBy === String(req.user._id))
+    );
+    const isAdminOrPrincipal = isSudoAdmin(req.user) || req.user.isAdmin || req.user.role === 'admin' || req.user.role === 'principal' || req.user.isPrincipal;
 
-    if (!isOwner && !isPrivileged) {
+    let isAuthorizedApprover = false;
+    if (!isOwner && !isAdminOrPrincipal && req.user.role === 'teacher') {
+      if (evidence.requestId) {
+        if (evidence.requestType === 'od') {
+          const od = await M.ODRequest.findOne({ $or: [{ requestId: evidence.requestId }, { _id: mongoose.isValidObjectId(evidence.requestId) ? evidence.requestId : undefined }].filter(Boolean) }).lean();
+          if (od) {
+            const isAdvisor = req.user.trackId && od.advisorTrackId === req.user.trackId;
+            const isMentor = req.user.trackId && od.mentorTrackId === req.user.trackId;
+            const isHod = (req.user.isHod || req.user.role === 'hod') && (String(req.user.deptId) === String(od.deptId) || req.user.department === od.deptCode);
+            if (isAdvisor || isMentor || isHod) isAuthorizedApprover = true;
+          }
+        } else if (evidence.requestType === 'student_leave') {
+          const leave = await M.StudentLeaveRequest.findOne({ $or: [{ requestId: evidence.requestId }, { _id: mongoose.isValidObjectId(evidence.requestId) ? evidence.requestId : undefined }].filter(Boolean) }).lean();
+          if (leave) {
+            const isAdvisor = req.user.trackId && leave.advisorTrackId === req.user.trackId;
+            const isHod = (req.user.isHod || req.user.role === 'hod') && (String(req.user.deptId) === String(leave.deptId) || req.user.deptName === leave.deptName);
+            if (isAdvisor || isHod) isAuthorizedApprover = true;
+          }
+        } else if (evidence.requestType === 'faculty_leave') {
+          const fLeave = await M.LeaveRequest.findOne({ $or: [{ requestId: evidence.requestId }, { _id: mongoose.isValidObjectId(evidence.requestId) ? evidence.requestId : undefined }].filter(Boolean) }).lean();
+          if (fLeave) {
+            const isApplicant = req.user.trackId && fLeave.teacherTrackId === req.user.trackId;
+            const isHod = (req.user.isHod || req.user.role === 'hod') && (String(req.user.deptId) === String(fLeave.deptId));
+            if (isApplicant || isHod) isAuthorizedApprover = true;
+          }
+        }
+      } else if (evidence.uploadedBy) {
+        // Direct uploader check for student's advisor/HOD
+        const student = await M.Student.findOne({ $or: [{ trackId: evidence.uploadedBy }, { _id: mongoose.isValidObjectId(evidence.uploadedBy) ? evidence.uploadedBy : undefined }].filter(Boolean) }).lean();
+        if (student) {
+          if (student.deptId && (req.user.isHod || req.user.role === 'hod') && String(req.user.deptId) === String(student.deptId)) {
+            isAuthorizedApprover = true;
+          }
+          if (student.classId) {
+            const cls = await M.Class.findById(student.classId).select('advisorTeacherTrackId secondaryAdvisorTeacherTrackId').lean();
+            if (cls && req.user.trackId && (cls.advisorTeacherTrackId === req.user.trackId || cls.secondaryAdvisorTeacherTrackId === req.user.trackId)) {
+              isAuthorizedApprover = true;
+            }
+          }
+        }
+      }
+    }
+
+    if (!isOwner && !isAdminOrPrincipal && !isAuthorizedApprover) {
       return res.status(403).json({ error: 'You do not have permission to view this file' });
     }
 

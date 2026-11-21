@@ -25,10 +25,13 @@ const TARGET_FILES = [
 const ALLOWED_KEYS = [
   'tt_freeze_panes',
   'eams_tt_workspace',
+  'muster_tt_workspace',
   'eams_user',
+  'muster_user',
   'user',
   'token',
-  'eams_token'
+  'eams_token',
+  'muster_token'
 ];
 
 const MAX_BASELINE_COUNT = 14;

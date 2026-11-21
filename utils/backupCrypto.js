@@ -1,8 +1,8 @@
 /**
  * utils/backupCrypto.js
- * Enterprise-grade authenticated encryption for EAMS backup archives.
+ * Enterprise-grade authenticated encryption for Muster backup archives.
  * Uses AES-256-GCM with PBKDF2 key derivation and random salts/IVs.
- * Only the EAMS website/server can decrypt and unpack these archives.
+ * Only the Muster website/server can decrypt and unpack these archives.
  */
 
 const crypto = require('crypto');

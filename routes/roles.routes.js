@@ -143,7 +143,9 @@ router.get('/departments/:deptId', authMiddleware, requirePage('admin', 'view', 
     const deptId = sanitizeToObjectId(req.params.deptId);
     if (!deptId) return res.status(400).json({ error: 'Invalid department ID' });
 
-    assertInScope(req, deptId);
+    if (!assertInScope(req, deptId)) {
+      return res.status(403).json({ error: 'Access denied: department is outside your assigned scope', code: 'FORBIDDEN' });
+    }
 
     const [dept, assignments, privilegedStaff, history] = await Promise.all([
       M.Department.findById(deptId).lean(),
@@ -205,7 +207,9 @@ router.get('/departments/:deptId/staff', authMiddleware, requirePage('admin', 'v
     const deptId = sanitizeToObjectId(req.params.deptId);
     if (!deptId) return res.status(400).json({ error: 'Invalid department ID' });
 
-    assertInScope(req, deptId);
+    if (!assertInScope(req, deptId)) {
+      return res.status(403).json({ error: 'Access denied: department is outside your assigned scope', code: 'FORBIDDEN' });
+    }
 
     const targetRole = sanitizeToString(req.query.role);
     const dept = await M.Department.findById(deptId).lean();
@@ -272,7 +276,9 @@ router.put('/departments/:deptId/:role', authMiddleware, requirePage('admin', 'a
     const role = sanitizeToString(req.params.role);
     if (!deptId) return res.status(400).json({ error: 'Invalid department ID' });
 
-    assertInScope(req, deptId);
+    if (!assertInScope(req, deptId)) {
+      return res.status(403).json({ error: 'Access denied: department is outside your assigned scope', code: 'FORBIDDEN' });
+    }
 
     // Permission Matrix: Super Admin can only assign ttCoordinator, placementCoordinator
     if (!req.user.isSudoAdmin && !['ttCoordinator', 'secondaryTtCoordinator', 'placementCoordinator'].includes(role)) {
@@ -330,7 +336,9 @@ router.delete('/departments/:deptId/:role', authMiddleware, requirePage('admin',
     const role = sanitizeToString(req.params.role);
     if (!deptId) return res.status(400).json({ error: 'Invalid department ID' });
 
-    assertInScope(req, deptId);
+    if (!assertInScope(req, deptId)) {
+      return res.status(403).json({ error: 'Access denied: department is outside your assigned scope', code: 'FORBIDDEN' });
+    }
 
     if (!req.user.isSudoAdmin && !['ttCoordinator', 'secondaryTtCoordinator', 'placementCoordinator'].includes(role)) {
       return res.status(403).json({
@@ -369,7 +377,9 @@ router.get('/departments/:deptId/advisors', authMiddleware, requirePage('admin',
     const deptId = sanitizeToObjectId(req.params.deptId);
     if (!deptId) return res.status(400).json({ error: 'Invalid department ID' });
 
-    assertInScope(req, deptId);
+    if (!assertInScope(req, deptId)) {
+      return res.status(403).json({ error: 'Access denied: department is outside your assigned scope', code: 'FORBIDDEN' });
+    }
 
     const classes = await M.Class.find({ deptId })
       .populate('advisorTeacherId', 'fullName employeeNo designation trackId')
@@ -416,7 +426,9 @@ router.put('/classes/:classId/advisor', authMiddleware, requirePage('admin', 'as
     const classDoc = await M.Class.findById(classId).lean();
     if (!classDoc) return res.status(404).json({ error: 'Class not found' });
 
-    assertInScope(req, classDoc.deptId);
+    if (!assertInScope(req, classDoc.deptId)) {
+      return res.status(403).json({ error: 'Access denied: class department is outside your assigned scope', code: 'FORBIDDEN' });
+    }
 
     const teacherId = sanitizeToObjectId(req.body.teacherId);
     if (!teacherId) return res.status(400).json({ error: 'Advisor faculty member ID is required' });
@@ -460,7 +472,9 @@ router.delete('/classes/:classId/advisor', authMiddleware, requirePage('admin', 
     const classDoc = await M.Class.findById(classId).lean();
     if (!classDoc) return res.status(404).json({ error: 'Class not found' });
 
-    assertInScope(req, classDoc.deptId);
+    if (!assertInScope(req, classDoc.deptId)) {
+      return res.status(403).json({ error: 'Access denied: class department is outside your assigned scope', code: 'FORBIDDEN' });
+    }
 
     const assignment = await endRole({
       role: 'classAdvisor',
@@ -495,7 +509,9 @@ router.put('/classes/:classId/secondary-advisor', authMiddleware, requirePage('a
     const classDoc = await M.Class.findById(classId).lean();
     if (!classDoc) return res.status(404).json({ error: 'Class not found' });
 
-    assertInScope(req, classDoc.deptId);
+    if (!assertInScope(req, classDoc.deptId)) {
+      return res.status(403).json({ error: 'Access denied: class department is outside your assigned scope', code: 'FORBIDDEN' });
+    }
 
     const teacherId = sanitizeToObjectId(req.body.teacherId);
     if (!teacherId) return res.status(400).json({ error: 'Secondary advisor faculty member ID is required' });
@@ -539,7 +555,9 @@ router.delete('/classes/:classId/secondary-advisor', authMiddleware, requirePage
     const classDoc = await M.Class.findById(classId).lean();
     if (!classDoc) return res.status(404).json({ error: 'Class not found' });
 
-    assertInScope(req, classDoc.deptId);
+    if (!assertInScope(req, classDoc.deptId)) {
+      return res.status(403).json({ error: 'Access denied: class department is outside your assigned scope', code: 'FORBIDDEN' });
+    }
 
     const assignment = await endRole({
       role: 'secondaryClassAdvisor',
@@ -952,8 +970,16 @@ router.get('/grants', authMiddleware, requirePage('admin', 'view', { tab: 'roles
     let query = {};
     if (teacherId) {
       query._id = teacherId;
+      if (!req.user.isSudoAdmin) {
+        const userDeptId = req.scope?.deptId || req.access?.pages?.admin?.deptId || req.user.deptId;
+        if (userDeptId) {
+          query.deptId = userDeptId;
+        }
+      }
     } else if (deptId) {
-      assertInScope(req, deptId);
+      if (!assertInScope(req, deptId)) {
+        return res.status(403).json({ error: 'Access denied: department is outside your assigned scope', code: 'FORBIDDEN' });
+      }
       query.deptId = deptId;
       query['pageRights.grants.0'] = { $exists: true };
     } else if (!req.user.isSudoAdmin) {

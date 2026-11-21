@@ -1,5 +1,5 @@
 /**
- * EAMS Access Control and RBAC Utilities
+ * Muster Access Control and RBAC Utilities
  * Centralizes capability derivation for Admin Unification:
  * - Pure functions with no direct database queries.
  * - Sudo Admin: institution-wide administrator.

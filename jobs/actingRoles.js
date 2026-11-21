@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const M = require('../models');
 const { getTodayIST } = require('../middleware/scope');
 
@@ -28,7 +29,7 @@ async function syncActingRoles(customToday = null) {
     // Notify holder of active role
     await M.Notification.create({
       type: 'acting-role-active',
-      from: 'EAMS System',
+      from: 'Muster System',
       fromRole: 'system',
       toTeacherTrackId: role.holderTrackId,
       message: `Your Acting ${role.role.toUpperCase()} assignment for ${role.key} is now ACTIVE (${role.from} to ${role.to}).`,
@@ -52,6 +53,34 @@ async function syncActingRoles(customToday = null) {
   return { activated, ended };
 }
 
+let actingRolesInterval = null;
+
+function startJob(intervalMs = 60 * 60 * 1000) {
+  if (actingRolesInterval) return;
+  if (mongoose.connection && mongoose.connection.readyState === 1) {
+    syncActingRoles().catch(err => {
+      console.warn('[Acting Roles Sync Initial Run Error]:', err.message);
+    });
+  }
+  actingRolesInterval = setInterval(() => {
+    if (mongoose.connection && mongoose.connection.readyState === 1) {
+      syncActingRoles().catch(err => {
+        console.warn('[Acting Roles Sync Periodic Error]:', err.message);
+      });
+    }
+  }, intervalMs);
+  if (actingRolesInterval.unref) actingRolesInterval.unref();
+}
+
+function stopJob() {
+  if (actingRolesInterval) {
+    clearInterval(actingRolesInterval);
+    actingRolesInterval = null;
+  }
+}
+
 module.exports = {
-  syncActingRoles
+  syncActingRoles,
+  startJob,
+  stopJob
 };

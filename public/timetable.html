@@ -3,17 +3,20 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>EAMS · Timetable</title>
+  <title>Muster · Timetable</title>
+  <link rel="icon" type="image/png" href="assets/logo.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&family=Playfair+Display:wght@700&family=DM+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-  <script src="js/core/escape.js"></script>
-  <script src="js/core/icons.js?v=2.6.2"></script>
   <link rel="stylesheet" href="css/base.css?v=2.5.6">
   <link rel="stylesheet" href="css/timetable.tokens.css?v=1.0.0">
   <link rel="stylesheet" href="css/timetable.css?v=2.6.2">
   <link rel="stylesheet" href="css/timetable.mobile.css?v=1.0.0">
   <link rel="stylesheet" href="css/timetableScratchpad.css?v=1.0.0">
+  <link rel="preload" href="js/pages/timetable.page.js?v=2.5.8" as="script">
+  <link rel="preload" href="js/core/icons.js?v=2.6.2" as="script">
+  <script defer src="js/core/escape.js"></script>
+  <script defer src="js/core/icons.js?v=2.6.2"></script>
   <script>
     (function() {
       try {
@@ -59,7 +62,7 @@
 
   
   <div id="page-loader">
-    <div class="loader-brand">🌿 EAMS Timetable</div>
+    <div class="loader-brand">🌿 Muster Timetable</div>
     <div class="three-body">
       <div class="three-body__dot"></div>
       <div class="three-body__dot"></div>
@@ -81,7 +84,7 @@
     
     <aside class="sb" id="sidebar">
       <div class="sb-logo">
-        <div class="sb-brand">🌿 EAMS</div>
+        <div class="sb-brand">🌿 Muster</div>
         <div class="sb-sub">Timetable</div>
         <span class="badge" id="ws-role">Coordinator</span>
       </div>
@@ -212,7 +215,7 @@
 
       
       <div class="print-header" id="print-header">
-        <div class="ph-brand">🌿 EAMS · Educational Attendance Management System</div>
+        <div class="ph-brand">🌿 Muster · Attendance Management System</div>
         <div class="ph-title">Institutional Academic Timetable</div>
         <div class="ph-meta" id="print-meta">Official Class Schedule &amp; Allocations</div>
       </div>
@@ -491,32 +494,33 @@
   </div>
 
   
-  <script src="js/core/session.js"></script>
-  <script src="js/core/api.js"></script>
-  <script src="js/core/toast.js"></script>
-  <script src="js/core/modal.js"></script>
-  <script src="js/core/popup.js"></script>
-  <script src="js/core/guard.js"></script>
-  <script src="js/core/tabWorkspace.js"></script>
-  <script src="js/core/searchableDropdown.js"></script>
-  <script src="js/pages/teacherTimetable.module.js"></script>
-  <script src="js/pages/timetableScratchpad.module.js?v=1.0.0"></script>
-  <script src="js/modules/deploy.module.js"></script>
-  <script src="js/modules/hub.module.js"></script>
-  <script src="js/modules/history.module.js"></script>
-  <script src="js/modules/roomPicker.module.js?v=2.0.0"></script>
-  <script src="js/modules/autogenGate.module.js"></script>
-  <script src="js/modules/share.module.js"></script>
-  <script src="js/shared/ttConflicts.shared.js"></script>
-  <script src="js/modules/compare.module.js"></script>
-  <script src="js/modules/approvals.module.js"></script>
-  <script src="js/modules/net.module.js"></script>
-  <script src="js/modules/offline.module.js"></script>
-  <script src="js/pages/timetable.page.js?v=2.5.8"></script>
+  <script defer src="js/core/session.js"></script>
+  <script defer src="js/core/api.js"></script>
+  <script defer src="js/core/toast.js"></script>
+  <script defer src="js/core/modal.js"></script>
+  <script defer src="js/core/popup.js"></script>
+  <script defer src="js/core/guard.js"></script>
+  <script defer src="js/core/tabWorkspace.js"></script>
+  <script defer src="js/core/searchableDropdown.js"></script>
+  <script defer src="js/pages/teacherTimetable.module.js"></script>
+  <script defer src="js/pages/timetableScratchpad.module.js?v=1.0.0"></script>
+  <script defer src="js/modules/deploy.module.js"></script>
+  <script defer src="js/modules/hub.module.js"></script>
+  <script defer src="js/modules/history.module.js"></script>
+  <script defer src="js/modules/roomPicker.module.js?v=2.0.0"></script>
+  <script defer src="js/modules/autogenGate.module.js"></script>
+  <script defer src="js/modules/share.module.js"></script>
+  <script defer src="js/shared/ttBlocks.shared.js"></script>
+  <script defer src="js/shared/ttConflicts.shared.js"></script>
+  <script defer src="js/modules/compare.module.js"></script>
+  <script defer src="js/modules/approvals.module.js"></script>
+  <script defer src="js/modules/net.module.js"></script>
+  <script defer src="js/modules/offline.module.js"></script>
+  <script defer src="js/pages/timetable.page.js?v=2.5.8"></script>
   <script>
     if ('serviceWorker' in navigator && (window.location.protocol === 'https:' || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
       window.addEventListener('load', function() {
-        navigator.serviceWorker.register('/js/tt-sw.js', { scope: '/' }).catch(function(err) {
+        navigator.serviceWorker.register('/tt-sw.js', { scope: '/' }).catch(function(err) {
           console.warn('[SW Registration failed]:', err);
         });
       });

@@ -4,7 +4,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>EAMS – Sign In</title>
+  <title>Muster – Sign In</title>
+  <link rel="icon" type="image/png" href="assets/logo.png">
   <link
     href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&family=Playfair+Display:wght@700&display=swap"
     rel="stylesheet">
@@ -13,12 +14,24 @@
 </head>
 <body>
 
-  <div class="lc">
+  <main class="lp">
+  <aside class="lp-brand">
     <div class="ll">
-      <img src="assets/logo.png" alt="Logo" height=60 class="center-img">
-      <span class="lb" id="login-inst-name">EAMS</span>
+      <img src="assets/logo.png" alt="Muster Logo" class="lg" style="object-fit:contain;border-radius:10px;">
+      <span class="lb" id="login-inst-name">Muster</span>
     </div>
+    <div class="lp-pitch">
+      <!-- Typed in by login.page.js; the aria-label carries the full headline for screen readers -->
+      <h1 class="lp-headline" aria-label="You're here. That counts."><span id="lp-typed" aria-hidden="true">You're here.<br>That counts.</span><span id="lp-caret" class="lp-caret blink" aria-hidden="true"></span></h1>
+      <p class="lp-lede" id="lp-lede">Sign in to take the roll<br>or check your attendance.</p>
+    </div>
+    <div class="lp-version">Muster 2.5.3</div>
+  </aside>
+
+  <section class="lp-form">
+  <div class="lc">
     <div class="lh" id="login-heading">Sign In</div>
+    <div class="lh-sub" id="login-sub">Use your roll number or staff ID.</div>
 
     
     <div id="maint-notice"
@@ -31,17 +44,17 @@
     <form id="login-form" onsubmit="event.preventDefault(); doSignIn();" novalidate>
       <div class="lf2">
         <label id="lbl-u" for="lu">Username</label>
-        <input type="text" id="lu" name="username" placeholder="Enter username"
+        <input type="text" id="lu" name="username" placeholder="Roll number or staff ID"
           autocomplete="username" autofocus required>
       </div>
 
       <div class="lf2">
         <label id="lbl-p" for="lp">Password</label>
         <div class="pw-wrap">
-          <input type="password" id="lp" name="password" placeholder="Enter password"
+          <input type="password" id="lp" name="password" placeholder="Your password"
             autocomplete="current-password" required>
           <button type="button" class="pw-eye" onclick="togglePw('lp',this)"
-            tabindex="-1" title="Show password" aria-label="Toggle password visibility"><re-icon icon="eye"></re-icon></button>
+            tabindex="-1" title="Show password" aria-label="Show password" aria-pressed="false"><svg class="pw-ico" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"></path><circle cx="12" cy="12" r="3"></circle></svg></button>
         </div>
       </div>
 
@@ -49,7 +62,7 @@
       <div class="loc-chip-wrap">
         <div id="loc-chip" class="loc-chip" data-state="idle" aria-live="polite">
           <span class="loc-chip-dot"></span>
-          <span id="loc-chip-icon" class="loc-chip-icon"><re-icon icon="map-pin"></re-icon></span>
+          <span id="loc-chip-icon" class="loc-chip-icon" aria-hidden="true"><re-icon icon="map-pin"></re-icon></span>
           <span id="loc-chip-text" class="loc-chip-text">Location required for security</span>
           <button type="button" id="loc-chip-btn" class="loc-chip-action" style="display:none;"></button>
         </div>
@@ -68,9 +81,11 @@
         </ol>
       </div>
 
-      <button type="submit" class="lbn" id="lbn"><span id="lbn-txt">Sign In</span></button>
+      <button type="submit" class="lbn lbn-glow" id="lbn"><span id="lbn-txt">Sign In</span></button>
     </form>
   </div>
+  </section>
+  </main>
 
   <div id="msg-toast">
     <div id="msg-toast-bar"></div>
@@ -84,7 +99,7 @@
       <div class="modal-hd" style="border-bottom:1px solid var(--br, #e2e8f0);padding-bottom:12px;">
         <div>
           <div class="modal-title" style="font-size:18px;font-weight:700;display:flex;align-items:center;gap:8px;">
-            <re-icon icon="sparkles" size="20" style="color:var(--gK, #2e7d32);"></re-icon> EAMS Initial Setup Wizard
+            <re-icon icon="sparkles" size="20" style="color:var(--gK, #2e7d32);"></re-icon> Muster Initial Setup Wizard
           </div>
           <div style="font-size:12px;color:var(--tmu, #5a7a5a);margin-top:4px;">
             Complete the initial configuration before accessing the administration console.
@@ -119,7 +134,7 @@
           <div style="font-size:13px;font-weight:600;margin-bottom:12px;">Step 1: Change Default Sudo Admin Password</div>
           <div class="fg" style="margin-bottom:12px;">
             <label class="fl">Current Password *</label>
-            <input type="password" id="bw-cur-pw" class="fc" placeholder="Current default password (e.g. EAMS-admin@123)">
+            <input type="password" id="bw-cur-pw" class="fc" placeholder="Current password">
           </div>
           <div class="fg" style="margin-bottom:12px;">
             <label class="fl">New Password *</label>

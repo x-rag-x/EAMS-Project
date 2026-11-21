@@ -33,8 +33,9 @@ function normalizeSubjectFields(body) {
     const v = Number(body.blendLabSlots);
     body.blendLabSlots = Number.isFinite(v) ? Math.max(0, v) : 0;
   }
-  if (body.category && ['important','easy','hard'].includes(body.category)) {
-    body.category = body.category;
+  if (body.category !== undefined) {
+    const cat = String(body.category).toLowerCase().trim();
+    body.category = ['important', 'easy', 'hard'].includes(cat) ? cat : 'easy';
   }
   if (body.component && ['theory','lab','both'].includes(body.component)) {
     body.component = body.component;

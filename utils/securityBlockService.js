@@ -1,5 +1,5 @@
 /**
- * EAMS Security Block Service
+ * Muster Security Block Service
  * Multi-dimensional login abuse prevention.
  * Tracks failed login attempts across four scopes and creates
  * time-limited blocks when configurable thresholds are exceeded.

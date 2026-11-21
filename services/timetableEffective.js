@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const M = require('../models');
+const TTBlocks = require('../utils/spanBlocks');
 
 // LRU / TTL cache for effective read model
 const effectiveCache = new Map();
@@ -27,57 +28,7 @@ function invalidateEffectiveCache(workspaceId = null) {
  * Expanding multi-period spans.
  */
 function gridToSlotsObj(grid = [], className = '') {
-  const slots = {};
-  if (!Array.isArray(grid)) return slots;
-
-  for (const item of grid) {
-    if (!item || !item.day || item.period === undefined || item.period === null) continue;
-    const startPeriod = typeof item.period === 'number'
-      ? item.period
-      : (parseInt(String(item.period).replace(/^P/i, ''), 10) || 1);
-    const span = Math.max(1, Number(item.span || item.duration || 1));
-
-    const isLab = Boolean(item.isLab ?? (item.type === 'Lab' || span > 1));
-    const combinedWith = Array.isArray(item.combinedWith)
-      ? item.combinedWith.filter(Boolean)
-      : (item.combinedWith ? [String(item.combinedWith)] : []);
-    const type = item.type || (isLab ? 'Lab' : (combinedWith.length > 0 ? 'Combined' : 'Theory'));
-
-    for (let offset = 0; offset < span; offset++) {
-      const currentPeriod = startPeriod + offset;
-      const key = `${item.day}_${currentPeriod}`;
-
-      slots[key] = {
-        day: item.day,
-        period: currentPeriod,
-        subject: item.subject || '',
-        subjectId: item.subjectId || null,
-        subjectCode: item.subjectCode || '',
-        teacher: item.teacher || item.teacherName || '',
-        teacherId: item.teacherId || null,
-        teacherTrackId: item.teacherTrackId || '',
-        room: item.room || item.hallNo || '',
-        roomId: item.roomId || undefined,
-        span,
-        spanRootPeriod: startPeriod,
-        spanIndex: offset,
-        isSpanContinuation: offset > 0,
-        isLab,
-        type,
-        combinedWith,
-        combinedGroupId: item.combinedGroupId || null,
-        reservedForDeptId: item.reservedForDeptId || null,
-        reservedLabel: item.reservedLabel || '',
-        state: item.state || '',
-        activityId: item.activityId || null,
-        activityLabel: item.activityLabel || '',
-        primaryClassId: item.primaryClassId || undefined,
-        primaryClassName: item.primaryClassName || className || undefined,
-        note: item.note || ''
-      };
-    }
-  }
-  return slots;
+  return TTBlocks.toSlotsObj(grid);
 }
 
 /**
@@ -85,51 +36,9 @@ function gridToSlotsObj(grid = [], className = '') {
  * omitting continuation slots for multi-period spans.
  */
 function slotsToGrid(slots = {}) {
-  if (Array.isArray(slots)) return slots;
-  if (!slots || typeof slots !== 'object') return [];
-
-  const items = Object.values(slots).filter(Boolean);
-  const rootSlots = [];
-
-  for (const item of items) {
-    if (item.isSpanContinuation && item.spanIndex > 0) {
-      continue;
-    }
-    const startPeriod = typeof item.spanRootPeriod === 'number'
-      ? item.spanRootPeriod
-      : (typeof item.period === 'number' ? item.period : 1);
-
-    rootSlots.push({
-      day: item.day,
-      period: startPeriod,
-      span: item.span || 1,
-      spanRootPeriod: startPeriod,
-      spanIndex: 0,
-      isSpanContinuation: false,
-      subject: item.subject || '',
-      subjectId: item.subjectId || null,
-      subjectCode: item.subjectCode || '',
-      teacher: item.teacher || item.teacherName || '',
-      teacherId: item.teacherId || null,
-      teacherTrackId: item.teacherTrackId || '',
-      room: item.room || item.hallNo || '',
-      roomId: item.roomId || null,
-      isLab: Boolean(item.isLab),
-      type: item.type || (item.isLab ? 'Lab' : 'Theory'),
-      combinedWith: Array.isArray(item.combinedWith) ? item.combinedWith : [],
-      combinedGroupId: item.combinedGroupId || null,
-      reservedForDeptId: item.reservedForDeptId || null,
-      reservedLabel: item.reservedLabel || '',
-      state: item.state || '',
-      activityId: item.activityId || null,
-      activityLabel: item.activityLabel || '',
-      primaryClassId: item.primaryClassId || null,
-      primaryClassName: item.primaryClassName || '',
-      note: item.note || ''
-    });
-  }
-
-  return rootSlots;
+  // Root blocks only. Arrays are collapsed too: a grid copied from production still carries
+  // continuation cells, and returning it as-is made every lab show up three times.
+  return TTBlocks.blocksOf(slots || []);
 }
 
 /**

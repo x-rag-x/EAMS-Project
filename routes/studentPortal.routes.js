@@ -758,7 +758,8 @@ router.post('/self-absent', authMiddleware, checkMaintenance, async (req, res) =
       });
     }
 
-    const reqId = `SA-${targetDate.replace(/-/g, '')}-${Math.floor(1000 + Math.random() * 9000)}`;
+    const { generateNumericCode } = require('../utils/codeGenerator');
+    const reqId = `SA-${targetDate.replace(/-/g, '')}-${generateNumericCode(4)}`;
     const newRecord = await M.LeaveRequest.create({
       requestId: reqId,
       studentId: student._id,

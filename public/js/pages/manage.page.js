@@ -183,7 +183,7 @@ function applyManageReadOnlyRestrictions() {
     .then(function (pub) {
       if (pub.institution) {
         var instShort = pub.institution.institutionShort || '';
-        document.title = instShort ? ('EAMS – Manage | ' + instShort) : 'EAMS – Manage';
+        document.title = instShort ? ('Muster – Manage | ' + instShort) : 'Muster – Manage';
         var logoImg = document.getElementById('topbar-logo');
         if (logoImg && pub.institution.institutionLogoUrl) logoImg.src = pub.institution.institutionLogoUrl;
         var brandSub = document.getElementById('manage-brand-sub');
@@ -877,7 +877,7 @@ function populateExamFilterAcYears(){
   var curVal = efAcSel.value;
   var html = '<option value="">All Academic Years</option>';
   (yearsData || []).forEach(function(y){
-    html += '<option value="' + y.academicYear + '"' + (y.isCurrent ? ' data-current="true"' : '') + '>' + y.academicYear + (y.isCurrent ? ' (Current)' : '') + '</option>';
+    html += '<option value="' + escapeHtml(y.academicYear) + '"' + (y.isCurrent ? ' data-current="true"' : '') + '>' + escapeHtml(y.academicYear) + (y.isCurrent ? ' (Current)' : '') + '</option>';
   });
   efAcSel.innerHTML = html;
   if (curVal) efAcSel.value = curVal;
@@ -918,7 +918,7 @@ function populateExamAcYearsAndBatches(selectedAcYear, selectedBatch, selectedSe
 
     var html = '<option value="">— Select Academic Year —</option>';
     yearsData.forEach(function(y){
-      html += '<option value="' + y.academicYear + '"' + (y.isCurrent ? ' data-current="true"' : '') + '>' + y.academicYear + (y.isCurrent ? ' (Current)' : '') + '</option>';
+      html += '<option value="' + escapeHtml(y.academicYear) + '"' + (y.isCurrent ? ' data-current="true"' : '') + '>' + escapeHtml(y.academicYear) + (y.isCurrent ? ' (Current)' : '') + '</option>';
     });
     acSel.innerHTML = html;
 
@@ -1165,7 +1165,7 @@ function renderSrchDd(students){
   var dd=document.getElementById('ea-search-dd');
   if(!students.length){ dd.innerHTML='<div class="srch-item" style="color:var(--tdi);cursor:default;">No matching students.</div>'; dd.classList.add('open'); return; }
   dd.innerHTML='';
-  students.forEach(function(s){ var already=eaStudentList.some(function(r){return r.regNo===s.regNo;}); var div=document.createElement('div'); div.className='srch-item'; div.innerHTML='<div class="srch-name">'+(s.name||'Unknown')+(already?' <span style="color:var(--gK);font-size:10px;"><re-icon icon="check"></re-icon> Added</span>':'')+'</div><div class="srch-meta">Reg: <strong>'+s.regNo+'</strong> · '+s.deptName+' · Year '+s.year+'</div>'; if(!already) div.onclick=function(){ addStudent(s); document.getElementById('ea-regno-inp').value=''; dd.classList.remove('open'); }; dd.appendChild(div); });
+  students.forEach(function(s){ var already=eaStudentList.some(function(r){return r.regNo===s.regNo;}); var div=document.createElement('div'); div.className='srch-item'; div.innerHTML='<div class="srch-name">'+escapeHtml(s.name||'Unknown')+(already?' <span style="color:var(--gK);font-size:10px;"><re-icon icon="check"></re-icon> Added</span>':'')+'</div><div class="srch-meta">Reg: <strong>'+escapeHtml(s.regNo)+'</strong> · '+escapeHtml(s.deptName)+' · Year '+escapeHtml(s.year)+'</div>'; if(!already) div.onclick=function(){ addStudent(s); document.getElementById('ea-regno-inp').value=''; dd.classList.remove('open'); }; dd.appendChild(div); });
   dd.classList.add('open');
 }
 document.addEventListener('click',function(e){ if(!e.target.closest('#ea-search-dd')&&!e.target.matches('#ea-regno-inp')) document.getElementById('ea-search-dd').classList.remove('open'); });
@@ -1174,7 +1174,7 @@ function renderStudentList(){
   var cont=document.getElementById('ea-student-list'), pill=document.getElementById('ea-count-pill'), sub=document.getElementById('ea-submit-btn');
   if(!eaStudentList.length){ cont.innerHTML='<div style="text-align:center;color:var(--tdi);font-size:11.5px;padding:30px 0;">No students added yet.</div>'; pill.textContent='0 students'; document.getElementById('ea-present-count').textContent='0'; document.getElementById('ea-absent-count').textContent='0'; sub.disabled=true; sub.style.opacity='.5'; sub.style.cursor='not-allowed'; return; }
   var present=0,absent=0,html='';
-  eaStudentList.forEach(function(s,i){ if(s.status==='present')present++;else absent++; html+='<div class="ea-row"><div style="font-size:11px;color:var(--tdi);width:18px;font-weight:700;">'+(i+1)+'</div><div class="ea-info"><div class="ea-name">'+s.name+'</div><div class="ea-meta">'+s.regNo+' · '+s.deptName+' · Year '+s.year+'</div></div><button class="ea-status-btn '+(s.status==='present'?'present':'absent')+'" onclick="toggleEaStatus('+i+')">'+(s.status==='present'?'<re-icon icon="check"></re-icon> Present':'<re-icon icon="x"></re-icon> Absent')+'</button><button class="ea-rm" onclick="removeEaStudent('+i+')"><re-icon icon="x"></re-icon></button></div>'; });
+  eaStudentList.forEach(function(s,i){ if(s.status==='present')present++;else absent++; html+='<div class="ea-row"><div style="font-size:11px;color:var(--tdi);width:18px;font-weight:700;">'+(i+1)+'</div><div class="ea-info"><div class="ea-name">'+escapeHtml(s.name)+'</div><div class="ea-meta">'+escapeHtml(s.regNo)+' · '+escapeHtml(s.deptName)+' · Year '+escapeHtml(s.year)+'</div></div><button class="ea-status-btn '+(s.status==='present'?'present':'absent')+'" onclick="toggleEaStatus('+i+')">'+(s.status==='present'?'<re-icon icon="check"></re-icon> Present':'<re-icon icon="x"></re-icon> Absent')+'</button><button class="ea-rm" onclick="removeEaStudent('+i+')"><re-icon icon="x"></re-icon></button></div>'; });
   cont.innerHTML=html; pill.textContent=eaStudentList.length+' student'+(eaStudentList.length>1?'s':'');
   document.getElementById('ea-present-count').textContent=present; document.getElementById('ea-absent-count').textContent=absent;
   sub.disabled=false; sub.style.opacity='1'; sub.style.cursor='pointer';
@@ -1551,11 +1551,11 @@ function renderYearsTable() {
   var html = '';
   sorted.forEach(function(y) {
     var batchPills = (y.batches || []).map(function(b) {
-      return '<span class="yr-batch-pill">' + b.batch + '<span class="yr-badge yr-badge-' + b.currentYear + '" style="padding:1px 6px;">' + b.currentYear + '·' + b.currentSem + '</span></span>';
+      return '<span class="yr-batch-pill">' + escapeHtml(b.batch) + '<span class="yr-badge yr-badge-' + escapeHtml(b.currentYear) + '" style="padding:1px 6px;">' + escapeHtml(b.currentYear) + '·' + escapeHtml(b.currentSem) + '</span></span>';
     }).join('');
     var currentBadge = y.isCurrent ? '<span class="bge bgg"><re-icon icon="flag"></re-icon> Current</span>' : '<span class="bge bggy">—</span>';
     var createdAt = y.createdAt ? fmtDate(y.createdAt.split('T')[0]) : '—';
-    html += '<tr class="' + (y.isCurrent ? 'yr-row-current' : '') + '"><td class="b">' + y.academicYear + '</td><td>' + batchPills + '</td><td>' + currentBadge + '</td><td>' + (y.createdBy || '—') + '</td><td>' + createdAt + '</td>';
+    html += '<tr class="' + (y.isCurrent ? 'yr-row-current' : '') + '"><td class="b">' + escapeHtml(y.academicYear) + '</td><td>' + batchPills + '</td><td>' + currentBadge + '</td><td>' + escapeHtml(y.createdBy || '—') + '</td><td>' + createdAt + '</td>';
     html += '<td style="white-space:nowrap;">';
     if (isManageReadOnly()) {
       html += '—';
@@ -1949,7 +1949,7 @@ function updateYmToggle(val) {
   if (warn) {
     if (val && existingCurrent && existingCurrent._id !== editingId) {
       warn.className = 'field-check bad';
-      warn.innerHTML = '<re-icon icon="alert-triangle"></re-icon> Replaces "' + existingCurrent.academicYear + '" as the active year';
+      warn.innerHTML = '<re-icon icon="alert-triangle"></re-icon> Replaces "' + escapeHtml(existingCurrent.academicYear) + '" as the active year';
     } else {
       warn.className = 'field-check';
       warn.innerHTML = '';

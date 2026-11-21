@@ -1758,6 +1758,78 @@ router.delete('/clear', authMiddleware, requirePage('control', 'delete', { tab: 
   } catch (e) { return sendError(res, e, 500, 'Failed to process attendance request'); }
 });
 
+// PUT /api/attendance/:id — Update individual attendance record status or remarks
+router.put('/:id', authMiddleware, requireRole('teacher', 'admin'), attendanceUpdateIpLimiter, attendanceUpdateLimiter, async (req, res) => {
+  try {
+    const rawId = req.params.id;
+    let docId = rawId;
+    let pIdx = null;
+    let rIdx = null;
+
+    if (rawId.includes('_')) {
+      const parts = rawId.split('_');
+      docId = parts[0];
+      pIdx = parseInt(parts[1], 10);
+      rIdx = parseInt(parts[2], 10);
+    }
+
+    if (!mongoose.isValidObjectId(docId)) {
+      return res.status(400).json({ error: 'Invalid attendance record ID' });
+    }
+
+    const doc = await M.ClassAttendance.findById(docId);
+    if (!doc) {
+      return res.status(404).json({ error: 'Attendance session not found' });
+    }
+
+    const { status, remarks, studentTrackId } = req.body || {};
+    let targetRecord = null;
+
+    if (pIdx !== null && rIdx !== null && !isNaN(pIdx) && !isNaN(rIdx) && doc.periods?.[pIdx]?.records?.[rIdx]) {
+      targetRecord = doc.periods[pIdx].records[rIdx];
+    } else if (studentTrackId && Array.isArray(doc.periods)) {
+      for (const p of doc.periods) {
+        const found = (p.records || []).find(r => r.studentTrackId === studentTrackId);
+        if (found) {
+          targetRecord = found;
+          break;
+        }
+      }
+    }
+
+    if (!targetRecord) {
+      return res.status(404).json({ error: 'Student attendance record not found in session' });
+    }
+
+    if (status) {
+      const s = String(status).toUpperCase();
+      if (['PRESENT', 'P'].includes(s)) targetRecord.status = 'P';
+      else if (['ABSENT', 'A'].includes(s)) targetRecord.status = 'A';
+      else if (['OD'].includes(s)) targetRecord.status = 'OD';
+      else if (['LEAVE', 'L'].includes(s)) targetRecord.status = 'LEAVE';
+    }
+
+    if (remarks !== undefined) {
+      targetRecord.remarks = sanitizeToString(remarks);
+    }
+
+    await doc.save();
+
+    await logAction({
+      req,
+      user: req.user,
+      action: 'attendance-update',
+      details: `Updated attendance record in session ${docId} for student ${studentTrackId || targetRecord.studentTrackId || 'unknown'}: status=${targetRecord.status}`,
+      category: 'attendance',
+      module: 'attendance'
+    });
+
+    return res.json({ ok: true, message: 'Attendance record updated successfully' });
+  } catch (err) {
+    return sendError(res, err, 500, 'Failed to update attendance record');
+  }
+});
+
 // Delete single session/record
 router.delete('/:id', authMiddleware, requirePage('admin', 'delete', { tab: 'reports' }), async (req, res) => {
   try {
@@ -1814,6 +1886,215 @@ router.get('/unmarked-teachers', authMiddleware, requirePage('admin', 'view', { 
     res.json(unmarked);
   } catch (err) {
     return sendError(res, err, 500, 'Failed to process attendance request');
+  }
+});
+
+// POST /api/attendance/passcode - Live Session Passcode Attendance Marking (N16, C15, C16, L3, L4)
+router.post('/passcode', authMiddleware, async (req, res) => {
+  if (req.user.role !== 'student') {
+    return res.status(403).json({ error: 'Students only' });
+  }
+
+  const { sessionId, passcode, deviceId, deviceProof, latitude, longitude, accuracy } = req.body;
+  const cleanSessionId = String(sessionId || '').trim();
+  const cleanPasscode = String(passcode || '').trim();
+  const effectiveDeviceId = String(deviceId || deviceProof?.installId || '').trim();
+
+  if (!cleanSessionId || cleanSessionId.length > 50) {
+    return res.status(400).json({ error: 'Valid session ID required' });
+  }
+  if (!cleanPasscode || cleanPasscode.length > 50) {
+    return res.status(400).json({ error: 'Valid passcode required' });
+  }
+
+  try {
+    let student = null;
+    if (req.user.trackId) student = await M.Student.findOne({ trackId: req.user.trackId });
+    if (!student && req.user.username) student = await M.Student.findOne({ username: req.user.username });
+    if (!student && req.user._id) student = await M.Student.findById(req.user._id);
+    if (!student) return res.status(404).json({ error: 'Student profile not found' });
+
+    const session = await M.LiveSession.findById(cleanSessionId);
+    if (!session || !session.active || session.expiresAt < new Date()) {
+      return res.status(400).json({ error: 'Session is no longer active' });
+    }
+
+    if (session.attendanceMode !== 'code') {
+      return res.status(400).json({ error: 'This session does not accept passcode submissions. Please scan the live QR code.' });
+    }
+
+    // N16, L3: Server-side enrollment verification
+    const studentClassId = student.classId || student.class;
+    const sessionClassId = String(session.classId);
+    let isEnrolled = studentClassId && (
+      String(studentClassId) === sessionClassId ||
+      (student.class && String(student.class) === sessionClassId)
+    );
+    if (!isEnrolled && studentClassId) {
+      const cls = await M.Class.findOne({
+        $or: [
+          ...(mongoose.isValidObjectId(studentClassId) ? [{ _id: studentClassId }] : []),
+          { classTrackId: studentClassId },
+          { name: studentClassId }
+        ]
+      }).lean();
+      if (cls && (String(cls._id) === sessionClassId || cls.classTrackId === sessionClassId)) {
+        isEnrolled = true;
+      }
+    }
+    if (!isEnrolled) {
+      return res.status(403).json({ error: 'You are not enrolled in the class for this attendance session.' });
+    }
+
+    // C16: Idempotency Key Check
+    const idempotencyKey = String(req.body.idempotencyKey || req.headers['idempotency-key'] || '').trim();
+    if (idempotencyKey) {
+      const existingByKey = session.markedStudents.find(st => st.idempotencyKey === idempotencyKey);
+      if (existingByKey) {
+        return res.json({
+          success: true,
+          message: 'Attendance already marked (idempotent retry).',
+          alreadyMarked: true,
+          status: existingByKey.status,
+          security: existingByKey.security
+        });
+      }
+    }
+
+    // L3: Campus Wi-Fi / IP restriction (empty list must not allow everyone)
+    const { isCampusIpAllowed } = require('../utils/network');
+    const settings = await M.Settings.findOne({ key: 'college_ips' }).lean();
+    const allowedIps = settings ? settings.value : [];
+    if (!isCampusIpAllowed(req.ip, allowedIps)) {
+      return res.status(403).json({ error: 'Must connect via College Wi-Fi network' });
+    }
+
+    // Passcode validation
+    if (!session.passcode || session.passcode !== cleanPasscode) {
+      return res.status(400).json({ error: 'Incorrect Passcode' });
+    }
+
+    // Check duplicate
+    const alreadyMarked = session.markedStudents.some(st => String(st.studentId) === String(student._id));
+    if (alreadyMarked) return res.json({ success: true, message: 'Already marked', alreadyMarked: true });
+
+    // Location verification on server (N16, L4): remove hardcoded bypasses
+    const attSettingsDoc = await M.Settings.findOne({ key: 'attendance' }).lean();
+    const attSettings = attSettingsDoc?.value || {};
+    const enforceGeofence = attSettings.enforceAttendanceGeofence !== false;
+    const maxRadiusM = Number(session.maxRadiusMeters) || Number(attSettings.classroomRadiusM) || 200;
+    const maxAccuracyM = Number(attSettings.attendanceMaxAccuracyM) || 150;
+
+    let isClassroomRadiusOk = true;
+    let isLocationOk = true;
+
+    const latNum = latitude !== undefined && latitude !== null ? Number(latitude) : null;
+    const lonNum = longitude !== undefined && longitude !== null ? Number(longitude) : null;
+    const accNum = accuracy !== undefined && accuracy !== null ? Number(accuracy) : null;
+
+    if (enforceGeofence) {
+      if (latNum === null || lonNum === null || isNaN(latNum) || isNaN(lonNum)) {
+        isLocationOk = false;
+        isClassroomRadiusOk = false;
+      } else if (accNum !== null && !isNaN(accNum) && accNum > maxAccuracyM) {
+        isLocationOk = false;
+        isClassroomRadiusOk = false;
+      } else if (session.latitude !== null && session.latitude !== undefined && session.longitude !== null && session.longitude !== undefined) {
+        const R = 6371000;
+        const dLat = (Number(session.latitude) - latNum) * Math.PI / 180;
+        const dLon = (Number(session.longitude) - lonNum) * Math.PI / 180;
+        const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+          Math.cos(latNum * Math.PI / 180) * Math.cos(Number(session.latitude) * Math.PI / 180) *
+          Math.sin(dLon / 2) * Math.sin(dLon / 2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        const dist = R * c;
+        if (dist > maxRadiusM) {
+          isClassroomRadiusOk = false;
+          isLocationOk = false;
+        }
+      }
+    }
+
+    const { evaluateDeviceTrust } = require('../utils/deviceTrust');
+    const trustEval = await evaluateDeviceTrust({
+      student,
+      deviceProof: req.body.deviceProof,
+      payload: { sessionId: session.trackId || String(session._id), passcode: cleanPasscode },
+      location: {
+        latitude: latNum !== null ? latNum : undefined,
+        longitude: lonNum !== null ? lonNum : undefined,
+        accuracy: accNum !== null ? accNum : undefined,
+        isClassroomRadiusOk,
+        locationOk: isLocationOk
+      },
+      ip: req.ip,
+      deviceId: effectiveDeviceId
+    });
+
+    if (!trustEval.allowed) {
+      return res.status(403).json({
+        error: trustEval.error,
+        code: trustEval.code,
+        trustScore: trustEval.trustScore,
+        isLocked: trustEval.isLocked
+      });
+    }
+
+    const markStatus = trustEval.requiresTeacherVerification ? 'pending' : 'completed';
+
+    // C15, N16: Atomic write with $ne check
+    const markRecord = {
+      studentId: student._id,
+      regNo: student.registerNo || student.regNo || '',
+      time: new Date(),
+      ip: req.ip,
+      deviceId: effectiveDeviceId,
+      source: 'passcode',
+      status: markStatus,
+      idempotencyKey: idempotencyKey || undefined,
+      security: trustEval.security
+    };
+
+    const updateFilter = {
+      _id: session._id,
+      active: true,
+      'markedStudents.studentId': { $ne: student._id }
+    };
+    if (idempotencyKey) {
+      updateFilter['markedStudents.idempotencyKey'] = { $ne: idempotencyKey };
+    }
+
+    const updateResult = await M.LiveSession.updateOne(
+      updateFilter,
+      { $push: { markedStudents: markRecord } }
+    );
+
+    if (updateResult.matchedCount === 0 || updateResult.modifiedCount === 0) {
+      const freshSession = await M.LiveSession.findById(session._id).lean();
+      if (freshSession) {
+        const alreadyMarkedNow = freshSession.markedStudents.some(
+          st => String(st.studentId) === String(student._id) || (idempotencyKey && st.idempotencyKey === idempotencyKey)
+        );
+        if (alreadyMarkedNow) {
+          return res.json({ success: true, message: 'Already marked', alreadyMarked: true });
+        }
+      }
+      return res.status(409).json({ error: 'Failed to record attendance. Session may be inactive or already marked.' });
+    }
+
+    return res.json({
+      success: true,
+      status: markStatus,
+      pendingVerification: trustEval.requiresTeacherVerification,
+      requiresTeacherVerification: trustEval.requiresTeacherVerification,
+      riskLevel: trustEval.security.riskLevelAtMark,
+      message: trustEval.requiresTeacherVerification
+        ? 'Attendance recorded and pending teacher verification.'
+        : 'Attendance successfully marked!',
+      security: trustEval.security
+    });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
   }
 });
 

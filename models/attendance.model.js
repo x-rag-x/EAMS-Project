@@ -138,6 +138,7 @@ const QuickPassSessionSchema = new mongoose.Schema({
         ipAddress: { type: String, default: '' },
         deviceId: { type: String, default: '' },
         deviceSessionId: { type: String, default: '' },
+        idempotencyKey: { type: String, default: null },
         userAgent: { type: String, default: '' },
         status: { type: String, enum: ['pending', 'completed'], default: 'completed' },
         security: {
@@ -212,6 +213,7 @@ const ScanLiveSessionSchema = new mongoose.Schema({
         ipAddress: { type: String, default: '' },
         deviceId: { type: String, default: '' },
         deviceSessionId: { type: String, default: '' },
+        idempotencyKey: { type: String, default: null },
         userAgent: { type: String, default: '' },
         status: { type: String, enum: ['pending', 'completed'], default: 'pending' },
         verificationDetails: { type: mongoose.Schema.Types.Mixed },

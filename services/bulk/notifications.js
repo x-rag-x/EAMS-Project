@@ -47,7 +47,7 @@ async function getSudoRecipients() {
 
 async function notifySudoOnForward(batch, uploader) {
   try {
-    const title = `[EAMS Bulk] Initial Approval Required for ${batch.title || batch.type}`;
+    const title = `[Muster Bulk] Initial Approval Required for ${batch.title || batch.type}`;
     const msg = `User ${uploader?.name || uploader?.username || 'Staff'} has staged ${batch.eligibleCount || 0} ${batch.type} records and submitted for Sudo Admin approval.`;
 
     // In-app notification for Sudo Admins
@@ -89,7 +89,7 @@ async function notifySudoOnForward(batch, uploader) {
 
 async function notifySudoOnSubmitFinal(batch, uploader) {
   try {
-    const title = `[EAMS Bulk] Final Commitment Approval Needed for ${batch.title || batch.type}`;
+    const title = `[Muster Bulk] Final Commitment Approval Needed for ${batch.title || batch.type}`;
     const msg = `Verification is complete for ${batch.eligibleCount || 0} ${batch.type} records. Ready for database commitment.`;
 
     // In-app notification for Sudo Admins
@@ -164,7 +164,7 @@ async function notifyUploaderOnDecision(batch, decision, reason, sudoUser) {
     const uploaderEmail = uploader?.email || (batch.uploadedBy.email && batch.uploadedBy.email.includes('@') ? batch.uploadedBy.email : null);
     const uploaderTargetId = uploader?._id || (batch.uploadedBy.userId ? batch.uploadedBy.userId : null);
 
-    const title = `[EAMS Bulk] Your Import Request for ${batch.title || batch.type} was ${decision}`;
+    const title = `[Muster Bulk] Your Import Request for ${batch.title || batch.type} was ${decision}`;
     const msg = `Sudo Administrator ${sudoUser?.name || 'Sudo Admin'} has marked your batch as ${decision}. ${reason ? `Reason: ${reason}` : ''}`.trim();
 
     // In-app notification for the uploader

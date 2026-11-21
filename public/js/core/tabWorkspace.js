@@ -306,7 +306,7 @@
           confFn('Tab limit reached (12 open tabs). Close oldest unused tab to make room?', 'Tab Limit Reached').then(confirmed => {
             if (confirmed) {
               this.closeOldestUnpinnedTab();
-              this.openTab(def, activate);
+              this.openTab(config);
             }
           });
           return null;

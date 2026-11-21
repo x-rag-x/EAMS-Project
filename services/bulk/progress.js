@@ -9,7 +9,7 @@ const LABELS = {
   drive:    'Saving to Google Drive',
   read:     'Reading spreadsheet',
   validate: 'Validating rows',
-  save:     'Saving to EAMS',
+  save:     'Saving to Muster',
   rows:     'Saving records to database',
   zip:      'Building encrypted backup archive',
   backup:   'Archiving backup to Google Drive'

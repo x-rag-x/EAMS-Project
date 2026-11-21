@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const mongoose = require('mongoose');
 const M = require('../models');
-const { authMiddleware, requirePage, assertInScope } = require('../middleware/auth');
+const { authMiddleware, requirePage, assertInScope, scopeFilter } = require('../middleware/auth');
 const { controllerAuth } = require('../middleware/hodAuth');
 const { isSudo, isSudoAdmin } = require('../utils/access');
 const { sanitizeToString, sanitizeToObjectId } = require('../utils/sanitizeQuery');
@@ -21,6 +21,16 @@ function escapeCsv(val) {
     str = `'${str}`;
   }
   return `"${str}"`;
+}
+
+function escapeHtml(str) {
+  if (str === null || str === undefined) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 
 // Helper to get next export track ID
@@ -624,18 +634,36 @@ router.get('/download/:trackId', authMiddleware, async (req, res) => {
       return res.status(404).json({ error: 'Export record not found or expired' });
     }
 
+    const isOwner = history.userId && String(history.userId) === String(req.user._id);
+    const isPrivileged = isSudoAdmin(req.user) || req.user.role === 'admin' || req.user.role === 'principal' || req.user.isPrincipal;
+    if (!isOwner && !isPrivileged) {
+      return res.status(403).json({ error: 'Access denied: You do not have permission to download this export file' });
+    }
+
     // Update downloaded timestamp
     await M.ExportHistory.findByIdAndUpdate(history._id, { downloadedAt: new Date() });
 
     const format = (history.format || 'csv').toLowerCase();
     const reportType = history.reportType || 'report';
     const timestamp = await todayInInstitutionTz();
+    const studentFilter = isPrivileged ? {} : scopeFilter(req);
+
+    const savedConfig = history.config || {};
+    const filters = savedConfig.filters || {};
+    const dateRange = savedConfig.dateRange || {};
+    const threshold = Number(savedConfig.options?.threshold) || 75;
+
+    if (filters.deptId) studentFilter.deptId = filters.deptId;
+    if (filters.classId) studentFilter.classId = filters.classId;
+    if (filters.year) studentFilter.year = filters.year;
+    if (filters.section) studentFilter.section = filters.section;
 
     if (format === 'csv' || format === 'excel') {
       let csvContent = '';
       if (reportType.includes('defaulter') || reportType.includes('shortage')) {
         csvContent = 'Register No,Student Name,Department,Year,Section,Total Classes,Classes Attended,Attendance %,Eligibility\n';
-        const students = await M.Student.find().limit(200).lean();
+
+        const students = await M.Student.find(studentFilter).limit(500).lean();
         const studentTrackIds = students.map(s => s.trackId || String(s._id));
         const attDocs = await M.StudentAttendance.find({ studentTrackId: { $in: studentTrackIds } }).lean();
         const attMap = new Map();
@@ -654,34 +682,100 @@ router.get('/download/:trackId', authMiddleware, async (req, res) => {
             ? att.overallPercentage
             : (s.attendancePercentage !== undefined ? s.attendancePercentage : (totalHeld > 0 ? Math.round((totalAttended / totalHeld) * 100) : 100));
 
-          csvContent += `${escapeCsv(s.registerNo || '')},${escapeCsv(s.fullName || '')},${escapeCsv(s.deptName || s.department || '')},${escapeCsv(s.year || '')},${escapeCsv(s.section || '')},${totalHeld},${totalAttended},${pct}%,${escapeCsv(pct < 75 ? 'Shortage (Not Eligible)' : 'Eligible')}\n`;
+          if (pct < threshold) {
+            csvContent += `${escapeCsv(s.registerNo || '')},${escapeCsv(s.fullName || '')},${escapeCsv(s.deptName || s.department || '')},${escapeCsv(s.year || '')},${escapeCsv(s.section || '')},${totalHeld},${totalAttended},${pct}%,${escapeCsv('Shortage (Not Eligible)')}\n`;
+          }
         });
       } else if (reportType.includes('student')) {
+        csvContent = 'Register No,Student Name,Department,Year,Section,Classes Held,Classes Attended,Percentage,Status\n';
+        const students = await M.Student.find(studentFilter).limit(200).lean();
+        const studentTrackIds = students.map(s => s.trackId || String(s._id));
+        const attDocs = await M.StudentAttendance.find({ studentTrackId: { $in: studentTrackIds } }).lean();
+        const attMap = new Map();
+        attDocs.forEach(a => attMap.set(a.studentTrackId, a));
 
-        csvContent = 'Register No,Student Name,Subject Code,Subject Name,Staff,Total Hours,Attended Hours,Percentage,Status\n';
-        const students = await M.Student.find().limit(50).lean();
         students.forEach(s => {
-          csvContent += `${escapeCsv(s.registerNo || '')},${escapeCsv(s.fullName || '')},"25CS201","Data Structures","Staff",45,40,88.8%,"Eligible"\n`;
+          const track = s.trackId || String(s._id);
+          const att = attMap.get(track);
+          let totalHeld = 0;
+          let totalAttended = 0;
+          if (att && Array.isArray(att.records)) {
+            totalHeld = att.records.reduce((acc, r) => acc + (r.classesHeld || 0), 0);
+            totalAttended = att.records.reduce((acc, r) => acc + (r.classesAttended || 0), 0);
+          }
+          const pct = att && att.overallPercentage !== undefined
+            ? att.overallPercentage
+            : (s.attendancePercentage !== undefined ? s.attendancePercentage : (totalHeld > 0 ? Math.round((totalAttended / totalHeld) * 100) : 100));
+          const status = pct >= 75 ? 'Eligible' : 'Shortage';
+          csvContent += `${escapeCsv(s.registerNo || '')},${escapeCsv(s.fullName || '')},${escapeCsv(s.deptName || s.department || '')},${escapeCsv(s.year || '')},${escapeCsv(s.section || '')},${totalHeld},${totalAttended},${pct}%,${escapeCsv(status)}\n`;
         });
       } else {
-        csvContent = 'Index,Section,Date,Period,Subject,Faculty,Hall,Total Students,Present,Absent,Attendance %\n';
-        csvContent += `1,"CSE-A","${timestamp}","P1","Data Structures","Dr. Kumar","101",60,56,4,93.3%\n`;
-        csvContent += `2,"CSE-A","${timestamp}","P2","Operating Systems","Prof. Ananya","101",60,55,5,91.6%\n`;
-        csvContent += `3,"CSE-A","${timestamp}","P3","Database Systems","Dr. Sharma","102",60,58,2,96.6%\n`;
+        csvContent = 'Index,Date,Class,Period,Subject,Faculty,Present,Absent,Total Students,Attendance %\n';
+        const attQuery = {};
+        if (filters.classId) attQuery.classId = filters.classId;
+        if (dateRange?.startDate && dateRange?.endDate) {
+          attQuery.date = { $gte: new Date(dateRange.startDate), $lte: new Date(dateRange.endDate) };
+        }
+        const sessions = await M.ClassAttendance.find(attQuery).sort({ date: -1 }).limit(100).lean();
+        if (sessions.length > 0) {
+          sessions.forEach((sess, idx) => {
+            const dateStr = sess.date ? new Date(sess.date).toISOString().slice(0, 10) : '';
+            const p = sess.periods?.[0] || {};
+            const total = (sess.records?.length) || (p.records?.length) || 0;
+            const pres = (p.records || []).filter(r => r.status === 'P').length;
+            const abs = Math.max(0, total - pres);
+            const pct = total > 0 ? Math.round((pres / total) * 100) : 0;
+            csvContent += `${idx + 1},"${dateStr}","${escapeCsv(sess.className || sess.classId || '')}","P${p.periodNumber || 1}","${escapeCsv(p.subjectName || '')}","${escapeCsv(p.markedBy || '')}",${pres},${abs},${total},${pct}%\n`;
+          });
+        }
       }
 
-      const filename = `EAMS_${reportType}_${history.exportTrackId}_${timestamp}.${format === 'excel' ? 'csv' : 'csv'}`;
+      const filename = `Muster_${reportType}_${history.exportTrackId}_${timestamp}.${format === 'excel' ? 'csv' : 'csv'}`;
       res.setHeader('Content-Type', 'text/csv; charset=utf-8');
       res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
       return res.send(csvContent);
     } else {
       // PDF / HTML formatted document
+      let htmlRows = '';
+      const sampleStudents = await M.Student.find(studentFilter).limit(50).lean();
+      if (sampleStudents.length === 0) {
+        htmlRows = '<tr><td colspan="6" style="text-align:center;padding:24px;color:#64748b;">No records found for the selected export filters.</td></tr>';
+      } else {
+        const studentTrackIds = sampleStudents.map(s => s.trackId || String(s._id));
+        const attDocs = await M.StudentAttendance.find({ studentTrackId: { $in: studentTrackIds } }).lean();
+        const attMap = new Map();
+        attDocs.forEach(a => attMap.set(a.studentTrackId, a));
+
+        sampleStudents.forEach((s, idx) => {
+          const track = s.trackId || String(s._id);
+          const att = attMap.get(track);
+          let totalHeld = 0;
+          let totalAttended = 0;
+          if (att && Array.isArray(att.records)) {
+            totalHeld = att.records.reduce((acc, r) => acc + (r.classesHeld || 0), 0);
+            totalAttended = att.records.reduce((acc, r) => acc + (r.classesAttended || 0), 0);
+          }
+          const pct = att && att.overallPercentage !== undefined
+            ? att.overallPercentage
+            : (s.attendancePercentage !== undefined ? s.attendancePercentage : (totalHeld > 0 ? Math.round((totalAttended / totalHeld) * 100) : 100));
+          const isEligible = pct >= threshold;
+          htmlRows += `<tr>
+            <td>${idx + 1}</td>
+            <td>${escapeHtml(s.registerNo || s.trackId || String(s._id))}</td>
+            <td>${escapeHtml(s.fullName || '')}</td>
+            <td>${escapeHtml(s.deptName || s.department || 'General')} (${escapeHtml(s.year || '')} Year)</td>
+            <td>${pct}% (${totalAttended}/${totalHeld})</td>
+            <td><span class="badge ${isEligible ? 'badge-ok' : 'badge-warn'}">${isEligible ? 'Eligible' : 'Shortage'}</span></td>
+          </tr>`;
+        });
+      }
+
       const htmlDoc = `
 <!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8">
-  <title>EAMS Report - ${reportType}</title>
+  <title>Muster Report - ${escapeHtml(reportType)}</title>
   <style>
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; padding: 40px; color: #1e293b; }
     .hdr { border-bottom: 2px solid #16a34a; padding-bottom: 16px; margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center; }
@@ -700,8 +794,8 @@ router.get('/download/:trackId', authMiddleware, async (req, res) => {
 <body>
   <div class="hdr">
     <div>
-      <h1>EAMS Institutional Report</h1>
-      <div class="meta">Report: <strong>${reportType.toUpperCase()}</strong> · Export ID: <code>${history.exportTrackId}</code></div>
+      <h1>Muster Institutional Report</h1>
+      <div class="meta">Report: <strong>${escapeHtml(reportType.toUpperCase())}</strong> · Export ID: <code>${escapeHtml(history.exportTrackId)}</code></div>
     </div>
     <div style="text-align:right;">
       <div style="font-weight:bold;color:#15803d;">Sri Shakthi Institute of Engineering &amp; Technology</div>
@@ -709,49 +803,26 @@ router.get('/download/:trackId', authMiddleware, async (req, res) => {
     </div>
   </div>
 
-  <p>This official document was generated from the EAMS Academic Management Portal. Below is the record summary for this extraction.</p>
+  <p>This official document was generated from the Muster Academic Management Portal. Below is the record summary for this extraction.</p>
 
   <table>
     <thead>
       <tr>
         <th>#</th>
-        <th>Reference ID</th>
-        <th>Target Scope</th>
-        <th>Classification</th>
+        <th>Register / Ref No</th>
+        <th>Student / Target Name</th>
+        <th>Department &amp; Scope</th>
         <th>Attendance Record</th>
         <th>Status</th>
       </tr>
     </thead>
     <tbody>
-      <tr>
-        <td>1</td>
-        <td>${history.exportTrackId}-001</td>
-        <td>Department of Computer Science</td>
-        <td>Semester Core Subject</td>
-        <td>94.2% Overall Attendance</td>
-        <td><span class="badge badge-ok">Verified</span></td>
-      </tr>
-      <tr>
-        <td>2</td>
-        <td>${history.exportTrackId}-002</td>
-        <td>Department of Electronics</td>
-        <td>Laboratory Session</td>
-        <td>88.5% Lab Attendance</td>
-        <td><span class="badge badge-ok">Verified</span></td>
-      </tr>
-      <tr>
-        <td>3</td>
-        <td>${history.exportTrackId}-003</td>
-        <td>Department of Mechanical</td>
-        <td>Theory Core</td>
-        <td>72.4% Shortage Caution</td>
-        <td><span class="badge badge-warn">Review Required</span></td>
-      </tr>
+      ${htmlRows}
     </tbody>
   </table>
 
   <div class="footer">
-    EAMS System Document · Verified Cryptographic Audit Trail · Valid without physical signature
+    Muster System Document · Verified Cryptographic Audit Trail · Valid without physical signature
   </div>
   <script>
     if (window.location.search.includes('print=true')) {

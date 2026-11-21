@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const M = require('../models');
 
 const DAY_MAP = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -284,6 +285,34 @@ async function generateDailyClassSessions(targetDate = null, options = {}) {
   return { created, updated, skipped, date: dateStr };
 }
 
+let dayStartInterval = null;
+
+function startJob(intervalMs = 60 * 60 * 1000) {
+  if (dayStartInterval) return;
+  if (mongoose.connection && mongoose.connection.readyState === 1) {
+    generateDailyClassSessions().catch(err => {
+      console.warn('[Day Start Job Initial Run Error]:', err.message);
+    });
+  }
+  dayStartInterval = setInterval(() => {
+    if (mongoose.connection && mongoose.connection.readyState === 1) {
+      generateDailyClassSessions().catch(err => {
+        console.warn('[Day Start Job Periodic Error]:', err.message);
+      });
+    }
+  }, intervalMs);
+  if (dayStartInterval.unref) dayStartInterval.unref();
+}
+
+function stopJob() {
+  if (dayStartInterval) {
+    clearInterval(dayStartInterval);
+    dayStartInterval = null;
+  }
+}
+
 module.exports = {
-  generateDailyClassSessions
+  generateDailyClassSessions,
+  startJob,
+  stopJob
 };

@@ -134,7 +134,7 @@ async function handleBoardConnection(ws, req) {
   const query = parsedUrl.query || {};
   const ip = cleanIp(req);
   const ipType = detectIpType(ip);
-  const userAgent = req.headers['user-agent'] || 'EAMS-SmartBoard-Client';
+  const userAgent = req.headers['user-agent'] || 'Muster-SmartBoard-Client';
 
   // Fix F15: Reject raw board API keys passed in URL query parameters
   if (query.apiKey || query.key) {
@@ -656,55 +656,60 @@ async function pushContextToRoomBoards(roomId) {
 /**
  * Initialize WebSocket service attaching to Node HTTP Server
  */
-function initBoardSocket(httpServer) {
+function handleBoardUpgrade(req, socket, head) {
+  const pathname = url.parse(req.url).pathname;
+
+  if (pathname !== '/ws/board' && pathname !== '/ws/monitor') {
+    return;
+  }
+
+  // Enforce IP-level connection ceiling to prevent socket exhaustion DoS
+  const clientIp = cleanIp(req);
+  const activeIpCount = ipConnections.get(clientIp) || 0;
+  if (activeIpCount >= MAX_CONCURRENT_PER_IP) {
+    socket.write('HTTP/1.1 429 Too Many Requests\r\nConnection: close\r\n\r\n');
+    socket.destroy();
+    return;
+  }
+
+  ipConnections.set(clientIp, activeIpCount + 1);
+  socket.on('close', () => {
+    const cur = ipConnections.get(clientIp) || 1;
+    if (cur <= 1) ipConnections.delete(clientIp);
+    else ipConnections.set(clientIp, cur - 1);
+  });
+
+  if (pathname === '/ws/board') {
+    wssBoard.handleUpgrade(req, socket, head, (ws) => {
+      wssBoard.emit('connection', ws, req);
+    });
+  } else if (pathname === '/ws/monitor') {
+    wssMonitor.handleUpgrade(req, socket, head, (ws) => {
+      wssMonitor.emit('connection', ws, req);
+    });
+  }
+}
+
+function initBoardSocket(httpServer, opts = {}) {
   const MAX_PAYLOAD_BYTES = 64 * 1024; // KiB ceiling to prevent memory exhaustion DoS
   wssBoard = new WebSocketServer({ noServer: true, maxPayload: MAX_PAYLOAD_BYTES });
   wssMonitor = new WebSocketServer({ noServer: true, maxPayload: MAX_PAYLOAD_BYTES });
 
-  // Route incoming HTTP Upgrade requests based on URL pathname
-  httpServer.on('upgrade', (req, socket, head) => {
-    const pathname = url.parse(req.url).pathname;
-
-    if (pathname !== '/ws/board' && pathname !== '/ws/monitor') {
-      return;
-    }
-
-    // Enforce IP-level connection ceiling to prevent socket exhaustion DoS
-    const clientIp = cleanIp(req);
-    const activeIpCount = ipConnections.get(clientIp) || 0;
-    if (activeIpCount >= MAX_CONCURRENT_PER_IP) {
-      socket.write('HTTP/1.1 429 Too Many Requests\r\nConnection: close\r\n\r\n');
-      socket.destroy();
-      return;
-    }
-
-    ipConnections.set(clientIp, activeIpCount + 1);
-    socket.on('close', () => {
-      const cur = ipConnections.get(clientIp) || 1;
-      if (cur <= 1) ipConnections.delete(clientIp);
-      else ipConnections.set(clientIp, cur - 1);
+  if (opts.attachUpgrade !== false && httpServer) {
+    httpServer.on('upgrade', (req, socket, head) => {
+      handleBoardUpgrade(req, socket, head);
     });
-
-    if (pathname === '/ws/board') {
-      wssBoard.handleUpgrade(req, socket, head, (ws) => {
-        wssBoard.emit('connection', ws, req);
-      });
-    } else if (pathname === '/ws/monitor') {
-      wssMonitor.handleUpgrade(req, socket, head, (ws) => {
-        wssMonitor.emit('connection', ws, req);
-      });
-    }
-  });
+  }
 
   wssBoard.on('connection', (ws, req) => handleBoardConnection(ws, req));
   wssMonitor.on('connection', (ws, req) => handleMonitorConnection(ws, req));
 
   startStaleSweeper();
-  // WebSocket engine ready
 }
 
 module.exports = {
   initBoardSocket,
+  handleBoardUpgrade,
   generateBoardApiKey,
   issueWsTicket,
   consumeWsTicket,

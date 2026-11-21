@@ -1,5 +1,5 @@
 /**
- * EAMS Admin Guards and Privilege Verification Helpers
+ * Muster Admin Guards and Privilege Verification Helpers
  * Implements database-backed security invariants:
  * - Last-admin guard: prevents deleting, deactivating, or demoting the last active Sudo Admin.
  */

@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const M = require('../models');
+const TTBlocks = require('../utils/spanBlocks');
 const { DEFAULT_TIMINGS, timesOverlap, getSlotClockTimes } = require('./clashDetector');
 
 /**
@@ -43,15 +44,12 @@ class GlobalLedger {
       // Read from SectionTimetable
       const sectionTables = await M.SectionTimetable.find({ classId: { $in: otherClassIds } }).lean();
       for (const st of sectionTables) {
-        const slotsObj = st.slots || {};
-        Object.keys(slotsObj).forEach(day => {
-          const daySlots = slotsObj[day] || [];
-          daySlots.forEach(slot => {
-            if (slot && slot.period) {
-              this.commitSlot(slot, st.classId, st.batch || 'Other Batch', true);
-              loadedCount++;
-            }
-          });
+        // slots is keyed `${day}_${period}`, not by day. The old loop called forEach on each slot
+        // object, threw, and loaded nothing, so Autogen never saw other classes' timetables.
+        // One ledger entry per period, each one period long, so a lab blocks exactly its 3 periods.
+        TTBlocks.toCells(st.slots || {}).forEach(cell => {
+          this.commitSlot({ ...cell, span: 1 }, st.classId, st.batch || 'Other Batch', true);
+          loadedCount++;
         });
       }
 
@@ -63,11 +61,9 @@ class GlobalLedger {
 
       for (const t of publishedTemplates) {
         if (Array.isArray(t.grid)) {
-          t.grid.forEach(slot => {
-            if (slot && slot.day && slot.period) {
-              this.commitSlot(slot, t.classId, 'Published Template', true);
-              loadedCount++;
-            }
+          TTBlocks.toCells(t.grid).forEach(cell => {
+            this.commitSlot({ ...cell, span: 1 }, t.classId, 'Published Template', true);
+            loadedCount++;
           });
         }
       }
